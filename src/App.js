@@ -619,6 +619,12 @@ function GlobalStyles() {
       .bz-subitem.on{background:var(--bz-pink);color:#fff;}
       .bz-fin-card:hover{border-color:var(--bz-line-2)!important;transform:translateY(-2px);box-shadow:var(--bz-shadow);}
       .bz-mobile-menu{display:none;}
+      @media print {
+        body * { visibility: hidden !important; }
+        .pick-list-sheet, .pick-list-sheet * { visibility: visible !important; }
+        .pick-list-sheet { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; max-width: none !important; box-shadow: none !important; border-radius: 0 !important; padding: 12px 8px !important; margin: 0 !important; }
+        .pick-list-controls { display: none !important; }
+      }
       @media (max-width:900px){
         .bz-side{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform .25s ease;box-shadow:0 0 40px rgba(0,0,0,0.6);background:#140d11!important;z-index:60;}
         .bz-side.open{transform:translateX(0);}
@@ -6990,7 +6996,18 @@ function MMTrend({ streams=[], isAdmin, visibleBreakers=[] }) {
 function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
   const [metric, setMetric] = useState("gross");
   const [brand, setBrand] = useState("boba");
-  const streams2 = brand==="all" ? streams : streams.filter(s=>getStreamBrand(s)===brand);
+  const [period, setPeriod] = useState("all");
+  const now = new Date();
+  // Period filter
+  const inPeriod = s => {
+    if(!s.date) return false;
+    const d = parseLocalDate(s.date);
+    if(period==="month")   return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear();
+    if(period==="quarter") { const q=Math.floor(now.getMonth()/3); return Math.floor(d.getMonth()/3)===q && d.getFullYear()===now.getFullYear(); }
+    if(period==="year")    return d.getFullYear()===now.getFullYear();
+    return true;
+  };
+  const streams2 = (brand==="all" ? streams : streams.filter(s=>getStreamBrand(s)===brand)).filter(inPeriod);
   const DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
   const SESSION_TYPES = ["day","night","weekend","singles","event"];
   const fmt = v => "$"+Number(v||0).toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0});
@@ -7019,6 +7036,18 @@ function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
   }).filter(Boolean);
 
   const getVal = (row,m) => m==="gross"?row.gross:m==="mm"?row.mm:row.newBuyers;
+
+  // By breaker (admin sees all; a rep sees just their own)
+  const byBreaker = (visibleBreakers.length?visibleBreakers:[...new Set(streams2.map(s=>s.breaker).filter(Boolean))]).map(bk=>{
+    const ds=streams2.filter(s=>s.breaker===bk);
+    if(!ds.length) return {breaker:bk,streams:0,gross:0,mm:0,newBuyers:0};
+    const gross=ds.reduce((s,x)=>s+(parseFloat(x.grossRevenue)||0),0);
+    const mmList=ds.filter(x=>parseFloat(x.marketMultiple)>0);
+    const mm=mmList.length?mmList.reduce((s,x)=>s+(parseFloat(x.marketMultiple)||0),0)/mmList.length:0;
+    const newBuyers=ds.reduce((s,x)=>s+(parseInt(x.newBuyers)||0),0);
+    return {breaker:bk,streams:ds.length,gross:gross/ds.length,mm,newBuyers:newBuyers/ds.length,totalGross:gross};
+  }).filter(b=>b.streams>0).sort((a,b)=>getVal(b,metric)-getVal(a,metric));
+
   const maxDay = Math.max(...byDay.map(d=>getVal(d,metric)),1);
   const mmColor = v => v>=1.7?"#4ade80":v>=1.5?"#86efac":v>=1.4?"#FBBF24":"#E8317A";
 
@@ -7033,6 +7062,15 @@ function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
         {[["boba","🃏 BoBA"],["wotf","🐉 WotF"],["all","All"]].map(([id,l])=>(
           <button key={id} onClick={()=>setBrand(id)} style={{background:brand===id?"rgba(232,49,122,0.15)":"transparent",border:`1px solid ${brand===id?"#E8317A":"#333"}`,color:brand===id?"#E8317A":"#555",borderRadius:16,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
         ))}
+      </div>
+
+      {/* Period filter */}
+      <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+        <span style={{fontSize:12,color:"var(--bz-ink-3)"}}>Period:</span>
+        {[["month","This Month"],["quarter","This Quarter"],["year","This Year"],["all","All Time"]].map(([id,l])=>(
+          <button key={id} onClick={()=>setPeriod(id)} style={{background:period===id?"rgba(74,222,128,0.15)":"transparent",border:`1px solid ${period===id?"#4ade80":"#333"}`,color:period===id?"#4ade80":"#888",borderRadius:16,padding:"5px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+        ))}
+        <span style={{fontSize:11,color:"var(--bz-ink-3)",marginLeft:4}}>{streams2.length} streams</span>
       </div>
 
       {/* By day of week */}
@@ -7078,11 +7116,35 @@ function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
           })}
         </div>
       </div>
+
+      {/* By breaker */}
+      {byBreaker.length>0 && (
+        <div style={{background:"var(--bz-s1)",border:"1px solid var(--bz-line)",borderRadius:12,padding:"18px 20px"}}>
+          <div style={{fontSize:13,fontWeight:800,color:"var(--bz-ink)",marginBottom:14}}>Performance by Breaker</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {byBreaker.map(b=>{
+              const val=getVal(b,metric);
+              const maxB=Math.max(...byBreaker.map(x=>getVal(x,metric)),1);
+              const pct=maxB>0?val/maxB*100:0;
+              const col=metric==="mm"&&val?mmColor(val):"#7B9CFF";
+              return (
+                <div key={b.breaker} style={{display:"grid",gridTemplateColumns:"120px 1fr 100px 70px",gap:12,alignItems:"center"}}>
+                  <div style={{fontSize:12,fontWeight:700,color:"var(--bz-ink)"}}>{b.breaker}</div>
+                  <div style={{height:8,background:"#1a1a1a",borderRadius:4,overflow:"hidden"}}>
+                    <div style={{height:"100%",width:`${pct}%`,background:col,borderRadius:4}}/>
+                  </div>
+                  <div style={{fontSize:13,fontWeight:700,color:col,textAlign:"right"}}>{metric==="gross"?fmt(val):metric==="mm"?val?val.toFixed(2)+"x":"--":val?val.toFixed(1):"--"}</div>
+                  <div style={{fontSize:11,color:"var(--bz-ink-3)",textAlign:"right"}}>{b.streams} streams</div>
+                </div>
+              );
+            })}
+          </div>
+          {metric==="gross" && <div style={{fontSize:10,color:"var(--bz-ink-3)",marginTop:10}}>Bars show avg gross per stream. Total gross varies with volume.</div>}
+        </div>
+      )}
     </div>
   );
 }
-
-// ── BUYER FUNNEL ─────────────────────────────────────────────────────────────
 // ── BUYER RETENTION ──────────────────────────────────────────────────────────
 // ── CAMPAIGN TRACKER ─────────────────────────────────────────────────────────
 const CAMPAIGN_CODE = "FIRSTTIME25";
@@ -16062,8 +16124,13 @@ function athleteSport(name) {
   return ATHLETE_SPORT[name.trim()] || ATHLETE_SPORT[name] || null;
 }
 
-function BobaCardInner({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand }) {
+function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand, myScanPhoto }) {
   const wc = WEAPON_COLORS[canonWeapon(c.weapon)] || "#444";
+  // Image priority: official admin imageUrl → my own private scan photo → coming-soon placeholder.
+  // Foil/shine overlays only apply to the official art, not to a raw scan photo.
+  const _officialImg = c.imageUrl;
+  const _displayImg = _officialImg || myScanPhoto || null;
+  const _isScanImg = !_officialImg && !!myScanPhoto;
   const isFlipped = flippedCard === c.id;
   const [bioOpen, setBioOpen] = useState(false);
   const _canHover = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(hover: hover)").matches;
@@ -16282,32 +16349,22 @@ function BobaCardInner({ c, isOwned, ownedQty, flippedCard, setFlippedCard, togg
     </div>
   );
 
-  if (c.imageUrl) {
+  if (_displayImg) {
     return (
       <div className="boba-card-hover" style={{ aspectRatio:"3/4", perspective:"1000px" }} onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter} onPointerLeave={onMouseLeave} onPointerCancel={onMouseLeave} onTouchEnd={onMouseLeave}>
         <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transition:"transform 0.2s ease, box-shadow 0.2s ease", borderRadius:10, cursor:"pointer", willChange:"transform" }} onClick={handleClick}>
          <div className="boba-flipper" style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.55s cubic-bezier(0.34,1.3,0.5,1)", transform:isFlipped?"rotateY(180deg)":"rotateY(0deg)", willChange:"transform" }}>
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
-            <img src={c.imageUrl} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
-            {isFoilTreatment && !isIceFoil && <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", backgroundPosition:"var(--foilpos,50% 50%)", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>}
-            {isIceFoil && <div ref={iceRef} style={{ position:"absolute", inset:0, borderRadius:10, backgroundImage:_iceBase(0.5,0.4), mixBlendMode:"screen", opacity:0.7, transition:"opacity 0.2s ease", pointerEvents:"none", zIndex:3 }}/>}
+            <img src={_displayImg} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
+            {_isScanImg && <div style={{ position:"absolute", top:6, left:6, zIndex:4, background:"rgba(0,0,0,0.7)", border:"1px solid rgba(74,222,128,0.5)", color:"#4ade80", borderRadius:6, padding:"2px 7px", fontSize:9, fontWeight:800, letterSpacing:0.5, backdropFilter:"blur(3px)" }}>📸 Your scan</div>}
+            {!_isScanImg && isFoilTreatment && !isIceFoil && <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", backgroundPosition:"var(--foilpos,50% 50%)", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>}
+            {!_isScanImg && isIceFoil && <div ref={iceRef} style={{ position:"absolute", inset:0, borderRadius:10, backgroundImage:_iceBase(0.5,0.4), mixBlendMode:"screen", opacity:0.7, transition:"opacity 0.2s ease", pointerEvents:"none", zIndex:3 }}/>}
             <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.22) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
-            {isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
+            {!_isScanImg && isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
             {isMetallicFoil && <div ref={metallicRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.08s ease", pointerEvents:"none", zIndex:3 }}/>}
             {!onExpand && <div className="boba-flip-pill" style={{ position:"absolute", bottom:6, right:6, display:"flex", alignItems:"center", gap:3, fontSize:10, color:"#fff", fontWeight:700, background:"rgba(0,0,0,0.6)", borderRadius:12, padding:"3px 8px", backdropFilter:"blur(4px)", border:"1px solid rgba(255,255,255,0.15)", pointerEvents:"none" }}>{"\uD83D\uDD04"} flip</div>}
             {toggleOwned && (
-              isOwned ? (
-                <button className="boba-quickadd" onClick={e=>{ e.stopPropagation(); setOwnedQty&&setOwnedQty(c.id,(ownedQty||1)+1); onCardActivity&&onCardActivity(); }}
-                  title={`Owned${(ownedQty||1)>1?` ×${ownedQty}`:""} — tap to add another copy`}
-                  style={{ position:"absolute", top:7, right:7, zIndex:6, cursor:"pointer",
-                    width:isSmallCard?22:26, height:isSmallCard?22:26, borderRadius:"50%",
-                    display:"flex", alignItems:"center", justifyContent:"center",
-                    background:"rgba(74,222,128,0.95)", color:"#062b13", border:"none",
-                    fontSize:isSmallCard?10:11, fontWeight:900, fontFamily:"inherit",
-                    boxShadow:"0 2px 6px rgba(0,0,0,0.5)", lineHeight:1 }}>
-                  {(ownedQty||1)>1?ownedQty:"✓"}
-                </button>
-              ) : (
+              isOwned ? null : (
                 <button className="boba-quickadd" onClick={e=>{ e.stopPropagation(); toggleOwned(c.id); onCardActivity&&onCardActivity(); }}
                   title="Add to your collection"
                   style={{ position:"absolute", top:7, right:7, zIndex:6, cursor:"pointer",
@@ -16434,28 +16491,6 @@ function BobaCardInner({ c, isOwned, ownedQty, flippedCard, setFlippedCard, togg
     </div>
   );
 }
-
-// PERF: cards are heavy (mouse-driven foil effects, 3D transforms, refs). Without memo, EVERY
-// card re-renders whenever the parent re-renders (every keystroke in search, every filter click,
-// every owned-toggle) — which is what makes a 500+ card collection feel laggy. Memoize so a card
-// only re-renders when its own data actually changes. Function props (toggleOwned, etc.) are
-// recreated each parent render but behave identically, so we deliberately ignore their identity.
-const BobaCard = React.memo(BobaCardInner, (prev, next) => {
-  if (prev.c !== next.c) return false;
-  if (prev.isOwned !== next.isOwned) return false;
-  if (prev.ownedQty !== next.ownedQty) return false;
-  if (prev.lotCount !== next.lotCount) return false;
-  if (prev.isAdmin !== next.isAdmin) return false;
-  // Only the flipped card itself cares about flippedCard changing.
-  const wasFlipped = prev.flippedCard === prev.c?.id;
-  const isFlipped  = next.flippedCard === next.c?.id;
-  if (wasFlipped !== isFlipped) return false;
-  // Only re-render if THIS card's want status changed.
-  const prevWant = !!prev.wantList?.[prev.c?.id];
-  const nextWant = !!next.wantList?.[next.c?.id];
-  if (prevWant !== nextWant) return false;
-  return true; // otherwise skip the re-render
-});
 
 const PLAYER_NOTES = {
   // AUTOGRAPHS
@@ -17113,6 +17148,282 @@ function BroadcasterNotes({ cards=[] }) {
 
 // ── COMPANY DIRECTORY ────────────────────────────────────────────────────────
 const DIR_GROUPS = ["Bazooka Breaks","IMC / BoBA","Vendor","Other"];
+
+function SupplyLinks({ user, userRole }) {
+  const isAdmin = ["Admin"].includes(userRole?.role);
+  const [links,   setLinks]   = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [name,    setName]    = useState("");
+  const [url,     setUrl]     = useState("");
+  const [category,setCategory]= useState("Boxes");
+  const [note,    setNote]    = useState("");
+  const [saving,  setSaving]  = useState(false);
+  const [filter,  setFilter]  = useState("All");
+
+  const CATEGORIES = ["Boxes","Mailers","Supplies","Toploaders/Sleeves","Shipping","Other"];
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db,"supply_links"), snap => {
+      setLinks(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")));
+      setLoading(false);
+    });
+    return ()=>unsub();
+  }, []);
+
+  async function addLink() {
+    if(!name.trim()||!url.trim()||saving) return;
+    let cleanUrl=url.trim();
+    if(!/^https?:\/\//i.test(cleanUrl)) cleanUrl="https://"+cleanUrl;
+    setSaving(true);
+    try {
+      const id=uid();
+      await setDoc(doc(db,"supply_links",id),{
+        id, name:name.trim(), url:cleanUrl, category, note:note.trim(),
+        addedBy:user?.displayName||user?.email||"Someone", addedByUid:user?.uid||"",
+        createdAt:new Date().toISOString(),
+      });
+      setName(""); setUrl(""); setNote(""); setCategory("Boxes");
+    } catch(e){ console.error("add supply link failed:",e); }
+    setSaving(false);
+  }
+  async function removeLink(l) {
+    if(!(isAdmin || l.addedByUid===user?.uid)) return;
+    if(!window.confirm(`Remove "${l.name}"?`)) return;
+    try { await deleteDoc(doc(db,"supply_links",l.id)); } catch(e){ console.error(e); }
+  }
+
+  const shown = filter==="All" ? links : links.filter(l=>l.category===filter);
+  const catColor = { Boxes:"#E8317A", Mailers:"#7B9CFF", Supplies:"#4ade80", "Toploaders/Sleeves":"#FBBF24", Shipping:"#C084FC", Other:"#888" };
+
+  return (
+    <div style={{ maxWidth:900, margin:"0 auto" }}>
+      <div style={{ marginBottom:6, fontSize:22, fontWeight:900, color:"var(--bz-ink)" }}>🔗 Supply Links</div>
+      <div style={{ fontSize:13, color:"var(--bz-ink-2)", marginBottom:20 }}>Shared links to boxes, mailers, and supplies. Anyone on the team can add one — paste a link, name it, and it's here for everyone.</div>
+
+      {/* Add form */}
+      <div style={{ background:"var(--bz-s1)", border:"1px solid var(--bz-line)", borderRadius:12, padding:16, marginBottom:20 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+          <input value={name} onChange={e=>setName(e.target.value)} placeholder="Item name (e.g. Bubble Mailers 6x9)" style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line)", borderRadius:8, padding:"10px 12px", fontSize:13, color:"var(--bz-ink)", fontFamily:"inherit" }}/>
+          <select value={category} onChange={e=>setCategory(e.target.value)} style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line)", borderRadius:8, padding:"10px 12px", fontSize:13, color:"var(--bz-ink)", fontFamily:"inherit" }}>
+            {CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+        <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="Paste the link (Amazon, Uline, etc.)" style={{ width:"100%", background:"var(--bz-s2)", border:"1px solid var(--bz-line)", borderRadius:8, padding:"10px 12px", fontSize:13, color:"var(--bz-ink)", fontFamily:"inherit", marginBottom:10, boxSizing:"border-box" }}/>
+        <div style={{ display:"flex", gap:10 }}>
+          <input value={note} onChange={e=>setNote(e.target.value)} placeholder="Optional note (size, price, qty per pack…)" style={{ flex:1, background:"var(--bz-s2)", border:"1px solid var(--bz-line)", borderRadius:8, padding:"10px 12px", fontSize:13, color:"var(--bz-ink)", fontFamily:"inherit" }}/>
+          <button onClick={addLink} disabled={!name.trim()||!url.trim()||saving} style={{ background:(name.trim()&&url.trim())?"linear-gradient(135deg,var(--bz-pink),var(--bz-violet))":"var(--bz-s2)", color:(name.trim()&&url.trim())?"#fff":"var(--bz-ink-3)", border:"none", borderRadius:8, padding:"10px 24px", fontSize:13, fontWeight:800, cursor:(name.trim()&&url.trim())?"pointer":"not-allowed", fontFamily:"inherit", whiteSpace:"nowrap" }}>{saving?"Adding…":"Add Link"}</button>
+        </div>
+      </div>
+
+      {/* Filter */}
+      <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
+        {["All",...CATEGORIES].map(c=>(
+          <button key={c} onClick={()=>setFilter(c)} style={{ background:filter===c?"var(--bz-pink-dim)":"transparent", color:filter===c?"var(--bz-pink-hot)":"var(--bz-ink-2)", border:`1px solid ${filter===c?"var(--bz-pink-hot)":"var(--bz-line)"}`, borderRadius:20, padding:"5px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{c}</button>
+        ))}
+      </div>
+
+      {/* List */}
+      {loading ? <div style={{ color:"var(--bz-ink-3)", textAlign:"center", padding:30 }}>Loading…</div> :
+        shown.length===0 ? <div style={{ color:"var(--bz-ink-3)", textAlign:"center", padding:30 }}>No links yet{filter!=="All"?` in ${filter}`:""}. Add the first one above.</div> :
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {shown.map(l=>(
+            <div key={l.id} style={{ background:"var(--bz-s1)", border:"1px solid var(--bz-line)", borderRadius:10, padding:"12px 14px", display:"flex", alignItems:"center", gap:12 }}>
+              <span style={{ fontSize:9, fontWeight:800, color:catColor[l.category]||"#888", background:`${catColor[l.category]||"#888"}18`, border:`1px solid ${catColor[l.category]||"#888"}33`, borderRadius:6, padding:"3px 8px", textTransform:"uppercase", letterSpacing:0.5, whiteSpace:"nowrap" }}>{l.category}</span>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:14, fontWeight:700, color:"var(--bz-ink)" }}>{l.name}</div>
+                {l.note && <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginTop:2 }}>{l.note}</div>}
+                <div style={{ fontSize:10, color:"var(--bz-ink-3)", marginTop:2 }}>Added by {(l.addedBy||"").split(" ")[0]}</div>
+              </div>
+              <a href={l.url} target="_blank" rel="noopener noreferrer" style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line)", color:"var(--bz-pink-hot)", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:800, textDecoration:"none", whiteSpace:"nowrap" }}>Open ↗</a>
+              {(isAdmin||l.addedByUid===user?.uid) && <button onClick={()=>removeLink(l)} title="Remove" style={{ background:"transparent", border:"none", color:"var(--bz-ink-3)", cursor:"pointer", fontSize:16 }}>×</button>}
+            </div>
+          ))}
+        </div>
+      }
+    </div>
+  );
+}
+
+function InternalMessages({ user, userRole }) {
+  const [people,    setPeople]    = useState([]);   // team members (from directory + message history)
+  const [threads,   setThreads]   = useState([]);   // threads I'm part of
+  const [activeId,  setActiveId]  = useState(null);
+  const [messages,  setMessages]  = useState([]);
+  const [draft,     setDraft]     = useState("");
+  const [showNew,   setShowNew]   = useState(false);
+  const [newRecipients, setNewRecipients] = useState([]);
+  const [newGroupName,  setNewGroupName]  = useState("");
+  const meUid = user?.uid;
+  const meName = user?.displayName || user?.email || "Me";
+
+  // Load team members — STAFF ONLY. The internal dashboard is gated to @bazookabreaks.com,
+  // so internal messages must be too. Emails live on boba_profiles, so we read from there.
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db,"boba_profiles"), snap => {
+      const staff = snap.docs.map(d=>({uid:d.id,...d.data()}))
+        .filter(p => p.uid!==meUid && (p.email||"").toLowerCase().endsWith("@bazookabreaks.com"));
+      setPeople(staff);
+    });
+    return ()=>unsub();
+  }, [meUid]);
+
+  // Load threads I'm a participant in
+  useEffect(() => {
+    if(!meUid) return;
+    const unsub = onSnapshot(query(collection(db,"dm_threads"), where("participantUids","array-contains",meUid)),
+      snap => setThreads(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.lastAt||"").localeCompare(a.lastAt||"")))
+    );
+    return ()=>unsub();
+  }, [meUid]);
+
+  // Load messages for the active thread
+  useEffect(() => {
+    if(!activeId) { setMessages([]); return; }
+    const unsub = onSnapshot(query(collection(db,"dm_messages"), where("threadId","==",activeId)),
+      snap => setMessages(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.sentAt||"").localeCompare(b.sentAt||"")))
+    );
+    return ()=>unsub();
+  }, [activeId]);
+
+  const activeThread = threads.find(t=>t.id===activeId);
+
+  function threadTitle(t) {
+    if(t.name) return t.name;
+    const others=(t.participants||[]).filter(p=>p.uid!==meUid);
+    return others.map(p=>(p.name||"").split(" ")[0]).join(", ")||"Conversation";
+  }
+
+  async function startThread() {
+    if(newRecipients.length===0) return;
+    const isGroup=newRecipients.length>1;
+    // For 1:1, reuse an existing thread if one exists
+    if(!isGroup){
+      const other=newRecipients[0];
+      const existing=threads.find(t=>!t.name && (t.participantUids||[]).length===2 && (t.participantUids||[]).includes(other.uid));
+      if(existing){ setActiveId(existing.id); setShowNew(false); setNewRecipients([]); return; }
+    }
+    const id=uid();
+    const participants=[{uid:meUid,name:meName},...newRecipients.map(r=>({uid:r.uid,name:r.name||r.displayName||r.email||"Member"}))];
+    await setDoc(doc(db,"dm_threads",id),{
+      id, name:isGroup?(newGroupName.trim()||"Group Chat"):"",
+      participants, participantUids:participants.map(p=>p.uid),
+      createdBy:meUid, createdAt:new Date().toISOString(), lastAt:new Date().toISOString(), lastText:"",
+    });
+    setActiveId(id); setShowNew(false); setNewRecipients([]); setNewGroupName("");
+  }
+
+  async function send() {
+    if(!draft.trim()||!activeThread) return;
+    const text=draft.trim();
+    setDraft("");
+    const mid=uid();
+    const now=new Date().toISOString();
+    try {
+      await setDoc(doc(db,"dm_messages",mid),{
+        id:mid, threadId:activeId, text,
+        fromUid:meUid, fromName:meName,
+        participantUids:activeThread.participantUids||[],
+        sentAt:now,
+      });
+      await setDoc(doc(db,"dm_threads",activeId),{ lastAt:now, lastText:text.slice(0,80) },{merge:true});
+    } catch(e){ console.error("send failed:",e); setDraft(text); }
+  }
+
+  function toggleRecipient(p) {
+    setNewRecipients(prev => prev.some(r=>r.uid===p.uid) ? prev.filter(r=>r.uid!==p.uid) : [...prev,p]);
+  }
+
+  return (
+    <div style={{ maxWidth:1000, margin:"0 auto" }}>
+      <div style={{ marginBottom:6, fontSize:22, fontWeight:900, color:"var(--bz-ink)" }}>💬 Messages</div>
+      <div style={{ fontSize:13, color:"var(--bz-ink-2)", marginBottom:16 }}>Private and group messages with the team. Direct messages are between you and one person; group chats include everyone you add.</div>
+
+      <div style={{ display:"flex", gap:14, height:520, border:"1px solid var(--bz-line)", borderRadius:14, overflow:"hidden", background:"var(--bz-s1)" }}>
+        {/* Thread list */}
+        <div style={{ width:280, borderRight:"1px solid var(--bz-line)", display:"flex", flexDirection:"column" }}>
+          <div style={{ padding:12, borderBottom:"1px solid var(--bz-line)" }}>
+            <button onClick={()=>{ setShowNew(true); setActiveId(null); }} style={{ width:"100%", background:"linear-gradient(135deg,var(--bz-pink),var(--bz-violet))", color:"#fff", border:"none", borderRadius:8, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>+ New Message</button>
+          </div>
+          <div style={{ flex:1, overflowY:"auto" }}>
+            {threads.length===0 ? <div style={{ padding:20, textAlign:"center", color:"var(--bz-ink-3)", fontSize:12 }}>No conversations yet.</div> :
+              threads.map(t=>(
+                <div key={t.id} onClick={()=>{ setActiveId(t.id); setShowNew(false); }} style={{ padding:"12px 14px", cursor:"pointer", borderBottom:"1px solid var(--bz-line)", background:activeId===t.id?"var(--bz-pink-dim)":"transparent" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <span style={{ fontSize:13 }}>{t.name?"👥":"👤"}</span>
+                    <span style={{ fontSize:13, fontWeight:700, color:"var(--bz-ink)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{threadTitle(t)}</span>
+                  </div>
+                  {t.lastText && <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginTop:3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.lastText}</div>}
+                </div>
+              ))
+            }
+          </div>
+        </div>
+
+        {/* Main pane */}
+        <div style={{ flex:1, display:"flex", flexDirection:"column" }}>
+          {showNew ? (
+            <div style={{ padding:20, overflowY:"auto" }}>
+              <div style={{ fontSize:15, fontWeight:800, color:"var(--bz-ink)", marginBottom:12 }}>New Message</div>
+              <div style={{ fontSize:12, color:"var(--bz-ink-2)", marginBottom:8 }}>Pick who to message (select more than one for a group):</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:6, marginBottom:14, maxHeight:220, overflowY:"auto" }}>
+                {people.length===0 ? <div style={{ color:"var(--bz-ink-3)", fontSize:12 }}>No other team members found yet.</div> :
+                  people.map(p=>{
+                    const sel=newRecipients.some(r=>r.uid===p.uid);
+                    const nm=p.displayName||p.name||p.email||"Member";
+                    return (
+                      <div key={p.uid} onClick={()=>toggleRecipient({uid:p.uid,name:nm})} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", borderRadius:8, cursor:"pointer", background:sel?"var(--bz-pink-dim)":"var(--bz-s2)", border:`1px solid ${sel?"var(--bz-pink-hot)":"var(--bz-line)"}` }}>
+                        <span style={{ width:24, height:24, borderRadius:"50%", background:"linear-gradient(135deg,var(--bz-pink),var(--bz-violet))", display:"grid", placeItems:"center", fontSize:11, fontWeight:800, color:"#fff" }}>{nm.charAt(0)}</span>
+                        <span style={{ fontSize:13, color:"var(--bz-ink)", fontWeight:sel?700:400 }}>{nm}</span>
+                        {sel && <span style={{ marginLeft:"auto", color:"var(--bz-pink-hot)", fontWeight:800 }}>✓</span>}
+                      </div>
+                    );
+                  })
+                }
+              </div>
+              {newRecipients.length>1 && (
+                <input value={newGroupName} onChange={e=>setNewGroupName(e.target.value)} placeholder="Group name (optional)" style={{ width:"100%", background:"var(--bz-s2)", border:"1px solid var(--bz-line)", borderRadius:8, padding:"10px 12px", fontSize:13, color:"var(--bz-ink)", fontFamily:"inherit", marginBottom:12, boxSizing:"border-box" }}/>
+              )}
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={startThread} disabled={newRecipients.length===0} style={{ background:newRecipients.length?"linear-gradient(135deg,var(--bz-pink),var(--bz-violet))":"var(--bz-s2)", color:newRecipients.length?"#fff":"var(--bz-ink-3)", border:"none", borderRadius:8, padding:"10px 24px", fontSize:13, fontWeight:800, cursor:newRecipients.length?"pointer":"not-allowed", fontFamily:"inherit" }}>Start</button>
+                <button onClick={()=>{ setShowNew(false); setNewRecipients([]); }} style={{ background:"transparent", border:"1px solid var(--bz-line)", color:"var(--bz-ink-2)", borderRadius:8, padding:"10px 20px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+              </div>
+            </div>
+          ) : activeThread ? (
+            <>
+              <div style={{ padding:"14px 18px", borderBottom:"1px solid var(--bz-line)", display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ fontSize:15 }}>{activeThread.name?"👥":"👤"}</span>
+                <span style={{ fontSize:15, fontWeight:800, color:"var(--bz-ink)" }}>{threadTitle(activeThread)}</span>
+                {activeThread.name && <span style={{ fontSize:11, color:"var(--bz-ink-3)" }}>· {(activeThread.participants||[]).length} members</span>}
+              </div>
+              <div style={{ flex:1, overflowY:"auto", padding:18, display:"flex", flexDirection:"column", gap:10 }}>
+                {messages.length===0 ? <div style={{ color:"var(--bz-ink-3)", fontSize:12, textAlign:"center", margin:"auto" }}>No messages yet. Say hi 👋</div> :
+                  messages.map(m=>{
+                    const mine=m.fromUid===meUid;
+                    return (
+                      <div key={m.id} style={{ alignSelf:mine?"flex-end":"flex-start", maxWidth:"75%" }}>
+                        {!mine && activeThread.name && <div style={{ fontSize:10, color:"var(--bz-ink-3)", marginBottom:2, marginLeft:4 }}>{(m.fromName||"").split(" ")[0]}</div>}
+                        <div style={{ background:mine?"linear-gradient(135deg,var(--bz-pink),var(--bz-violet))":"var(--bz-s2)", color:mine?"#fff":"var(--bz-ink)", borderRadius:14, padding:"9px 14px", fontSize:13, lineHeight:1.4, wordBreak:"break-word" }}>{m.text}</div>
+                        <div style={{ fontSize:9, color:"var(--bz-ink-3)", marginTop:2, textAlign:mine?"right":"left", padding:"0 4px" }}>{m.sentAt?new Date(m.sentAt).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):""}</div>
+                      </div>
+                    );
+                  })
+                }
+              </div>
+              <div style={{ padding:12, borderTop:"1px solid var(--bz-line)", display:"flex", gap:8 }}>
+                <input value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); send(); } }} placeholder="Type a message…" style={{ flex:1, background:"var(--bz-s2)", border:"1px solid var(--bz-line)", borderRadius:10, padding:"11px 14px", fontSize:13, color:"var(--bz-ink)", fontFamily:"inherit" }}/>
+                <button onClick={send} disabled={!draft.trim()} style={{ background:draft.trim()?"linear-gradient(135deg,var(--bz-pink),var(--bz-violet))":"var(--bz-s2)", color:draft.trim()?"#fff":"var(--bz-ink-3)", border:"none", borderRadius:10, padding:"0 22px", fontSize:14, fontWeight:800, cursor:draft.trim()?"pointer":"not-allowed", fontFamily:"inherit" }}>Send</button>
+              </div>
+            </>
+          ) : (
+            <div style={{ flex:1, display:"grid", placeItems:"center", color:"var(--bz-ink-3)", fontSize:13, textAlign:"center", padding:20 }}>
+              <div>Select a conversation, or start a new one.<br/><span style={{ fontSize:11 }}>Direct messages and group chats live here.</span></div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function CompanyDirectory({ userRole }) {
   const isAdmin = ["Admin"].includes(userRole?.role);
@@ -20288,9 +20599,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
   const weapons    = [...new Set(cards.filter(c=>!filterSet||c.setName===filterSet).map(c=>c.weapon).filter(Boolean))].sort();
   const notations  = [...new Set(cards.filter(c=>!filterSet||c.setName===filterSet).map(c=>c.notation).filter(Boolean))].sort();
 
-  // PERF: memoized — re-filtering/sorting the whole card DB on every render (every keystroke,
-  // every toggle) is a major source of lag with large collections.
-  const filtered = useMemo(() => cards.filter(c => {
+  const filtered = cards.filter(c => {
     if(filterSet && c.setName !== filterSet) return false;
     if(search && !`${c.cardNum} ${c.hero} ${c.variation} ${c.athlete}`.toLowerCase().includes(search.toLowerCase())) return false;
     if(filterTreat && c.treatment !== filterTreat) return false;
@@ -20311,7 +20620,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
     if(sortBy==="weapon")     return (a.weapon||"").localeCompare(b.weapon||"");
     if(sortBy==="owned")      return (owned[b.id]?1:0)-(owned[a.id]?1:0);
     return 0;
-  }), [cards, filterSet, search, filterTreat, filterWeapon, filterNote, filterOwned, filterPower, sortBy, owned]);
+  });
 
   const totalOwned = Object.keys(owned).length; // unique cards
   const totalCollection = Object.values(owned).reduce((s,q)=>s+(q||0),0); // total copies
@@ -20449,11 +20758,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         {isComplete?"\uD83C\uDF08 ":""}{imp.setName}
                       </span>
                       <div style={{ flex:1, height:4, background:"#1a1a1a", borderRadius:2, overflow:"hidden" }}>
-                        <div style={{ width:`${setPct}%`, height:"100%", borderRadius:2, transition:"width 0.3s",
-                          background: isComplete
-                            ? "linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6)"
-                            : "linear-gradient(90deg,#E8317A,#7B2FF7)"
-                        }}/>
+                        <div className="bz-rainbow-fill" style={{ width:`${setPct}%`, height:"100%", borderRadius:2, transition:"width 0.3s" }}/>
                       </div>
                       <span style={{ fontSize:10, color:isComplete?"#4ade80":setPct>0?"#FBBF24":"#333", minWidth:80, textAlign:"right", flexShrink:0 }}>
                         {setOwned}/{setCards.length} · {setPct}%
@@ -20915,7 +21220,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                   </div>
                 </div>
                 <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden", marginBottom:14 }}>
-                  <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#F97316,#FBBF24,#4ade80)", transition:"width .3s" }}/>
+                  <div className="bz-rainbow-fill" style={{ width:`${pct}%`, height:"100%", transition:"width .3s" }}/>
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))", gap:8 }}>
                   {inSet.map(r => (
@@ -21097,11 +21402,8 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         )}
                         {/* Rainbow progress bar */}
                         <div style={{ height:6, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
-                          <div style={{
-                            width:`${pct}%`, height:"100%", borderRadius:3, transition:"width 0.3s",
-                            background: complete
-                              ? "linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6,#EF4444,#F97316)"
-                              : pct > 50 ? "linear-gradient(90deg,#E8317A,#7B2FF7)" : "#E8317A"
+                          <div className="bz-rainbow-fill" style={{
+                            width:`${pct}%`, height:"100%", borderRadius:3, transition:"width 0.3s"
                           }}/>
                         </div>
                       </div>
@@ -21195,9 +21497,8 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         </div>
                       </div>
                       <div style={{ height:6, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
-                        <div style={{
-                          width:`${pct}%`, height:"100%", borderRadius:3, transition:"width 0.3s",
-                          background: "linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6,#EF4444,#F97316)"
+                        <div className="bz-rainbow-fill" style={{
+                          width:`${pct}%`, height:"100%", borderRadius:3, transition:"width 0.3s"
                         }}/>
                       </div>
                     </div>
@@ -21854,7 +22155,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                   <div key={t} style={{ display:"flex", alignItems:"center", gap:8 }}>
                     <span style={{ fontSize:11, color:p===100?"#4ade80":"var(--bz-ink-2)", minWidth:200, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p===100?"\uD83C\uDF08 ":""}{t}</span>
                     <div style={{ flex:1, height:5, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
-                      <div style={{ width:`${p}%`, height:"100%", borderRadius:3, background:p===100?"linear-gradient(90deg,#F97316,#FBBF24,#4ade80,#60A5FA,#A855F7,#F472B6)":p>50?"#4ade80":"linear-gradient(90deg,#E8317A,#7B2FF7)" }}/>
+                      <div className="bz-rainbow-fill" style={{ width:`${p}%`, height:"100%", borderRadius:3 }}/>
                     </div>
                     <span style={{ fontSize:11, fontWeight:700, color:p===100?"#4ade80":p>0?"#FBBF24":"#555", minWidth:80, textAlign:"right" }}>{o}/{total} ({p}%)</span>
                     {missing > 0 && <span style={{ fontSize:10, color:"#E8317A", minWidth:60, textAlign:"right" }}>-{missing}</span>}
@@ -22685,6 +22986,12 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
             {viewMode === "cards" && (loading ? (
         <div>
           <style>{`
+            @keyframes bzRainbowSlide { 0%{background-position:0% 50%} 100%{background-position:200% 50%} }
+            .bz-rainbow-fill {
+              background: linear-gradient(90deg,#EF4444,#F97316,#FBBF24,#4ade80,#22D3EE,#60A5FA,#A855F7,#F472B6,#EF4444);
+              background-size: 200% 100%;
+              animation: bzRainbowSlide 3s linear infinite;
+            }
             @keyframes skeletonShimmer {
               0% { background-position: -400px 0; }
               100% { background-position: 400px 0; }
@@ -23294,9 +23601,55 @@ function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, a
   );
 }
 
-function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTeamName, inviteEmail, setInviteEmail, inviteStatus, setInviteStatus, teamInvites, moveTeamMember, deleteTeam, respondTeamInvite, createTeam, WEAPON_COLORS, setSigningIn, cards, owned , friendOwned, inp, inviteToTeam}) {
-  // PERF: one id->card index, reused for every member lookup (see notes below).
-  const teamCardById = useMemo(() => { const m=new Map(); (cards||[]).forEach(c=>m.set(c.id,c)); return m; }, [cards]);
+function LendForm({ members, myCards, onLend, inp, WEAPON_COLORS }) {
+  const [borrowerUid, setBorrowerUid] = useState("");
+  const [cardSearch, setCardSearch] = useState("");
+  const [pickedCard, setPickedCard] = useState(null);
+  const matches = cardSearch.trim()
+    ? myCards.filter(c=>`${c.hero} ${c.cardNum} ${c.treatment} ${c.power}`.toLowerCase().includes(cardSearch.toLowerCase())).slice(0,6)
+    : [];
+  const borrower = members.find(m=>m.uid===borrowerUid);
+  function submit() {
+    if(!borrower||!pickedCard) return;
+    onLend(borrower, pickedCard);
+    setBorrowerUid(""); setCardSearch(""); setPickedCard(null);
+  }
+  return (
+    <div style={{background:"rgba(123,156,255,0.05)",border:"1px solid rgba(123,156,255,0.2)",borderRadius:12,padding:12}}>
+      <div style={{fontSize:11,fontWeight:700,color:"#7B9CFF",marginBottom:8}}>Lend one of your cards</div>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"flex-start"}}>
+        <select value={borrowerUid} onChange={e=>setBorrowerUid(e.target.value)} style={{...inp,fontSize:12,padding:"7px 9px",flex:"1 1 140px"}}>
+          <option value="">Lend to…</option>
+          {members.map(m=><option key={m.uid} value={m.uid}>{m.displayName}</option>)}
+        </select>
+        <div style={{flex:"2 1 220px",position:"relative"}}>
+          {pickedCard?(
+            <div style={{display:"flex",alignItems:"center",gap:8,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 10px"}}>
+              <span style={{fontSize:12,fontWeight:700,color:"#fff",flex:1}}>{pickedCard.hero} {pickedCard.power}⚡ {pickedCard.treatment||""}</span>
+              <button onClick={()=>{setPickedCard(null);setCardSearch("");}} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.4)",cursor:"pointer",fontSize:14}}>×</button>
+            </div>
+          ):(
+            <>
+              <input value={cardSearch} onChange={e=>setCardSearch(e.target.value)} placeholder="Search your card…" style={{...inp,fontSize:12,padding:"7px 9px",width:"100%"}}/>
+              {matches.length>0&&(
+                <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:5,background:"#16161f",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,marginTop:3,maxHeight:180,overflowY:"auto"}}>
+                  {matches.map(c=>{const wc=WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";return (
+                    <div key={c.id} onClick={()=>{setPickedCard(c);setCardSearch("");}} style={{padding:"7px 10px",fontSize:12,cursor:"pointer",borderBottom:"1px solid rgba(255,255,255,0.04)",color:"#ddd"}}>
+                      <span style={{color:wc,fontWeight:700}}>{c.hero}</span> {c.power}⚡ · {c.treatment||"—"} {c.cardNum?`· #${c.cardNum}`:""}
+                    </div>
+                  );})}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+        <button onClick={submit} disabled={!borrower||!pickedCard} style={{background:borrower&&pickedCard?"linear-gradient(135deg,#7B9CFF,#7B2FF7)":"rgba(255,255,255,0.05)",color:borrower&&pickedCard?"#fff":"rgba(255,255,255,0.3)",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:borrower&&pickedCard?"pointer":"not-allowed",fontFamily:"inherit",flexShrink:0}}>Log Loan</button>
+      </div>
+    </div>
+  );
+}
+
+function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTeamName, inviteEmail, setInviteEmail, inviteStatus, setInviteStatus, teamInvites, moveTeamMember, deleteTeam, respondTeamInvite, createTeam, WEAPON_COLORS, setSigningIn, cards, owned, inp, inviteToTeam, teamDecks, savedDecks, submitDeckToTeam, withdrawTeamDeck, swapOffers, offerSwap, dismissSwapOffer, teamLoans, lendCard, markLoanReturned, deleteLoan }) {
   return (
           <div style={{maxWidth:960,margin:"0 auto"}}>
             {!user?(
@@ -23329,45 +23682,64 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
                   </div>
                 )}
 
-                {activeTeam&&activeTeam.status!=="deleted"&&(()=>{
+                {activeTeam&&activeTeam.status!=="deleted"&&activeTeam.memberUids&&(()=>{
                   const team=activeTeam;
                   const starters=team.starters||team.members?.slice(0,4)||[];
                   const bench=team.bench||team.members?.slice(4)||[];
                   const allMembers=[...starters,...bench];
                   const isOwner=team.createdBy===user.uid;
 
-                  // PERF: build an id->card map ONCE. The old code did `cards.find(c=>c.id===id)`
-                  // inside a loop over every member's owned ids — an O(members × owned × cards)
-                  // scan (easily millions of ops with a few 500-card collections) recomputed on
-                  // every render. That's what made loading family/friends' cards crawl.
-                  const cardById = teamCardById;
-                  const ownedOf = m => (m.uid===user.uid ? owned : (friendOwned[m.uid]||{}));
-
-                  // Apex conflict detection across all members
+                  // Apex conflict detection across SUBMITTED DECKS only (never raw collections).
                   const dupKey2=c=>`${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
+                  // Build each member's submitted apex cards from their team_decks entry.
+                  const memberApex={}; // uid -> [cards]
+                  allMembers.forEach(m=>{
+                    const sub=teamDecks[`${team.id}_${m.uid}`];
+                    if(!sub){ memberApex[m.uid]=null; return; } // hasn't submitted a deck
+                    const ids=new Set(sub.cardIds||[]);
+                    memberApex[m.uid]=cards.filter(c=>ids.has(c.id)&&parseFloat(c.power||0)>160);
+                  });
                   const apexMap={};
                   allMembers.forEach(m=>{
-                    const mOwned=ownedOf(m);
-                    Object.keys(mOwned).forEach(id=>{
-                      const c=cardById.get(id);
-                      if(!c || parseFloat(c.power||0)<=160) return;
+                    (memberApex[m.uid]||[]).forEach(c=>{
                       const dk=dupKey2(c);
-                      if(!apexMap[dk])apexMap[dk]={card:c,members:[]};
-                      apexMap[dk].members.push(m.displayName);
+                      if(!apexMap[dk])apexMap[dk]={card:c,members:[],key:dk};
+                      if(!apexMap[dk].members.includes(m.displayName)) apexMap[dk].members.push(m.displayName);
                     });
                   });
                   const conflicts=Object.values(apexMap).filter(x=>x.members.length>1);
+                  const submittedCount=allMembers.filter(m=>teamDecks[`${team.id}_${m.uid}`]).length;
+
+                  // My own coach: for each conflict, do I (from MY collection) have an unused apex
+                  // alternative for the same weapon slot that isn't already in my submitted deck?
+                  const mySub=teamDecks[`${team.id}_${user.uid}`];
+                  const mySubIds=new Set(mySub?.cardIds||[]);
+                  const myConflictKeys=new Set(conflicts.filter(cf=>cf.members.includes(user.displayName||user.email)).map(cf=>cf.key));
+                  const mySwapSuggestions={}; // conflictKey -> [alternative cards I own]
+                  conflicts.forEach(cf=>{
+                    const wc=(cf.card.weapon||"").toLowerCase();
+                    // alternatives: cards I own, apex, same weapon, different dupKey, not in my deck
+                    const alts=cards.filter(c=>owned&&owned[c.id]&&parseFloat(c.power||0)>160&&(c.weapon||"").toLowerCase()===wc&&dupKey2(c)!==cf.key&&!mySubIds.has(c.id));
+                    if(alts.length) mySwapSuggestions[cf.key]=alts;
+                  });
+
+                  // Can I help teammates? For conflicts I'm NOT part of, do I own an unused card
+                  // that fills that slot? If so, *I* get prompted to offer it (nobody sees my cards).
+                  const canHelpWith=conflicts.filter(cf=>{
+                    if(cf.members.includes(user.displayName||user.email)) return false; // that's my own conflict
+                    const wc=(cf.card.weapon||"").toLowerCase();
+                    return cards.some(c=>owned&&owned[c.id]&&parseFloat(c.power||0)>160&&(c.weapon||"").toLowerCase()===wc&&!mySubIds.has(c.id));
+                  });
 
                   // Drag state
                   let dragUid=null;
 
                   function MemberCard({m, slot, isDraggable}) {
-                    const mOwned=ownedOf(m);
-                    // O(1) lookups instead of a full scan per owned id
-                    const ownedIds=Object.keys(mOwned);
-                    const totalCards=ownedIds.reduce((n,id)=>n+(cardById.has(id)?1:0),0);
-                    const apexCards=ownedIds.map(id=>cardById.get(id)).filter(c=>c&&parseFloat(c.power||0)>160);
                     const isMe=m.uid===user.uid;
+                    // Only their SUBMITTED deck is visible — never their collection.
+                    const sub=teamDecks[`${team.id}_${m.uid}`];
+                    const submittedCards=sub?(sub.cardIds||[]).length:0;
+                    const subApex=sub?cards.filter(c=>new Set(sub.cardIds||[]).has(c.id)&&parseFloat(c.power||0)>160):[];
                     const wc_starter="#A855F7", wc_bench="#7B9CFF";
                     const borderColor=slot==="starter"?wc_starter:wc_bench;
                     return (
@@ -23381,17 +23753,42 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
                           {m.photoURL?<img src={m.photoURL} alt="" style={{width:36,height:36,borderRadius:"50%",flexShrink:0,border:`2px solid ${isMe?borderColor:"rgba(255,255,255,0.1)"}`}}/>:<div style={{width:36,height:36,borderRadius:"50%",background:"rgba(255,255,255,0.05)",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>{"\uD83D\uDC64"}</div>}
                           <div style={{flex:1,minWidth:0}}>
                             <div style={{fontSize:13,fontWeight:700,color:isMe?borderColor:"var(--bz-ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.displayName}{isMe?" (you)":""}</div>
-                            <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{totalCards} cards</div>
+                            <div style={{fontSize:11,color:sub?"#4ade80":"rgba(255,255,255,0.3)"}}>{sub?`✓ Deck submitted · ${submittedCards} cards`:"No deck submitted"}</div>
                           </div>
                           {isDraggable&&<span style={{fontSize:14,color:"rgba(255,255,255,0.2)"}}>{"\u283F"}</span>}
                         </div>
-                        {apexCards.length>0&&(
+                        {subApex.length>0&&(
                           <div>
-                            <div style={{fontSize:10,color:"#A855F7",fontWeight:700,marginBottom:4}}>Apex ({apexCards.length})</div>
+                            <div style={{fontSize:10,color:"#A855F7",fontWeight:700,marginBottom:4}}>Apex in deck ({subApex.length})</div>
                             <div style={{display:"flex",flexWrap:"wrap",gap:3}}>
-                              {apexCards.slice(0,5).map(c=>{const wc=WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";return <div key={c.id} title={`${c.hero} ${c.power} ${c.treatment}`} style={{background:`${wc}15`,border:`1px solid ${wc}33`,borderRadius:5,padding:"2px 6px",fontSize:9,color:wc,fontWeight:700}}>{c.hero?.split(" ")[0]} {c.power}</div>;})}
-                              {apexCards.length>5&&<span style={{fontSize:9,color:"rgba(255,255,255,0.2)"}}>+{apexCards.length-5}</span>}
+                              {subApex.slice(0,5).map(c=>{const wc=WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";return <div key={c.id} title={`${c.hero} ${c.power} ${c.treatment}`} style={{background:`${wc}15`,border:`1px solid ${wc}33`,borderRadius:5,padding:"2px 6px",fontSize:9,color:wc,fontWeight:700}}>{c.hero?.split(" ")[0]} {c.power}</div>;})}
+                              {subApex.length>5&&<span style={{fontSize:9,color:"rgba(255,255,255,0.2)"}}>+{subApex.length-5}</span>}
                             </div>
+                          </div>
+                        )}
+                        {isMe&&(
+                          <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.06)"}}>
+                            {sub?(
+                              <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                                <span style={{fontSize:11,color:"#4ade80",fontWeight:700}}>✓ {sub.deckName}</span>
+                                <button onClick={()=>withdrawTeamDeck(team)} style={{fontSize:10,background:"rgba(232,49,122,0.1)",border:"1px solid rgba(232,49,122,0.3)",color:"#E8317A",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>Withdraw</button>
+                              </div>
+                            ):(
+                              (savedDecks||[]).length>0?(
+                                <div>
+                                  <div style={{fontSize:10,fontWeight:700,color:"#A855F7",marginBottom:5,textTransform:"uppercase",letterSpacing:0.5}}>📥 Submit your deck to the team</div>
+                                  <select onChange={e=>{ const d=(savedDecks||[]).find(x=>x.id===e.target.value); if(d) submitDeckToTeam(team,d); e.target.value=""; }} defaultValue="" style={{...inp,fontSize:12,padding:"8px 10px",width:"100%",border:"1px solid rgba(168,85,247,0.4)"}}>
+                                    <option value="" disabled>Choose a deck…</option>
+                                    {(savedDecks||[]).map(d=><option key={d.id} value={d.id}>{d.name} ({d.cardCount||d.cardIds?.length||0} cards)</option>)}
+                                  </select>
+                                </div>
+                              ):(
+                                <div style={{background:"rgba(168,85,247,0.06)",border:"1px solid rgba(168,85,247,0.25)",borderRadius:8,padding:"8px 10px"}}>
+                                  <div style={{fontSize:11,color:"#C084FC",fontWeight:700,marginBottom:2}}>No saved decks yet</div>
+                                  <div style={{fontSize:10,color:"rgba(255,255,255,0.5)",lineHeight:1.4}}>Go to <strong>Deck Builder</strong>, build a deck, name it, and hit <strong>💾 Save Deck</strong>. It'll show up here to submit.</div>
+                                </div>
+                              )
+                            )}
                           </div>
                         )}
                         {/* Move buttons */}
@@ -23488,16 +23885,23 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
                         conflicts.length===0?(
                           <div style={{background:"rgba(10,26,10,0.6)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:16,padding:20,textAlign:"center",backdropFilter:"blur(10px)"}}>
                             <div style={{fontSize:24,marginBottom:8}}>{"\u2705"}</div>
-                            <div style={{fontSize:14,fontWeight:700,color:"#4ade80"}}>No apex card conflicts</div>
-                            <div style={{fontSize:12,color:"rgba(255,255,255,0.3)",marginTop:4}}>All team members have unique apex cards</div>
+                            <div style={{fontSize:14,fontWeight:700,color:"#4ade80"}}>{submittedCount<2?"Waiting on deck submissions":"No apex card conflicts"}</div>
+                            <div style={{fontSize:12,color:"rgba(255,255,255,0.3)",marginTop:4}}>{submittedCount<2?`${submittedCount}/${allMembers.length} members have submitted a deck. Conflicts show once at least 2 are in.`:"All submitted decks have unique apex cards"}</div>
                           </div>
                         ):(
                           <div style={{background:"rgba(26,10,10,0.6)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:16,padding:20,backdropFilter:"blur(10px)"}}>
                             <div style={{fontSize:14,fontWeight:800,color:"#E8317A",marginBottom:12}}>{"\u26A0\uFE0F"}{conflicts.length} Apex Conflict{conflicts.length!==1?"s":""}</div>
-                            {conflicts.map(({card,members:mems},i)=>{
+                            {conflicts.map(({card,members:mems,key},i)=>{
                               const wc=WEAPON_COLORS[card.weapon]||"#444";
+                              const myAlts=mySwapSuggestions[key]||[];
+                              const iAmInConflict=mems.includes(user.displayName||user.email);
+                              const iCanHelp=!iAmInConflict && cards.some(c=>owned&&owned[c.id]&&parseFloat(c.power||0)>160&&(c.weapon||"").toLowerCase()===(card.weapon||"").toLowerCase()&&!mySubIds.has(c.id));
+                              const offersForThis=(swapOffers||[]).filter(o=>o.teamId===team.id&&o.conflictKey===key&&o.status==="open");
+                              const myHelpCard=iCanHelp?cards.find(c=>owned&&owned[c.id]&&parseFloat(c.power||0)>160&&(c.weapon||"").toLowerCase()===(card.weapon||"").toLowerCase()&&!mySubIds.has(c.id)):null;
+                              const iAlreadyOffered=offersForThis.some(o=>o.fromUid===user.uid);
                               return (
-                                <div key={i} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10,paddingBottom:10,borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                                <div key={i} style={{marginBottom:12,paddingBottom:12,borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                                  <div style={{display:"flex",alignItems:"center",gap:12}}>
                                   <div style={{width:36,height:48,borderRadius:6,overflow:"hidden",flexShrink:0,background:"rgba(255,255,255,0.05)"}}>
                                     {card.imageUrl?<img src={card.imageUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:wc}}>{card.hero?.split(" ")[0]}</div>}
                                   </div>
@@ -23505,12 +23909,98 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
                                     <div style={{fontSize:13,fontWeight:700,color:"var(--bz-ink)"}}>{card.hero} · {card.power}{"\u26A1"} · {card.treatment}</div>
                                     <div style={{fontSize:11,color:"#E8317A",marginTop:2}}>Conflict: {mems.join(", ")}</div>
                                   </div>
+                                  </div>
+                                  {/* My own swap: I'm in this conflict and own an unused alternative */}
+                                  {iAmInConflict&&myAlts.length>0&&(
+                                    <div style={{marginTop:8,marginLeft:48,background:"rgba(74,222,128,0.08)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:8,padding:"7px 10px"}}>
+                                      <span style={{fontSize:11,color:"#4ade80",fontWeight:700}}>💡 You can swap in: </span>
+                                      <span style={{fontSize:11,color:"#ddd"}}>{myAlts.slice(0,3).map(c=>`${c.hero} ${c.power}⚡`).join(", ")}</span>
+                                    </div>
+                                  )}
+                                  {/* I'm not in this conflict but could help — I choose to offer */}
+                                  {iCanHelp&&myHelpCard&&!iAlreadyOffered&&(
+                                    <div style={{marginTop:8,marginLeft:48,background:"rgba(123,156,255,0.08)",border:"1px solid rgba(123,156,255,0.3)",borderRadius:8,padding:"7px 10px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,flexWrap:"wrap"}}>
+                                      <span style={{fontSize:11,color:"#7B9CFF"}}>🤝 You own a card that fits this slot. Offer to help the team?</span>
+                                      <button onClick={()=>offerSwap(team,key,myHelpCard,null)} style={{fontSize:10,background:"rgba(123,156,255,0.2)",border:"1px solid #7B9CFF",color:"#7B9CFF",borderRadius:6,padding:"4px 10px",cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>Offer my card</button>
+                                    </div>
+                                  )}
+                                  {iAlreadyOffered&&<div style={{marginTop:8,marginLeft:48,fontSize:10,color:"#4ade80"}}>✓ You offered to help with this.</div>}
+                                  {/* Offers from teammates for this conflict */}
+                                  {offersForThis.filter(o=>o.fromUid!==user.uid).map(o=>(
+                                    <div key={o.id} style={{marginTop:8,marginLeft:48,background:"rgba(168,85,247,0.08)",border:"1px solid rgba(168,85,247,0.3)",borderRadius:8,padding:"7px 10px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+                                      <span style={{fontSize:11,color:"#C084FC"}}>🎁 <strong>{o.fromName}</strong> can offer {o.cardLabel} for this slot</span>
+                                      {isOwner&&<button onClick={()=>dismissSwapOffer(o.id)} style={{fontSize:10,background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.5)",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontFamily:"inherit"}}>Dismiss</button>}
+                                    </div>
+                                  ))}
                                 </div>
                               );
                             })}
                           </div>
                         )
                       )}
+
+                      {/* Borrowed-card ledger — who lent what to whom, so cards get returned */}
+                      {(()=>{
+                        const teamLoansList=(teamLoans||[]).filter(l=>l.teamId===team.id);
+                        const active=teamLoansList.filter(l=>l.status==="active").sort((a,b)=>(b.lentAt||"").localeCompare(a.lentAt||""));
+                        const returned=teamLoansList.filter(l=>l.status==="returned").sort((a,b)=>(b.returnedAt||"").localeCompare(a.returnedAt||""));
+                        // Lend form: owner lends one of THEIR owned cards to a teammate
+                        const otherMembers=allMembers.filter(m=>m.uid!==user.uid);
+                        const myLendableCards=cards.filter(c=>owned&&owned[c.id]).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
+                        return (
+                          <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(123,156,255,0.2)",borderRadius:16,padding:20,marginTop:16,backdropFilter:"blur(10px)"}}>
+                            <div style={{fontSize:14,fontWeight:800,color:"#7B9CFF",marginBottom:4}}>🔄 Borrowed Card Ledger</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:14}}>Track cards lent between teammates so they get back to the rightful owner.</div>
+
+                            {/* Lend a card */}
+                            {otherMembers.length>0&&myLendableCards.length>0&&(
+                              <LendForm members={otherMembers} myCards={myLendableCards} onLend={(borrower,card)=>lendCard(team,borrower,card)} inp={inp} WEAPON_COLORS={WEAPON_COLORS}/>
+                            )}
+
+                            {/* Active loans */}
+                            {active.length>0?(
+                              <div style={{marginTop:14}}>
+                                <div style={{fontSize:11,fontWeight:700,color:"#FBBF24",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Out on loan ({active.length})</div>
+                                {active.map(l=>{
+                                  const iAmLender=l.lenderUid===user.uid;
+                                  return (
+                                    <div key={l.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:10,marginBottom:6}}>
+                                      <div style={{width:30,height:40,borderRadius:5,overflow:"hidden",flexShrink:0,background:"rgba(255,255,255,0.05)"}}>
+                                        {l.cardImage?<img src={l.cardImage} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%"}}/>}
+                                      </div>
+                                      <div style={{flex:1,minWidth:0}}>
+                                        <div style={{fontSize:12,fontWeight:700,color:"#fff"}}>{l.cardLabel}</div>
+                                        <div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}><strong style={{color:"#7B9CFF"}}>{l.lenderName}</strong> → <strong style={{color:"#C084FC"}}>{l.borrowerName}</strong>{l.lentAt?` · ${new Date(l.lentAt).toLocaleDateString()}`:""}</div>
+                                      </div>
+                                      {iAmLender?(
+                                        <button onClick={()=>markLoanReturned(l)} style={{fontSize:11,background:"rgba(74,222,128,0.15)",border:"1px solid #4ade80",color:"#4ade80",borderRadius:7,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",fontWeight:700,flexShrink:0}}>✓ Returned</button>
+                                      ):(
+                                        <span style={{fontSize:10,color:"rgba(255,255,255,0.3)",flexShrink:0}}>owner marks return</span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ):(
+                              <div style={{marginTop:14,fontSize:12,color:"rgba(255,255,255,0.3)",textAlign:"center",padding:"10px 0"}}>No cards currently out on loan.</div>
+                            )}
+
+                            {/* Returned history */}
+                            {returned.length>0&&(
+                              <div style={{marginTop:14}}>
+                                <div style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Returned ({returned.length})</div>
+                                {returned.slice(0,8).map(l=>(
+                                  <div key={l.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 10px",fontSize:11,color:"rgba(255,255,255,0.4)"}}>
+                                    <span style={{color:"#4ade80"}}>✓</span>
+                                    <span style={{flex:1}}>{l.cardLabel} · {l.lenderName} → {l.borrowerName}</span>
+                                    {l.lenderUid===user.uid&&<button onClick={()=>deleteLoan(l.id)} title="Remove from history" style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.25)",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>×</button>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })()}
@@ -23520,7 +24010,7 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
   );
 }
 
-function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail, addStatus, setAddStatus, friendOwned, viewingFriend, setViewingFriend, respondFriendReq, cards, owned, publicCards, WEAPON_COLORS, setSigningIn , inp, teamInvites, sendFriendRequest, respondTeamInvite}) {
+function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail, addStatus, setAddStatus, friendOwned, viewingFriend, setViewingFriend, respondFriendReq, cards, owned, publicCards, WEAPON_COLORS, setSigningIn , inp, teamInvites, sendFriendRequest, respondTeamInvite, toggleFamily, borrowLedger=[]}) {
   return (
           <div style={{maxWidth:700,margin:"0 auto"}}>
             {!user?(
@@ -23579,9 +24069,13 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
                       <div key={f.id} style={{display:"flex",alignItems:"center",gap:12,marginBottom:14,paddingBottom:14,borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
                         <div style={{width:40,height:40,borderRadius:"50%",background:"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,border:"1.5px solid rgba(255,255,255,0.1)"}}>{"\uD83D\uDC64"}</div>
                         <div style={{flex:1}}>
-                          <div style={{fontSize:13,fontWeight:700}}>{f.friendName}</div>
+                          <div style={{fontSize:13,fontWeight:700}}>{f.friendName}{f.isFamily&&<span style={{marginLeft:6,fontSize:9,fontWeight:800,color:"#4ade80",background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:5,padding:"1px 6px"}}>👪 FAMILY</span>}</div>
                           <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{friendOwned[f.friendUid]?`${Object.keys(friendOwned[f.friendUid]).length} cards owned`:"Loading..."}</div>
                         </div>
+                        <button onClick={()=>toggleFamily(f)} title={f.isFamily?"Family — you can use their available cards in your decks. Click to remove.":"Mark as family to use their available cards in your decks"}
+                          style={{background:f.isFamily?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)",border:`1px solid ${f.isFamily?"rgba(74,222,128,0.4)":"rgba(255,255,255,0.08)"}`,color:f.isFamily?"#4ade80":"rgba(255,255,255,0.4)",borderRadius:10,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
+                          {f.isFamily?"👪 Family":"+ Family"}
+                        </button>
                         <button onClick={()=>{setViewingFriend(viewingFriend===f.friendUid?null:f.friendUid);}}
                           style={{background:viewingFriend===f.friendUid?"rgba(123,156,255,0.2)":"rgba(255,255,255,0.04)",border:`1px solid ${viewingFriend===f.friendUid?"rgba(123,156,255,0.4)":"rgba(255,255,255,0.08)"}`,color:viewingFriend===f.friendUid?"#7B9CFF":"rgba(255,255,255,0.4)",borderRadius:10,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
                           {viewingFriend===f.friendUid?"Hide":"\uD83D\uDC41 View"}
@@ -23591,6 +24085,33 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
                   }
                 </div>
 
+                {/* Borrowed cards paper trail (family lending) */}
+                {borrowLedger.filter(l=>l.status==="borrowed").length>0 && (
+                  <div style={{marginTop:8,marginBottom:20,background:"rgba(192,132,252,0.06)",border:"1px solid rgba(192,132,252,0.25)",borderRadius:14,padding:16}}>
+                    <div style={{fontSize:14,fontWeight:800,color:"#C084FC",marginBottom:4}}>👪 Borrowed Cards — Paper Trail</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:12}}>Family cards currently in your decks, and yours in theirs. After a tournament, this tells you whose card is whose.</div>
+                    {borrowLedger.filter(l=>l.status==="borrowed").map(l=>{
+                      const iBorrowed = l.borrowerUid===user.uid;
+                      return (
+                        <div key={l.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"rgba(0,0,0,0.2)",borderRadius:10,marginBottom:6}}>
+                          <div style={{width:28,height:38,borderRadius:5,overflow:"hidden",flexShrink:0,background:"rgba(255,255,255,0.05)"}}>{l.cardImage?<img src={l.cardImage} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:null}</div>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:12,fontWeight:700,color:"#fff"}}>{l.cardLabel}</div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>
+                              {iBorrowed
+                                ? <>You borrowed from <strong style={{color:"#C084FC"}}>{l.ownerName}</strong></>
+                                : <><strong style={{color:"#7B9CFF"}}>{l.borrowerName}</strong> borrowed yours</>}
+                              {l.deckName?` · ${l.deckName}`:""}
+                            </div>
+                          </div>
+                          {iBorrowed
+                            ? <span style={{fontSize:10,color:"rgba(255,255,255,0.3)",flexShrink:0}}>remove from deck to return</span>
+                            : <span style={{fontSize:10,color:"#FBBF24",flexShrink:0}}>out on loan</span>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
                 {viewingFriend&&(()=>{
                   const f=friends.find(fr=>fr.friendUid===viewingFriend);
                   const fo=friendOwned[viewingFriend]||{};
@@ -24201,14 +24722,18 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets=[], setDeckGoalSets, deckMaxBuild, setDeckMaxBuild, computeDeckProgress }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, familyOwnerByCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, computeDeckProgress }) {
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
   const DECK_SIZE = 60;
   const [deckOwnedOnly, setDeckOwnedOnly] = useState(false);
+  const [deckFamilyOnly, setDeckFamilyOnly] = useState(false);
   const [progressExpanded, setProgressExpanded] = useState(false);
   const [deckPage, setDeckPage] = useState(1);
+  const [showPickList, setShowPickList] = useState(false);   // printable pick-list modal
+  const [pickSort, setPickSort] = useState("power");         // "power" | "cardnum" | "weapon"
+  const [pickChecked, setPickChecked] = useState({});        // {cardId: true} — pulled cards (view-only, resets on close)
   const DECK_PAGE_SIZE = 60;
   const ownedCount = owned ? Object.keys(owned).filter(id=>owned[id]).length : 0;
   const deckSet = new Set(deckCards);
@@ -24268,7 +24793,8 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const applyNeedFilter = (n)=>{ setDeckSearch(""); setDeckFilterW(""); setDeckFilterS(""); setDeckFilterT(n.t||""); setDeckFilterP(n.p?new Set(n.p):new Set()); if(user&&owned){ const hasOwned = cards.some(c=>!deckSet.has(c.id)&&(c.treatment||"").toLowerCase()===(n.t||"").toLowerCase()&&n.p&&n.p.includes(String(c.power||""))&&owned[c.id]); if(hasOwned) setDeckOwnedOnly(true); } };
   const deckAvail = cards.filter(c=>{
     if(deckSet.has(c.id)) return false;
-    if(deckOwnedOnly && !(owned && owned[c.id])) return false;
+    if(deckFamilyOnly && !familyOwnerByCard[c.id]) return false;
+    if(deckOwnedOnly && !(owned && owned[c.id]) && !familyOwnerByCard[c.id]) return false;
     if(deckFilterW && c.weapon!==deckFilterW) return false;
     if(deckFilterP && deckFilterP.size>0 && !deckFilterP.has(String(c.power||""))) return false;
     if(deckFilterS && c.setName!==deckFilterS) return false;
@@ -24279,17 +24805,37 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     return true;
   }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
   const deckVisible = deckAvail.slice(0, deckPage*DECK_PAGE_SIZE);
-  useEffect(()=>{ setDeckPage(1); }, [deckSearch, deckFilterW, deckFilterS, deckFilterT, deckOwnedOnly, deckType]);
+  useEffect(()=>{ setDeckPage(1); }, [deckSearch, deckFilterW, deckFilterS, deckFilterT, deckOwnedOnly, deckFamilyOnly, deckType]);
   return (
+        <>
           <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column-reverse":"row",gap:16,alignItems:"stretch",height:isMobile?"auto":"calc(100vh - 150px)",minHeight:isMobile?"auto":520}}>
-            <div style={{display:"flex",flexDirection:"column",gap:10,flex:1,minWidth:0,minHeight:0}}>
+            <div style={{display:"flex",flexDirection:"column",gap:10,flex:1,minWidth:0,minHeight:0,overflowY:isMobile?"visible":"auto",paddingRight:isMobile?0:6}}>
               {user && deckProgress && (() => {
                 const pct = Math.min(100, Math.round((deckProgress.have/deckProgress.need)*100));
                 const done = deckProgress.have >= deckProgress.need;
+                // Apex Madness is too structured for a reliable one-tap auto-build (insert completeness,
+                // apex unlocks, foiled hot dogs). Point people to the manual builder + its rules tracker.
+                if (deckType === "apexmadness") {
+                  return (
+                    <div style={{background:"rgba(232,49,122,0.06)",border:"1px solid rgba(232,49,122,0.25)",borderRadius:14,padding:"14px 16px"}}>
+                      <div style={{fontSize:13,fontWeight:900,color:"#fff",marginBottom:6,display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>🔥 Apex Madness <span style={{fontSize:10,fontWeight:800,color:"#FBBF24",background:"rgba(251,191,36,0.12)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:6,padding:"2px 7px"}}>build manually</span></div>
+                      <div style={{fontSize:12,color:"#bbb",lineHeight:1.6,marginBottom:10}}>Apex Madness has too many moving parts (10 core per insert, apex unlocks, foiled Hot Dog slots) for a reliable one-tap build. Add cards below and the <strong>Apex Madness rules tracker</strong> will guide you — it shows which inserts you've unlocked and what each apex needs.</div>
+                      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                        <span style={{fontSize:11,color:"#a0a0a0",fontWeight:700}}>Goal:</span>
+                        <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:"#E8317A"}}>
+                          <option value="none">No restrictions</option>
+                          <option value="spec">Spec (≤160)</option>
+                          <option value="apex">Apex</option>
+                          <option value="apexmadness">Apex Madness</option>
+                        </select>
+                      </div>
+                    </div>
+                  );
+                }
                 const weapons = sortWeapons(Array.from(new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))));
                 const treatments = Array.from(new Set(cards.map(c=>c.treatment).filter(t=>t&&!["plays","bonus plays","home team discount"].includes(t.toLowerCase())))).sort();
                 const goalLabel = [deckGoalW, deckGoalT].filter(Boolean).join(" ");
-                const dtLabel = deckType==="spec"?(deckMaxBuild?"Spec · MAX 115–160":"Spec (≤160)"):deckType==="vegasbaby"?(deckMaxBuild?"Vegas Baby · MAX 115–160":"Vegas Baby (≤160)"):deckType==="apex"?(deckMaxBuild?"Apex · MAX 155+":"Apex"):deckType==="apexmadness"?(deckMaxBuild?"Apex Madness · MAX 155+":"Apex Madness"):deckType==="none"?"":deckType;
+                const dtLabel = deckType==="spec"?"Spec (≤160)":deckType==="vegasbaby"?"Vegas Baby (≤160)":deckType==="apex"?"Apex":deckType==="apexmadness"?"Apex Madness":deckType==="none"?"":deckType;
                 return (
                   <div style={{background:done?"linear-gradient(135deg,rgba(74,222,128,0.12),rgba(34,197,94,0.06))":"rgba(255,255,255,0.02)",border:`1px solid ${done?"rgba(74,222,128,0.4)":"rgba(232,49,122,0.25)"}`,borderRadius:14,padding:"14px 16px"}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,marginBottom:10}}>
@@ -24307,8 +24853,19 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         ? `You own enough unique cards to fill a 60-card${goalLabel?` ${goalLabel}`:""} deck (max 6 per power level). 🎉`
                         : `You need ${deckProgress.need-deckProgress.have} more eligible card${deckProgress.need-deckProgress.have!==1?"s":""}. Counts unique cards you own, max 6 per power level${goalLabel?`, ${goalLabel} only`:""}.`}
                     </div>
-                    {deckMaxBuild && (deckType==="spec"||deckType==="vegasbaby"||deckType==="apex"||deckType==="apexmadness") && (
-                      <div style={{fontSize:10.5,color:"#FBBF24",marginTop:-4,marginBottom:10,lineHeight:1.5}}>⚡ Max Deck: only using cards {deckType==="apex"||deckType==="apexmadness"?"155+ power":"115–160 power"}. Turn off to build with whatever you have.</div>
+                    {deckProgress.am && (
+                      <div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.2)",borderRadius:10,padding:"10px 12px",marginBottom:10,fontSize:11,lineHeight:1.7,color:"#ddd"}}>
+                        <div style={{fontWeight:800,color:"#FBBF24",marginBottom:4}}>Apex Madness build (up to 70) — smart pick</div>
+                        <div>• <strong>{deckProgress.am.coreCount}/60</strong> core cards · <strong>{deckProgress.am.completedInserts}/6</strong> inserts unlocked</div>
+                        <div>• <strong>{deckProgress.am.apexCount}</strong> apex in deck — {deckProgress.am.completedInserts} from unlocked inserts{deckProgress.am.hotDogApexAdded>0?` + ${deckProgress.am.hotDogApexAdded} from foiled Hot Dogs`:""}</div>
+                        {deckProgress.am.insertList && deckProgress.am.insertList.length>0 && (
+                          <div style={{marginTop:4}}>• Built inserts (best apex first): {deckProgress.am.insertList.map(x=>`${x.insert} (⚡${x.apexPower})`).join(", ")}</div>
+                        )}
+                        {deckProgress.am.nearInserts && deckProgress.am.nearInserts.length>0 && (
+                          <div style={{marginTop:4,color:"#60A5FA"}}>💡 Closest to unlock next: {deckProgress.am.nearInserts.map(x=>`${x.insert} (${x.have}/10 core, ⚡${x.bestApexPower} apex waiting)`).join(" · ")}</div>
+                        )}
+                        <div style={{color:"#999",marginTop:4}}>• Foiled Hot Dogs owned: {deckProgress.am.foiledHotDogs} (each unlocks 1 extra apex, max 4)</div>
+                      </div>
                     )}
                     <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
                       <span style={{fontSize:11,color:"#a0a0a0",fontWeight:700}}>Goal:</span>
@@ -24316,13 +24873,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         <option value="none">No restrictions</option>
                         <option value="spec">Spec (≤160)</option>
                         <option value="apex">Apex</option>
-                        <option value="apexmadness">Apex Madness</option>
                       </select>
-                      {(deckType==="spec"||deckType==="vegasbaby"||deckType==="apex"||deckType==="apexmadness") && (
-                        <button onClick={()=>setDeckMaxBuild(v=>!v)} title={deckType==="apex"||deckType==="apexmadness" ? "Only use cards 155+ (strongest legal Apex build)" : "Only use cards 115–160 (strongest legal Spec build)"} style={{background:deckMaxBuild?"linear-gradient(135deg,#FBBF24,#F59E0B)":"transparent",border:`1px solid ${deckMaxBuild?"#FBBF24":"var(--bz-line-2)"}`,color:deckMaxBuild?"#0b0709":"var(--bz-ink-2)",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                          {deckMaxBuild?"⚡ Max Deck ON":"⚡ Build Max Deck"}
-                        </button>
-                      )}
                       <select value={deckGoalW} onChange={e=>setDeckGoalW(e.target.value)} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer"}}>
                         <option value="">Any weapon</option>
                         {weapons.map(w=><option key={w} value={w}>{w} only</option>)}
@@ -24333,22 +24884,20 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       </select>
                       {(deckGoalW||deckGoalT) && <button onClick={()=>{setDeckGoalW("");setDeckGoalT("");}} style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:8,padding:"5px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Clear</button>}
                     </div>
-                    {/* Set restriction — pick one or more sets (e.g. Alpha era). Empty = all sets. */}
+                    {/* Set restriction — pick specific sets (e.g. Alpha Trilogy = Alpha-era only). Empty = all sets. */}
                     {(() => {
-                      const allSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
-                      const toggle = s => setDeckGoalSets(prev => prev.includes(s) ? prev.filter(x=>x!==s) : [...prev, s]);
+                      const allSets = Array.from(new Set(cards.map(c=>c.setName).filter(Boolean))).sort();
+                      if(allSets.length===0) return null;
+                      const toggleSet = s => setDeckGoalSets(prev => { const n=new Set(prev); if(n.has(s)) n.delete(s); else n.add(s); return n; });
                       return (
-                        <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.06)"}}>
-                          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:6}}>
-                            <span style={{fontSize:11,color:"#a0a0a0",fontWeight:700}}>Sets:</span>
-                            <span style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>{deckGoalSets.length===0?"All sets (tap to restrict, e.g. Alpha era)":`${deckGoalSets.length} selected`}</span>
-                            {deckGoalSets.length>0 && <button onClick={()=>setDeckGoalSets([])} style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:8,padding:"3px 9px",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Clear</button>}
-                          </div>
-                          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                            {allSets.map(s => { const on=deckGoalSets.includes(s); return (
-                              <button key={s} onClick={()=>toggle(s)} style={{background:on?"rgba(123,156,255,0.9)":"rgba(255,255,255,0.04)",border:`1px solid ${on?"#7B9CFF":"rgba(255,255,255,0.12)"}`,color:on?"#0b0709":"rgba(255,255,255,0.6)",borderRadius:16,padding:"4px 11px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{s}</button>
-                            ); })}
-                          </div>
+                        <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginTop:10}}>
+                          <span style={{fontSize:11,color:"var(--bz-ink-3)",fontWeight:700}}>Sets:</span>
+                          <button onClick={()=>setDeckGoalSets(new Set())} style={{background:deckGoalSets.size===0?"rgba(74,222,128,0.15)":"transparent",border:`1px solid ${deckGoalSets.size===0?"#4ade80":"var(--bz-line-2)"}`,color:deckGoalSets.size===0?"#4ade80":"var(--bz-ink-3)",borderRadius:14,padding:"4px 11px",fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>All sets</button>
+                          {allSets.map(s=>{
+                            const on=deckGoalSets.has(s);
+                            return <button key={s} onClick={()=>toggleSet(s)} style={{background:on?"rgba(123,156,255,0.18)":"transparent",border:`1px solid ${on?"#7B9CFF":"var(--bz-line-2)"}`,color:on?"#7B9CFF":"var(--bz-ink-3)",borderRadius:14,padding:"4px 11px",fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{s}</button>;
+                          })}
+                          {deckGoalSets.size>0 && <span style={{fontSize:10,color:"#7B9CFF",fontWeight:700}}>{deckGoalSets.size} set{deckGoalSets.size!==1?"s":""} only</span>}
                         </div>
                       );
                     })()}
@@ -24367,10 +24916,13 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                           ⚡ {done?"Build this deck":`Build with these ${deckProgress.have}`}
                         </button>
                         <span style={{fontSize:10.5,color:"#999"}}>loads them into My Deck → name it → Save</span>
+                        {deckProgress.familyCount>0 && <span style={{fontSize:10.5,color:"#C084FC",fontWeight:700}}>👪 includes {deckProgress.familyCount} borrowed family card{deckProgress.familyCount!==1?"s":""} (auto-logged to your paper trail)</span>}
+                        {deckProgress.treatUsed && deckProgress.treatUsed.length>0 && (
+                          <div style={{fontSize:10.5,color:"var(--bz-ink-3)",width:"100%",marginTop:4,lineHeight:1.6}}>
+                            <strong style={{color:"#FBBF24"}}>Inserts used (deepest first):</strong> {deckProgress.treatUsed.map(x=>`${x.treatment} (${x.count})`).join(" · ")}
+                          </div>
+                        )}
                       </div>
-                    )}
-                    {deckProgress.have>0 && deckProgress.treatmentBreakdown && Object.keys(deckProgress.treatmentBreakdown).length>0 && (
-                      <div style={{fontSize:10.5,color:"rgba(255,255,255,0.5)",marginTop:8}}>Leans into: {Object.entries(deckProgress.treatmentBreakdown).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([t,n])=>`${t} (${n})`).join(" · ")}</div>
                     )}
                     {progressExpanded && deckProgress.cards && (
                       <div style={{marginTop:12,maxHeight:280,overflowY:"auto",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(78px,1fr))",gap:6,padding:"4px 2px"}}>
@@ -24411,8 +24963,16 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                   <div style={{width:28,height:16,borderRadius:8,background:deckOwnedOnly?"#4ade80":"#333",position:"relative",transition:"background 0.2s",flexShrink:0}}>
                     <div style={{position:"absolute",top:2,left:deckOwnedOnly?14:2,width:12,height:12,borderRadius:"50%",background:"#fff",transition:"left 0.2s"}}/>
                   </div>
-                  <span style={{fontSize:12,fontWeight:700,color:deckOwnedOnly?"#4ade80":"rgba(255,255,255,0.6)"}}>My collection{deckOwnedOnly&&ownedCount>0?` (${ownedCount})`:""}</span>
+                  <span style={{fontSize:12,fontWeight:700,color:deckOwnedOnly?"#4ade80":"rgba(255,255,255,0.6)"}}>My collection{Object.keys(familyOwnerByCard).length>0?" + family":""}{deckOwnedOnly&&ownedCount>0?` (${ownedCount})`:""}</span>
                 </div>
+                {Object.keys(familyOwnerByCard).length>0 && (
+                  <div onClick={()=>setDeckFamilyOnly(v=>!v)} title="Show only cards you can borrow from family" style={{display:"flex",alignItems:"center",gap:7,background:deckFamilyOnly?"rgba(192,132,252,0.15)":"rgba(255,255,255,0.03)",border:`1px solid ${deckFamilyOnly?"#C084FC":"#2a2a2a"}`,borderRadius:8,padding:"6px 11px",cursor:"pointer",whiteSpace:"nowrap"}}>
+                    <div style={{width:28,height:16,borderRadius:8,background:deckFamilyOnly?"#C084FC":"#333",position:"relative",transition:"background 0.2s",flexShrink:0}}>
+                      <div style={{position:"absolute",top:2,left:deckFamilyOnly?14:2,width:12,height:12,borderRadius:"50%",background:"#fff",transition:"left 0.2s"}}/>
+                    </div>
+                    <span style={{fontSize:12,fontWeight:700,color:deckFamilyOnly?"#C084FC":"rgba(255,255,255,0.6)"}}>👪 Family ({Object.keys(familyOwnerByCard).length})</span>
+                  </div>
+                )}
                 <span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>{deckAvail.length}</span>
               </div>
               {(()=>{
@@ -24455,16 +25015,18 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 })}
                 {deckFilterP.size>0&&<button onClick={()=>setDeckFilterP(new Set())} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:20,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{"\u2715"}</button>}
               </div>
-              <div className="deck-pb-cardlist" style={{flex:1,minHeight:0,overflowY:"auto",paddingRight:4}}>
+              <div className="deck-pb-cardlist" style={{paddingRight:4}}>
                 {deckAvail.length===0?<div style={{padding:40,textAlign:"center",color:"rgba(255,255,255,0.2)"}}>No cards match filters</div>:
                   <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(auto-fill,minmax(95px,1fr))":"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
                   {deckVisible.map((c)=>{
                     const {ok,reason}=canAddToDeck(c),wc=WEAPON_COLORS[canonWeapon(c.weapon)]||"#444",isOwned=owned&&owned[c.id];
+                    const _fam = familyOwnerByCard[c.id];
                     return (
-                      <div key={c.id} onClick={()=>{if(ok)setDeckCards(p=>[...p,c.id]);}} title={!ok?reason:`Add ${c.hero}`}
-                        style={{position:"relative",aspectRatio:"3/4",borderRadius:10,overflow:"hidden",cursor:ok?"pointer":"not-allowed",opacity:ok?1:0.4,border:`1.5px solid ${ok?(isOwned?"#4ade8055":"rgba(255,255,255,0.08)"):"rgba(232,49,122,0.3)"}`,background:"var(--bz-s1)",transition:"transform 0.15s ease, border-color 0.15s ease"}}
+                      <div key={c.id} onClick={()=>{if(ok)setDeckCards(p=>[...p,c.id]);}} title={!ok?reason:(_fam?`Borrow ${c.hero} from ${_fam.name}`:`Add ${c.hero}`)}
+                        style={{position:"relative",aspectRatio:"3/4",borderRadius:10,overflow:"hidden",cursor:ok?"pointer":"not-allowed",opacity:ok?1:0.4,border:`1.5px solid ${ok?(isOwned?"#4ade8055":_fam?"#C084FC66":"rgba(255,255,255,0.08)"):"rgba(232,49,122,0.3)"}`,background:"var(--bz-s1)",transition:"transform 0.15s ease, border-color 0.15s ease"}}
                         onMouseEnter={e=>{if(ok){e.currentTarget.style.transform="translateY(-4px)";e.currentTarget.style.borderColor=wc;}}}
-                        onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.borderColor=ok?(isOwned?"#4ade8055":"rgba(255,255,255,0.08)"):"rgba(232,49,122,0.3)";}}>
+                        onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.borderColor=ok?(isOwned?"#4ade8055":_fam?"#C084FC66":"rgba(255,255,255,0.08)"):"rgba(232,49,122,0.3)";}}>
+                        {_fam && <div style={{position:"absolute",top:5,left:5,zIndex:5,background:"rgba(192,132,252,0.92)",color:"#fff",borderRadius:6,padding:"2px 6px",fontSize:8,fontWeight:800,backdropFilter:"blur(4px)"}}>👪 {(_fam.name||"").split(" ")[0]}</div>}
                         {c.imageUrl
                           ? <img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
                           : <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:6,textAlign:"center"}}><div style={{fontSize:11,fontWeight:800,color:wc}}>{c.hero}</div><div style={{fontSize:8,color:"rgba(255,255,255,0.3)",marginTop:3}}>{c.treatment}</div></div>}
@@ -24509,6 +25071,9 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       {deckSaving?"Saving...":deckSaved?"✓ Saved":"💾 Save Deck"}</button>
                     <button onClick={newDeckTab} style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:8,padding:"8px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ New</button>
                   </div>
+                  {inDeck.length>0 && (
+                    <button onClick={()=>{ setPickChecked({}); setShowPickList(true); }} style={{width:"100%",marginTop:8,background:"rgba(123,156,255,0.1)",border:"1px solid rgba(123,156,255,0.4)",color:"#7B9CFF",borderRadius:8,padding:"8px 0",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>📋 Pick List ({inDeck.length})</button>
+                  )}
                   {savedDecks.length>0 && (
                     <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:8}}>
                       {savedDecks.map(d=>(
@@ -24606,6 +25171,69 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 {"\u2715 Clear deck"}</button>}
             </div>
           </div>
+          {showPickList && (()=>{
+            const pulled = inDeck.filter(c=>pickChecked[c.id]).length;
+            const sorted = [...inDeck].sort((a,b)=>{
+              if(pickSort==="power") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0) || String(a.hero||"").localeCompare(String(b.hero||""));
+              if(pickSort==="cardnum") return String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true});
+              if(pickSort==="weapon") return String(a.weapon||"").localeCompare(String(b.weapon||"")) || (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
+              if(pickSort==="treatment") return String(a.treatment||"").localeCompare(String(b.treatment||"")) || (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
+              return 0;
+            });
+            return (
+            <div onClick={()=>setShowPickList(false)} style={{position:"fixed",inset:0,zIndex:13000,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:24,overflowY:"auto"}}>
+              <div onClick={e=>e.stopPropagation()} className="pick-list-sheet" style={{width:"100%",maxWidth:720,background:"#fff",color:"#111",borderRadius:12,padding:"28px 30px",boxShadow:"0 24px 80px rgba(0,0,0,0.6)",position:"relative",margin:"auto"}}>
+                {/* Screen-only controls (hidden when printing) */}
+                <div className="pick-list-controls" style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:18,borderBottom:"2px solid #eee",paddingBottom:14}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                    <span style={{fontSize:12,fontWeight:700,color:"#666"}}>Sort:</span>
+                    {[["power","⚡ Power"],["cardnum","# Card No."],["weapon","🗡 Weapon"],["treatment","✨ Treatment"]].map(([k,label])=>(
+                      <button key={k} onClick={()=>setPickSort(k)} style={{background:pickSort===k?"#7B2FF7":"#f0f0f0",color:pickSort===k?"#fff":"#444",border:"none",borderRadius:7,padding:"6px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
+                    ))}
+                  </div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>window.print()} style={{background:"#111",color:"#fff",border:"none",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🖨 Print / Save PDF</button>
+                    <button onClick={()=>setShowPickList(false)} style={{background:"#f0f0f0",color:"#444",border:"none",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
+                  </div>
+                </div>
+                {/* Header */}
+                <div style={{marginBottom:16}}>
+                  <div style={{fontSize:22,fontWeight:900,letterSpacing:"-0.3px"}}>{deckName||"My Deck"} — Pick List</div>
+                  <div style={{fontSize:12,color:"#666",marginTop:3}}>{inDeck.length} cards · {pulled} pulled · sorted by {pickSort==="power"?"power (high→low)":pickSort==="cardnum"?"card number":pickSort==="weapon"?"weapon":"treatment"}</div>
+                </div>
+                {/* Table */}
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                  <thead>
+                    <tr style={{borderBottom:"2px solid #111",textAlign:"left"}}>
+                      <th style={{padding:"7px 6px",width:34,textAlign:"center"}}>✓</th>
+                      <th style={{padding:"7px 6px"}}>Card #</th>
+                      <th style={{padding:"7px 6px"}}>Hero</th>
+                      <th style={{padding:"7px 6px",textAlign:"right"}}>Power</th>
+                      <th style={{padding:"7px 6px"}}>Weapon</th>
+                      <th style={{padding:"7px 6px"}}>Treatment</th>
+                      <th style={{padding:"7px 6px"}}>Set</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sorted.map((c,i)=>(
+                      <tr key={c.id} onClick={()=>setPickChecked(p=>({...p,[c.id]:!p[c.id]}))} style={{borderBottom:"1px solid #e5e5e5",cursor:"pointer",background:pickChecked[c.id]?"#f3f0fb":(i%2?"#fafafa":"#fff")}}>
+                        <td style={{padding:"6px",textAlign:"center"}}><span style={{display:"inline-block",width:15,height:15,border:"1.5px solid #999",borderRadius:3,lineHeight:"13px",fontSize:11,color:"#7B2FF7",fontWeight:900}}>{pickChecked[c.id]?"✓":""}</span></td>
+                        <td style={{padding:"6px",fontFamily:"monospace",color:"#555"}}>{c.cardNum||"—"}</td>
+                        <td style={{padding:"6px",fontWeight:700,textDecoration:pickChecked[c.id]?"line-through":"none",color:pickChecked[c.id]?"#999":"#111"}}>{c.hero}</td>
+                        <td style={{padding:"6px",textAlign:"right",fontWeight:800}}>{c.power}</td>
+                        <td style={{padding:"6px"}}>{c.weapon||"—"}</td>
+                        <td style={{padding:"6px",color:"#555"}}>{c.treatment||"—"}</td>
+                        <td style={{padding:"6px",color:"#888",fontSize:12}}>{c.setName||"—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={{marginTop:16,fontSize:11,color:"#aaa",textAlign:"center"}}>Bazooka Dash · generated {new Date().toLocaleDateString()}</div>
+              </div>
+            </div>
+            );
+          })()}
+        </>
   );
 }
 
@@ -25527,6 +26155,12 @@ function PublicHomepage() {
         <a href="https://bazookavault.com" style={{ fontSize:13, fontWeight:800, color:"#fff", background:"rgba(0,0,0,0.25)", border:"1px solid rgba(255,255,255,0.4)", borderRadius:20, padding:"5px 14px", textDecoration:"none", whiteSpace:"nowrap" }}>Visit the current collector's database → bazookavault.com</a>
       </div>
       <style>{`
+        @keyframes bzRainbowSlide { 0%{background-position:0% 50%} 100%{background-position:200% 50%} }
+        .bz-rainbow-fill {
+          background: linear-gradient(90deg,#EF4444,#F97316,#FBBF24,#4ade80,#22D3EE,#60A5FA,#A855F7,#F472B6,#EF4444);
+          background-size: 200% 100%;
+          animation: bzRainbowSlide 3s linear infinite;
+        }
         @keyframes homeFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
         @keyframes homeGlow { 0%,100%{opacity:0.5} 50%{opacity:0.9} }
         @keyframes homeFadeUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
@@ -26504,7 +27138,7 @@ See you in there!
     const next = earlyAccessList.filter(x=>x!==em);
     try { await setDoc(doc(db,"config","early_access"), { emails: next }, { merge:true }); } catch(e){ alert("Failed to remove: "+e.message); }
   }
-  const [owned,         setOwned]         = useState({});
+  const [owned,         setOwned]         = useState(()=>{ try { const c=localStorage.getItem("boba_owned_cache_v1"); if(c){ const p=JSON.parse(c); return p&&p.owned?p.owned:{}; } } catch(e){} return {}; });
   const [publicCards,   setPublicCards]   = useState({});
   const [trackerAutoPublic, setTrackerAutoPublic] = useState(() => { try { const c=localStorage.getItem("trackerAutoPublic_v1"); return c?JSON.parse(c):{}; } catch { return {}; } }); // cards made public because a tracker covering them is public
   const [tradeBait,     setTradeBait]     = useState({}); // {cardId: true} manually flagged for trade
@@ -26519,6 +27153,17 @@ See you in there!
   const [reviewModal,   setReviewModal]   = useState(null); // { sale } when rating a seller
   const [lotModal,      setLotModal]      = useState(null); // { card } when open
   const [ownedDocId,    setOwnedDocId]    = useState(null);
+  // Cache the owned collection locally so it paints INSTANTLY on next load instead of
+  // waiting for Firestore. Keyed by uid so a different account never sees stale data.
+  useEffect(()=>{
+    if(!user) return;
+    try { localStorage.setItem("boba_owned_cache_v1", JSON.stringify({ uid:user.uid, owned })); } catch(e){}
+  }, [owned, user]);
+  // On sign-in, if the cached collection belongs to a different account, drop it immediately.
+  useEffect(()=>{
+    if(!user) return;
+    try { const c=localStorage.getItem("boba_owned_cache_v1"); if(c){ const p=JSON.parse(c); if(p && p.uid && p.uid!==user.uid){ setOwned({}); localStorage.removeItem("boba_owned_cache_v1"); } } } catch(e){}
+  }, [user]);
   const [signingIn,     setSigningIn]     = useState(false);
   // -- UI state persistence (per browser session) --
   const UI_STATE_KEY = "bazooka_vault_ui_v1";
@@ -26568,7 +27213,9 @@ See you in there!
   const [resubmitClaim,   setResubmitClaim]   = useState(null); // {coll, card} for re-uploading a better claim photo
   const [resubmitting,    setResubmitting]    = useState(false);
   const [modalFoilView, setModalFoilView] = useState("paper"); // "paper" | "foil" for dual-treatment cards
-  useEffect(()=>{ setModalFoilView("paper"); setCardEditMode(false); }, [expandedCard]); // reset toggle each time a card opens
+  const [myPhotoIdx,    setMyPhotoIdx]    = useState(0); // which of my own scan photos is showing in the modal
+  const [viewMyScan,    setViewMyScan]    = useState(false); // in the modal, show my scanned copy instead of the official art
+  useEffect(()=>{ setModalFoilView("paper"); setCardEditMode(false); setMyPhotoIdx(0); setViewMyScan(false); }, [expandedCard]); // reset toggle each time a card opens
 
   // -- Auto flip a card back to front ~6s after last interaction with the flipped card --
   const flipTimerRef = useRef(null);
@@ -26630,7 +27277,7 @@ See you in there!
     }
     scrollRestoredRef.current = true;
   }, [loading]);
-  const PAGE_SIZE = 48;  // PERF: fewer heavy foil cards mounted at once (was 100) — big win on tab switch / scroll
+  const PAGE_SIZE = 100;
 
   // -- Rainbow Tracker --
   const [rainbowFilter,    setRainbowFilter]    = useState("all");
@@ -26737,10 +27384,19 @@ See you in there!
   const [addStatus,     setAddStatus]     = useState(null);
   const [friendOwned,   setFriendOwned]   = useState({});
   const [viewingFriend, setViewingFriend] = useState(null);
+  // Family members' cards available to borrow: {famUid: {ownerName, cardIds:Set-as-array}}.
+  // = cards they own that are NOT locked in any of their saved decks.
+  const [familyAvail,   setFamilyAvail]   = useState({});
+  const [borrowLedger,  setBorrowLedger]  = useState([]); // family card borrows involving me
 
   // -- Teams --
   const [teams,         setTeams]         = useState([]);
   const [activeTeam,    setActiveTeam]    = useState(null);
+  // Submitted team decks: each member submits ONE deck. Keyed doc id `${teamId}_${uid}`.
+  // This is the ONLY card data teammates can see about each other — collections stay private.
+  const [teamDecks,     setTeamDecks]     = useState({}); // { uid: { cardIds:[], deckName, submittedAt } }
+  const [swapOffers,    setSwapOffers]    = useState([]); // offers I've made or received to resolve conflicts
+  const [teamLoans,     setTeamLoans]     = useState([]); // borrowed-card ledger for my teams
   const [newTeamName,   setNewTeamName]   = useState("");
   const [inviteEmail,   setInviteEmail]   = useState("");
   const [inviteStatus,  setInviteStatus]  = useState(null);
@@ -26789,6 +27445,14 @@ See you in there!
   const [listings,      setListings]      = useState([]);
   const [myListings,    setMyListings]    = useState([]);
   const [listModal,     setListModal]     = useState(null); // card being listed
+  // -- Bulk select --
+  const [selectMode,    setSelectMode]    = useState(false);
+  const [selectedIds,   setSelectedIds]   = useState(()=>new Set());
+  const [bulkListModal, setBulkListModal] = useState(false);
+  const [bulkListPrice, setBulkListPrice] = useState("");
+  const [bulkListNote,  setBulkListNote]  = useState("");
+  const [bulkListType,  setBulkListType]  = useState("sale");
+  const [bulkBusy,      setBulkBusy]      = useState(false);
   // -- Messages --
   const [threads,       setThreads]       = useState([]);
   const [activeThread,  setActiveThread]  = useState(null);
@@ -27278,6 +27942,7 @@ See you in there!
       } else {
         if (ownedUnsubRef.current) { try { ownedUnsubRef.current(); } catch(e){} ownedUnsubRef.current = null; }
         setOwned({}); setOwnedDocId(null); setWantList({}); setPublicCards({}); setLots([]); setMyReviews([]); setMyUsername(""); setMyPhotoURL(""); usernameClaimedThisSession.current=false; setUserMissing([]);
+        try { localStorage.removeItem("boba_owned_cache_v1"); } catch(e){}
       }
     });
   }, []);
@@ -27288,10 +27953,10 @@ See you in there!
     const uid2 = user.uid;
     const unsubs = [
       onSnapshot(query(collection(db,"friend_requests"), where("from","==",uid2), where("status","==","accepted")),
-        snap => setFriends(prev => { const ff=snap.docs.map(d=>({...d.data(),id:d.id,friendUid:d.data().to,friendName:d.data().toName||d.data().toEmail})); return [...ff,...prev.filter(f=>f._dir==="to")]; })
+        snap => setFriends(prev => { const ff=snap.docs.map(d=>({...d.data(),id:d.id,friendUid:d.data().to,friendName:d.data().toName||d.data().toEmail,isFamily:(d.data().familyBy||[]).includes(uid2)})); return [...ff,...prev.filter(f=>f._dir==="to")]; })
       ),
       onSnapshot(query(collection(db,"friend_requests"), where("to","==",uid2), where("status","==","accepted")),
-        snap => setFriends(prev => { const tf=snap.docs.map(d=>({...d.data(),id:d.id,friendUid:d.data().from,friendName:d.data().fromName||d.data().fromEmail,_dir:"to"})); return [...prev.filter(f=>f._dir!=="to"),...tf]; })
+        snap => setFriends(prev => { const tf=snap.docs.map(d=>({...d.data(),id:d.id,friendUid:d.data().from,friendName:d.data().fromName||d.data().fromEmail,_dir:"to",isFamily:(d.data().familyBy||[]).includes(uid2)})); return [...prev.filter(f=>f._dir!=="to"),...tf]; })
       ),
       onSnapshot(query(collection(db,"friend_requests"), where("to","==",uid2), where("status","==","pending")),
         snap => setFriendReqs(snap.docs.map(d=>({...d.data(),id:d.id})))
@@ -27300,7 +27965,19 @@ See you in there!
         snap => setSentReqs(snap.docs.map(d=>({...d.data(),id:d.id})))
       ),
       onSnapshot(query(collection(db,"teams"), where("memberUids","array-contains",uid2)),
-        snap => { const t=snap.docs.map(d=>({...d.data(),id:d.id})); setTeams(t); if(!activeTeam&&t.length>0) setActiveTeam(t[0]); }
+        snap => { const t=snap.docs.map(d=>({...d.data(),id:d.id})); setTeams(t); const live=t.filter(x=>x.status!=="deleted"); setActiveTeam(prev=>{ if(prev && prev.status!=="deleted" && live.some(x=>x.id===prev.id)) return prev; return live[0]||null; }); }
+      ),
+      // Submitted team decks for any team I'm on (privacy-safe: only decks members chose to submit)
+      onSnapshot(query(collection(db,"team_decks"), where("memberUids","array-contains",uid2)),
+        snap => { const m={}; snap.docs.forEach(d=>{ const v=d.data(); m[`${v.teamId}_${v.uid}`]=v; }); setTeamDecks(m); }
+      ),
+      // Swap offers involving my teams (I can help, or someone offered to help me)
+      onSnapshot(query(collection(db,"swap_offers"), where("memberUids","array-contains",uid2)),
+        snap => setSwapOffers(snap.docs.map(d=>({...d.data(),id:d.id})))
+      ),
+      // Borrowed-card ledger for my teams (who lent what to whom)
+      onSnapshot(query(collection(db,"team_loans"), where("memberUids","array-contains",uid2)),
+        snap => setTeamLoans(snap.docs.map(d=>({...d.data(),id:d.id})))
       ),
       onSnapshot(query(collection(db,"team_invites"), where("toUid","==",uid2), where("status","==","pending")),
         snap => setTeamInvites(snap.docs.map(d=>({...d.data(),id:d.id})))
@@ -27338,34 +28015,139 @@ See you in there!
     return () => unsubs.forEach(u=>u());
   }, [user]);
 
-  // Load friend owned maps.
-  // PERF: previously this fired a separate setState per friend (N re-renders of the whole app,
-  // each re-rendering the card grid) and used a stale `friendOwned` closure to decide what to
-  // skip — so it could refetch repeatedly. Now: fetch only what's missing, in parallel, and
-  // commit ONE state update.
-  const friendOwnedLoaded = useRef(new Set());
+  // Load friend owned maps
   useEffect(() => {
     if (!friends.length) return;
-    const todo = friends.filter(f => f.friendUid && !friendOwnedLoaded.current.has(f.friendUid));
-    if (!todo.length) return;
-    todo.forEach(f => friendOwnedLoaded.current.add(f.friendUid)); // claim immediately (no double-fetch)
-    let cancelled = false;
-    (async () => {
-      const results = await Promise.all(todo.map(async f => {
-        try {
-          const snap = await getDoc(doc(db,"boba_owned",f.friendUid));
-          return [f.friendUid, snap.exists() ? snap.data() : {}];
-        } catch(e) { return [f.friendUid, {}]; }
-      }));
-      if (cancelled) return;
-      setFriendOwned(prev => {
-        const next = { ...prev };
-        results.forEach(([uid,data]) => { next[uid] = data; });
-        return next;   // single update for all friends
-      });
-    })();
-    return () => { cancelled = true; };
+    friends.forEach(async f => {
+      if (friendOwned[f.friendUid]) return;
+      const snap = await getDoc(doc(db,"boba_owned",f.friendUid));
+      if (snap.exists()) setFriendOwned(prev=>({...prev,[f.friendUid]:snap.data()}));
+    });
   }, [friends]);
+
+  // Family members' BORROWABLE cards, computed LIVE = owned but not in any of their saved decks.
+  // Uses real-time subscriptions so scanning a card (updates boba_owned) or editing a deck
+  // (updates boba_decks) instantly recomputes what's available to borrow — just like your own
+  // collection updates live.
+  const familyRawRef = useRef({}); // { famUid: { owned:{}, locked:{}, name } }
+  useEffect(() => {
+    const familyMembers = friends.filter(f => f.isFamily);
+    if (!familyMembers.length) { familyRawRef.current = {}; setFamilyAvail({}); return; }
+
+    // Recompute the derived availability map from whatever raw data we currently have.
+    const recompute = () => {
+      const next = {};
+      Object.entries(familyRawRef.current).forEach(([famUid, raw]) => {
+        const theirOwned = raw.owned || {};
+        const locked = raw.locked || {};
+        const avail = {};
+        Object.keys(theirOwned).forEach(cid => {
+          const cleanId = String(cid).replace(/::foil$/,"");
+          const copies = parseInt(theirOwned[cid])||1;
+          const lockedN = locked[cleanId]||0;
+          if (copies > lockedN) avail[cleanId] = copies - lockedN;
+        });
+        next[famUid] = { ownerName: raw.name, cards: avail };
+      });
+      setFamilyAvail(next);
+    };
+
+    // Seed raw entries and subscribe two live listeners per family member.
+    const unsubs = [];
+    familyMembers.forEach(f => {
+      const uid2 = f.friendUid;
+      if (!familyRawRef.current[uid2]) familyRawRef.current[uid2] = { owned:{}, locked:{}, name:f.friendName };
+      else familyRawRef.current[uid2].name = f.friendName;
+
+      // Live: their owned collection
+      unsubs.push(onSnapshot(doc(db,"boba_owned",uid2), snap => {
+        familyRawRef.current[uid2] = { ...(familyRawRef.current[uid2]||{name:f.friendName,locked:{}}), owned: snap.exists()?snap.data():{} };
+        recompute();
+      }));
+      // Live: their saved decks → which card copies are locked
+      unsubs.push(onSnapshot(query(collection(db,"boba_decks"), where("userId","==",uid2)), snap => {
+        const lockedCount = {};
+        snap.forEach(d => { const seen=new Set(); (d.data().cardIds||[]).forEach(cid=>{ if(seen.has(cid))return; seen.add(cid); lockedCount[cid]=(lockedCount[cid]||0)+1; }); });
+        familyRawRef.current[uid2] = { ...(familyRawRef.current[uid2]||{name:f.friendName,owned:{}}), locked: lockedCount };
+        recompute();
+      }));
+    });
+
+    // Drop raw entries for anyone no longer family.
+    const stillFamily = new Set(familyMembers.map(f=>f.friendUid));
+    Object.keys(familyRawRef.current).forEach(uid2 => { if(!stillFamily.has(uid2)) delete familyRawRef.current[uid2]; });
+    recompute();
+
+    return () => { unsubs.forEach(u => { try{u();}catch(e){} }); };
+  }, [friends.filter(f=>f.isFamily).map(f=>f.friendUid).sort().join(",")]);// eslint-disable-line react-hooks/exhaustive-deps
+
+  // Borrow ledger: card loans between me and family (as borrower or owner).
+  useEffect(() => {
+    if(!user) return;
+    const unsub = onSnapshot(query(collection(db,"borrow_ledger"), where("participantUids","array-contains",user.uid)),
+      snap => setBorrowLedger(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.borrowedAt||"").localeCompare(a.borrowedAt||"")))
+    );
+    return ()=>unsub();
+  }, [user]);
+
+  // Auto paper-trail: whenever the working deck contains a family member's card, ensure a
+  // borrow_ledger entry exists (borrower=me, owner=them). Remove entries for family cards no
+  // longer in the deck. Keyed by borrower+card so it's idempotent.
+  useEffect(() => {
+    if (!user) return;
+    // Build owner lookup fresh (familyAvail may have updated). A card counts as "borrowed from
+    // family" when you have no FREE copy of your own — i.e. you don't own it, or all your copies
+    // are committed to your OTHER saved decks — matching the deck builder's rule.
+    const usedInOtherDecks = {};
+    (savedDecks||[]).forEach(d => {
+      if (d.id === deckLoadId) return;
+      const seen = new Set();
+      (d.cardIds||[]).forEach(cid => { if(seen.has(cid))return; seen.add(cid); usedInOtherDecks[cid]=(usedInOtherDecks[cid]||0)+1; });
+    });
+    const ownerByCard = {};
+    Object.entries(familyAvail).forEach(([famUid, info]) => {
+      Object.keys(info.cards||{}).forEach(cid => {
+        if (ownerByCard[cid]) return;
+        const myCopies = (owned && owned[cid]) ? (parseInt(owned[cid])||1) : 0;
+        const myFree = Math.max(0, myCopies - (usedInOtherDecks[cid]||0));
+        if (myFree <= 0) ownerByCard[cid] = { uid:famUid, name:info.ownerName };
+      });
+    });
+    const t = setTimeout(async () => {
+      try {
+        // Family cards currently in my deck
+        const inDeckFamily = deckCards.filter(cid => ownerByCard[cid]);
+        // Desired ledger doc ids
+        const want = new Set(inDeckFamily.map(cid => `${user.uid}_${cid}`));
+        // Read my current active borrow entries
+        const snap = await getDocs(query(collection(db,"borrow_ledger"), where("borrowerUid","==",user.uid), where("status","==","borrowed")));
+        const have = new Set();
+        snap.forEach(d => {
+          have.add(d.id);
+          if (!want.has(d.id)) { // no longer in deck → mark returned
+            setDoc(doc(db,"borrow_ledger",d.id),{status:"returned",returnedAt:new Date().toISOString()},{merge:true}).catch(()=>{});
+          }
+        });
+        // Add new borrows
+        for (const cid of inDeckFamily) {
+          const id = `${user.uid}_${cid}`;
+          if (have.has(id)) continue;
+          const card = cards.find(x=>x.id===cid);
+          const owner = ownerByCard[cid];
+          await setDoc(doc(db,"borrow_ledger",id),{
+            id, borrowerUid:user.uid, borrowerName:user.displayName||user.email,
+            ownerUid:owner.uid, ownerName:owner.name,
+            cardId:cid, cardLabel: card?`${card.hero} ${card.power}⚡ ${card.treatment||""}`.trim():cid,
+            cardImage: card?.imageUrl||"",
+            deckName: deckName||"(unsaved deck)",
+            status:"borrowed", borrowedAt:new Date().toISOString(),
+            participantUids:[user.uid, owner.uid],
+          },{merge:true});
+        }
+      } catch(e){ console.error("borrow ledger sync failed:",e); }
+    }, 800);
+    return ()=>clearTimeout(t);
+  }, [deckCards, familyAvail, user, deckName, savedDecks, deckLoadId]);
 
   // Upsert profile on login
   useEffect(() => {
@@ -27441,9 +28223,19 @@ See you in there!
     }
   }, [owned, cards]);
 
-  // Infinite scroll
+  // Infinite scroll (rAF-throttled; stops bumping page once everything is shown).
+  // Reads the current filtered length from a ref so this effect never depends on
+  // `filtered` (which is declared later — referencing it here caused a TDZ crash).
+  const filteredLenRef = useRef(0);
   useEffect(() => {
-    function onScroll() { if (document.documentElement.scrollHeight-window.scrollY-window.innerHeight<400) setPage(p=>p+1); }
+    let ticking = false;
+    function check() {
+      ticking = false;
+      if (document.documentElement.scrollHeight-window.scrollY-window.innerHeight<600) {
+        setPage(p => (p*PAGE_SIZE >= filteredLenRef.current ? p : p+1));
+      }
+    }
+    function onScroll() { if(!ticking){ ticking=true; requestAnimationFrame(check); } }
     window.addEventListener("scroll",onScroll,{passive:true});
     return ()=>window.removeEventListener("scroll",onScroll);
   }, []);
@@ -27587,6 +28379,45 @@ See you in there!
     if (next[cardId]) delete next[cardId]; else next[cardId]=true;
     setPublicCards(next);
     await persistPublicCards(next);
+  }
+  // -- Bulk selection helpers --
+  function toggleSelect(cardId) {
+    setSelectedIds(prev => { const n=new Set(prev); if(n.has(cardId)) n.delete(cardId); else n.add(cardId); return n; });
+  }
+  function clearSelection(){ setSelectedIds(new Set()); }
+  function exitSelectMode(){ setSelectMode(false); setSelectedIds(new Set()); }
+  // Bulk make public / private — one write via the whole map.
+  async function bulkSetPublic(makePublic) {
+    if (!user || selectedIds.size===0) return;
+    const next = {...publicCards};
+    selectedIds.forEach(id => { if(makePublic) next[id]=true; else delete next[id]; });
+    setPublicCards(next);
+    await persistPublicCards(next);
+  }
+  // Bulk list selected owned cards for sale/trade at one price. Skips already-listed cards.
+  async function bulkListSelected() {
+    if (!user || selectedIds.size===0 || bulkBusy) return;
+    setBulkBusy(true);
+    try {
+      const ids = [...selectedIds].filter(id => owned[id] && scanPhotoByCard[id] && !myListings.find(l=>l.cardId===id));
+      for (const id of ids) {
+        const c = cards.find(x=>x.id===id);
+        if(!c) continue;
+        const photoUrl = scanPhotoByCard[id];
+        const lid = uid();
+        await setDoc(doc(db,"marketplace",lid),{
+          id:lid, isOBO:bulkListType==="offer", cardId:c.id, cardName:c.hero, cardNum:c.cardNum,
+          cardTreatment:c.treatment, cardWeapon:c.weapon, cardPower:c.power, cardImage:c.imageUrl||null,
+          sellerPhotos:photoUrl?[photoUrl]:[], setName:c.setName, sellerUid:user.uid, sellerName:user.displayName||user.email,
+          askingPrice:bulkListType==="sale"?(parseFloat(bulkListPrice)||0):0,
+          listType:bulkListType, notes:bulkListNote.trim(), paymentInfo:"",
+          status:"active", createdAt:new Date().toISOString(), offerCount:0,
+        });
+      }
+      setBulkListModal(false); setBulkListPrice(""); setBulkListNote(""); setBulkListType("sale");
+      exitSelectMode();
+    } catch(e){ console.error("bulk list failed:",e); }
+    setBulkBusy(false);
   }
   // Keep public cards in sync with public trackers: any owned card whose treatment is covered
   // by a PUBLIC tracker stays public automatically (e.g. after scanning a new one in).
@@ -27893,6 +28724,20 @@ See you in there!
     saveLots(lots.filter(l => l.id!==lotId));
   }
   function lotsForCard(cardId) { return lots.filter(l => l.cardId===cardId); }
+  // Per-card lot COUNT is rendered for every card in the grid. Calling lotsForCard() per card
+  // was an O(cards × lots) full-scan on every render (hover, page bump, etc.) — a real perf drag.
+  // Build the count map once per lots change; each card then does an O(1) lookup.
+  const lotCountByCard = useMemo(() => {
+    const m = {};
+    for (const l of lots) { if(l && l.cardId) m[l.cardId] = (m[l.cardId]||0) + 1; }
+    return m;
+  }, [lots]);
+  // First scanned photo per card (private) — used as the tile image when there's no official art.
+  const scanPhotoByCard = useMemo(() => {
+    const m = {};
+    for (const l of lots) { if(l && l.cardId && l.photoUrl && !m[l.cardId]) m[l.cardId] = l.photoUrl; }
+    return m;
+  }, [lots]);
 
   function exportCollection() {
     if (!user) { setSigningIn(true); return; }
@@ -28381,8 +29226,8 @@ See you in there!
     const m = {
       "auth/invalid-email":"That doesn't look like a valid email.",
       "auth/user-not-found":"No account with that email. Try signing up instead.",
-      "auth/wrong-password":"Incorrect password. Try again or reset it.",
-      "auth/invalid-credential":"Email or password is incorrect.",
+      "auth/wrong-password":"Incorrect password. If you signed up with Google, use the Google button above instead — or reset your password.",
+      "auth/invalid-credential":"Email or password is incorrect. If you originally signed up with Google, use the Google button above instead.",
       "auth/email-already-in-use":"An account already exists with that email. Try signing in.",
       "auth/weak-password":"Password should be at least 6 characters.",
       "auth/too-many-requests":"Too many attempts. Wait a moment and try again.",
@@ -28396,7 +29241,7 @@ See you in there!
     if (!email) { setAuthErr("Enter your email."); return; }
     if (authMode === "reset") {
       setAuthBusy(true);
-      try { await sendPasswordResetEmail(auth, email); setAuthMsg("Password reset email sent! Check your inbox."); }
+      try { await sendPasswordResetEmail(auth, email); setAuthMsg("If this email has a password, a reset link is on its way — check your inbox (and spam). Signed up with Google? No email will come — just use the Google button instead."); }
       catch(e){ setAuthErr(authErrMsg(e.code)); }
       finally { setAuthBusy(false); }
       return;
@@ -28668,6 +29513,17 @@ See you in there!
     await setDoc(doc(db,"friend_requests",req.id),{status:accept?"accepted":"declined"},{merge:true});
     if(accept) await setDoc(doc(db,"boba_profiles",user.uid),{email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""},{merge:true});
   }
+  // Mark/unmark a friend as family. Writes my uid into the relationship's familyBy array,
+  // which grants ME access to THEIR available cards in the deck builder.
+  async function toggleFamily(f) {
+    if(!user||!f?.id) return;
+    try {
+      const snap = await getDoc(doc(db,"friend_requests",f.id));
+      const cur = snap.exists() ? (snap.data().familyBy||[]) : [];
+      const next = cur.includes(user.uid) ? cur.filter(u=>u!==user.uid) : [...cur, user.uid];
+      await setDoc(doc(db,"friend_requests",f.id),{familyBy:next},{merge:true});
+    } catch(e){ console.error("toggleFamily failed:",e); }
+  }
 
   // -- Teams --
   async function createTeam() {
@@ -28676,6 +29532,63 @@ See you in there!
     const me={uid:user.uid,email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""};
     await setDoc(doc(db,"teams",id),{id,name:newTeamName.trim(),starters:[me],bench:[],members:[me],memberUids:[user.uid],createdBy:user.uid,createdAt:new Date().toISOString()});
     setNewTeamName("");
+  }
+  // Submit ONE of my saved decks to a team. Writes only the deck's cardIds — no collection data.
+  // memberUids mirrors the team roster so teammates' listeners can read it under Firestore rules.
+  async function submitDeckToTeam(team, deck) {
+    if(!user||!team||!deck)return;
+    const docId=`${team.id}_${user.uid}`;
+    await setDoc(doc(db,"team_decks",docId),{
+      id:docId, teamId:team.id, uid:user.uid,
+      displayName:user.displayName||user.email,
+      deckId:deck.id, deckName:deck.name||"Deck",
+      cardIds:deck.cardIds||[],
+      memberUids:team.memberUids||[],
+      submittedAt:new Date().toISOString(),
+    });
+  }
+  async function withdrawTeamDeck(team) {
+    if(!user||!team)return;
+    try { await deleteDoc(doc(db,"team_decks",`${team.id}_${user.uid}`)); } catch(e){ console.error("withdraw deck failed:",e); }
+  }
+  // I volunteer a card from MY collection to resolve a team conflict. Teammates never saw my
+  // collection — my own client detected I could help, and I chose to offer this specific card.
+  async function offerSwap(team, conflictKey, card, forUid) {
+    if(!user||!team||!card)return;
+    const id=uid();
+    await setDoc(doc(db,"swap_offers",id),{
+      id, teamId:team.id, conflictKey,
+      fromUid:user.uid, fromName:user.displayName||user.email,
+      toUid:forUid||null,
+      cardId:card.id, cardLabel:`${card.hero} ${card.power}⚡ ${card.treatment||""}`.trim(),
+      memberUids:team.memberUids||[],
+      status:"open", createdAt:new Date().toISOString(),
+    });
+  }
+  async function dismissSwapOffer(offerId) {
+    try { await deleteDoc(doc(db,"swap_offers",offerId)); } catch(e){ console.error("dismiss offer failed:",e); }
+  }
+  // Owner logs "I lent this card to a teammate." Only the lender can create/return their loans.
+  async function lendCard(team, borrower, card) {
+    if(!user||!team||!borrower||!card)return;
+    const id=uid();
+    await setDoc(doc(db,"team_loans",id),{
+      id, teamId:team.id,
+      lenderUid:user.uid, lenderName:user.displayName||user.email,
+      borrowerUid:borrower.uid, borrowerName:borrower.displayName||borrower.email,
+      cardId:card.id, cardLabel:`${card.hero} ${card.power}⚡ ${card.treatment||""}`.trim(),
+      cardImage:card.imageUrl||"",
+      status:"active", lentAt:new Date().toISOString(), returnedAt:null,
+      memberUids:team.memberUids||[],
+    });
+  }
+  async function markLoanReturned(loan) {
+    if(!user||!loan)return;
+    try { await setDoc(doc(db,"team_loans",loan.id),{status:"returned",returnedAt:new Date().toISOString()},{merge:true}); }
+    catch(e){ console.error("mark returned failed:",e); }
+  }
+  async function deleteLoan(loanId) {
+    try { await deleteDoc(doc(db,"team_loans",loanId)); } catch(e){ console.error("delete loan failed:",e); }
   }
   async function inviteToTeam(team) {
     if(!inviteEmail.trim())return;
@@ -29097,9 +30010,7 @@ See you in there!
   const treatments    = [...new Set(filteredBySet.map(c=>c.treatment).filter(Boolean))].sort();
   const powers        = [...new Set(filteredBySet.map(c=>Number(c.power)).filter(Boolean))].sort((a,b)=>b-a);
 
-  // PERF: memoized. This filter+sort over the whole card DB previously re-ran on EVERY render
-  // of the main component — including tab switches and unrelated state changes.
-  const filtered = useMemo(() => cards.filter(c=>{
+  const filtered = cards.filter(c=>{
     if(filterSet    && c.setName!==filterSet)    return false;
     if(filterWeapon && canonWeapon(c.weapon)!==canonWeapon(filterWeapon))  return false;
     if(filterTreat  && c.treatment!==filterTreat) return false;
@@ -29112,10 +30023,12 @@ See you in there!
     return true;
   }).sort((a,b)=>{
     if(sortBy==="power") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
+    if(sortBy==="powerAsc") return (parseFloat(a.power)||0)-(parseFloat(b.power)||0);
     if(sortBy==="cardNum"){const na=parseInt(String(a.cardNum||"").replace(/[^0-9]/g,"")||"0"),nb=parseInt(String(b.cardNum||"").replace(/[^0-9]/g,"")||"0");return na-nb;}
     return (a[sortBy]||"").toString().localeCompare((b[sortBy]||"").toString());
-  }), [cards, filterSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, search, sortBy, owned]);
+  });
   const visibleCards=filtered.slice(0,page*PAGE_SIZE);
+  filteredLenRef.current = filtered.length;
   const _baseId = (k)=> String(k).replace(/::foil$/,"");
   const _ownedKeyValid = (k)=> !!cards.find(c=>c.id===_baseId(k));
   const uniqueOwned=Object.keys(owned).filter(_ownedKeyValid).length;
@@ -29138,25 +30051,65 @@ See you in there!
   })();
 
   // -- Deck logic --
-  const deckSet=useMemo(()=>new Set(deckCards),[deckCards]);
-  const inDeck=useMemo(()=>cards.filter(c=>deckSet.has(c.id)),[cards,deckSet]);
+  const deckSet=new Set(deckCards);
+  const inDeck=cards.filter(c=>deckSet.has(c.id));
   const isSpec=deckType==="spec"||deckType==="vegasbaby",isAM=deckType==="apexmadness";
   const dupKey=c=>`${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
   const inDeckDupKeys=new Set(inDeck.map(dupKey));
   const powerCount={};inDeck.forEach(c=>{const p=c.power||"0";powerCount[p]=(powerCount[p]||0)+1;});
   const treatCore={},treatApex={};
   if(isAM){inDeck.forEach(c=>{const t=(c.treatment||"").toLowerCase(),p=parseFloat(c.power||0);if(p>=115&&p<=160)treatCore[t]=(treatCore[t]||0)+1;if(p>160)treatApex[t]=(treatApex[t]||0)+1;});}
+  // -- Tournament rule: a physical copy can't be in two decks at once. --
+  // Count how many of the user's OTHER saved decks already commit each cardId (excluding the
+  // deck currently being edited). A card locks only when other decks have used up every copy
+  // you own — own 3 and up to 3 decks can each run one.
+  const otherDeckUse = {};
+  (savedDecks||[]).forEach(d => {
+    if (d.id === deckLoadId) return; // skip the deck being edited
+    const seenInThisDeck = new Set();
+    (d.cardIds||[]).forEach(cid => {
+      if (seenInThisDeck.has(cid)) return; // a deck uses at most one copy of a given card
+      seenInThisDeck.add(cid);
+      otherDeckUse[cid] = (otherDeckUse[cid]||0) + 1;
+    });
+  });
+
+  // Family cards you can borrow, merged for the deck builder. A family copy surfaces when EITHER
+  // you don't own the card, OR you own it but all your copies are committed to other decks — so
+  // borrowing genuinely adds capacity. familyOwnerByCard: cardId -> {uid,name,copies}.
+  const familyOwnerByCard = {};
+  const deckOwnedMerged = { ...owned };
+  Object.entries(familyAvail).forEach(([famUid, info]) => {
+    Object.entries(info.cards||{}).forEach(([cid, copies]) => {
+      if (familyOwnerByCard[cid]) return; // first available family owner wins
+      const myCopies = (owned && owned[cid]) ? (parseInt(owned[cid])||1) : 0;
+      const myUsed = otherDeckUse[cid] || 0;
+      const myFree = Math.max(0, myCopies - myUsed);
+      // Surface the family copy if you have no free copy of your own.
+      if (myFree <= 0) {
+        familyOwnerByCard[cid] = { uid: famUid, name: info.ownerName, copies };
+        deckOwnedMerged[cid] = (deckOwnedMerged[cid]||0) + copies;
+      }
+    });
+  });
   function canAddToDeck(c){
     if(deckSet.has(c.id))return{ok:false,reason:"Already in deck"};
     if(inDeck.length>=DECK_SIZE)return{ok:false,reason:"Deck full"};
     if(inDeckDupKeys.has(dupKey(c)))return{ok:false,reason:"Duplicate card"};
+    // Cross-deck copy lock: counts YOUR copies plus any family copies you can borrow.
+    // Every copy already committed to another deck is unavailable here.
+    const _copies = (deckOwnedMerged && deckOwnedMerged[c.id]) ? deckOwnedMerged[c.id] : 0;
+    const _usedElsewhere = otherDeckUse[c.id] || 0;
+    if(_copies > 0 && _usedElsewhere >= _copies){
+      return {ok:false, reason: _copies===1 ? "In another deck" : `All ${_copies} copies are in other decks`};
+    }
     if((powerCount[c.power||"0"]||0)>=6)return{ok:false,reason:`Already 6 at power ${c.power}`};
     const p=parseFloat(c.power||0);
     if(isSpec&&p>160)return{ok:false,reason:`Power ${c.power} exceeds 160`};
     if(isAM&&p>160){const t=(c.treatment||"").toLowerCase();if((treatCore[t]||0)<10)return{ok:false,reason:`Need 10 core ${c.treatment} first (${treatCore[t]||0}/10)`};if((treatApex[t]||0)>=1)return{ok:false,reason:`Already have 1 ${c.treatment} apex card`};}
     return{ok:true};
   }
-  const deckAvail=useMemo(()=>cards.filter(c=>{
+  const deckAvail=cards.filter(c=>{
     if(deckSet.has(c.id))return false;
     if(deckFilterW&&canonWeapon(c.weapon)!==canonWeapon(deckFilterW))return false;
     if(deckFilterP.size>0&&!deckFilterP.has(String(c.power||"")))return false;
@@ -29166,66 +30119,195 @@ See you in there!
     const t=(c.treatment||"").toLowerCase();
     if(t==="plays"||t==="bonus plays"||t==="home team discount")return false;
     return true;
-  }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0)),[cards,deckSet,deckFilterW,deckFilterP,deckFilterS,deckFilterT,deckSearch]);
+  }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
 
   // -- "How close am I to a deck?" — from OWNED cards, respecting deck type + weapon/treatment filter --
-  function computeDeckProgress(weaponFilter, treatmentFilter, dtype, setFilter, maxDeck) {
+  function computeDeckProgress(weaponFilter, treatmentFilter, dtype, setFilter) {
     const isPlayCard = c => { const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="bonus plays"||t==="home team discount"; };
-    const isSpec = (dtype==="spec"||dtype==="vegasbaby");
-    const isApex = (dtype==="apex"||dtype==="apexmadness");
-    const setSet = (Array.isArray(setFilter) && setFilter.length) ? new Set(setFilter) : null;
-    // owned, eligible cards matching the chosen filters + deck-type power rule
+    const specCap = (dtype==="spec"||dtype==="vegasbaby");
+    const powerOf = c => parseFloat(c.power)||0;
+    // Ownership now spans YOUR cards + FAMILY cards you can borrow.
+    const isMine = c => owned[c.id] || owned[c.id+"::foil"];
+    const famOwner = c => (!isMine(c) && familyOwnerByCard[c.id]) ? familyOwnerByCard[c.id] : null;
+    const isOwned = c => isMine(c) || !!famOwner(c);
+    // Cross-deck lock: available copies = your copies + borrowable family copies, minus copies
+    // already committed to OTHER decks. Prefer your own; family fills the gap.
+    const isAvailable = c => {
+      const mine = (owned && owned[c.id]) ? (parseInt(owned[c.id])||1) : 0;
+      const fam = famOwner(c) ? (famOwner(c).copies||1) : 0;
+      const copies = mine + fam;
+      const usedElsewhere = otherDeckUse[c.id] || 0;
+      return copies > usedElsewhere;
+    };
+    // Tiebreak sorter: same-priority cards ordered YOURS first, then family.
+    const mineFirst = (a,b) => (isMine(b)?1:0) - (isMine(a)?1:0);
+
+    // ── APEX MADNESS: SMART structured build ──
+    // Work backwards from your best apex cards. For each apex (highest power first), check if you
+    // own 10 core (<160) of that same insert to unlock it. If yes, lock that insert in (10 core + apex).
+    // If no, skip to your next-best apex. Stop at 6 fully-unlockable inserts. Never pad with partials.
+    // Then each owned FOILED HOT DOG adds 1 more apex from any insert (highest left), capped at 4. Ceiling 70.
+    if (dtype === "apexmadness") {
+      const base = cards.filter(c => isOwned(c) && isAvailable(c) && !isPlayCard(c)
+        && (!weaponFilter || canonWeapon(c.weapon)===canonWeapon(weaponFilter))
+        && (!setFilter || setFilter.size===0 || setFilter.has(c.setName)));
+      const insertOf = c => (c.treatment || "—");
+
+      // Pre-group core (<160) and apex (>160) by insert.
+      const coreByInsert = {}; const apexByInsert = {};
+      base.forEach(c => {
+        const t = insertOf(c);
+        if (powerOf(c) > 160) (apexByInsert[t] = apexByInsert[t]||[]).push(c);
+        else (coreByInsert[t] = coreByInsert[t]||[]).push(c);
+      });
+
+      // Helper: pick up to N unique core for an insert (dedup, max 6 per power level).
+      const pickCore = (insert, n, usedKeys) => {
+        const list = (coreByInsert[insert]||[]).slice().sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
+        const seen=new Set(); const perPower={}; const picked=[];
+        for (const c of list) {
+          const k=dupKey(c); if(seen.has(k)||usedKeys.has(k)) continue;
+          const p=String(c.power||"0"); if((perPower[p]||0)>=6) continue;
+          seen.add(k); perPower[p]=(perPower[p]||0)+1; picked.push(c);
+          if(picked.length>=n) break;
+        }
+        return picked;
+      };
+      // Count how many unique core an insert *could* field (for the "closest" hint).
+      const coreAvail = insert => pickCore(insert, 999, new Set()).length;
+
+      // Rank all apexes best-first (used for hot-dog slots + tiebreaks). Each apex points at its insert.
+      const allApex = base.filter(c=>powerOf(c)>160).sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
+
+      const chosen = [];
+      const usedKeys = new Set();
+      const apexUsed = new Set();
+      const completedInserts = [];   // {insert, apexPower}
+      const lockedInserts = new Set();
+
+      // COMPLETENESS-FIRST: only inserts that have BOTH a full 10 core AND at least one apex (>160)
+      // are eligible. Rank eligible inserts by how deep their core pool is (most complete first),
+      // then by best apex power as a tiebreak. Build the top 6.
+      const eligible = Object.keys(coreByInsert)
+        .map(insert => {
+          const apexes = (apexByInsert[insert]||[]).slice().sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
+          return {
+            insert,
+            coreDepth: coreAvail(insert),           // how many unique core you can field
+            bestApex: apexes[0] || null,
+          };
+        })
+        .filter(x => x.coreDepth >= 10 && x.bestApex)  // MUST have 10 core AND an apex
+        .sort((a,b) => (b.coreDepth - a.coreDepth) || ((parseFloat(b.bestApex.power)||0)-(parseFloat(a.bestApex.power)||0)));
+
+      for (const e of eligible) {
+        if (completedInserts.length >= 6) break;
+        const core = pickCore(e.insert, 10, usedKeys);
+        if (core.length < 10) continue;               // safety (copies may be shared across inserts)
+        if (apexUsed.has(dupKey(e.bestApex))) continue;
+        core.forEach(c=>{ chosen.push(c); usedKeys.add(dupKey(c)); });
+        chosen.push(e.bestApex); apexUsed.add(dupKey(e.bestApex));
+        lockedInserts.add(e.insert);
+        completedInserts.push({ insert: e.insert, apexPower: e.bestApex.power });
+      }
+
+      // Foiled Hot Dog apex slots — each adds the next-best remaining apex from ANY insert, cap 4.
+      const foiledHotDogs = base.filter(c => (c.treatment||"").toLowerCase().includes("hot dog") && owned[c.id+"::foil"]).length;
+      const hotDogSlots = Math.min(4, foiledHotDogs);
+      let hotDogApexAdded = 0;
+      if (hotDogSlots > 0) {
+        for (const apex of allApex) {
+          if (hotDogApexAdded >= hotDogSlots) break;
+          if (apexUsed.has(dupKey(apex))) continue;
+          chosen.push(apex); apexUsed.add(dupKey(apex)); hotDogApexAdded++;
+        }
+      }
+
+      // "Closest to unlockable" — inserts with an apex available where you're genuinely close on
+      // core (at least halfway). Ranked by fewest core still needed, so the most actionable show first.
+      const nearInserts = Object.keys(apexByInsert)
+        .filter(ins => !lockedInserts.has(ins))
+        .map(ins => {
+          const bestApex = (apexByInsert[ins]||[]).slice().sort((a,b)=>powerOf(b)-powerOf(a))[0];
+          return { insert: ins, have: coreAvail(ins), need: 10, bestApexPower: bestApex?bestApex.power:null };
+        })
+        .filter(x => x.bestApexPower != null && x.have >= 5 && x.have < 10)  // has apex + at least halfway
+        .sort((a,b)=>(b.have - a.have) || ((parseFloat(b.bestApexPower)||0)-(parseFloat(a.bestApexPower)||0)))
+        .slice(0,4);
+
+      const coreCount = chosen.filter(c=>powerOf(c)<=160).length;
+      const apexCount = chosen.filter(c=>powerOf(c)>160).length;
+      return {
+        have: chosen.length, need: 60,
+        cards: chosen, perPower:{}, ownedEligible: base.length,
+        familyCount: chosen.filter(c=>!isMine(c)&&famOwner(c)).length,
+        am:{
+          coreCount, apexCount,
+          completedInserts: completedInserts.length,
+          insertList: completedInserts,
+          foiledHotDogs, hotDogSlots, hotDogApexAdded,
+          nearInserts, ceiling:70,
+        },
+      };
+    }
+
+    // ── Other deck types: cluster by TREATMENT (fill one insert as deep as possible, then move on) ──
     const ownedCards = cards.filter(c => {
-      if(!owned[c.id] && !owned[c.id+"::foil"]) return false;
+      if(!isOwned(c)) return false;
+      if(!isAvailable(c)) return false; // cross-deck lock
       if(isPlayCard(c)) return false;
       if(weaponFilter && canonWeapon(c.weapon) !== canonWeapon(weaponFilter)) return false;
       if(treatmentFilter && c.treatment !== treatmentFilter) return false;
-      if(setSet && !setSet.has(c.setName)) return false;   // restrict to selected sets (e.g. Alpha era)
-      const pw = parseFloat(c.power||0);
-      // Deck-type base rules (always apply)
-      if(isSpec && pw > 160) return false;                  // Spec: cap at 160
-      // "Build max deck" — opt-in tighter ranges for the strongest legal build
-      if(maxDeck && isSpec && pw < 115) return false;       // Max Spec: 115–160
-      if(maxDeck && isApex && pw < 155) return false;       // Max Apex: 155+
+      if(setFilter && setFilter.size>0 && !setFilter.has(c.setName)) return false; // set restriction
+      if(specCap && (powerOf(c) > 160)) return false; // Spec/Vegas Baby: ≤160 only
       return true;
     });
-    // Dedupe and cap 6 per power level. When no specific treatment is chosen, PREFER using as many
-    // of the same treatment as possible: rank treatments by how many eligible cards each has, and
-    // pick from the biggest pool first, so a deck leans into one insert (e.g. all Brawl gold coins)
-    // before mixing in others.
-    const treatmentRank = {};
-    if (!treatmentFilter) {
-      const counts = {};
-      ownedCards.forEach(c => { const t=c.treatment||"—"; counts[t]=(counts[t]||0)+1; });
-      Object.keys(counts).sort((a,b)=>counts[b]-counts[a]).forEach((t,i)=>{ treatmentRank[t]=i; });
-    }
-    const seen = new Set(); const perPower = {}; const usable = [];
-    ownedCards.sort((a,b)=>{
-      // 1) dominant treatment first (biggest pool), 2) then power descending
-      if (!treatmentFilter) {
-        const ra = treatmentRank[a.treatment||"—"] ?? 999, rb = treatmentRank[b.treatment||"—"] ?? 999;
-        if (ra !== rb) return ra - rb;
+
+    // Group by treatment, then rank treatments by how DEEP a pool they can field (most first),
+    // so the deck uses as many of one insert as possible before reaching into the next.
+    const byTreat = {};
+    ownedCards.forEach(c => { const t=c.treatment||"—"; (byTreat[t]=byTreat[t]||[]).push(c); });
+    // Count usable depth per treatment (respecting dedupe + 6-per-power), to rank them fairly.
+    const depthOf = list => {
+      const seen=new Set(); const pp={}; let n=0;
+      list.slice().sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b)).forEach(c=>{
+        const k=dupKey(c); if(seen.has(k)) return;
+        const p=String(c.power||"0"); if((pp[p]||0)>=6) return;
+        seen.add(k); pp[p]=(pp[p]||0)+1; n++;
+      });
+      return n;
+    };
+    const treatOrder = Object.keys(byTreat)
+      .map(t => ({ t, depth: depthOf(byTreat[t]) }))
+      .sort((a,b) => (b.depth - a.depth) || a.t.localeCompare(b.t));
+
+    // Fill treatment by treatment, deepest first. Global dedupe + 6-per-power cap still apply.
+    const seen = new Set(); const perPower = {}; const usable = []; const treatUsed = [];
+    for (const { t } of treatOrder) {
+      if (usable.length >= DECK_SIZE) break;
+      const before = usable.length;
+      const list = byTreat[t].slice().sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
+      for (const c of list) {
+        if (usable.length >= DECK_SIZE) break;
+        const k = dupKey(c);
+        if (seen.has(k)) continue;
+        const p = String(c.power||"0");
+        if ((perPower[p]||0) >= 6) continue;
+        seen.add(k); perPower[p]=(perPower[p]||0)+1; usable.push(c);
       }
-      return (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
-    });
-    for(const c of ownedCards){
-      const k = dupKey(c);
-      if(seen.has(k)) continue;
-      const p = String(c.power||"0");
-      if((perPower[p]||0) >= 6) continue;
-      seen.add(k); perPower[p]=(perPower[p]||0)+1; usable.push(c);
-      if(usable.length >= DECK_SIZE) break;
+      const added = usable.length - before;
+      if (added > 0) treatUsed.push({ treatment: t, count: added });
     }
-    // Report the treatment breakdown of what was picked (so the UI can show "mostly Brawl" etc.)
-    const treatmentBreakdown = {};
-    usable.forEach(c => { const t=c.treatment||"—"; treatmentBreakdown[t]=(treatmentBreakdown[t]||0)+1; });
-    return { have: usable.length, need: DECK_SIZE, perPower, ownedEligible: ownedCards.length, cards: usable, treatmentBreakdown };
+    return {
+      have: usable.length, need: DECK_SIZE, perPower, ownedEligible: ownedCards.length, cards: usable,
+      familyCount: usable.filter(c=>!isMine(c)&&famOwner(c)).length,
+      treatUsed, // which inserts the deck drew from, in order
+    };
   }
   const [deckGoalW, setDeckGoalW] = useState("");
   const [deckGoalT, setDeckGoalT] = useState("");
-  const [deckGoalSets, setDeckGoalSets] = useState([]); // selected sets to restrict to ([] = all)
-  const [deckMaxBuild, setDeckMaxBuild] = useState(false); // "Build max deck" — tighter power ranges
-  const deckProgress = useMemo(()=>computeDeckProgress(deckGoalW, deckGoalT, deckType, deckGoalSets, deckMaxBuild), [cards, owned, deckGoalW, deckGoalT, deckType, deckGoalSets, deckMaxBuild]);
+  const [deckGoalSets, setDeckGoalSets] = useState(()=>new Set()); // empty = all sets allowed
+  const deckProgress = computeDeckProgress(deckGoalW, deckGoalT, deckType, deckGoalSets);
 
 
   const totalNotifs = friendReqs.length+teamInvites.length+marketNotifs.length+wantNotifs.length+unreadThreads;
@@ -29741,13 +30823,37 @@ See you in there!
         const claimPending = claim1of1 && claim1of1.status === "pending";
         const oneOfOneLabel = isSuper ? "⭐ Super 1/1" : "💎 Secret 1/1";
         const claimerName = claim1of1 ? (claim1of1.submitterName || claim1of1.userName || "Anonymous") : "";
+        // My own scanned photos for this card (private — sourced from my lots, never shown to others).
+        // Official admin imageUrl always takes priority; these only fill in when there's no official image.
+        const myPhotos = (lots||[]).filter(l => l.cardId === c.id && l.photoUrl).map(l => l.photoUrl);
+        const safePhotoIdx = myPhotos.length ? Math.min(myPhotoIdx, myPhotos.length-1) : 0;
+        const hasMyPhotos = myPhotos.length > 0;
+        // Show my own scan when there's no official art, OR when I've toggled to "my copy".
+        const showMyPhoto = hasMyPhotos && (!c.imageUrl || viewMyScan);
         return (
           <div onClick={()=>setExpandedCard(null)} style={{ position:"fixed", inset:0, zIndex:12000, background:"rgba(0,0,0,0.85)", backdropFilter:"blur(6px)", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
             <div onClick={e=>e.stopPropagation()} style={{ display:"flex", flexWrap:"wrap", gap:24, maxWidth:980, width:"100%", maxHeight:"90vh", background:"linear-gradient(160deg,#16161f,#0d0d12)", border:`1.5px solid ${wc}44`, borderRadius:18, padding:24, boxShadow:`0 24px 80px rgba(0,0,0,0.7)`, overflowY:"auto", position:"relative" }}>
               <button onClick={()=>setExpandedCard(null)} style={{ position:"absolute", top:14, right:16, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.12)", color:"#fff", borderRadius:8, width:34, height:34, fontSize:18, cursor:"pointer", fontFamily:"inherit", zIndex:2 }}>×</button>
               {/* Big image */}
               <div style={{ flex:"1 1 320px", minWidth:280, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:12 }}>
-                {c.imageUrl ? (
+                {showMyPhoto ? (
+                  <div style={{ position:"relative", width:"100%", maxWidth:420, borderRadius:14, overflow:"hidden", boxShadow:`0 12px 50px ${wc}33` }}>
+                    <img src={myPhotos[safePhotoIdx]} alt={c.hero} style={{ width:"100%", display:"block", aspectRatio:"3/4", objectFit:"cover" }}/>
+                    {/* "Your scan" badge so it's clear this is your private photo, not the official art */}
+                    <div style={{ position:"absolute", top:10, left:10, background:"rgba(0,0,0,0.7)", border:"1px solid rgba(74,222,128,0.5)", color:"#4ade80", borderRadius:8, padding:"4px 10px", fontSize:11, fontWeight:800, letterSpacing:0.5, backdropFilter:"blur(4px)" }}>📸 Your scan{myPhotos.length>1?` · ${safePhotoIdx+1}/${myPhotos.length}`:""}</div>
+                    {myPhotos.length > 1 && (
+                      <>
+                        <button onClick={e=>{ e.stopPropagation(); setMyPhotoIdx(i => (i-1+myPhotos.length)%myPhotos.length); }} style={{ position:"absolute", top:"50%", left:8, transform:"translateY(-50%)", background:"rgba(0,0,0,0.6)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", borderRadius:"50%", width:38, height:38, fontSize:20, fontWeight:900, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>‹</button>
+                        <button onClick={e=>{ e.stopPropagation(); setMyPhotoIdx(i => (i+1)%myPhotos.length); }} style={{ position:"absolute", top:"50%", right:8, transform:"translateY(-50%)", background:"rgba(0,0,0,0.6)", border:"1px solid rgba(255,255,255,0.2)", color:"#fff", borderRadius:"50%", width:38, height:38, fontSize:20, fontWeight:900, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", backdropFilter:"blur(4px)" }}>›</button>
+                        <div style={{ position:"absolute", bottom:10, left:0, right:0, display:"flex", justifyContent:"center", gap:6, pointerEvents:"none" }}>
+                          {myPhotos.map((_,i)=>(
+                            <div key={i} style={{ width:7, height:7, borderRadius:"50%", background:i===safePhotoIdx?"#4ade80":"rgba(255,255,255,0.4)" }}/>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : c.imageUrl ? (
                   <div style={{ position:"relative", width:"100%", maxWidth:420, borderRadius:14, overflow:"hidden", boxShadow:`0 12px 50px ${wc}33` }}>
                     <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", display:"block", aspectRatio:"3/4", objectFit:"cover" }}/>
                     {showFoil && (
@@ -29761,6 +30867,12 @@ See you in there!
                   <div style={{ width:"100%", maxWidth:420, aspectRatio:"3/4", borderRadius:14, background:"var(--bz-s1)", border:"2px dashed #333", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:"rgba(255,255,255,0.3)" }}>
                     <div style={{ fontSize:48, marginBottom:8 }}>🃏</div>
                     <div style={{ fontSize:12, fontWeight:800, letterSpacing:1.5, textTransform:"uppercase" }}>Image coming soon</div>
+                  </div>
+                )}
+                {c.imageUrl && hasMyPhotos && (
+                  <div style={{ display:"flex", gap:6, background:"rgba(0,0,0,0.4)", borderRadius:12, padding:5, border:"1px solid rgba(255,255,255,0.1)" }}>
+                    <button onClick={()=>setViewMyScan(false)} style={{ background:!viewMyScan?"linear-gradient(135deg,#E8317A,#7B2FF7)":"transparent", color:!viewMyScan?"#fff":"rgba(255,255,255,0.55)", border:"none", borderRadius:8, padding:"8px 18px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>🖼 Official</button>
+                    <button onClick={()=>setViewMyScan(true)} style={{ background:viewMyScan?"linear-gradient(135deg,#4ade80,#22c55e)":"transparent", color:viewMyScan?"#062b13":"rgba(255,255,255,0.55)", border:"none", borderRadius:8, padding:"8px 18px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>📸 My copy{myPhotos.length>1?` (${myPhotos.length})`:""}</button>
                   </div>
                 )}
                 {isDualTreatment && c.imageUrl && (
@@ -29911,7 +31023,21 @@ See you in there!
                     </div>
                   </div>
                 ) : (
+                  <>
                   <button onClick={()=>{ const note=window.prompt("Optional note (seller, ETA, tracking…). Leave blank to skip:","")||""; const qtyStr=window.prompt("How many are on the way?","1"); const qty=Math.max(1,parseInt(qtyStr)||1); setTransit(c.id,{qty,note}); }} style={{ width:"100%", marginTop:12, background:"rgba(96,165,250,0.1)", border:"1.5px solid rgba(96,165,250,0.4)", color:"#60A5FA", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>🚚 Mark as On the Way (bought, incoming)</button>
+                  <button onClick={()=>setCompCard(c)} style={{ width:"100%", marginTop:10, background:"rgba(123,156,255,0.12)", border:"1.5px solid rgba(123,156,255,0.45)", color:"#7B9CFF", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>📊 View Sold Comps (eBay + in-app)</button>
+                  {owned[c.id] && (<>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginTop:10 }}>
+                    <button onClick={()=>togglePrivate(c.id)} style={{ background:publicCards[c.id]?"rgba(74,222,128,0.12)":"rgba(255,255,255,0.04)", border:`1.5px solid ${publicCards[c.id]?"#4ade80":"#333"}`, color:publicCards[c.id]?"#4ade80":"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{publicCards[c.id]?"👁 Public":"🔒 Private"}</button>
+                    {myListings.find(l=>l.cardId===c.id) ? (
+                      <button disabled style={{ background:"rgba(74,222,128,0.08)", border:"1.5px solid rgba(74,222,128,0.3)", color:"#4ade80", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, fontFamily:"inherit", cursor:"default" }}>💰 Listed</button>
+                    ) : (
+                      <button onClick={()=>setListModal(c)} style={{ background:"rgba(255,255,255,0.04)", border:"1.5px solid #333", color:"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>💰 List for Sale</button>
+                    )}
+                  </div>
+                  <div style={{ fontSize:10, color:"var(--bz-ink-3)", marginTop:6, textAlign:"center" }}>{publicCards[c.id]?"Shown on your public profile.":"Only you can see this card. Make it public to show it off."}</div>
+                  </>)}
+                  </>
                 )}
 
                 {/* Trade Bait flag + per-copy breakdown */}
@@ -29989,6 +31115,7 @@ See you in there!
         .boba-flip-pill { opacity: 0; transform: translateY(4px); transition: opacity 0.18s ease, transform 0.18s ease; }
         .boba-card-hover:hover .boba-flip-pill { opacity: 1; transform: translateY(0); }
         .boba-card-hover:hover .boba-quickadd { opacity: 1 !important; }
+        .pub-card-grid > *:hover .boba-priv-dim { opacity: 0; }
         @media (hover: none) { .boba-quickadd { opacity: 1 !important; } }
         .deck-pb-cardlist > div > div:hover .deck-add-badge { opacity: 1; }
         .fan-card:hover { filter: brightness(1.12); z-index: 999 !important; box-shadow: 0 24px 70px rgba(0,0,0,0.85) !important; }
@@ -30111,6 +31238,46 @@ See you in there!
       <CompModal compCard={compCard} setCompCard={setCompCard} marketSales={marketSales} WEAPON_COLORS={WEAPON_COLORS} cards={cards}
           listings={listings}
           />
+
+      {/* ── BULK ACTION BAR ── shows when in select mode with cards chosen */}
+      {selectMode && (
+        <div style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",zIndex:9000,background:"rgba(18,18,26,0.97)",border:"1px solid rgba(123,156,255,0.4)",borderRadius:16,padding:"12px 16px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",boxShadow:"0 12px 40px rgba(0,0,0,0.6)",backdropFilter:"blur(10px)",maxWidth:"94vw"}}>
+          <span style={{fontSize:13,fontWeight:800,color:"#7B9CFF",whiteSpace:"nowrap"}}>{selectedIds.size} selected</span>
+          <button onClick={()=>{ const vis=visibleCards.map(c=>c.id); setSelectedIds(new Set(vis)); }} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.6)",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Select shown</button>
+          <button onClick={clearSelection} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.6)",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Clear</button>
+          <div style={{width:1,height:24,background:"rgba(255,255,255,0.12)"}}/>
+          <button disabled={selectedIds.size===0} onClick={()=>bulkSetPublic(true)} style={{background:selectedIds.size?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)",border:`1px solid ${selectedIds.size?"#4ade80":"#333"}`,color:selectedIds.size?"#4ade80":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>👁 Make Public</button>
+          <button disabled={selectedIds.size===0} onClick={()=>bulkSetPublic(false)} style={{background:selectedIds.size?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.04)",border:"1px solid #333",color:selectedIds.size?"#ccc":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>🔒 Make Private</button>
+          <button disabled={selectedIds.size===0} onClick={()=>setBulkListModal(true)} style={{background:selectedIds.size?"linear-gradient(135deg,#E8317A,#7B2FF7)":"rgba(255,255,255,0.04)",border:"none",color:selectedIds.size?"#fff":"#555",borderRadius:8,padding:"7px 14px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>💰 List for Sale</button>
+        </div>
+      )}
+
+      {/* ── BULK LIST MODAL ── */}
+      {bulkListModal && (()=>{
+        const eligibleCount = [...selectedIds].filter(id=>owned[id]&&scanPhotoByCard[id]&&!myListings.find(l=>l.cardId===id)).length;
+        return (
+        <div onClick={()=>!bulkBusy&&setBulkListModal(false)} style={{position:"fixed",inset:0,zIndex:9500,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#14141c",border:"1px solid rgba(123,156,255,0.3)",borderRadius:16,padding:24,maxWidth:420,width:"100%"}}>
+            <div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:6}}>List {eligibleCount} cards</div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginBottom:16}}>Applies one price and note to all selected cards. Each is listed with your scan photo. Cards without your photo, or already listed, are skipped.</div>
+            <div style={{display:"flex",gap:8,marginBottom:14}}>
+              {[["sale","💵 For Sale"],["trade","🔄 Trade"],["offer","📩 Open to Offers"]].map(([v,l])=>(
+                <button key={v} onClick={()=>setBulkListType(v)} style={{flex:1,background:bulkListType===v?"rgba(123,156,255,0.2)":"transparent",border:`1px solid ${bulkListType===v?"#7B9CFF":"#333"}`,color:bulkListType===v?"#7B9CFF":"#888",borderRadius:8,padding:"8px 4px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+              ))}
+            </div>
+            {bulkListType==="sale" && (
+              <input value={bulkListPrice} onChange={e=>setBulkListPrice(e.target.value)} type="number" placeholder="Asking price (each) $" style={{width:"100%",background:"#0d0d12",border:"1px solid rgba(255,255,255,0.15)",color:"#fff",borderRadius:8,padding:"11px 12px",fontSize:14,fontFamily:"inherit",marginBottom:12,boxSizing:"border-box"}}/>
+            )}
+            <textarea value={bulkListNote} onChange={e=>setBulkListNote(e.target.value)} placeholder="Optional note applied to all (condition, terms…)" rows={2} style={{width:"100%",background:"#0d0d12",border:"1px solid rgba(255,255,255,0.15)",color:"#fff",borderRadius:8,padding:"11px 12px",fontSize:13,fontFamily:"inherit",marginBottom:8,boxSizing:"border-box",resize:"vertical"}}/>
+            <div style={{fontSize:11,color:"#4ade80",background:"rgba(74,222,128,0.08)",border:"1px solid rgba(74,222,128,0.25)",borderRadius:8,padding:"8px 10px",marginBottom:16,lineHeight:1.4}}>📸 Only cards where you've uploaded your own scan photo can be bulk-listed — each listing uses that photo. To list a card without a scan, use the single "List for Sale" flow and add a photo there.</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={bulkListSelected} disabled={bulkBusy||eligibleCount===0||(bulkListType==="sale"&&!bulkListPrice)} style={{flex:1,background:(bulkBusy||eligibleCount===0||(bulkListType==="sale"&&!bulkListPrice))?"rgba(255,255,255,0.06)":"linear-gradient(135deg,#E8317A,#7B2FF7)",color:(bulkBusy||eligibleCount===0||(bulkListType==="sale"&&!bulkListPrice))?"#555":"#fff",border:"none",borderRadius:10,padding:"12px",fontSize:14,fontWeight:800,cursor:(bulkBusy||eligibleCount===0||(bulkListType==="sale"&&!bulkListPrice))?"not-allowed":"pointer",fontFamily:"inherit"}}>{bulkBusy?"Listing…":eligibleCount===0?"No eligible cards":"List All"}</button>
+              <button onClick={()=>setBulkListModal(false)} disabled={bulkBusy} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:10,padding:"12px 20px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
 
       {/* ── CARD FX OVERLAY ── */}
       {animsOn && cardFx && <CardFxOverlay fx={cardFx} onDone={()=>setCardFx(null)} />}
@@ -30412,7 +31579,7 @@ See you in there!
             <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",lineHeight:1.8}}>
               {authMode==="signin" && <>New here? <span onClick={()=>{setAuthMode("signup");setAuthErr("");setAuthMsg("");}} style={{color:"#E8317A",fontWeight:700,cursor:"pointer"}}>Create an account</span><br/><span onClick={()=>{setAuthMode("magic");setAuthErr("");setAuthMsg("");}} style={{color:"rgba(255,255,255,0.6)",cursor:"pointer"}}>Email me a sign-in link instead</span> · <span onClick={()=>{setAuthMode("reset");setAuthErr("");setAuthMsg("");}} style={{color:"rgba(255,255,255,0.5)",cursor:"pointer"}}>Forgot password?</span></>}
               {authMode==="signup" && <>Already have an account? <span onClick={()=>{setAuthMode("signin");setAuthErr("");setAuthMsg("");}} style={{color:"#E8317A",fontWeight:700,cursor:"pointer"}}>Sign in</span></>}
-              {authMode==="reset" && <span onClick={()=>{setAuthMode("signin");setAuthErr("");setAuthMsg("");}} style={{color:"#E8317A",fontWeight:700,cursor:"pointer"}}>← Back to sign in</span>}
+              {authMode==="reset" && <><span onClick={()=>{setAuthMode("signin");setAuthErr("");setAuthMsg("");}} style={{color:"#E8317A",fontWeight:700,cursor:"pointer"}}>← Back to sign in</span><br/><span style={{color:"rgba(255,255,255,0.35)",fontSize:11}}>Signed up with Google? You don't have a password — just use the Google button above.</span></>}
               {authMode==="magic" && <><span style={{color:"rgba(255,255,255,0.5)"}}>We'll email you a link — click it to sign in, no password needed.</span><br/><span onClick={()=>{setAuthMode("signin");setAuthErr("");setAuthMsg("");}} style={{color:"#E8317A",fontWeight:700,cursor:"pointer"}}>← Back to sign in</span></>}
             </div>
             <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",marginTop:16,lineHeight:1.5}}>
@@ -31698,10 +32865,11 @@ See you in there!
                   </>
                 )}
               </div>
-              <select value={sortBy} onChange={e=>{setSortBy(e.target.value);setPage(1);}} style={{...inp,width:130,cursor:"pointer"}}>
+              <select value={sortBy} onChange={e=>{setSortBy(e.target.value);setPage(1);}} style={{...inp,width:150,cursor:"pointer"}}>
                 <option value="cardNum">Card #</option>
                 <option value="hero">{"Hero A\u2192Z"}</option>
-                <option value="power">{"Power \u2193"}</option>
+                <option value="power">{"Power (High \u2192 Low)"}</option>
+                <option value="powerAsc">{"Power (Low \u2192 High)"}</option>
                 <option value="setName">Set</option>
               </select>
               <div style={{display:"flex",gap:0,border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,overflow:"hidden"}}>
@@ -31709,6 +32877,7 @@ See you in there!
                 <button onClick={()=>setCardView("list")} title="List view" style={{background:cardView==="list"?"rgba(232,49,122,0.2)":"transparent",color:cardView==="list"?"#E8317A":"rgba(255,255,255,0.4)",border:"none",padding:"6px 11px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>☰</button>
               </div>
               <button onClick={()=>setAnimsOn(v=>!v)} title={animsOn?"Animations on — tap to turn off the add-card celebration & effects":"Animations off — tap to turn back on"} style={{background:animsOn?"rgba(232,49,122,0.12)":"transparent",color:animsOn?"#E8317A":"rgba(255,255,255,0.35)",border:`1.5px solid ${animsOn?"rgba(232,49,122,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"6px 13px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{animsOn?"✨ Animations On":"✨ Animations Off"}</button>
+              {user && <button onClick={()=>{ if(selectMode) exitSelectMode(); else setSelectMode(true); }} title="Select multiple cards for bulk actions" style={{background:selectMode?"rgba(123,156,255,0.2)":"transparent",color:selectMode?"#7B9CFF":"rgba(255,255,255,0.35)",border:`1.5px solid ${selectMode?"#7B9CFF":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"6px 13px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{selectMode?"✕ Done":"☑️ Select"}</button>}
               {cardView==="grid" && <div style={{display:"flex",alignItems:"center",gap:7,padding:"0 4px"}} title="Drag to resize cards">
                 <span style={{fontSize:13,color:"rgba(255,255,255,0.3)"}}>🃏</span>
                 <input type="range" min="110" max="360" step="10" value={cardSize} onChange={e=>setCardSize(Number(e.target.value))} style={{width:90,accentColor:"#E8317A",cursor:"pointer"}}/>
@@ -31766,12 +32935,17 @@ See you in there!
             <div className={animsOn?"pub-card-grid":"pub-card-grid no-anim"} style={{display:"grid",gridTemplateColumns:`repeat(auto-fill,minmax(${cardSize}px,1fr))`,gap:10}}>
               {visibleCards.map(c=>(
                 <div key={c.id} style={{position:"relative"}}>
+                  {selectMode && (
+                    <div onClick={e=>{ e.stopPropagation(); toggleSelect(c.id); }} style={{position:"absolute",inset:0,zIndex:30,borderRadius:10,cursor:"pointer",border:selectedIds.has(c.id)?"3px solid #7B9CFF":"3px solid transparent",background:selectedIds.has(c.id)?"rgba(123,156,255,0.18)":"rgba(0,0,0,0.15)",transition:"all 0.12s"}}>
+                      <div style={{position:"absolute",top:8,left:8,width:26,height:26,borderRadius:"50%",background:selectedIds.has(c.id)?"#7B9CFF":"rgba(0,0,0,0.6)",border:"2px solid #fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:900,color:"#fff",boxShadow:"0 2px 6px rgba(0,0,0,0.5)"}}>{selectedIds.has(c.id)?"✓":""}</div>
+                    </div>
+                  )}
                   <BobaCard c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
                     flippedCard={flippedCard} setFlippedCard={setFlippedCard} onExpand={setExpandedCard}
                     toggleOwned={()=>{if(!user){setSigningIn(true);return;} toggleOwned(c.id);}}
                     setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear}/>
+                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear}/>
                   {/* Lock animation overlay */}
                   {privacyAnim===c.id&&(
                     <div style={{position:"absolute",inset:0,borderRadius:10,zIndex:20,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none",animation:"lockFadeOut 1.2s ease forwards",background:"rgba(0,0,0,0.55)"}}>
@@ -31785,24 +32959,13 @@ See you in there!
                   )}
                   {/* Owned cards are private by default — subtle dim + lock until made public */}
                   {owned[c.id]&&!publicCards[c.id]&&privacyAnim!==c.id&&(
-                    <div style={{position:"absolute",inset:0,borderRadius:10,background:"rgba(0,0,0,0.28)",pointerEvents:"none",zIndex:5}}/>
+                    <div className="boba-priv-dim" style={{position:"absolute",inset:0,borderRadius:10,background:"rgba(0,0,0,0.28)",pointerEvents:"none",zIndex:5,transition:"opacity 0.2s ease"}}/>
                   )}
-                  {/* Public/Private toggle + list button on owned cards */}
-                  {owned[c.id]&&(
-                    <div style={{position:"absolute",top:6,left:6,display:"flex",gap:4,zIndex:10}}>
-                      {inTransit[c.id] && <div title={`${inTransit[c.id].qty||1} on the way — don't double-buy`} style={{background:"rgba(96,165,250,0.92)",borderRadius:6,padding:"3px 6px",fontSize:11,color:"#fff",fontWeight:800,backdropFilter:"blur(4px)"}}>🚚{inTransit[c.id].qty>1?inTransit[c.id].qty:""}</div>}
-                      <button onClick={e=>{
-                        e.stopPropagation();
-                        togglePrivate(c.id);
-                        setPrivacyAnim(c.id);
-                        setTimeout(()=>setPrivacyAnim(null), 1300);
-                      }} title={publicCards[c.id]?"Public — tap to make private":"Private — tap to make public"}
-                        style={{background:publicCards[c.id]?"rgba(74,222,128,0.85)":"rgba(0,0,0,0.6)",border:"none",borderRadius:6,padding:"3px 6px",fontSize:11,cursor:"pointer",backdropFilter:"blur(4px)",color:"#fff",fontWeight:700,transition:"background 0.2s"}}>
-                        {publicCards[c.id]?"\uD83D\uDC41":"\uD83D\uDD12"}
-                      </button>
-                      <button onClick={e=>{e.stopPropagation();setListModal(c);}} title="List for sale or trade"
-                        style={{background:"rgba(74,222,128,0.7)",border:"none",borderRadius:6,padding:"3px 6px",fontSize:11,cursor:"pointer",backdropFilter:"blur(4px)",color:"#000",fontWeight:700,display:myListings.find(l=>l.cardId===c.id)?"none":"block"}}>
-                        {"\uD83D\uDCB0"}</button>
+                  {/* In-transit indicator stays on the tile (at-a-glance, avoid double-buying).
+                      Public/private toggle + list-for-sale moved to the expanded card modal. */}
+                  {owned[c.id]&&inTransit[c.id]&&(
+                    <div style={{position:"absolute",top:6,left:6,zIndex:10}}>
+                      <div title={`${inTransit[c.id].qty||1} on the way — don't double-buy`} style={{background:"rgba(96,165,250,0.92)",borderRadius:6,padding:"3px 6px",fontSize:11,color:"#fff",fontWeight:800,backdropFilter:"blur(4px)"}}>🚚{inTransit[c.id].qty>1?inTransit[c.id].qty:""}</div>
                     </div>
                   )}
                 </div>
@@ -31976,7 +33139,7 @@ See you in there!
                         </div>
                       </div>
                       <div style={{ height:8, background:"rgba(255,255,255,0.06)", borderRadius:4, overflow:"hidden", marginBottom:14 }}>
-                        <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#F97316,#FBBF24,#4ade80)", transition:"width .3s" }}/>
+                        <div className="bz-rainbow-fill" style={{ width:`${pct}%`, height:"100%", transition:"width .3s" }}/>
                       </div>
                       <div style={{ display:"flex", gap:6, marginBottom:14, flexWrap:"wrap" }}>
                         {[
@@ -32141,7 +33304,7 @@ See you in there!
                                 toggleOwned={()=>{ if(!user){setSigningIn(true);return;} toggleOwned(c.id); }}
                                 setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                                 toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear}/>
+                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear}/>
                             ))}
                           </div>
                           {user && (
@@ -32282,7 +33445,7 @@ See you in there!
                     flippedCard={flippedCard} setFlippedCard={setFlippedCard} onExpand={setExpandedCard}
                     toggleOwned={()=>toggleOwned(c.id)} setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotsForCard(c.id).length} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear}/>
+                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear}/>
                 ))}
               </div>
             )}
@@ -32303,10 +33466,11 @@ See you in there!
             deckFilterT={deckFilterT} setDeckFilterT={setDeckFilterT}
             WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
             cards={cards} owned={owned} inp={inp}
+            familyOwnerByCard={familyOwnerByCard} deckOwnedMerged={deckOwnedMerged}
             canAddToDeck={canAddToDeck} isMobile={isMobile}
             savedDecks={savedDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
             saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} setFanDeck={setFanDeck} setFanMode={setFanMode}
-            deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxBuild={deckMaxBuild} setDeckMaxBuild={setDeckMaxBuild} computeDeckProgress={computeDeckProgress}
+            deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} computeDeckProgress={computeDeckProgress}
           />
         )}
 
@@ -32387,7 +33551,7 @@ See you in there!
             addEmail={addEmail} setAddEmail={setAddEmail}
             addStatus={addStatus} setAddStatus={setAddStatus}
             friendOwned={friendOwned} viewingFriend={viewingFriend} setViewingFriend={setViewingFriend}
-            respondFriendReq={respondFriendReq}
+            respondFriendReq={respondFriendReq} toggleFamily={toggleFamily} borrowLedger={borrowLedger}
             sendFriendRequest={sendFriendRequest}
             cards={cards} owned={owned} publicCards={publicCards}
             WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
@@ -32407,7 +33571,10 @@ See you in there!
             deleteTeam={deleteTeam} respondTeamInvite={respondTeamInvite}
             createTeam={createTeam}
             WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
-            cards={cards} owned={owned} friendOwned={friendOwned}
+            cards={cards} owned={owned}
+            teamDecks={teamDecks} savedDecks={savedDecks} submitDeckToTeam={submitDeckToTeam} withdrawTeamDeck={withdrawTeamDeck}
+            swapOffers={swapOffers} offerSwap={offerSwap} dismissSwapOffer={dismissSwapOffer}
+            teamLoans={teamLoans} lendCard={lendCard} markLoanReturned={markLoanReturned} deleteLoan={deleteLoan}
             inp={inp} inviteToTeam={inviteToTeam}
           />
         )}
@@ -35257,7 +36424,13 @@ function AppInner() {
 
   // Auth listener
   useEffect(() => {
-    return onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); });
+    // Safety net: on mobile/slow networks, Firebase's first onAuthStateChanged callback
+    // can be badly delayed (Safari cookie throttling, cold connections). Never let that
+    // block the UI — flip authReady after 3.5s no matter what. The real callback still
+    // runs and updates `user` when it eventually arrives.
+    const authTimeout = setTimeout(() => setAuthReady(true), 3500);
+    const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); clearTimeout(authTimeout); });
+    return () => { clearTimeout(authTimeout); unsub(); };
   }, []);
 
   const [dataLoaded, setDataLoaded] = useState({}); // tracks which tab groups have been subscribed
@@ -35665,6 +36838,8 @@ function AppInner() {
     { id:"shipping",   label:"Shipping",     icon:"\uD83D\uDCE6", roles:["Admin","Shipping"] },
     { id:"broadcaster",label:"Broadcaster",  icon:"🎙", roles:["Admin","StreamerLite"] },
     { id:"directory",  label:"Directory",    icon:"📋", roles:["Admin"] },
+    { id:"messages",   label:"Messages",     icon:"💬", roles:["Admin","Streamer","StreamerLite","Procurement","Shipping","Viewer"] },
+    { id:"supply",     label:"Supply Links", icon:"🔗", roles:["Admin","Streamer","StreamerLite","Procurement","Shipping","Viewer"] },
     { id:"importer",   label:"Import",       icon:"⬆️", roles:["Admin"] },
   ].filter(t => t.roles.includes(effectiveRole?.role));
 
@@ -35678,7 +36853,8 @@ function AppInner() {
   if (ACCESS_PAUSED && authReady && !_isTeam && _gatedPaths.includes(_path)) {
     return <ComingSoon />;
   }
-  // While auth is still resolving, hold gated pages so we don't flash the wall at team members
+  // While auth is still resolving, hold gated pages so we don't flash the wall at team members.
+  // authReady is capped at 3.5s by the auth listener's timeout, so this can never hang forever.
   if (ACCESS_PAUSED && !authReady && _gatedPaths.includes(_path)) {
     return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#08000a", fontFamily:"'Trebuchet MS',sans-serif", fontSize:16, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
   }
@@ -35835,7 +37011,7 @@ function AppInner() {
             const SECTIONS = [
               { title:"Overview", ids:["dashboard","comp","inventory","streams","buyers"] },
               { title:"Money",    ids:["campaigns","chases","performance","finance"] },
-              { title:"Ops",      ids:["shipping","broadcaster","checklist","directory","importer"] },
+              { title:"Ops",      ids:["shipping","broadcaster","messages","supply","checklist","directory","importer"] },
             ];
             const tabById = Object.fromEntries(ALL_TABS.map(t=>[t.id,t]));
             return SECTIONS.map(sec => {
@@ -35906,6 +37082,8 @@ function AppInner() {
         {tab==="shipping"   && <ShippingHub userRole={effectiveRole} streams={streams}/>}
         {tab==="broadcaster" && <BroadcasterNotes cards={bobaCards} />}
         {tab==="directory"  && <CompanyDirectory userRole={effectiveRole}/>}
+        {tab==="messages"   && <InternalMessages user={user} userRole={effectiveRole}/>}
+        {tab==="supply"     && <SupplyLinks user={user} userRole={effectiveRole}/>}
         {tab==="importer"   && <CardSetImporter userRole={effectiveRole}/>}
       </div>
         </div>{/* /bz-main */}
