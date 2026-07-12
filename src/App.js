@@ -23188,16 +23188,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                 <select value={deckType} onChange={e=>setDeckType(e.target.value)}
                   style={{ ...S.inp, width:"auto", fontWeight:700, cursor:"pointer",
                     color: deckType==="spec"?"#FBBF24": deckType==="apex"?"#A855F7": deckType==="apexmadness"?"#E8317A":"#888" }}>
-                  <option value="none">No Restrictions</option>
-                  <option value="spec">{"Spec (\u2264160 power)"}</option>
-                  <option value="apex">Apex (no power cap)</option>
-                  <option value="specplus">{"Spec+ (60 core + up to 10 high)"}</option>
-                  <option value="elite">{"Elite (8,250 total power)"}</option>
-                  <option value="brawl">Brawl (Brawl weapon only)</option>
-                  <option value="gghilo">{"GG HiLo (10+ of each GG insert)"}</option>
-                  <option value="powerglove">{"Power Glove (60 unique)"}</option>
-                  <option value="blast">{"Blast (30 cards, Alpha Blast)"}</option>
-                  <option value="apexmadness">Apex Madness</option>
+                  {Object.entries(DECK_FORMATS).map(([k,f])=><option key={k} value={k}>{f.label}</option>)}
                 </select>
                 <span style={{ fontSize:12, color: inDeck.length===DECK_SIZE?"#4ade80":inDeck.length>DECK_SIZE?"#E8317A":"#FBBF24", fontWeight:700 }}>
                   {inDeck.length}/{DECK_SIZE} cards
@@ -25538,7 +25529,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, familyOwnerByCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, familyOwnerByCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -25648,7 +25639,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     return true;
   }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0)),
   // `owned` only matters here when the "My collection" filter is on — see the note on `filtered`.
-  [cards, deckSet, deckFamilyOnly, deckOwnedOnly, deckMineOnly, familyOwnerByCard, deckFilterW, deckFilterP, deckFilterS, deckFilterT, deckSearchTerms, deckSearchIndex,
+  [cards, deckType, deckSet, deckFamilyOnly, deckOwnedOnly, deckMineOnly, familyOwnerByCard, deckFilterW, deckFilterP, deckFilterS, deckFilterT, deckSearchTerms, deckSearchIndex,
    deckOwnedOnly ? owned : null]);
   const deckVisible = useMemo(()=>deckAvail.slice(0, deckPage*DECK_PAGE_SIZE), [deckAvail, deckPage]);
   useEffect(()=>{ setDeckPage(1); }, [deckSearch, deckFilterW, deckFilterS, deckFilterT, deckOwnedOnly, deckFamilyOnly, deckMineOnly, deckType]);
@@ -25669,10 +25660,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
                         <span style={{fontSize:11,color:"#a0a0a0",fontWeight:700}}>Goal:</span>
                         <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:"#E8317A"}}>
-                          <option value="none">No restrictions</option>
-                          <option value="spec">Spec (≤160)</option>
-                          <option value="apex">Apex</option>
-                          <option value="apexmadness">Apex Madness</option>
+                          {Object.entries(DECK_FORMATS).map(([k,f])=><option key={k} value={k}>{f.label}</option>)}
                         </select>
                       </div>
                     </div>
@@ -25716,9 +25704,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
                       <span style={{fontSize:11,color:"#a0a0a0",fontWeight:700}}>Goal:</span>
                       <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:deckType==="none"?"rgba(255,255,255,0.5)":"#FBBF24"}}>
-                        <option value="none">No restrictions</option>
-                        <option value="spec">Spec (≤160)</option>
-                        <option value="apex">Apex</option>
+                        {Object.entries(DECK_FORMATS).map(([k,f])=><option key={k} value={k}>{f.label}</option>)}
                       </select>
                       <select value={deckGoalW} onChange={e=>setDeckGoalW(e.target.value)} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer"}}>
                         <option value="">Any weapon</option>
@@ -26009,6 +25995,23 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         <span key={i} style={{fontSize:11,color:"rgba(255,255,255,0.55)",display:"flex",alignItems:"center",gap:5}}><span style={{color:fmt.c}}>•</span>{r}</span>
                       ))}
                     </div>
+                    {/* Live legality. Blocking illegal ADDS isn't enough — a deck can be illegal by
+                        what it's MISSING (Spec+ without its core, GG HiLo without 10 of each). */}
+                    {!deckLegality.empty && (
+                      deckLegality.ok ? (
+                        <div style={{marginTop:8,paddingTop:8,borderTop:`1px solid ${fmt.c}22`,fontSize:11.5,fontWeight:800,color:"#4ade80"}}>
+                          ✅ Legal {fmt.title} deck
+                          {deckLegality.total>0 && <span style={{color:"rgba(255,255,255,0.4)",fontWeight:600,marginLeft:8}}>{deckLegality.total.toLocaleString()} total power</span>}
+                        </div>
+                      ) : (
+                        <div style={{marginTop:8,paddingTop:8,borderTop:"1px solid rgba(239,68,68,0.25)"}}>
+                          <div style={{fontSize:11.5,fontWeight:800,color:"#EF4444",marginBottom:3}}>⚠️ Not legal yet</div>
+                          {deckLegality.problems.map((p,i)=>(
+                            <div key={i} style={{fontSize:11,color:"#FCA5A5",lineHeight:1.6}}>• {p}</div>
+                          ))}
+                        </div>
+                      )
+                    )}
                   </div>
                 );
               })()}
@@ -28459,6 +28462,17 @@ See you in there!
   async function saveDeckTab() {
     if (!deckName.trim() || deckCards.length === 0) { alert("Name your deck and add at least one card before saving."); return; }
     if (!user) { setSigningIn(true); return; }
+    // Last gate: you can still SAVE an illegal deck (a work-in-progress is legitimate), but you
+    // shouldn't be able to do it without knowing. Nobody should turn up to the National and find
+    // out at the table.
+    if (deckLegality && !deckLegality.ok && deckLegality.problems.length) {
+      const ok = window.confirm(
+        `This deck isn't legal for ${fmtOf(deckType).short}:\n\n` +
+        deckLegality.problems.map(p=>`  • ${p}`).join("\n") +
+        `\n\nSave it anyway? (You can keep building — it just won't be tournament-legal as it stands.)`
+      );
+      if (!ok) return;
+    }
     setDeckSaving(true);
     const id = deckLoadId || `deck_${Date.now()}`;
     try {
@@ -31430,6 +31444,48 @@ See you in there!
   const deckSet = useMemo(()=>new Set(deckCards), [deckCards]);
   const inDeck = useMemo(()=>cards.filter(c=>deckSet.has(c.id)), [cards, deckSet]);
   const isSpec=deckType==="spec"||deckType==="vegasbaby",isAM=deckType==="apexmadness";
+
+  // ── LIVE LEGALITY ────────────────────────────────────────────────────────────────────────────
+  // Blocking illegal ADDS isn't enough on its own: a deck can be illegal by what it's MISSING
+  // (Spec+ without its 60-card core, GG HiLo without 10 of each insert). Check the whole deck
+  // continuously so you always know where you stand before you turn up to play.
+  const deckLegality = useMemo(() => {
+    const F = fmtOf(deckType);
+    const problems = [];
+    if (inDeck.length === 0) return { ok:true, problems, empty:true };
+
+    const total = inDeck.reduce((s,c)=>s+(parseFloat(c.power)||0), 0);
+
+    if (inDeck.length > (F.size||60))
+      problems.push(`${inDeck.length} cards — ${F.short} allows ${F.size||60}`);
+
+    if (F.totalPower && total > F.totalPower)
+      problems.push(`${total.toLocaleString()} total power — ${F.short} caps at ${F.totalPower.toLocaleString()}`);
+
+    // Spec+ : the core is mandatory, not optional.
+    if (F.coreSize && F.coreCap) {
+      const core = inDeck.filter(c=>(parseFloat(c.power)||0) <= F.coreCap).length;
+      const high = inDeck.length - core;
+      if (high > 0 && core < F.coreSize)
+        problems.push(`Spec+ core incomplete: ${core}/${F.coreSize} at ≤${F.coreCap}, but ${high} high-power Hero${high!==1?"es":""} in deck`);
+    }
+
+    // GG HiLo : minimum count of each named insert.
+    if (F.minTreat) {
+      for (const [treat, need] of Object.entries(F.minTreat)) {
+        const have = inDeck.filter(c=>(c.treatment||"")===treat).length;
+        if (have < need) problems.push(`${have}/${need} ${treat}`);
+      }
+    }
+
+    // Power Glove : every card unique.
+    if (F.unique) {
+      const ids = inDeck.map(c=>c.id);
+      if (new Set(ids).size !== ids.length) problems.push("Duplicate cards — Power Glove requires all 60 to be unique");
+    }
+
+    return { ok: problems.length===0, problems, total, empty:false };
+  }, [inDeck, deckType]);
   const dupKey=c=>`${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
   const inDeckDupKeys = useMemo(()=>new Set(inDeck.map(dupKey)), [inDeck]);
   const powerCount = useMemo(()=>{ const m={}; inDeck.forEach(c=>{const p=c.power||"0"; m[p]=(m[p]||0)+1;}); return m; }, [inDeck]);
@@ -31494,9 +31550,17 @@ See you in there!
     return { familyOwnerByCard: fam, deckOwnedMerged: merged };
   }, [owned, familyAvail, otherDeckUse]);
   function canAddToDeck(c){
+    const F = fmtOf(deckType);                    // this format's rules — see DECK_FORMATS
+    const SIZE = F.size || 60;
+    const PER  = F.perPower || 6;
+    const p = parseFloat(c.power||0);
+
     if(deckSet.has(c.id))return{ok:false,reason:"Already in deck"};
-    if(inDeck.length>=DECK_SIZE)return{ok:false,reason:"Deck full"};
+    if(inDeck.length>=SIZE)return{ok:false,reason:`Deck full (${SIZE} max)`};
+    // Power Glove needs every card to be unique, so a duplicate card is out regardless.
+    if(F.unique && deckSet.has(c.id))return{ok:false,reason:"Power Glove: every card must be unique"};
     if(inDeckDupKeys.has(dupKey(c)))return{ok:false,reason:"Duplicate card"};
+
     // Cross-deck copy lock: counts YOUR copies plus any family copies you can borrow.
     // Every copy already committed to another deck is unavailable here.
     const _copies = (deckOwnedMerged && deckOwnedMerged[c.id]) ? deckOwnedMerged[c.id] : 0;
@@ -31504,16 +31568,81 @@ See you in there!
     if(_copies > 0 && _usedElsewhere >= _copies){
       return {ok:false, reason: _copies===1 ? "In another deck" : `All ${_copies} copies are in other decks`};
     }
-    if((powerCount[c.power||"0"]||0)>=6)return{ok:false,reason:`Already 6 at power ${c.power}`};
-    const p=parseFloat(c.power||0);
-    if(isSpec&&p>160)return{ok:false,reason:`Power ${c.power} exceeds 160`};
-    if(isAM&&p>160){const t=(c.treatment||"").toLowerCase();if((treatCore[t]||0)<10)return{ok:false,reason:`Need 10 core ${c.treatment} first (${treatCore[t]||0}/10)`};if((treatApex[t]||0)>=1)return{ok:false,reason:`Already have 1 ${c.treatment} apex card`};}
+
+    // ── Format restrictions ──────────────────────────────────────────────────────────────────
+    if(F.set && c.setName !== F.set)
+      return {ok:false, reason:`${F.short}: ${F.set} cards only`};
+    if(F.excludeSets && F.excludeSets.includes(c.setName))
+      return {ok:false, reason:`${F.short}: no Trainer cards`};
+    if(F.treatment && c.treatment !== F.treatment)
+      return {ok:false, reason:`${F.short}: ${F.treatment} only`};
+    if(F.weapon && canonWeapon(c.weapon) !== canonWeapon(F.weapon))
+      return {ok:false, reason:`${F.short}: ${F.weapon} weapon only`};
+    if(F.powerCap && p > F.powerCap)
+      return {ok:false, reason:`Power ${c.power} exceeds ${F.powerCap}`};
+
+    // Per-power cap (6 normally, 3 for Blast).
+    if((powerCount[c.power||"0"]||0) >= PER)
+      return {ok:false, reason:`Already ${PER} at power ${c.power}`};
+
+    // ELITE — the deck's SUMMED power can't exceed 8,250.
+    if(F.totalPower){
+      const used = inDeck.reduce((s,x)=>s+(parseFloat(x.power)||0),0);
+      if(used + p > F.totalPower)
+        return {ok:false, reason:`Would exceed ${F.totalPower.toLocaleString()} total power (${used.toLocaleString()} used, this is ${c.power})`};
+    }
+
+    // SPEC+ — the 60-card ≤160 core is REQUIRED and must be complete before any high Hero counts.
+    // Above the core, each power level has a hard cap (165 ×2, 170 ×2, one each of 175–200).
+    if(F.coreSize && F.highTiers){
+      if(p > F.coreCap){
+        const coreHave = inDeck.filter(x=>(parseFloat(x.power)||0) <= F.coreCap).length;
+        if(coreHave < F.coreSize)
+          return {ok:false, reason:`Spec+ needs a full ${F.coreSize}-card ≤${F.coreCap} core first (${coreHave}/${F.coreSize})`};
+        const cap = F.highTiers[p];
+        if(!cap) return {ok:false, reason:`Spec+ doesn't allow power ${c.power}`};
+        const atThisPower = inDeck.filter(x=>(parseFloat(x.power)||0) === p).length;
+        if(atThisPower >= cap)
+          return {ok:false, reason:`Spec+ allows only ${cap} at power ${c.power}`};
+      }
+    }
+
+    // MADNESS — Apex Heroes (>160) only go in once you've unlocked a slot: every 10 matching
+    // Inserts in the deck unlocks one (max 6), plus four different Foil Hot Dogs unlock four more.
+    if(deckType==="apexmadness" && p > 160){
+      const tally = {};
+      inDeck.filter(x=>(parseFloat(x.power)||0)<=160).forEach(x=>{ const t=x.treatment||"—"; tally[t]=(tally[t]||0)+1; });
+      const insertUnlocks = Math.min(6, Object.values(tally).reduce((n,v)=>n+Math.floor(v/10), 0));
+      const foilHotDogs = new Set(
+        cards.filter(x => (x.treatment||"").toLowerCase().includes("hot dog") && owned[x.id+"::foil"]).map(x=>x.treatment)
+      ).size;
+      const slots = insertUnlocks + Math.min(4, foilHotDogs);
+      const apexIn = inDeck.filter(x=>(parseFloat(x.power)||0)>160).length;
+      if(apexIn >= slots){
+        return {ok:false, reason: slots===0
+          ? "No Apex slots unlocked — 10 matching Inserts unlocks one"
+          : `All ${slots} Apex slots used (${insertUnlocks} from Inserts + ${Math.min(4,foilHotDogs)} from Foil Hot Dogs)`};
+      }
+    }
     return{ok:true};
   }
   // PERF: filters AND sorts the full 36k checklist — was running on every render of the whole
   // collector app, including while you type in the card database.
   const deckAvail = useMemo(() => cards.filter(c=>{
     if(deckSet.has(c.id))return false;
+    // Format restrictions — cards that could never be legal in this format shouldn't be offered
+    // at all. Blocking them only on click means scrolling a list that's mostly unusable.
+    const F = fmtOf(deckType);
+    if(F.set && c.setName !== F.set) return false;                                 // Blast
+    if(F.excludeSets && F.excludeSets.includes(c.setName)) return false;           // Elite: no Trainers
+    if(F.treatment && c.treatment !== F.treatment) return false;                   // Power Glove
+    if(F.weapon && canonWeapon(c.weapon) !== canonWeapon(F.weapon)) return false;  // Brawl
+    if(F.powerCap && (parseFloat(c.power)||0) > F.powerCap) return false;          // Spec
+    // Spec+ has no card above 200 at any point.
+    if(F.highTiers){
+      const p = parseFloat(c.power)||0;
+      if(p > F.coreCap && !F.highTiers[p]) return false;
+    }
     if(deckFilterW&&canonWeapon(c.weapon)!==canonWeapon(deckFilterW))return false;
     if(deckFilterP.size>0&&!deckFilterP.has(String(c.power||"")))return false;
     if(deckFilterS&&c.setName!==deckFilterS)return false;
@@ -35280,7 +35409,7 @@ See you in there!
             canAddToDeck={canAddToDeck} isMobile={isMobile}
             savedDecks={savedDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
             saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} setFanDeck={setFanDeck} setFanMode={setFanMode}
-            deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} deckSource={deckSource} setDeckSource={setDeckSource} computeDeckProgress={computeDeckProgress} listings={listings} setActiveTab={setActiveTab}
+            deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} deckSource={deckSource} setDeckSource={setDeckSource} computeDeckProgress={computeDeckProgress} listings={listings} setActiveTab={setActiveTab} deckLegality={deckLegality}
           />
         )}
 
