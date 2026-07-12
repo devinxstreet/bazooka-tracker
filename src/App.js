@@ -34994,7 +34994,11 @@ See you in there!
         })()}
 
         {/* CARDS TAB */}
-        {activeTab==="cards"&&(
+        {/* Stay MOUNTED when you switch away. Unmounting destroyed all 600 card components and
+            coming back rebuilt them from scratch — which is exactly why moving between Deck Builder
+            and Card Database never felt snappy. Hiding is free; remounting is not. */}
+        <div style={{display: activeTab==="cards" ? "block" : "none"}}>
+        {cards.length>0&&(
           <>
             {user && cards.length>0 && (()=>{
               // Next-milestone framing so the bar always feels close & moving
@@ -35296,6 +35300,7 @@ See you in there!
             {visibleCards.length<filtered.length&&<div style={{textAlign:"center",padding:32,color:"rgba(255,255,255,0.2)",fontSize:12}}>Scroll to load more...</div>}
           </>
         )}
+        </div>
 
         {/* RAINBOW TRACKER TAB */}
         {activeTab==="rainbow" && !loading && cards.length > 0 && (() => {
