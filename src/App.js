@@ -16862,8 +16862,13 @@ const BobaCard = React.memo(BobaCardImpl, (prev, next) => {
   if (prev.isAdmin !== next.isAdmin) { _bump("isAdmin"); return false; }
   if (prev.lotCount !== next.lotCount) { _bump("lotCount"); return false; }
   if (prev.myScanPhoto !== next.myScanPhoto) { _bump("myScanPhoto"); return false; }
-  if (prev.kidTags !== next.kidTags) { _bump("kidTags"); return false; }
-  if (prev.kidGroups !== next.kidGroups) { _bump("kidGroups"); return false; }
+  // Compare by VALUE. These are small arrays, and comparing by reference meant a
+  // fresh-but-identical array (exactly what a `= []` default prop yields on every render)
+  // re-rendered every card in the grid for no reason — thousands of wasted renders.
+  const kgPrev = prev.kidGroups || [], kgNext = next.kidGroups || [];
+  if (kgPrev.length !== kgNext.length || kgPrev.some((g,i)=>g!==kgNext[i])) { _bump("kidGroups"); return false; }
+  const ktPrev = prev.kidTags || [], ktNext = next.kidTags || [];
+  if (ktPrev.length !== ktNext.length || ktPrev.some((t,i)=>t!==ktNext[i])) { _bump("kidTags"); return false; }
   // Want status for THIS card only.
   const id = next.c?.id;
   if ((prev.wantList?.[id] ? 1 : 0) !== (next.wantList?.[id] ? 1 : 0)) { _bump("wantList"); return false; }
@@ -28584,8 +28589,12 @@ See you in there!
   const PAGE_SIZE = 100;
   // Never paint more than this many pages. Without a ceiling, scrolling mounts every one of the
   // 35k cards and never unmounts them — every later state change then re-renders the whole lot,
-  // which is what took ~6 SECONDS per render. Past ~1,500 cards nobody is scroll-hunting anyway.
-  const MAX_PAGES = 15;
+  // which is what took ~6 SECONDS per render.
+  //
+  // Even capped, ~1,500 cards was still ~850ms per render — that much DOM (and that many images)
+  // is simply heavy no matter how well memoized. 600 keeps interactions snappy, and nobody finds a
+  // card by scrolling past 600 anyway; they filter. The cap notice tells them so.
+  const MAX_PAGES = 6;
 
   // -- Rainbow Tracker --
   const [rainbowFilter,    setRainbowFilter]    = useState("all");
@@ -31677,7 +31686,12 @@ See you in there!
     return keyed.map(o => o.c);
   }, [filtered, sortBy]);
 
-  const visibleCards = useMemo(()=>sorted.slice(0,page*PAGE_SIZE), [sorted, page]);
+  // Clamp at the slice, not just in the scroll handler — `page` can be restored from saved UI state
+  // or set elsewhere, and if it ever exceeds the cap we'd paint the whole grid again.
+  const visibleCards = useMemo(
+    () => sorted.slice(0, Math.min(page, MAX_PAGES) * PAGE_SIZE),
+    [sorted, page]
+  );
   filteredLenRef.current = sorted.length;
   const _baseId = (k)=> String(k).replace(/::foil$/,"");
   // PERF: THIS WAS THE 389ms. `_ownedKeyValid` did a linear `cards.find()` through all ~36k cards
