@@ -18372,6 +18372,156 @@ function SwanCityBulkImport() {
   );
 }
 
+// ── SET MERGER ───────────────────────────────────────────────────────────────
+// Consolidates legacy sets into a target set WITHOUT losing data. For each card in a
+// source set it finds the matching card in the target set (by cardNum), copies over any
+// fields the target is missing (imageUrl, mktValue, marketValue, dbs...), then deletes the
+// source doc. Always preview before running — the delete is permanent.
+function SetMerger() {
+  const [allCards, setAllCards] = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [sources,  setSources]  = useState(new Set());
+  const [target,   setTarget]   = useState("");
+  const [preview,  setPreview]  = useState(null);
+  const [running,  setRunning]  = useState(false);
+  const [done,     setDone]     = useState(null);
+
+  // Fields worth carrying over from the old doc if the new one doesn't have them.
+  const CARRY = ["imageUrl","mktValue","marketValue","dbs","costPerCard","parallel"];
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const snap = await getDocs(collection(db,"boba_checklist"));
+        setAllCards(snap.docs.map(d=>({id:d.id,...d.data()})));
+      } catch(e){ console.error("merge: load failed", e); }
+      setLoading(false);
+    })();
+  }, []);
+
+  const setNames = Array.from(new Set(allCards.map(c=>c.setName).filter(Boolean))).sort();
+  const countOf = s => allCards.filter(c=>c.setName===s).length;
+
+  function buildPreview() {
+    const targetCards = allCards.filter(c=>c.setName===target);
+    const byNum = {};
+    targetCards.forEach(c=>{ if(c.cardNum) byNum[String(c.cardNum).toUpperCase()] = c; });
+
+    const matched=[], orphans=[];
+    [...sources].forEach(src=>{
+      allCards.filter(c=>c.setName===src).forEach(oldC=>{
+        const hit = byNum[String(oldC.cardNum||"").toUpperCase()];
+        if(hit){
+          const carries = CARRY.filter(f => oldC[f] && !hit[f]);
+          matched.push({ old:oldC, next:hit, carries });
+        } else {
+          orphans.push(oldC); // no card with this number in the target — do NOT delete these
+        }
+      });
+    });
+    setPreview({ matched, orphans });
+    setDone(null);
+  }
+
+  async function runMerge() {
+    if(!preview || running) return;
+    if(!window.confirm(`Copy data onto ${preview.matched.length} target cards, then DELETE ${preview.matched.length} old cards. This cannot be undone. Continue?`)) return;
+    setRunning(true);
+    let carried=0, deleted=0;
+    try {
+      const CHUNK=300;
+      for(let i=0;i<preview.matched.length;i+=CHUNK){
+        const batch = writeBatch(db);
+        preview.matched.slice(i,i+CHUNK).forEach(({old:oldC,next,carries})=>{
+          if(carries.length){
+            const patch={}; carries.forEach(f=>{ patch[f]=oldC[f]; });
+            batch.set(doc(db,"boba_checklist",next.id), patch, {merge:true});
+            carried++;
+          }
+          batch.delete(doc(db,"boba_checklist",oldC.id));
+          deleted++;
+        });
+        await batch.commit();
+      }
+      setDone({ carried, deleted, orphans: preview.orphans.length });
+      setPreview(null);
+      // reload
+      const snap = await getDocs(collection(db,"boba_checklist"));
+      setAllCards(snap.docs.map(d=>({id:d.id,...d.data()})));
+    } catch(e){ console.error(e); alert("Merge failed: "+e.message); }
+    setRunning(false);
+  }
+
+  const S={ card:{background:"#0d0d0d",border:"1px solid #2a2a2a",borderRadius:12,padding:18,marginTop:14} };
+
+  if(loading) return <div style={{...S.card,color:"#888"}}>Loading checklist…</div>;
+
+  return (
+    <div style={S.card}>
+      <div style={{fontSize:15,fontWeight:800,color:"var(--bz-ink)",marginBottom:4}}>🔀 Merge Sets</div>
+      <div style={{fontSize:12,color:"var(--bz-ink-3)",marginBottom:16,lineHeight:1.6}}>
+        Fold legacy sets into a target set. Matches cards by <strong>card number</strong>, copies over anything the
+        target is missing (images, values), then deletes the old cards. Cards with no match in the target are left
+        alone — never deleted.
+      </div>
+
+      {/* Source sets */}
+      <div style={{fontSize:12,fontWeight:700,color:"#E8317A",marginBottom:8}}>1. Old sets to merge FROM (will be deleted)</div>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:16}}>
+        {setNames.map(s=>{
+          const on=sources.has(s);
+          return <button key={s} onClick={()=>{ setSources(p=>{const n=new Set(p); n.has(s)?n.delete(s):n.add(s); return n;}); setPreview(null); }}
+            style={{background:on?"rgba(232,49,122,0.18)":"#141414",border:`1px solid ${on?"#E8317A":"#2a2a2a"}`,color:on?"#E8317A":"#888",borderRadius:14,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+            {s} ({countOf(s)})
+          </button>;
+        })}
+      </div>
+
+      {/* Target set */}
+      <div style={{fontSize:12,fontWeight:700,color:"#4ade80",marginBottom:8}}>2. Target set to merge INTO (kept)</div>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:16}}>
+        {setNames.filter(s=>!sources.has(s)).map(s=>(
+          <button key={s} onClick={()=>{ setTarget(s); setPreview(null); }}
+            style={{background:target===s?"rgba(74,222,128,0.18)":"#141414",border:`1px solid ${target===s?"#4ade80":"#2a2a2a"}`,color:target===s?"#4ade80":"#888",borderRadius:14,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+            {s} ({countOf(s)})
+          </button>
+        ))}
+      </div>
+
+      <button onClick={buildPreview} disabled={!sources.size||!target}
+        style={{background:(sources.size&&target)?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#1a1a1a",color:(sources.size&&target)?"#fff":"#555",border:"none",borderRadius:8,padding:"10px 22px",fontSize:13,fontWeight:800,cursor:(sources.size&&target)?"pointer":"not-allowed",fontFamily:"inherit"}}>
+        Preview merge
+      </button>
+
+      {preview && (
+        <div style={{marginTop:16,background:"#141414",border:"1px solid #2a2a2a",borderRadius:10,padding:14}}>
+          <div style={{fontSize:13,fontWeight:800,color:"#fff",marginBottom:8}}>Preview</div>
+          <div style={{fontSize:12,color:"#4ade80",marginBottom:4}}>✓ {preview.matched.length} cards matched by card # — old data copied over, then old card deleted.</div>
+          <div style={{fontSize:12,color:"#4ade80",marginBottom:4}}>
+            ✓ {preview.matched.filter(m=>m.carries.length).length} of those carry data forward ({[...new Set(preview.matched.flatMap(m=>m.carries))].join(", ")||"nothing to carry"}).
+          </div>
+          {preview.orphans.length>0 && (
+            <div style={{fontSize:12,color:"#FBBF24",marginTop:8,lineHeight:1.6}}>
+              ⚠️ {preview.orphans.length} old card{preview.orphans.length!==1?"s":""} have no matching card # in "{target}" — these will be <strong>left alone</strong> (not deleted). Examples: {preview.orphans.slice(0,5).map(c=>c.cardNum).join(", ")}
+            </div>
+          )}
+          <button onClick={runMerge} disabled={running||!preview.matched.length}
+            style={{marginTop:12,background:running?"#1a1a1a":"#E8317A",color:running?"#555":"#fff",border:"none",borderRadius:8,padding:"10px 22px",fontSize:13,fontWeight:800,cursor:running?"not-allowed":"pointer",fontFamily:"inherit"}}>
+            {running?"Merging…":`Merge & delete ${preview.matched.length} old cards`}
+          </button>
+        </div>
+      )}
+
+      {done && (
+        <div style={{marginTop:16,background:"rgba(74,222,128,0.08)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:10,padding:14,fontSize:12,color:"#4ade80",lineHeight:1.7}}>
+          ✅ Done. Carried data onto {done.carried} cards · deleted {done.deleted} old cards
+          {done.orphans>0 ? ` · left ${done.orphans} unmatched cards untouched` : ""}.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DataCleanup() {
   const [loading,    setLoading]    = useState(false);
   const [fieldData,  setFieldData]  = useState(null); // { weapon: {...}, treatment: {...} }
@@ -19121,7 +19271,7 @@ function CardSetImporter({ userRole }) {
 
       {/* Mode toggle */}
       <div style={{ display:"flex", gap:8 }}>
-        {[["data","📄 Import Data"],["images","🖼 Import by Filename"],["cleanup","🧹 Cleanup"],["manual","🎯 Manual Image"]].map(([m,l])=>(
+        {[["data","📄 Import Data"],["images","🖼 Import by Filename"],["merge","🔀 Merge Sets"],["cleanup","🧹 Cleanup"],["manual","🎯 Manual Image"]].map(([m,l])=>(
           <button key={m} onClick={()=>{ setMode(m); setResults(null); setErrors([]); }}
             style={{ background:mode===m?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${mode===m?"#E8317A":"#2a2a2a"}`, color:mode===m?"#E8317A":"#888", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
             {l}
@@ -19281,6 +19431,9 @@ function CardSetImporter({ userRole }) {
           <div style={{ fontSize:12, color:"var(--bz-ink-3)" }}>{progress.done.toLocaleString()} / {progress.total.toLocaleString()} ({pct}%)</div>
         </div>
       )}
+
+      {/* Merge sets mode */}
+      {mode==="merge" && <SetMerger/>}
 
       {/* Cleanup mode */}
       {mode==="cleanup" && <DataCleanup/>}
@@ -27231,6 +27384,7 @@ See you in there!
   const [search,        setSearch]        = useState(savedUI.search ?? "");
   const debouncedSearch = useDebounce(search, 250);
   const [filterSet,     setFilterSet]     = useState(savedUI.filterSet ?? "");
+  const [filterSubSet,  setFilterSubSet]  = useState(""); // e.g. L.A. / Philadelphia / Oklahoma City within a set
   const [filterWeapon,  setFilterWeapon]  = useState(savedUI.filterWeapon ?? "");
   const [filterTreat,   setFilterTreat]   = useState(savedUI.filterTreat ?? "");
   const [filterPower,   setFilterPower]   = useState(()=> new Set(Array.isArray(savedUI.filterPower) ? savedUI.filterPower : []));
@@ -30062,6 +30216,7 @@ See you in there!
   // source of the laggy hover and rough scrolling. Memoized to its real inputs.
   const filtered = useMemo(() => cards.filter(c=>{
     if(filterSet    && c.setName!==filterSet)    return false;
+    if(filterSubSet && c.subSet!==filterSubSet)  return false;
     if(filterWeapon && canonWeapon(c.weapon)!==canonWeapon(filterWeapon))  return false;
     if(filterTreat  && c.treatment!==filterTreat) return false;
     if(filterOwned==="owned"   && !owned[c.id])  return false;
@@ -30075,7 +30230,7 @@ See you in there!
     if(sortBy==="powerAsc") return (parseFloat(a.power)||0)-(parseFloat(b.power)||0);
     if(sortBy==="cardNum"){const na=parseInt(String(a.cardNum||"").replace(/[^0-9]/g,"")||"0"),nb=parseInt(String(b.cardNum||"").replace(/[^0-9]/g,"")||"0");return na-nb;}
     return (a[sortBy]||"").toString().localeCompare((b[sortBy]||"").toString());
-  }), [cards, filterSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, search, sortBy, owned]);
+  }), [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, search, sortBy, owned]);
   const visibleCards = useMemo(()=>filtered.slice(0,page*PAGE_SIZE), [filtered, page]);
   filteredLenRef.current = filtered.length;
   const _baseId = (k)=> String(k).replace(/::foil$/,"");
@@ -32908,10 +33063,26 @@ See you in there!
                 if(filterWeapon && !scope.some(c=>c.weapon===filterWeapon)) setFilterWeapon("");
                 if(filterTreat && !scope.some(c=>c.treatment===filterTreat)) setFilterTreat("");
                 if(filterPower.size>0){ const avail=new Set(scope.map(c=>Number(c.power||0))); const kept=new Set([...filterPower].filter(p=>avail.has(p))); if(kept.size!==filterPower.size) setFilterPower(kept); }
-                setFilterSet(ns); setPage(1);
+                setFilterSet(ns); setFilterSubSet(""); setPage(1);
               }} style={{...inp,flex:1,minWidth:140,cursor:"pointer"}}>
                 <option value="">All Sets</option>{sets.map(s=><option key={s} value={s}>{s}</option>)}
               </select>
+              {/* Sub-set chips (e.g. World Champions Series → L.A. / Philadelphia / Oklahoma City) */}
+              {(() => {
+                if(!filterSet) return null;
+                const subs = Array.from(new Set(cards.filter(c=>c.setName===filterSet && c.subSet).map(c=>c.subSet))).sort();
+                if(subs.length<2) return null;
+                return (
+                  <div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
+                    <button onClick={()=>{setFilterSubSet("");setPage(1);}} style={{background:!filterSubSet?"rgba(74,222,128,0.15)":"transparent",border:`1px solid ${!filterSubSet?"#4ade80":"rgba(255,255,255,0.12)"}`,color:!filterSubSet?"#4ade80":"rgba(255,255,255,0.45)",borderRadius:14,padding:"5px 11px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>All</button>
+                    {subs.map(s=>{
+                      const on=filterSubSet===s;
+                      const n=cards.filter(c=>c.setName===filterSet && c.subSet===s).length;
+                      return <button key={s} onClick={()=>{setFilterSubSet(on?"":s);setPage(1);}} style={{background:on?"rgba(123,156,255,0.18)":"transparent",border:`1px solid ${on?"#7B9CFF":"rgba(255,255,255,0.12)"}`,color:on?"#7B9CFF":"rgba(255,255,255,0.45)",borderRadius:14,padding:"5px 11px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{s} ({n})</button>;
+                    })}
+                  </div>
+                );
+              })()}
               <select value={filterTreat} onChange={e=>{setFilterTreat(e.target.value);setPage(1);}} style={{...inp,flex:1,minWidth:140,cursor:"pointer"}}>
                 <option value="">All Treatments</option>{treatments.map(t=><option key={t} value={t}>{t}</option>)}
               </select>
