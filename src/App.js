@@ -147,8 +147,17 @@ const DECK_FORMATS = {
   blast:       { label:"Blast (30 cards)",        short:"BLAST",       size:30, perPower:3, set:"2025 Alpha Blast" },
   powerglove:  { label:"Power Glove (60 unique)", short:"POWER GLOVE", size:60, perPower:6, treatment:"Power Glove", unique:true },
   brawl:       { label:"Brawl",                   short:"BRAWL",       size:60, perPower:6, weapon:"Brawl" },
+  // GG HiLo — the deck may ONLY contain cards from three groups, with at least 10 of each:
+  //   1. Grandma's Linoleum Battlefoil    (treatment)
+  //   2. Great Grandma Linoleum Battlefoil (treatment)
+  //   3. ANY card with the Gum weapon      (weapon — so Inspired Ink Gum counts, not just Bubblegum)
+  // Expressed as groups rather than treatments because #3 is a weapon match, not a treatment match.
   gghilo:      { label:"GG HiLo",                 short:"GG HILO",     size:60, perPower:6,
-                 minTreat:{ "Grandma's Linoleum Battlefoil":10, "Great Grandma Linoleum Battlefoil":10, "Bubble Gum Battlefoil":10 } },
+                 groups:[
+                   { id:"grandma",      label:"Grandma's Linoleum",       min:10, match:c=>(c.treatment||"")==="Grandma's Linoleum Battlefoil" },
+                   { id:"greatgrandma", label:"Great Grandma Linoleum",   min:10, match:c=>(c.treatment||"")==="Great Grandma Linoleum Battlefoil" },
+                   { id:"gum",          label:"Gum weapon (any insert)",  min:10, match:c=>canonWeapon(c.weapon)==="Gum" },
+                 ] },
   // Madness: start from a 60-card Spec deck. Every 10 matching Inserts (= treatments) unlocks one
   // Apex Hero (>160), max 6. Four different Foil Hot Dogs unlock four more. Optimised = 70.
   apexmadness: { label:"Apex Madness",            short:"MADNESS",     size:70, perPower:6,
@@ -15393,10 +15402,7 @@ function PublicDeckBuilder() {
           <a href="/" style={{ color:"var(--bz-ink-3)", fontSize:12, textDecoration:"none" }}>{"\u2190 Back"}</a>
           <div style={{ fontSize:22, fontWeight:900, color:"#E8317A" }}>{"\u2694\uFE0F Deck Builder"}</div>
           <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{ ...S.inp, width:"auto", fontWeight:700, color:deckType==="spec"?"#FBBF24":deckType==="apex"?"#A855F7":"#888" }}>
-            <option value="none">No Restrictions</option>
-            <option value="spec">{"Spec Deck (\u2264160 power)"}</option>
-            <option value="apex">Apex Deck</option>
-            <option value="apexmadness">Apex Madness</option>
+            {Object.entries(DECK_FORMATS).map(([k,f])=><option key={k} value={k}>{f.label}</option>)}
           </select>
           <span style={{ fontSize:12, color:empty===0?"#4ade80":"#FBBF24", fontWeight:700 }}>{inDeck.length}/{PUBLIC_DECK_SIZE} cards</span>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:"auto" }}>
@@ -25876,11 +25882,9 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               })()}
               <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
                 <input value={deckSearch} onChange={e=>setDeckSearch(e.target.value)} placeholder="Search hero, treatment..." style={{...inp,flex:1,minWidth:160}}/>
-                <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:deckType==="spec"?"#FBBF24":deckType==="apexmadness"?"#E8317A":deckType==="apex"?"#A855F7":"rgba(255,255,255,0.4)"}}>
-                  <option value="none">No Restrictions</option>
-                  <option value="spec">{"Spec Deck (\u2264160)"}</option>
-                  <option value="apex">Apex Deck</option>
-                  <option value="apexmadness">Apex Madness</option>
+                <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:deckType==="spec"?"#FBBF24":deckType==="apexmadness"?"#E8317A":deckType==="apex"?"#A855F7":deckType==="elite"?"#4ade80":deckType==="specplus"?"#38BDF8":deckType==="blast"?"#F472B6":"rgba(255,255,255,0.4)"}}>
+                  {/* Generated from DECK_FORMATS so this can't drift out of sync with the rules. */}
+                  {Object.entries(DECK_FORMATS).map(([k,f])=><option key={k} value={k}>{f.label}</option>)}
                   <optgroup label="── Events ──">
                     <option value="vegasbaby">🎲 Vegas Baby (SPEC)</option>
                   </optgroup>
@@ -25963,9 +25967,10 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                   gghilo:{c:"#C084FC",icon:"\uD83D\uDC75",title:"GG HiLo",rules:[
                     "Up to 60 cards",
                     "No power cap",
-                    "Minimum 10 Grandma\u2019s Linoleum Battlefoil",
-                    "Minimum 10 Great Grandma Linoleum Battlefoil",
-                    "Minimum 10 Bubble Gum Battlefoil",
+                    "ONLY these three groups are legal:",
+                    "\u2003\u2022 Grandma\u2019s Linoleum Battlefoil (min 10)",
+                    "\u2003\u2022 Great Grandma Linoleum Battlefoil (min 10)",
+                    "\u2003\u2022 Any card with the Gum weapon (min 10) \u2014 any insert, not just Bubblegum",
                     "Max 6 cards at any power level",
                   ]},
                   powerglove:{c:"#FB923C",icon:"\uD83E\uDDE4",title:"Power Glove",rules:[
@@ -31470,11 +31475,14 @@ See you in there!
         problems.push(`Spec+ core incomplete: ${core}/${F.coreSize} at ≤${F.coreCap}, but ${high} high-power Hero${high!==1?"es":""} in deck`);
     }
 
-    // GG HiLo : minimum count of each named insert.
-    if (F.minTreat) {
-      for (const [treat, need] of Object.entries(F.minTreat)) {
-        const have = inDeck.filter(c=>(c.treatment||"")===treat).length;
-        if (have < need) problems.push(`${have}/${need} ${treat}`);
+    // GG HiLo : every card must be in an allowed group, and each group has a minimum.
+    if (F.groups) {
+      const stray = inDeck.filter(c => !F.groups.some(g=>g.match(c))).length;
+      if (stray > 0) problems.push(`${stray} card${stray!==1?"s":""} outside the allowed inserts`);
+      for (const g of F.groups) {
+        if (!g.min) continue;
+        const have = inDeck.filter(c=>g.match(c)).length;
+        if (have < g.min) problems.push(`${have}/${g.min} ${g.label}`);
       }
     }
 
@@ -31578,6 +31586,8 @@ See you in there!
       return {ok:false, reason:`${F.short}: ${F.treatment} only`};
     if(F.weapon && canonWeapon(c.weapon) !== canonWeapon(F.weapon))
       return {ok:false, reason:`${F.short}: ${F.weapon} weapon only`};
+    if(F.groups && !F.groups.some(g=>g.match(c)))
+      return {ok:false, reason:`${F.short}: only ${F.groups.map(g=>g.label).join(", ")}`};
     if(F.powerCap && p > F.powerCap)
       return {ok:false, reason:`Power ${c.power} exceeds ${F.powerCap}`};
 
@@ -31637,6 +31647,7 @@ See you in there!
     if(F.excludeSets && F.excludeSets.includes(c.setName)) return false;           // Elite: no Trainers
     if(F.treatment && c.treatment !== F.treatment) return false;                   // Power Glove
     if(F.weapon && canonWeapon(c.weapon) !== canonWeapon(F.weapon)) return false;  // Brawl
+    if(F.groups && !F.groups.some(g=>g.match(c))) return false;                    // GG HiLo
     if(F.powerCap && (parseFloat(c.power)||0) > F.powerCap) return false;          // Spec
     // Spec+ has no card above 200 at any point.
     if(F.highTiers){
@@ -31827,6 +31838,8 @@ See you in there!
       if(F.excludeSets && F.excludeSets.includes(c.setName)) return false;        // Elite bans Trainer cards
       if(F.treatment && c.treatment !== F.treatment) return false;                // Power Glove
       if(F.weapon && canonWeapon(c.weapon) !== canonWeapon(F.weapon)) return false; // Brawl
+      // GG HiLo: the deck may ONLY contain cards from the allowed groups.
+      if(F.groups && !F.groups.some(g=>g.match(c))) return false;
       return true;
     };
     const ownedCards = cards.filter(c => isOwned(c) && isAvailable(c) && formatEligible(c));
@@ -31859,17 +31872,18 @@ See you in there!
       usable.push(c);
     };
 
-    // GG HILO — a minimum count of each named treatment is REQUIRED, so satisfy those quotas first.
-    // Taking the strongest cards blindly would happily build 60 Bubblegums and leave the deck
-    // illegal, so the quota comes before raw power.
-    if (F.minTreat) {
-      for (const [treat, need] of Object.entries(F.minTreat)) {
+    // GG HILO — each group has a REQUIRED minimum, so satisfy those quotas first. Taking the
+    // strongest cards blindly would happily fill 60 slots from one group and leave the deck
+    // illegal, so the quotas come before raw power.
+    if (F.groups) {
+      for (const g of F.groups) {
+        if (!g.min) continue;
         const pool = ownedCards
-          .filter(c => (c.treatment||"") === treat)
+          .filter(c => g.match(c))
           .sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
         let got = 0;
         for (const c of pool) {
-          if (got >= need || usable.length >= DECK_SIZE) break;
+          if (got >= g.min || usable.length >= DECK_SIZE) break;
           if (!canTake(c)) continue;
           take(c); got++;
         }
