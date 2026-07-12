@@ -27937,6 +27937,12 @@ See you in there!
   // so "did I ever have that Gronk?" is always answerable.
   //   [{ id, cardId, qty, reason, note, price, date }]
   const [soldLog, setSoldLog] = useState([]);
+
+  // Save plumbing for the owned map. Declared up here because the boba_owned snapshot listener
+  // (set up in the auth effect below) needs to know whether a local write is still pending.
+  const ownedSaveRef    = useRef(null);   // debounce timer
+  const pendingOwnedRef = useRef(null);   // the map waiting to be written
+  const flushingRef     = useRef(false);  // a write is in flight right now
   const [inTransit,     setInTransit]     = useState({}); // {cardId: {qty, note, date}} cards bought & on the way
 
   // -- Card FX (hunt / caught animations) --
@@ -28532,6 +28538,12 @@ See you in there!
           if (ownedUnsubRef.current) { try { ownedUnsubRef.current(); } catch(e){} }
           ownedUnsubRef.current = onSnapshot(doc(db,"boba_owned",u.uid), snap => {
             const newOwned = snap.exists() ? snap.data() : {};
+            // CRITICAL: do NOT clobber local state while we still have unsaved changes queued.
+            // Adding cards updates `owned` immediately and writes on a debounce — if a snapshot
+            // lands in that window it carries the OLD server map, and blindly applying it wipes
+            // the cards you just added (they'd appear, then vanish back into "missing"). Skip the
+            // echo; our own pending write is the newer truth and will land momentarily.
+            if (pendingOwnedRef.current || flushingRef.current) return;
             setOwned(newOwned);
             // If a card that was "on the way" is now owned (e.g. just scanned), clear its transit flag.
             setInTransit(prev => {
@@ -28937,28 +28949,55 @@ See you in there!
   // PERF: adding cards fast was laggy because EVERY tap awaited a Firestore write of the whole
   // owned map (hundreds of entries re-uploaded per tap). Now the UI updates instantly and the
   // save is debounced — rapid input coalesces into one write ~600ms after you stop.
-  const ownedSaveRef = useRef(null);
-  const pendingOwnedRef = useRef(null);
   function queueOwnedSave(nextOwned) {
     if (!user) return;
     pendingOwnedRef.current = nextOwned;
     if (ownedSaveRef.current) clearTimeout(ownedSaveRef.current);
-    ownedSaveRef.current = setTimeout(async () => {
-      const payload = pendingOwnedRef.current;
-      if (!payload) return;
-      try { await setDoc(doc(db,"boba_owned",user.uid), payload); }
-      catch(e){ console.error("save owned failed:", e); }
-    }, 600);
+    ownedSaveRef.current = setTimeout(() => { flushOwnedSave(); }, 500);
   }
-  // Flush any pending save if the user leaves the page mid-burst.
+
+  // Write whatever's pending, right now. Safe to call repeatedly — it no-ops when there's nothing
+  // queued. Retries once on failure so a flaky mobile connection doesn't silently eat a card.
+  async function flushOwnedSave(attempt = 0) {
+    if (!user || flushingRef.current) return;
+    const payload = pendingOwnedRef.current;
+    if (!payload) return;
+    flushingRef.current = true;
+    if (ownedSaveRef.current) { clearTimeout(ownedSaveRef.current); ownedSaveRef.current = null; }
+    try {
+      await setDoc(doc(db,"boba_owned",user.uid), payload);
+      // Only clear the pending payload if it's still the one we just wrote — otherwise a newer
+      // change came in while the write was in flight and must not be discarded.
+      if (pendingOwnedRef.current === payload) pendingOwnedRef.current = null;
+    } catch(e) {
+      console.error("save owned failed:", e);
+      flushingRef.current = false;
+      if (attempt < 2) { setTimeout(()=>flushOwnedSave(attempt+1), 800 * (attempt+1)); return; }
+      // Out of retries — tell the user rather than silently losing their card.
+      alert("Couldn't save your collection — check your connection. Your last few cards may not have saved.");
+      return;
+    }
+    flushingRef.current = false;
+    // A change arrived while we were writing — flush again so it isn't stranded.
+    if (pendingOwnedRef.current) flushOwnedSave();
+  }
+
+  // Flush on ANY exit path. `beforeunload` is unreliable on mobile (iOS Safari and Android Chrome
+  // largely ignore it), which was dropping writes when the app was backgrounded mid-burst.
+  // `visibilitychange` → hidden is the one event mobile browsers do fire reliably.
   useEffect(() => {
-    const flush = () => {
-      if (pendingOwnedRef.current && user) {
-        try { setDoc(doc(db,"boba_owned",user.uid), pendingOwnedRef.current); } catch(e){}
-      }
-    };
+    if (!user) return;
+    const flush = () => { if (pendingOwnedRef.current) flushOwnedSave(); };
+    const onHide = () => { if (document.visibilityState === "hidden") flush(); };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", flush);
     window.addEventListener("beforeunload", flush);
-    return () => { window.removeEventListener("beforeunload", flush); flush(); };
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("beforeunload", flush);
+      flush();
+    };
   }, [user]);
 
   async function toggleOwned(cardId) {
@@ -29145,6 +29184,56 @@ See you in there!
     selectedIds.forEach(id => { if(makePublic) next[id]=true; else delete next[id]; });
     setPublicCards(next);
     await persistPublicCards(next);
+  }
+
+  // Bulk-assign the selected cards to a kid's collection (or back to you with groupId=null).
+  // One write for the whole batch rather than one per card.
+  async function bulkAssignKid(groupId) {
+    if (!user || selectedIds.size===0) return;
+    const next = {...kidAssign};
+    let n = 0;
+    selectedIds.forEach(id => {
+      if (!owned[id]) return;               // only ever tags cards you actually own
+      if (groupId) next[id] = groupId; else delete next[id];
+      n++;
+    });
+    if (n === 0) { alert("None of the selected cards are in your collection."); return; }
+    setKidAssign(next);
+    try { await setDoc(doc(db,"boba_kids",user.uid), { groups: kidGroups, assign: next }); }
+    catch(e){ console.error("bulk assign kid failed:", e); }
+    clearSelection();
+  }
+
+  // Bulk mark selected cards as sold / traded away. Decrements ONE copy of each and logs it.
+  async function bulkSellSelected(reason="sold") {
+    if (!user || selectedIds.size===0) return;
+    const ids = [...selectedIds].filter(id => (parseInt(owned[id])||0) > 0);
+    if (ids.length === 0) { alert("None of the selected cards are in your collection."); return; }
+    if (!window.confirm(`Mark ${ids.length} card${ids.length!==1?"s":""} as ${reason}? One copy of each leaves your collection \u2014 the record is kept.`)) return;
+
+    const nextOwned = {...owned};
+    const nextAssign = {...kidAssign};
+    const entries = [];
+    const now = new Date().toISOString();
+    ids.forEach(id => {
+      const have = parseInt(nextOwned[id])||0;
+      if (have - 1 <= 0) { delete nextOwned[id]; delete nextAssign[id]; }
+      else nextOwned[id] = have - 1;
+      entries.push({
+        id:`sold_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+        cardId:id, qty:1, reason, note:"", price:null, date:now,
+      });
+    });
+    setOwned(nextOwned);
+    queueOwnedSave(nextOwned);
+    setKidAssign(nextAssign);
+    const nextLog = [...entries, ...soldLog];
+    setSoldLog(nextLog);
+    try {
+      await setDoc(doc(db,"boba_sold",user.uid), { entries: nextLog });
+      await setDoc(doc(db,"boba_kids",user.uid), { groups: kidGroups, assign: nextAssign });
+    } catch(e){ console.error("bulk sell failed:", e); }
+    clearSelection();
   }
   // Bulk list selected owned cards for sale/trade at one price. Skips already-listed cards.
   async function bulkListSelected() {
@@ -30784,7 +30873,7 @@ See you in there!
     [searchDebounced]
   );
 
-  const filtered = useMemo(() => cards.filter(c=>{
+  const filtered = useMemo(() => { const __t0 = performance.now(); const __r = cards.filter(c=>{
     if(filterSet    && c.setName!==filterSet)    return false;
     if(filterSubSet && c.subSet!==filterSubSet)  return false;
     if(filterWeapon && canonWeapon(c.weapon)!==canonWeapon(filterWeapon))  return false;
@@ -30810,7 +30899,10 @@ See you in there!
     return true;
   // PERF: `owned` only changes the result when the Owned/Missing filter is active, so gate it —
   // otherwise every tap while adding cards re-filters the entire 31k checklist.
-  }), [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchTerms, searchIndex,
+  });
+  __perf.current.filter = performance.now()-__t0;
+  return __r;
+  }, [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchTerms, searchIndex,
        kidFilter, kidAssign,
        (filterOwned === "owned" || filterOwned === "missing" || kidFilter !== "all") ? owned : null]);
 
@@ -30821,6 +30913,7 @@ See you in there!
   // Now: decorate each card with a precomputed primitive sort key, sort on that (plain number or
   // string compare), then undecorate. Same order, a fraction of the cost.
   const sorted = useMemo(() => {
+    const __t0 = performance.now();
     const keyed = filtered.map(c => {
       let k;
       if (sortBy === "power" || sortBy === "powerAsc") k = parseFloat(c.power) || 0;
@@ -30834,7 +30927,9 @@ See you in there!
       if (x.k > y.k) return desc ? -1 : 1;
       return 0;
     });
-    return keyed.map(o => o.c);
+    const __out = keyed.map(o => o.c);
+    __perf.current.sort = performance.now()-__t0;
+    return __out;
   }, [filtered, sortBy]);
 
   const visibleCards = useMemo(()=>sorted.slice(0,page*PAGE_SIZE), [sorted, page]);
@@ -30844,6 +30939,11 @@ See you in there!
   // for EVERY owned key — and it ran twice, on EVERY render. With 332 owned cards that's ~24
   // million comparisons per keystroke, which is exactly why typing felt frozen even when zero
   // cards were on screen. Build an id Set once and make the lookup O(1).
+  // TEMP PERF PROBE
+  const __perf = useRef({ filter:0, sort:0, render:0 });
+  const __renderStart = performance.now();
+  useEffect(() => { __perf.current.render = performance.now() - __renderStart; });
+
   const cardIdSet = useMemo(() => new Set(cards.map(c=>c.id)), [cards]);
   // Kid chip counts — computed once per owned/assign change, not per chip per render.
   const kidCounts = useMemo(() => {
@@ -32196,7 +32296,7 @@ See you in there!
 
       {/* ── BULK ACTION BAR ── shows when in select mode with cards chosen */}
       {selectMode && (
-        <div style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",zIndex:9000,background:"rgba(18,18,26,0.97)",border:"1px solid rgba(123,156,255,0.4)",borderRadius:16,padding:"12px 16px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",boxShadow:"0 12px 40px rgba(0,0,0,0.6)",backdropFilter:"blur(10px)",maxWidth:"94vw"}}>
+        <div style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",zIndex:9000,background:"rgba(18,18,26,0.97)",border:"1px solid rgba(123,156,255,0.4)",borderRadius:16,padding:"12px 16px",display:"flex",alignItems:"center",gap:10,boxShadow:"0 12px 40px rgba(0,0,0,0.6)",backdropFilter:"blur(10px)",maxWidth:"94vw",overflowX:"auto"}}>
           <span style={{fontSize:13,fontWeight:800,color:"#7B9CFF",whiteSpace:"nowrap"}}>{selectedIds.size} selected</span>
           <button onClick={()=>{ const vis=visibleCards.map(c=>c.id); setSelectedIds(new Set(vis)); }} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.6)",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Select shown</button>
           <button onClick={clearSelection} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.6)",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Clear</button>
@@ -32204,6 +32304,38 @@ See you in there!
           <button disabled={selectedIds.size===0} onClick={()=>bulkSetPublic(true)} style={{background:selectedIds.size?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)",border:`1px solid ${selectedIds.size?"#4ade80":"#333"}`,color:selectedIds.size?"#4ade80":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>👁 Make Public</button>
           <button disabled={selectedIds.size===0} onClick={()=>bulkSetPublic(false)} style={{background:selectedIds.size?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.04)",border:"1px solid #333",color:selectedIds.size?"#ccc":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>🔒 Make Private</button>
           <button disabled={selectedIds.size===0} onClick={()=>setBulkListModal(true)} style={{background:selectedIds.size?"linear-gradient(135deg,#E8317A,#7B2FF7)":"rgba(255,255,255,0.04)",border:"none",color:selectedIds.size?"#fff":"#555",borderRadius:8,padding:"7px 14px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>💰 List for Sale</button>
+
+          {/* Bulk-tag to a kid's collection — much faster than tagging card by card. */}
+          {kidGroups.length>0 && (
+            <>
+              <div style={{width:1,height:24,background:"rgba(255,255,255,0.12)"}}/>
+              {kidGroups.map(g=>(
+                <button key={g.id} disabled={selectedIds.size===0} onClick={()=>bulkAssignKid(g.id)}
+                  title={`Tag the selected cards as ${g.name}'s`}
+                  style={{background:selectedIds.size?`${g.color}22`:"rgba(255,255,255,0.04)",border:`1px solid ${selectedIds.size?g.color:"#333"}`,color:selectedIds.size?g.color:"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                  🧒 {g.name}
+                </button>
+              ))}
+              <button disabled={selectedIds.size===0} onClick={()=>bulkAssignKid(null)}
+                title="Untag — make these yours again"
+                style={{background:"rgba(255,255,255,0.04)",border:"1px solid #333",color:selectedIds.size?"#ccc":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                Mine
+              </button>
+            </>
+          )}
+
+          {/* Bulk sold / traded away — one copy of each leaves the collection, record kept. */}
+          <div style={{width:1,height:24,background:"rgba(255,255,255,0.12)"}}/>
+          <button disabled={selectedIds.size===0} onClick={()=>bulkSellSelected("sold")}
+            title="Mark the selected cards as sold — one copy each leaves your collection, the record is kept"
+            style={{background:"rgba(255,255,255,0.04)",border:"1px solid #333",color:selectedIds.size?"#ccc":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+            ↗ Sold
+          </button>
+          <button disabled={selectedIds.size===0} onClick={()=>bulkSellSelected("traded")}
+            title="Mark the selected cards as traded away"
+            style={{background:"rgba(255,255,255,0.04)",border:"1px solid #333",color:selectedIds.size?"#ccc":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+            ↗ Traded
+          </button>
         </div>
       )}
 
@@ -34012,6 +34144,11 @@ See you in there!
                 </>
               )}
               <span style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginLeft:"auto",display:"flex",alignItems:"center",gap:10}}>
+                {_cardAdmin && (
+                  <span style={{color:"#FBBF24",fontWeight:700}}>
+                    f {__perf.current.filter.toFixed(0)} · s {__perf.current.sort.toFixed(0)} · r {__perf.current.render.toFixed(0)}ms
+                  </span>
+                )}
                 {user && soldLog.length>0 && (
                   <button onClick={()=>setSoldView(true)} title="Cards you've sold, traded or given away"
                     style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.35)",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textDecoration:"underline",textUnderlineOffset:3}}>
