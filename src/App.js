@@ -24941,7 +24941,8 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         {deckProgress.familyCount>0 && <span style={{fontSize:10.5,color:"#C084FC",fontWeight:700}}>👪 includes {deckProgress.familyCount} borrowed family card{deckProgress.familyCount!==1?"s":""} (auto-logged to your paper trail)</span>}
                         {deckProgress.treatUsed && deckProgress.treatUsed.length>0 && (
                           <div style={{fontSize:10.5,color:"var(--bz-ink-3)",width:"100%",marginTop:4,lineHeight:1.6}}>
-                            <strong style={{color:"#FBBF24"}}>Inserts used (deepest first):</strong> {deckProgress.treatUsed.map(x=>`${x.treatment} (${x.count})`).join(" · ")}
+                            {deckProgress.avgPower>0 && <><strong style={{color:"#4ade80"}}>Avg power: {deckProgress.avgPower}</strong>{" · "}<strong style={{color:"#4ade80"}}>Total: {deckProgress.totalPower.toLocaleString()}</strong>{" — "}</>}
+                            <span style={{color:"var(--bz-ink-3)"}}>Inserts: {deckProgress.treatUsed.slice(0,4).map(x=>`${x.treatment} (${x.count})`).join(" · ")}{deckProgress.treatUsed.length>4?` +${deckProgress.treatUsed.length-4} more`:""}</span>
                           </div>
                         )}
                       </div>
@@ -30299,47 +30300,49 @@ See you in there!
       return true;
     });
 
-    // Group by treatment, then rank treatments by how DEEP a pool they can field (most first),
-    // so the deck uses as many of one insert as possible before reaching into the next.
-    const byTreat = {};
-    ownedCards.forEach(c => { const t=c.treatment||"—"; (byTreat[t]=byTreat[t]||[]).push(c); });
-    // Count usable depth per treatment (respecting dedupe + 6-per-power), to rank them fairly.
-    const depthOf = list => {
-      const seen=new Set(); const pp={}; let n=0;
-      list.slice().sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b)).forEach(c=>{
-        const k=dupKey(c); if(seen.has(k)) return;
-        const p=String(c.power||"0"); if((pp[p]||0)>=6) return;
-        seen.add(k); pp[p]=(pp[p]||0)+1; n++;
-      });
-      return n;
-    };
-    const treatOrder = Object.keys(byTreat)
-      .map(t => ({ t, depth: depthOf(byTreat[t]) }))
-      .sort((a,b) => (b.depth - a.depth) || a.t.localeCompare(b.t));
+    // POWER FIRST. Always build the strongest legal deck. Treatment is only a TIEBREAK: among
+    // cards of the SAME power, prefer the insert we're already deepest in (free clustering that
+    // never costs a point of power), then prefer your own card over a borrowed one.
+    const treatCount = {};
+    const seen = new Set(); const perPower = {}; const usable = [];
 
-    // Fill treatment by treatment, deepest first. Global dedupe + 6-per-power cap still apply.
-    const seen = new Set(); const perPower = {}; const usable = []; const treatUsed = [];
-    for (const { t } of treatOrder) {
+    // Bucket by power, walk tiers high → low.
+    const tiers = {};
+    ownedCards.forEach(c => { const p = powerOf(c); (tiers[p] = tiers[p]||[]).push(c); });
+    const tierPowers = Object.keys(tiers).map(Number).sort((a,b)=>b-a);
+
+    for (const p of tierPowers) {
       if (usable.length >= DECK_SIZE) break;
-      const before = usable.length;
-      const list = byTreat[t].slice().sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
-      for (const c of list) {
+      // Within this power tier, order by: treatment we already have most of, then my own cards.
+      const tier = tiers[p].slice().sort((a,b)=>{
+        const ct=(treatCount[a.treatment||"—"]||0), bt=(treatCount[b.treatment||"—"]||0);
+        if (ct !== bt) return bt - ct;
+        return mineFirst(a,b);
+      });
+      for (const c of tier) {
         if (usable.length >= DECK_SIZE) break;
         const k = dupKey(c);
         if (seen.has(k)) continue;
-        const p = String(c.power||"0");
-        if ((perPower[p]||0) >= 6) continue;
-        seen.add(k); perPower[p]=(perPower[p]||0)+1; usable.push(c);
+        const pk = String(c.power||"0");
+        if ((perPower[pk]||0) >= 6) continue; // max 6 at any one power level
+        seen.add(k); perPower[pk]=(perPower[pk]||0)+1;
+        treatCount[c.treatment||"—"] = (treatCount[c.treatment||"—"]||0)+1;
+        usable.push(c);
       }
-      const added = usable.length - before;
-      if (added > 0) treatUsed.push({ treatment: t, count: added });
     }
+
+    const treatUsed = Object.entries(treatCount)
+      .map(([treatment,count])=>({treatment,count}))
+      .sort((a,b)=>b.count-a.count);
+
     return {
       have: usable.length, need: DECK_SIZE, perPower, ownedEligible: ownedCards.length, cards: usable,
       familyCount: usable.filter(c=>!isMine(c)&&famOwner(c)).length,
-      treatUsed, // which inserts the deck drew from, in order
+      treatUsed, // which inserts the deck ended up drawing from
       maxMode: !!maxMode, maxWindowLabel,
       maxShort: maxMode ? Math.max(0, DECK_SIZE - usable.length) : 0,
+      avgPower: usable.length ? Math.round(usable.reduce((s,c)=>s+powerOf(c),0)/usable.length) : 0,
+      totalPower: usable.reduce((s,c)=>s+powerOf(c),0),
     };
   }
   const [deckGoalW, setDeckGoalW] = useState("");
