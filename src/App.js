@@ -18423,6 +18423,7 @@ function SwanCityBulkImport() {
 function CardDeduper() {
   const [loading, setLoading] = useState(false);
   const [groups,  setGroups]  = useState(null);   // [{key, keep, drop:[...]}]
+  const [orphanFloats, setOrphanFloats] = useState([]); // "100.0" cards with no duplicate twin
   const [running, setRunning] = useState(false);
   const [done,    setDone]    = useState(null);
   const [err,     setErr]     = useState("");
@@ -18433,6 +18434,9 @@ function CardDeduper() {
     if (c.imageUrl) s += 100;                 // never throw away card art
     if (c.mktValue || c.marketValue) s += 50; // or market values
     if (c.dbs) s += 20;
+    // Prefer the clean card number. An import can leave Excel's float artifact ("100.0") where the
+    // real number is "100" — when both exist, the clean one is the keeper.
+    if (!/^\d+\.0+$/.test(String(c.cardNum||"").trim())) s += 30;
     s += Object.keys(c).length;               // richer doc wins ties
     return s;
   };
@@ -18448,11 +18452,19 @@ function CardDeduper() {
         // the same number is reused across treatments/heroes. Two docs are only the same card if
         // ALL of these match (normalized for case/spacing so spelling variants still collapse).
         const n = v => String(v||"").trim().toLowerCase().replace(/\s+/g," ");
+        // Excel turns plain numbers into floats, so an import can produce "100.0" where the real
+        // card number is "100". Same card, different string → different id → a duplicate doc.
+        // Strip a trailing ".0" (and any other trailing zeros after a decimal point) so those
+        // collapse together. Only touches purely numeric values — "S-01/100" is left alone.
+        const nNum = v => {
+          const s = String(v||"").trim();
+          return /^\d+\.0+$/.test(s) ? s.replace(/\.0+$/,"") : n(s);
+        };
         const key = [
-          n(c.setName), n(c.cardNum), n(c.hero), n(c.treatment), n(c.weapon), n(c.power),
+          n(c.setName), nNum(c.cardNum), n(c.hero), n(c.treatment), n(c.weapon), nNum(c.power),
         ].join("|");
         // Require at least a set + number + hero to consider it identifiable.
-        if (!n(c.cardNum) || !n(c.hero)) return;
+        if (!nNum(c.cardNum) || !n(c.hero)) return;
         (by[key] = by[key]||[]).push(c);
       });
       const dupes = Object.entries(by)
@@ -18463,14 +18475,27 @@ function CardDeduper() {
         })
         .sort((a,b)=>b.drop.length-a.drop.length);
       setGroups(dupes);
+
+      // Separately: cards carrying Excel's float artifact ("100.0") that have NO duplicate twin.
+      // They're not duplicates so the dedupe won't touch them, but the card number is still wrong
+      // and needs cleaning.
+      const dupIds = new Set(dupes.flatMap(g=>[g.keep.id, ...g.drop.map(d=>d.id)]));
+      setOrphanFloats(all.filter(c =>
+        /^\d+\.0+$/.test(String(c.cardNum||"").trim()) && !dupIds.has(c.id)
+      ));
     } catch(e){ setErr(e.message||String(e)); }
     setLoading(false);
   }
 
   async function runDedupe() {
-    if(!groups?.length || running) return;
-    const total = groups.reduce((n,g)=>n+g.drop.length,0);
-    if(!window.confirm(`Delete ${total.toLocaleString()} duplicate cards, keeping one of each. This cannot be undone. Continue?`)) return;
+    if((!groups?.length && !orphanFloats.length) || running) return;
+    const total = groups ? groups.reduce((n,g)=>n+g.drop.length,0) : 0;
+    const fixes = orphanFloats.length;
+    const msg = [
+      total ? `Delete ${total.toLocaleString()} duplicate cards, keeping one of each.` : "",
+      fixes ? `Clean up ${fixes.toLocaleString()} card numbers ("100.0" → "100").` : "",
+    ].filter(Boolean).join("\n");
+    if(!window.confirm(`${msg}\n\nThis cannot be undone. Continue?`)) return;
     setRunning(true);
     let deleted = 0;
     try {
@@ -18482,6 +18507,21 @@ function CardDeduper() {
         await batch.commit();
         deleted += Math.min(CHUNK, toDrop.length - i);
         setDone({ deleted, total, inProgress:true });
+      }
+
+      // Repair every card still carrying Excel's float artifact ("100.0" → "100") — both the ones
+      // that won a dedupe group (because they held the image) and the orphans that never had a
+      // duplicate twin at all. Either way the card number is wrong and should be cleaned.
+      const needFix = [
+        ...groups.map(g=>g.keep).filter(c => /^\d+\.0+$/.test(String(c.cardNum||"").trim())),
+        ...orphanFloats,
+      ];
+      for (let i=0;i<needFix.length;i+=CHUNK) {
+        const batch = writeBatch(db);
+        needFix.slice(i,i+CHUNK).forEach(c => {
+          batch.update(doc(db,"boba_checklist",c.id), { cardNum: String(c.cardNum).replace(/\.0+$/,"") });
+        });
+        await batch.commit();
       }
       // Rebuild the snapshot so the app reflects the cleanup.
       const snap2 = await getDocs(collection(db,"boba_checklist"));
@@ -18521,17 +18561,33 @@ function CardDeduper() {
 
       {groups && (
         <div style={{marginTop:16,background:"#141414",border:"1px solid #2a2a2a",borderRadius:10,padding:14}}>
-          {groups.length===0 ? (
-            <div style={{fontSize:13,color:"#4ade80",fontWeight:700}}>✓ No duplicates found — every card is unique.</div>
+          {orphanFloats.length>0 && (
+            <div style={{marginBottom:12,padding:"10px 12px",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:8}}>
+              <div style={{fontSize:12.5,fontWeight:800,color:"#FBBF24",marginBottom:3}}>
+                🔢 {orphanFloats.length.toLocaleString()} card numbers to clean up
+              </div>
+              <div style={{fontSize:11,color:"var(--bz-ink-3)",lineHeight:1.55}}>
+                These carry a spreadsheet artifact — the card number reads <strong>"100.0"</strong> instead of
+                <strong> "100"</strong>. That mismatch is what created a lot of the duplicates in the first place.
+                Running the cleanup will fix them.
+              </div>
+            </div>
+          )}
+          {groups.length===0 && orphanFloats.length===0 ? (
+            <div style={{fontSize:13,color:"#4ade80",fontWeight:700}}>✓ Nothing to clean — every card is unique and every card number is clean.</div>
           ) : (
             <>
-              <div style={{fontSize:14,fontWeight:800,color:"#FBBF24",marginBottom:6}}>
-                Found {groups.length.toLocaleString()} duplicated cards · {totalDrop.toLocaleString()} extra copies to delete
-              </div>
-              <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:10,lineHeight:1.6}}>
-                Every copy below is the <strong>same card</strong> (same set, number, hero, treatment, weapon and power) —
-                only genuinely identical entries are grouped. Check a few before deleting.
-              </div>
+              {groups.length>0 && (
+                <>
+                  <div style={{fontSize:14,fontWeight:800,color:"#FBBF24",marginBottom:6}}>
+                    Found {groups.length.toLocaleString()} duplicated cards · {totalDrop.toLocaleString()} extra copies to delete
+                  </div>
+                  <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:10,lineHeight:1.6}}>
+                    Every copy below is the <strong>same card</strong> (same set, number, hero, treatment, weapon and power) —
+                    only genuinely identical entries are grouped. Check a few before deleting.
+                  </div>
+                </>
+              )}
               {groups.slice(0,8).map(g=>(
                 <div key={g.key} style={{fontSize:11,color:"#ccc",padding:"8px 0",borderBottom:"1px solid #222"}}>
                   <div style={{color:"#7B9CFF",fontWeight:700,marginBottom:3}}>
@@ -18543,7 +18599,9 @@ function CardDeduper() {
               ))}
               <button onClick={runDedupe} disabled={running}
                 style={{marginTop:14,background:running?"#1a1a1a":"#E8317A",color:running?"#555":"#fff",border:"none",borderRadius:8,padding:"11px 22px",fontSize:13,fontWeight:800,cursor:running?"not-allowed":"pointer",fontFamily:"inherit"}}>
-                {running?`Deleting… ${done?.deleted||0}/${totalDrop}`:`Delete ${totalDrop.toLocaleString()} duplicates`}
+                {running
+                  ? `Working… ${done?.deleted||0}/${totalDrop}`
+                  : [totalDrop?`Delete ${totalDrop.toLocaleString()} duplicates`:"", orphanFloats.length?`fix ${orphanFloats.length.toLocaleString()} card numbers`:""].filter(Boolean).join(" · ")}
               </button>
             </>
           )}
