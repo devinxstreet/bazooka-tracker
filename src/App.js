@@ -18448,7 +18448,7 @@ function CardDeduper() {
         await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, { contentType:"application/json", cacheControl:"public,max-age=86400" });
       } catch(e){}
       try { await writeCardSnapshot(all2, 86400); } catch(e){}
-      try { await setDoc(doc(db,"meta","cards_version"), { ts: Date.now() }); } catch(e){}
+      try { await setDoc(doc(db,"meta","cards_version"), { ts: Date.now(), count: all2.length }); } catch(e){}
       try { localStorage.removeItem("boba_checklist_cache"); localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
       try { await idbClearCards(); } catch(e){}
       setDone({ deleted, total, remaining: all2.length, inProgress:false });
@@ -19144,7 +19144,7 @@ function CardSetImporter({ userRole }) {
         try { await writeCardSnapshot(all, 86400); }
         catch(e) { snapErrs.push(`Gzipped snapshot failed: ${e.message}`); }
 
-        try { await setDoc(doc(db,"meta","cards_version"), { ts: Date.now() }); }
+        try { await setDoc(doc(db,"meta","cards_version"), { ts: Date.now(), count: all.length }); }
         catch(e) { snapErrs.push(`Version bump failed (meta/cards_version): ${e.message} — without this, clients keep serving the OLD card list.`); }
 
         setProgress(null);
@@ -19421,7 +19421,7 @@ function CardSetImporter({ userRole }) {
         const snapRef = ref(storage, "card_data/boba_checklist.json");
         await uploadBytes(snapRef, blob, { contentType:"application/json", cacheControl:"public,max-age=300" });
         try { await writeCardSnapshot(all, 300); } catch(e) {}
-        try { await setDoc(doc(db,"meta","cards_version"), { ts: Date.now() }); } catch(e) {}
+        try { await setDoc(doc(db,"meta","cards_version"), { ts: Date.now(), count: all.length }); } catch(e) {}
         setProgress(null);
       } catch(e) { console.warn("Public snapshot write failed:", e); setProgress(null); }
     }
@@ -19623,7 +19623,7 @@ function CardSetImporter({ userRole }) {
               await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, { contentType:"application/json", cacheControl:"public,max-age=86400" });
             } catch(e){ errs.push(`Storage upload failed: ${e.message}`); }
             try { await writeCardSnapshot(all, 86400); } catch(e){ errs.push(`Gzipped snapshot failed: ${e.message}`); }
-            try { await setDoc(doc(db,"meta","cards_version"), { ts: Date.now() }); }
+            try { await setDoc(doc(db,"meta","cards_version"), { ts: Date.now(), count: all.length }); }
             catch(e){ errs.push(`Version bump failed: ${e.message} — clients will keep serving the old list.`); }
             // CRITICAL: the 12MB card list lives in IndexedDB (too big for localStorage).
             // Clearing localStorage alone leaves the stale list in place.
@@ -28091,14 +28091,21 @@ See you in there!
       // contain cards added by a recent import). It's a first-paint placeholder ONLY — we stamp it
       // with ts=0 so the freshness check below always treats it as stale and pulls live data.
       let shownFromStatic = false;
+      let staticCount = 0;
+      let staticCards = null;
       try {
         const cachedPeek = await withTimeout(idbGetCards(), 1500).catch(()=>null);
-        const haveIdb = cachedPeek && Array.isArray(cachedPeek.cards) && cachedPeek.cards.length>0;
-        if (!haveIdb) {
-          const rs = await withTimeout(fetch("/cards-data.json"), 4000);
-          if (rs.ok) {
-            const all = await rs.json();
-            if (Array.isArray(all) && all.length>0) {
+        const idbCount = (cachedPeek && Array.isArray(cachedPeek.cards)) ? cachedPeek.cards.length : 0;
+        const rs = await withTimeout(fetch("/cards-data.json"), 4000);
+        if (rs.ok) {
+          const all = await rs.json();
+          if (Array.isArray(all) && all.length>0) {
+            staticCards = all;
+            staticCount = all.length; // known-good floor: this shipped with the current deploy
+            // Show the bundled file when there's no cache at all, OR when the cache is clearly
+            // stale (fewer cards than what we shipped). The latter is what rescues a user whose
+            // IndexedDB is pinned to an old card list — they'd otherwise never see new cards.
+            if (idbCount === 0 || idbCount < all.length) {
               setCards(all); setLoading(false);
               shownFromStatic = true;
               // ts=0 — never let the bundled file pose as a fresh cache.
@@ -28109,41 +28116,48 @@ See you in there!
       } catch(e) {}
 
       // 1. Instant cache from IndexedDB (timeout-guarded so a blocked DB can't hang us).
-      let cacheTs = 0, cacheHasCards = false;
+      let cacheTs = 0, cacheHasCards = false, cacheCount = 0;
       try {
         const cached = await withTimeout(idbGetCards(), 2500);
         if (cached && Array.isArray(cached.cards) && cached.cards.length > 0) {
           if (!shownFromStatic) { setCards(cached.cards); setLoading(false); }
-          cacheHasCards = true; cacheTs = cached.ts || 0;
+          cacheHasCards = true; cacheTs = cached.ts || 0; cacheCount = cached.cards.length;
         }
       } catch(e) {}
-      // NOTE: cacheTs stays 0 when we only have the STATIC bundled file. That file ships with the
-      // site and can be months out of date — it must never be treated as fresh, or newly imported
-      // cards will never appear. With cacheTs=0 the version check below always wins and we pull
-      // the live snapshot.
-      // 2. Freshness check (timeout-guarded). If we have cache, trust it for the session and
-      // only re-fetch when it's clearly old — the cache already shows instantly above, so we
-      // never block the user on a re-download.
+
+      // 2. Freshness check — COUNT-BASED, not timestamp-based.
+      //
+      // Timestamps proved unreliable here: the bundled /cards-data.json, a missing or stale
+      // meta/cards_version doc, or a failed version write all left clients pinned to an old card
+      // list forever (imported cards simply never appeared). The card COUNT is ground truth: if
+      // the server has a different number of cards than our cache, the cache is wrong — refetch.
+      // We publish the count alongside the version, so this is one tiny read.
       let needFresh = !cacheHasCards;
-      if (cacheHasCards) {
-        // Cache is showing. Only refresh in the background if it's older than the TTL.
-        if (Date.now() - cacheTs > CACHE_TTL) {
-          try {
-            const vSnap = await withTimeout(getDoc(doc(db,"meta","cards_version")), 4000);
-            const serverTs = vSnap.exists() ? (vSnap.data().ts || 0) : 0;
-            if (serverTs > cacheTs) needFresh = true;
-          } catch(e) {}
+      let serverCount = 0, serverTs = 0;
+      try {
+        const vSnap = await withTimeout(getDoc(doc(db,"meta","cards_version")), 4000);
+        if (vSnap.exists()) {
+          serverTs    = vSnap.data().ts    || 0;
+          serverCount = vSnap.data().count || 0;
         }
-        // We already showed cards from cache; stop the spinner now regardless.
+      } catch(e) { /* couldn't reach the server — fall through to the checks below */ }
+
+      if (cacheHasCards) {
+        // Any count mismatch = stale cache, no matter what the timestamps say.
+        if (serverCount > 0 && serverCount !== cacheCount) needFresh = true;
+        // Fall back to the timestamp signal when the server didn't give us a count.
+        if (serverCount === 0 && serverTs > cacheTs) needFresh = true;
+        // Belt and braces: an ancient cache always gets revalidated.
+        if (Date.now() - cacheTs > CACHE_TTL && serverTs > cacheTs) needFresh = true;
+        // Last resort — the bundled /cards-data.json ships with the deploy, so it's a known-good
+        // floor. If our cache has FEWER cards than the file we shipped, the cache is definitely
+        // stale (this catches the case where meta/cards_version was never written with a count).
+        if (!needFresh && staticCount > 0 && cacheCount < staticCount) needFresh = true;
         clearTimeout(hardStop);
         if (!needFresh) { done = true; setLoading(false); return; }
-        done = false; // allow the background refresh below to update silently
+        done = false; // let the refresh below silently swap in fresh data
       } else {
-        try {
-          const vSnap = await withTimeout(getDoc(doc(db,"meta","cards_version")), 4000);
-          const serverTs = vSnap.exists() ? (vSnap.data().ts || 0) : 0;
-          if (serverTs > cacheTs) needFresh = true;
-        } catch(e) { needFresh = true; }
+        needFresh = true;
       }
       if (!needFresh) { clearTimeout(hardStop); done = true; setLoading(false); return; }
       // 3. Gzip snapshot (timeout-guarded).
@@ -32175,7 +32189,7 @@ See you in there!
                     onMouseEnter={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.35),rgba(123,47,247,0.35))";}}
                     onMouseLeave={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.2),rgba(123,47,247,0.2))";}}>
                     {isMobile ? "\uD83D\uDCF7" : "\uD83D\uDCF7 Scan"}</button>
-                  <button onClick={async ()=>{ if(_cardAdmin){ try{ setToast("Regenerating fast snapshot…"); const snap2=await getDocs(collection(db,"boba_checklist")); const all=snap2.docs.map(d=>({id:d.id,...d.data()})); await writeCardSnapshot(all,300); const blob=new Blob([JSON.stringify(all)],{type:"application/json"}); await uploadBytes(ref(storage,"card_data/boba_checklist.json"),blob,{contentType:"application/json",cacheControl:"public,max-age=300"}); try{await setDoc(doc(db,"meta","cards_version"),{ts:Date.now()});}catch(e){} }catch(e){} } try{localStorage.removeItem("boba_checklist_cache_v3");}catch(e){} await idbClearCards(); window.location.reload(); }} title={_cardAdmin?"Regenerate fast snapshot & refresh":"Refresh"}
+                  <button onClick={async ()=>{ if(_cardAdmin){ try{ setToast("Regenerating fast snapshot…"); const snap2=await getDocs(collection(db,"boba_checklist")); const all=snap2.docs.map(d=>({id:d.id,...d.data()})); await writeCardSnapshot(all,300); const blob=new Blob([JSON.stringify(all)],{type:"application/json"}); await uploadBytes(ref(storage,"card_data/boba_checklist.json"),blob,{contentType:"application/json",cacheControl:"public,max-age=300"}); try{await setDoc(doc(db,"meta","cards_version"),{ts:Date.now(),count:all.length});}catch(e){} }catch(e){} } try{localStorage.removeItem("boba_checklist_cache_v3");}catch(e){} await idbClearCards(); window.location.reload(); }} title={_cardAdmin?"Regenerate fast snapshot & refresh":"Refresh"}
                     style={{background:"rgba(255,255,255,0.05)",color:"rgba(255,255,255,0.6)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:isMobile?"9px 13px":"8px 14px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",whiteSpace:"nowrap"}}>
                     {"\uD83D\uDD04"}</button>
                   <button onClick={()=>{ setImportModal(true); setImportRows(null); setImportRaw(null); setImportSetMap({}); setImportColMap(null); setColMapConfirmed(false); }} title="Import your collection from a CSV" style={{background:"linear-gradient(135deg,rgba(123,156,255,0.18),rgba(74,222,128,0.12))",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}>
