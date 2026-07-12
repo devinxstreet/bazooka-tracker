@@ -30873,7 +30873,7 @@ See you in there!
     [searchDebounced]
   );
 
-  const filtered = useMemo(() => { const __t0 = performance.now(); const __r = cards.filter(c=>{
+  const filtered = useMemo(() => cards.filter(c=>{
     if(filterSet    && c.setName!==filterSet)    return false;
     if(filterSubSet && c.subSet!==filterSubSet)  return false;
     if(filterWeapon && canonWeapon(c.weapon)!==canonWeapon(filterWeapon))  return false;
@@ -30899,10 +30899,7 @@ See you in there!
     return true;
   // PERF: `owned` only changes the result when the Owned/Missing filter is active, so gate it —
   // otherwise every tap while adding cards re-filters the entire 31k checklist.
-  });
-  __perf.current.filter = performance.now()-__t0;
-  return __r;
-  }, [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchTerms, searchIndex,
+  }), [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchTerms, searchIndex,
        kidFilter, kidAssign,
        (filterOwned === "owned" || filterOwned === "missing" || kidFilter !== "all") ? owned : null]);
 
@@ -30913,7 +30910,6 @@ See you in there!
   // Now: decorate each card with a precomputed primitive sort key, sort on that (plain number or
   // string compare), then undecorate. Same order, a fraction of the cost.
   const sorted = useMemo(() => {
-    const __t0 = performance.now();
     const keyed = filtered.map(c => {
       let k;
       if (sortBy === "power" || sortBy === "powerAsc") k = parseFloat(c.power) || 0;
@@ -30927,9 +30923,7 @@ See you in there!
       if (x.k > y.k) return desc ? -1 : 1;
       return 0;
     });
-    const __out = keyed.map(o => o.c);
-    __perf.current.sort = performance.now()-__t0;
-    return __out;
+    return keyed.map(o => o.c);
   }, [filtered, sortBy]);
 
   const visibleCards = useMemo(()=>sorted.slice(0,page*PAGE_SIZE), [sorted, page]);
@@ -30939,11 +30933,6 @@ See you in there!
   // for EVERY owned key — and it ran twice, on EVERY render. With 332 owned cards that's ~24
   // million comparisons per keystroke, which is exactly why typing felt frozen even when zero
   // cards were on screen. Build an id Set once and make the lookup O(1).
-  // TEMP PERF PROBE
-  const __perf = useRef({ filter:0, sort:0, render:0 });
-  const __renderStart = performance.now();
-  useEffect(() => { __perf.current.render = performance.now() - __renderStart; });
-
   const cardIdSet = useMemo(() => new Set(cards.map(c=>c.id)), [cards]);
   // Kid chip counts — computed once per owned/assign change, not per chip per render.
   const kidCounts = useMemo(() => {
@@ -34144,11 +34133,6 @@ See you in there!
                 </>
               )}
               <span style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginLeft:"auto",display:"flex",alignItems:"center",gap:10}}>
-                {_cardAdmin && (
-                  <span style={{color:"#FBBF24",fontWeight:700}}>
-                    f {__perf.current.filter.toFixed(0)} · s {__perf.current.sort.toFixed(0)} · r {__perf.current.render.toFixed(0)}ms
-                  </span>
-                )}
                 {user && soldLog.length>0 && (
                   <button onClick={()=>setSoldView(true)} title="Cards you've sold, traded or given away"
                     style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.35)",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textDecoration:"underline",textUnderlineOffset:3}}>
