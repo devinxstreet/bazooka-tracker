@@ -30501,6 +30501,11 @@ See you in there!
   // keystroke (~31k string allocations per character typed) — that's what made results lag behind
   // the input. Build the searchable text ONCE per card here; searching then becomes a plain
   // substring test against a ready-made string.
+  // TEMP PERF PROBE — shows where the time actually goes, on screen (no console needed).
+  const __perf = useRef({ filter:0, sort:0, render:0 });
+  const __renderStart = performance.now();
+  useEffect(() => { __perf.current.render = performance.now() - __renderStart; });
+
   const searchIndex = useMemo(() => {
     const m = new Map();
     for (const c of cards) {
@@ -30516,7 +30521,7 @@ See you in there!
     [searchDebounced]
   );
 
-  const filtered = useMemo(() => cards.filter(c=>{
+  const filtered = useMemo(() => { const __t0 = performance.now(); const __r = cards.filter(c=>{
     if(filterSet    && c.setName!==filterSet)    return false;
     if(filterSubSet && c.subSet!==filterSubSet)  return false;
     if(filterWeapon && canonWeapon(c.weapon)!==canonWeapon(filterWeapon))  return false;
@@ -30536,7 +30541,10 @@ See you in there!
     return true;
   // PERF: `owned` only changes the result when the Owned/Missing filter is active, so gate it —
   // otherwise every tap while adding cards re-filters the entire 31k checklist.
-  }), [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchTerms, searchIndex,
+  });
+  __perf.current.filter = performance.now()-__t0;
+  return __r;
+  }, [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchTerms, searchIndex,
        (filterOwned === "owned" || filterOwned === "missing") ? owned : null]);
 
   // PERF: THIS SORT WAS THE BOTTLENECK. It ran on every keystroke over the whole result set and
@@ -30546,6 +30554,7 @@ See you in there!
   // Now: decorate each card with a precomputed primitive sort key, sort on that (plain number or
   // string compare), then undecorate. Same order, a fraction of the cost.
   const sorted = useMemo(() => {
+    const __t0 = performance.now();
     const keyed = filtered.map(c => {
       let k;
       if (sortBy === "power" || sortBy === "powerAsc") k = parseFloat(c.power) || 0;
@@ -30559,7 +30568,9 @@ See you in there!
       if (x.k > y.k) return desc ? -1 : 1;
       return 0;
     });
-    return keyed.map(o => o.c);
+    const __out = keyed.map(o => o.c);
+    __perf.current.sort = performance.now()-__t0;
+    return __out;
   }, [filtered, sortBy]);
 
   const visibleCards = useMemo(()=>sorted.slice(0,page*PAGE_SIZE), [sorted, page]);
@@ -33497,7 +33508,14 @@ See you in there!
               {_cardAdmin && (
                 <button onClick={()=>{setFilterNoImg(v=>!v);setPage(1);}} title="Admin: show only cards that still need an image" style={{background:filterNoImg?"rgba(123,47,247,0.25)":"transparent",color:filterNoImg?"#b794f6":"rgba(255,255,255,0.4)",border:`1.5px solid ${filterNoImg?"#7B2FF7":"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>🖼 No Image{filterNoImg?" ✓":""}</button>
               )}
-              <span style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginLeft:"auto"}}>{filtered.length.toLocaleString()} cards</span>
+              <span style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginLeft:"auto"}}>
+                {_cardAdmin && (
+                  <span style={{marginRight:10,color:"#FBBF24",fontWeight:700}}>
+                    filter {__perf.current.filter.toFixed(0)}ms · sort {__perf.current.sort.toFixed(0)}ms · render {__perf.current.render.toFixed(0)}ms
+                  </span>
+                )}
+                {filtered.length.toLocaleString()} cards
+              </span>
             </div>
             {cardView==="list" ? (
               <div style={{overflowX:"auto",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12}}>
