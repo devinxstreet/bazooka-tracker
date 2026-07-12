@@ -24736,8 +24736,8 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const [pickChecked, setPickChecked] = useState({});        // {cardId: true} — pulled cards (view-only, resets on close)
   const DECK_PAGE_SIZE = 60;
   const ownedCount = owned ? Object.keys(owned).filter(id=>owned[id]).length : 0;
-  const deckSet = new Set(deckCards);
-  const inDeck = cards.filter(c=>deckSet.has(c.id));
+  const deckSet = useMemo(()=>new Set(deckCards), [deckCards]);
+  const inDeck = useMemo(()=>cards.filter(c=>deckSet.has(c.id)), [cards, deckSet]);
   const isSpec = deckType==="spec"||deckType==="vegasbaby", isAM = deckType==="apexmadness";
   const dupKey = c=>`${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
   const inDeckDupKeys = new Set(inDeck.map(dupKey));
@@ -24791,7 +24791,9 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     return needs.slice(0,4);
   })();
   const applyNeedFilter = (n)=>{ setDeckSearch(""); setDeckFilterW(""); setDeckFilterS(""); setDeckFilterT(n.t||""); setDeckFilterP(n.p?new Set(n.p):new Set()); if(user&&owned){ const hasOwned = cards.some(c=>!deckSet.has(c.id)&&(c.treatment||"").toLowerCase()===(n.t||"").toLowerCase()&&n.p&&n.p.includes(String(c.power||""))&&owned[c.id]); if(hasOwned) setDeckOwnedOnly(true); } };
-  const deckAvail = cards.filter(c=>{
+  // PERF: filters + sorts the full 31k checklist. Memoized so hovering/adding a card doesn't
+  // re-scan every card in the game.
+  const deckAvail = useMemo(() => cards.filter(c=>{
     if(deckSet.has(c.id)) return false;
     if(deckFamilyOnly && !familyOwnerByCard[c.id]) return false;
     if(deckOwnedOnly && !(owned && owned[c.id]) && !familyOwnerByCard[c.id]) return false;
@@ -24803,8 +24805,9 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     const t=(c.treatment||"").toLowerCase();
     if(t==="plays"||t==="bonus plays"||t==="home team discount") return false;
     return true;
-  }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
-  const deckVisible = deckAvail.slice(0, deckPage*DECK_PAGE_SIZE);
+  }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0)),
+  [cards, deckSet, deckFamilyOnly, deckOwnedOnly, familyOwnerByCard, deckFilterW, deckFilterP, deckFilterS, deckFilterT, deckSearch, owned]);
+  const deckVisible = useMemo(()=>deckAvail.slice(0, deckPage*DECK_PAGE_SIZE), [deckAvail, deckPage]);
   useEffect(()=>{ setDeckPage(1); }, [deckSearch, deckFilterW, deckFilterS, deckFilterT, deckOwnedOnly, deckFamilyOnly, deckType]);
   return (
         <>
@@ -30033,7 +30036,10 @@ See you in there!
   const treatments    = [...new Set(filteredBySet.map(c=>c.treatment).filter(Boolean))].sort();
   const powers        = [...new Set(filteredBySet.map(c=>Number(c.power)).filter(Boolean))].sort((a,b)=>b-a);
 
-  const filtered = cards.filter(c=>{
+  // PERF: this filters AND sorts the full 31k-card checklist. It was re-running on every single
+  // render — so every hover/flip in the grid re-filtered and re-sorted 31k cards. That was the
+  // source of the laggy hover and rough scrolling. Memoized to its real inputs.
+  const filtered = useMemo(() => cards.filter(c=>{
     if(filterSet    && c.setName!==filterSet)    return false;
     if(filterWeapon && canonWeapon(c.weapon)!==canonWeapon(filterWeapon))  return false;
     if(filterTreat  && c.treatment!==filterTreat) return false;
@@ -30043,14 +30049,13 @@ See you in there!
     if(filterPower.size>0 && !filterPower.has(Number(c.power||0))) return false;
     if(search){const t=search.toLowerCase();return [c.hero,c.cardNum,c.athlete,c.weapon,c.treatment,c.setName].join(" ").toLowerCase().includes(t);}
     return true;
-    return true;
   }).sort((a,b)=>{
     if(sortBy==="power") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
     if(sortBy==="powerAsc") return (parseFloat(a.power)||0)-(parseFloat(b.power)||0);
     if(sortBy==="cardNum"){const na=parseInt(String(a.cardNum||"").replace(/[^0-9]/g,"")||"0"),nb=parseInt(String(b.cardNum||"").replace(/[^0-9]/g,"")||"0");return na-nb;}
     return (a[sortBy]||"").toString().localeCompare((b[sortBy]||"").toString());
-  });
-  const visibleCards=filtered.slice(0,page*PAGE_SIZE);
+  }), [cards, filterSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, search, sortBy, owned]);
+  const visibleCards = useMemo(()=>filtered.slice(0,page*PAGE_SIZE), [filtered, page]);
   filteredLenRef.current = filtered.length;
   const _baseId = (k)=> String(k).replace(/::foil$/,"");
   const _ownedKeyValid = (k)=> !!cards.find(c=>c.id===_baseId(k));
@@ -30086,35 +30091,43 @@ See you in there!
   // Count how many of the user's OTHER saved decks already commit each cardId (excluding the
   // deck currently being edited). A card locks only when other decks have used up every copy
   // you own — own 3 and up to 3 decks can each run one.
-  const otherDeckUse = {};
-  (savedDecks||[]).forEach(d => {
-    if (d.id === deckLoadId) return; // skip the deck being edited
-    const seenInThisDeck = new Set();
-    (d.cardIds||[]).forEach(cid => {
-      if (seenInThisDeck.has(cid)) return; // a deck uses at most one copy of a given card
-      seenInThisDeck.add(cid);
-      otherDeckUse[cid] = (otherDeckUse[cid]||0) + 1;
+  // PERF: these were recomputing on EVERY render (every hover, flip, scroll) and iterating the
+  // full family collections each time — that made the card grid janky. Memoized so they only
+  // rebuild when their real inputs change.
+  const otherDeckUse = useMemo(() => {
+    const m = {};
+    (savedDecks||[]).forEach(d => {
+      if (d.id === deckLoadId) return; // skip the deck being edited
+      const seenInThisDeck = new Set();
+      (d.cardIds||[]).forEach(cid => {
+        if (seenInThisDeck.has(cid)) return; // a deck uses at most one copy of a given card
+        seenInThisDeck.add(cid);
+        m[cid] = (m[cid]||0) + 1;
+      });
     });
-  });
+    return m;
+  }, [savedDecks, deckLoadId]);
 
   // Family cards you can borrow, merged for the deck builder. A family copy surfaces when EITHER
   // you don't own the card, OR you own it but all your copies are committed to other decks — so
   // borrowing genuinely adds capacity. familyOwnerByCard: cardId -> {uid,name,copies}.
-  const familyOwnerByCard = {};
-  const deckOwnedMerged = { ...owned };
-  Object.entries(familyAvail).forEach(([famUid, info]) => {
-    Object.entries(info.cards||{}).forEach(([cid, copies]) => {
-      if (familyOwnerByCard[cid]) return; // first available family owner wins
-      const myCopies = (owned && owned[cid]) ? (parseInt(owned[cid])||1) : 0;
-      const myUsed = otherDeckUse[cid] || 0;
-      const myFree = Math.max(0, myCopies - myUsed);
-      // Surface the family copy if you have no free copy of your own.
-      if (myFree <= 0) {
-        familyOwnerByCard[cid] = { uid: famUid, name: info.ownerName, copies };
-        deckOwnedMerged[cid] = (deckOwnedMerged[cid]||0) + copies;
-      }
+  const { familyOwnerByCard, deckOwnedMerged } = useMemo(() => {
+    const fam = {};
+    const merged = { ...owned };
+    Object.entries(familyAvail).forEach(([famUid, info]) => {
+      Object.entries(info.cards||{}).forEach(([cid, copies]) => {
+        if (fam[cid]) return; // first available family owner wins
+        const myCopies = (owned && owned[cid]) ? (parseInt(owned[cid])||1) : 0;
+        const myFree = Math.max(0, myCopies - (otherDeckUse[cid]||0));
+        // Surface the family copy if you have no free copy of your own.
+        if (myFree <= 0) {
+          fam[cid] = { uid: famUid, name: info.ownerName, copies };
+          merged[cid] = (merged[cid]||0) + copies;
+        }
+      });
     });
-  });
+    return { familyOwnerByCard: fam, deckOwnedMerged: merged };
+  }, [owned, familyAvail, otherDeckUse]);
   function canAddToDeck(c){
     if(deckSet.has(c.id))return{ok:false,reason:"Already in deck"};
     if(inDeck.length>=DECK_SIZE)return{ok:false,reason:"Deck full"};
@@ -30349,7 +30362,14 @@ See you in there!
   const [deckGoalT, setDeckGoalT] = useState("");
   const [deckGoalSets, setDeckGoalSets] = useState(()=>new Set()); // empty = all sets allowed
   const [deckMaxMode, setDeckMaxMode] = useState(false); // enforce the format's legal power window
-  const deckProgress = computeDeckProgress(deckGoalW, deckGoalT, deckType, deckGoalSets, deckMaxMode);
+  // PERF: computeDeckProgress scans the full 31k-card checklist (filter + sort + bucket). It was
+  // running on EVERY render of the whole collector app — so hovering a card in the Card Database
+  // re-scanned 31k cards. Memoized, and only computed when the deck tab is actually open.
+  const deckProgress = useMemo(
+    () => (activeTab === "deck" ? computeDeckProgress(deckGoalW, deckGoalT, deckType, deckGoalSets, deckMaxMode) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeTab, deckGoalW, deckGoalT, deckType, deckGoalSets, deckMaxMode, owned, familyAvail, otherDeckUse, cards]
+  );
 
 
   const totalNotifs = friendReqs.length+teamInvites.length+marketNotifs.length+wantNotifs.length+unreadThreads;
