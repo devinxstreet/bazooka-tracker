@@ -30574,10 +30574,21 @@ See you in there!
   const visibleCards = useMemo(()=>sorted.slice(0,page*PAGE_SIZE), [sorted, page]);
   filteredLenRef.current = sorted.length;
   const _baseId = (k)=> String(k).replace(/::foil$/,"");
-  const _ownedKeyValid = (k)=> !!cards.find(c=>c.id===_baseId(k));
-  const uniqueOwned=Object.keys(owned).filter(_ownedKeyValid).length;
-  const totalOwned=Object.keys(owned).filter(_ownedKeyValid).reduce((sum,id)=>sum+(owned[id]||1),0);
-  const collectionValue=(()=>{
+  // PERF: THIS WAS THE 389ms. `_ownedKeyValid` did a linear `cards.find()` through all ~36k cards
+  // for EVERY owned key — and it ran twice, on EVERY render. With 332 owned cards that's ~24
+  // million comparisons per keystroke, which is exactly why typing felt frozen even when zero
+  // cards were on screen. Build an id Set once and make the lookup O(1).
+  const cardIdSet = useMemo(() => new Set(cards.map(c=>c.id)), [cards]);
+  const { uniqueOwned, totalOwned } = useMemo(() => {
+    let uniq = 0, total = 0;
+    for (const k of Object.keys(owned)) {
+      if (!cardIdSet.has(_baseId(k))) continue;
+      uniq += 1;
+      total += (owned[k] || 1);
+    }
+    return { uniqueOwned: uniq, totalOwned: total };
+  }, [owned, cardIdSet]);
+  const collectionValue = useMemo(() => {
     // Build avg sale price per cardId from marketSales
     const priceMap={};
     marketSales.forEach(s=>{
@@ -30592,15 +30603,16 @@ See you in there!
       const avg=priceMap[base]?priceMap[base].total/priceMap[base].count:0;
       return sum+avg*qty;
     },0);
-  })();
+  }, [marketSales, owned]);
 
   // -- Deck logic --
-  const deckSet=new Set(deckCards);
-  const inDeck=cards.filter(c=>deckSet.has(c.id));
+  // PERF: all of these were recomputing on every render (inDeck filters the full 36k checklist).
+  const deckSet = useMemo(()=>new Set(deckCards), [deckCards]);
+  const inDeck = useMemo(()=>cards.filter(c=>deckSet.has(c.id)), [cards, deckSet]);
   const isSpec=deckType==="spec"||deckType==="vegasbaby",isAM=deckType==="apexmadness";
   const dupKey=c=>`${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
-  const inDeckDupKeys=new Set(inDeck.map(dupKey));
-  const powerCount={};inDeck.forEach(c=>{const p=c.power||"0";powerCount[p]=(powerCount[p]||0)+1;});
+  const inDeckDupKeys = useMemo(()=>new Set(inDeck.map(dupKey)), [inDeck]);
+  const powerCount = useMemo(()=>{ const m={}; inDeck.forEach(c=>{const p=c.power||"0"; m[p]=(m[p]||0)+1;}); return m; }, [inDeck]);
   const treatCore={},treatApex={};
   if(isAM){inDeck.forEach(c=>{const t=(c.treatment||"").toLowerCase(),p=parseFloat(c.power||0);if(p>=115&&p<=160)treatCore[t]=(treatCore[t]||0)+1;if(p>160)treatApex[t]=(treatApex[t]||0)+1;});}
   // -- Tournament rule: a physical copy can't be in two decks at once. --
@@ -30678,7 +30690,9 @@ See you in there!
     if(isAM&&p>160){const t=(c.treatment||"").toLowerCase();if((treatCore[t]||0)<10)return{ok:false,reason:`Need 10 core ${c.treatment} first (${treatCore[t]||0}/10)`};if((treatApex[t]||0)>=1)return{ok:false,reason:`Already have 1 ${c.treatment} apex card`};}
     return{ok:true};
   }
-  const deckAvail=cards.filter(c=>{
+  // PERF: filters AND sorts the full 36k checklist — was running on every render of the whole
+  // collector app, including while you type in the card database.
+  const deckAvail = useMemo(() => cards.filter(c=>{
     if(deckSet.has(c.id))return false;
     if(deckFilterW&&canonWeapon(c.weapon)!==canonWeapon(deckFilterW))return false;
     if(deckFilterP.size>0&&!deckFilterP.has(String(c.power||"")))return false;
@@ -30688,7 +30702,8 @@ See you in there!
     const t=(c.treatment||"").toLowerCase();
     if(t==="plays"||t==="bonus plays"||t==="home team discount")return false;
     return true;
-  }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
+  }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0)),
+  [cards, deckSet, deckFilterW, deckFilterP, deckFilterS, deckFilterT, deckSearch]);
 
   // -- "How close am I to a deck?" — from OWNED cards, respecting deck type + weapon/treatment filter --
   function computeDeckProgress(weaponFilter, treatmentFilter, dtype, setFilter, maxMode) {
