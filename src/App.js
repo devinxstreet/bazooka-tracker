@@ -15539,6 +15539,21 @@ function PublicPlaybookBuilder() {
   function loadPlaybook(pb) {
     setPbLoadId(pb.id); setPbName(pb.name||"My Playbook"); setPbCards(pb.entries||[]);
   }
+  // Copy an existing playbook into the builder as a NEW, unsaved one. pbLoadId is cleared, so
+  // hitting Save writes a fresh doc rather than overwriting the original — you can tweak the copy
+  // freely without risking the playbook you copied from.
+  function duplicatePlaybook(pb) {
+    setPbLoadId(null);
+    const base = (pb.name || "My Playbook").replace(/\s*\(copy( \d+)?\)$/i, "");
+    // If "Foo (copy)" already exists, number it: "Foo (copy 2)", "Foo (copy 3)", …
+    const taken = new Set(savedPlaybooks.map(p=>(p.name||"").toLowerCase()));
+    let name = `${base} (copy)`;
+    let n = 2;
+    while (taken.has(name.toLowerCase())) { name = `${base} (copy ${n})`; n++; }
+    setPbName(name);
+    setPbCards((pb.entries||[]).map(e=>({...e})));  // clone entries so edits don't touch the source
+    if (typeof window !== "undefined") window.scrollTo({ top:0, behavior:"smooth" });
+  }
   function newPlaybook() {
     setPbLoadId(null); setPbName("My Playbook"); setPbCards([]);
   }
@@ -15601,6 +15616,12 @@ function PublicPlaybookBuilder() {
           <span style={{ fontSize:12, color:playFull?"#E8317A":"#4ade80", fontWeight:700 }}>{playCount}/{PUBLIC_PLAY_LIMIT} plays</span>
           {bonusCount>0 && <span style={{ fontSize:12, color:"#7B9CFF", fontWeight:700 }}>· {bonusCount} BPL</span>}
           <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:"auto" }}>
+            {!pbLoadId && pbCards.length>0 && (
+              <span title="This isn't saved yet — hitting Save creates a new playbook and leaves any original untouched."
+                style={{ fontSize:10.5, fontWeight:800, color:"#FBBF24", background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.35)", borderRadius:12, padding:"3px 9px", whiteSpace:"nowrap" }}>
+                Unsaved — will save as new
+              </span>
+            )}
             <input value={pbName} onChange={e=>setPbName(e.target.value)} placeholder="Playbook name" style={{ ...S.inp, width:150, padding:"6px 10px", fontSize:12 }}/>
             <button onClick={savePlaybook} disabled={pbSaving||pbCards.length===0} style={{ background:pbSaved?"#0a2a0a":"#0a1a0a", border:`1px solid ${pbSaved?"#4ade80":"#4ade8044"}`, color:"#4ade80", borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, cursor:pbCards.length===0?"not-allowed":"pointer", fontFamily:"inherit", opacity:pbCards.length===0?0.4:1, whiteSpace:"nowrap" }}>
               {pbSaving?"Saving...":pbSaved?"✓ Saved":"💾 Save"}</button>
@@ -15613,7 +15634,8 @@ function PublicPlaybookBuilder() {
             {savedPlaybooks.map(p=>(
               <div key={p.id} style={{ display:"flex", alignItems:"center", gap:4, background:pbLoadId===p.id?"#1A1A2E":"#1a1a1a", border:`1px solid ${pbLoadId===p.id?"#7B9CFF":"#2a2a2a"}`, borderRadius:8, padding:"4px 10px" }}>
                 <button onClick={()=>loadPlaybook(p)} style={{ background:"none", border:"none", color:pbLoadId===p.id?"#7B9CFF":"#888", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{p.name} <span style={{ color:"var(--bz-ink-3)", fontWeight:400 }}>({(p.playCount||0)+(p.bonusCount||0)})</span></button>
-                <button onClick={()=>deletePlaybook(p.id)} style={{ background:"none", border:"none", color:"#8a8a8a", cursor:"pointer", fontSize:14, lineHeight:1, padding:"0 2px" }}>×</button>
+                <button onClick={()=>duplicatePlaybook(p)} title="Duplicate — opens a copy you can edit and save separately" style={{ background:"none", border:"none", color:"#8a8a8a", cursor:"pointer", fontSize:12, lineHeight:1, padding:"0 3px" }}>⧉</button>
+                <button onClick={()=>deletePlaybook(p.id)} title="Delete this playbook" style={{ background:"none", border:"none", color:"#8a8a8a", cursor:"pointer", fontSize:14, lineHeight:1, padding:"0 2px" }}>×</button>
               </div>
             ))}
           </div>
@@ -16124,7 +16146,7 @@ function athleteSport(name) {
   return ATHLETE_SPORT[name.trim()] || ATHLETE_SPORT[name] || null;
 }
 
-function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand, myScanPhoto, cardWidthHint=200 }) {
+function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand, myScanPhoto, cardWidthHint=200, kidGroups=[], kidTag=null, onAssignKid, onSell }) {
   const wc = WEAPON_COLORS[canonWeapon(c.weapon)] || "#444";
   // Image priority: official admin imageUrl → my own private scan photo → coming-soon placeholder.
   // Foil/shine overlays only apply to the official art, not to a raw scan photo.
@@ -16482,6 +16504,27 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
             {toggleWant && <button onClick={e=>{e.stopPropagation();toggleWant(c.id);}} style={{ background:isWanted?"#1a0f00":"transparent", border:`1px solid ${isWanted?"#FBBF24":"#333"}`, color:isWanted?"#FBBF24":"#444", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{isWanted?"\uD83C\uDFAF":"+ Want"}</button>}
             {onLotEdit && isOwned && <button onClick={e=>{e.stopPropagation();onLotEdit();}} style={{ background:"rgba(232,49,122,0.1)", border:"1px solid rgba(232,49,122,0.3)", color:"#E8317A", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>💰{lotCount>0?` ${lotCount}`:""}</button>}
             {isAdmin && onDelete && <button onClick={e=>{e.stopPropagation();onDelete();}} style={{ background:"transparent", border:"1px solid var(--bz-line-2)", color:"#8a8a8a", borderRadius:5, padding:"1px 6px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }} title="Delete card">🗑</button>}
+            {/* Kid tag — only on cards you own, and only once you've set up a kid. Cycles through
+                Mine → Kid 1 → Kid 2 → Mine, so tagging is a single tap while you're adding cards. */}
+            {isOwned && onAssignKid && kidGroups.length>0 && (()=>{
+              const g = kidGroups.find(k=>k.id===kidTag);
+              const next = () => {
+                const i = kidGroups.findIndex(k=>k.id===kidTag);
+                return i === -1 ? kidGroups[0].id : (i === kidGroups.length-1 ? null : kidGroups[i+1].id);
+              };
+              return (
+                <button onClick={e=>{e.stopPropagation(); onAssignKid(c.id, next());}}
+                  title={g?`${g.name}'s card — tap to change`:"Tap to tag this card to a kid"}
+                  style={{ background:g?`${g.color}22`:"transparent", border:`1px solid ${g?g.color:"#333"}`, color:g?g.color:"#444", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", maxWidth:78, overflow:"hidden", textOverflow:"ellipsis" }}>
+                  {g ? `🧒 ${g.name}` : "🧒"}
+                </button>
+              );
+            })()}
+            {/* Sold / traded away — drops it from the active collection but keeps the record. */}
+            {isOwned && onSell && (
+              <button onClick={e=>{e.stopPropagation(); onSell();}} title="Sold, traded, or gave this away"
+                style={{ background:"transparent", border:"1px solid #333", color:"#444", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>↗</button>
+            )}
           </div>
           <QtyControls/>
         </div>
@@ -16501,6 +16544,8 @@ const BobaCard = React.memo(BobaCardImpl, (prev, next) => {
   if (prev.isAdmin !== next.isAdmin) return false;
   if (prev.lotCount !== next.lotCount) return false;
   if (prev.myScanPhoto !== next.myScanPhoto) return false;
+  if (prev.kidTag !== next.kidTag) return false;
+  if (prev.kidGroups !== next.kidGroups) return false;
   // Want status for THIS card only.
   const id = next.c?.id;
   if ((prev.wantList?.[id] ? 1 : 0) !== (next.wantList?.[id] ? 1 : 0)) return false;
@@ -27874,6 +27919,24 @@ See you in there!
 
   // -- Wants --
   const [wantList,      setWantList]      = useState({});
+
+  // ── KID COLLECTIONS ────────────────────────────────────────────────────────────────────────
+  // Cards you own can be tagged to a kid's collection. They're still YOUR cards (owned counts and
+  // deck building are unchanged) — the tag just records whose binder a card lives in.
+  //   groups: [{ id, name, color }]      assign: { [cardId]: groupId }
+  const [kidGroups, setKidGroups] = useState([]);
+  const [kidAssign, setKidAssign] = useState({});
+  const [kidFilter, setKidFilter] = useState("all"); // "all" | "mine" | <groupId>
+  const [kidsModal, setKidsModal] = useState(false);
+  const [sellModal, setSellModal] = useState(null);   // the card being sold/traded
+  const [soldView, setSoldView] = useState(false);    // the "formerly owned" list
+
+  // ── FORMERLY OWNED (sold / traded / gifted) ────────────────────────────────────────────────
+  // Selling a card decrements the owned quantity (2 → 1) rather than deleting it, and writes a
+  // ledger entry. Sold cards do NOT count toward your active collection — but the record survives,
+  // so "did I ever have that Gronk?" is always answerable.
+  //   [{ id, cardId, qty, reason, note, price, date }]
+  const [soldLog, setSoldLog] = useState([]);
   const [inTransit,     setInTransit]     = useState({}); // {cardId: {qty, note, date}} cards bought & on the way
 
   // -- Card FX (hunt / caught animations) --
@@ -28449,12 +28512,19 @@ See you in there!
           if (!effectiveUsername && !usernameClaimedThisSession.current) setOnboarding(true);
         } catch(e) { console.error("user record failed:", e); }
         try {
-          const [ownSnap, wSnap, prvSnap, lotSnap] = await Promise.all([
+          const [ownSnap, wSnap, prvSnap, lotSnap, kidSnap, soldSnap] = await Promise.all([
             getDoc(doc(db,"boba_owned",u.uid)),
             getDoc(doc(db,"boba_wants",u.uid)),
             getDoc(doc(db,"boba_public",u.uid)),
             getDoc(doc(db,"boba_lots",u.uid)),
+            getDoc(doc(db,"boba_kids",u.uid)),
+            getDoc(doc(db,"boba_sold",u.uid)),
           ]);
+          const kd = kidSnap.exists() ? kidSnap.data() : {};
+          setKidGroups(Array.isArray(kd.groups) ? kd.groups : []);
+          setKidAssign(kd.assign && typeof kd.assign==="object" ? kd.assign : {});
+          const sd = soldSnap.exists() ? soldSnap.data() : {};
+          setSoldLog(Array.isArray(sd.entries) ? sd.entries : []);
           setOwned(ownSnap.exists() ? ownSnap.data() : {});
           setOwnedDocId(u.uid);
           // Live subscription so cards scanned on any device (e.g. phone) appear in
@@ -28891,6 +28961,85 @@ See you in there!
     if (!wasOwned && qty>0) { const card = cards.find(c=>c.id===cardId) || {id:cardId}; setCardFx({ type:"caught", card }); }
     queueOwnedSave(next);
   }
+
+  // ── KID COLLECTIONS ────────────────────────────────────────────────────────────────────────
+  async function saveKids(groups, assign) {
+    setKidGroups(groups); setKidAssign(assign);
+    if (!user) return;
+    try { await setDoc(doc(db,"boba_kids",user.uid), { groups, assign }); }
+    catch(e){ console.error("save kids failed:", e); }
+  }
+  function addKidGroup(name) {
+    const clean = (name||"").trim();
+    if (!clean) return null;
+    const COLORS = ["#7B9CFF","#F472B6","#4ade80","#FBBF24","#C084FC","#38BDF8"];
+    const g = { id:`kid_${Date.now()}`, name: clean, color: COLORS[kidGroups.length % COLORS.length] };
+    saveKids([...kidGroups, g], kidAssign);
+    return g.id;
+  }
+  function renameKidGroup(id, name) {
+    saveKids(kidGroups.map(g=>g.id===id?{...g,name:(name||"").trim()||g.name}:g), kidAssign);
+  }
+  function removeKidGroup(id) {
+    // Deleting a kid's collection only drops the TAGS — the cards themselves stay in your collection.
+    const nextAssign = {...kidAssign};
+    Object.keys(nextAssign).forEach(cid => { if (nextAssign[cid]===id) delete nextAssign[cid]; });
+    saveKids(kidGroups.filter(g=>g.id!==id), nextAssign);
+    if (kidFilter===id) setKidFilter("all");
+  }
+  // Tag a card to a kid (or pass null to make it yours again).
+  function assignCardToKid(cardId, groupId) {
+    const next = {...kidAssign};
+    if (groupId) next[cardId] = groupId; else delete next[cardId];
+    saveKids(kidGroups, next);
+  }
+
+  // ── SELL / TRADE AWAY ──────────────────────────────────────────────────────────────────────
+  // Decrements the owned quantity (2 copies → 1) instead of deleting the card, and records how it
+  // left. Only ACTIVE cards count toward your collection — but the ledger keeps the provenance, so
+  // "did I ever own that?" always has an answer.
+  async function sellCard(cardId, { qty=1, reason="sold", note="", price=null } = {}) {
+    if (!user) { setSigningIn(true); return; }
+    const have = parseInt(owned[cardId]) || 0;
+    if (have <= 0) return;
+    const n = Math.min(Math.max(1, parseInt(qty)||1), have);
+
+    // 1. Drop the quantity (or remove the card entirely when the last copy goes).
+    const nextOwned = {...owned};
+    if (have - n <= 0) delete nextOwned[cardId]; else nextOwned[cardId] = have - n;
+    setOwned(nextOwned);
+    queueOwnedSave(nextOwned);
+
+    // 2. If that was the last copy and it was tagged to a kid, drop the tag too.
+    if (have - n <= 0 && kidAssign[cardId]) assignCardToKid(cardId, null);
+
+    // 3. Write the paper trail.
+    const entry = {
+      id: `sold_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
+      cardId, qty: n, reason,
+      note: (note||"").trim(),
+      price: price === null || price === "" ? null : (parseFloat(price)||0),
+      date: new Date().toISOString(),
+    };
+    const nextLog = [entry, ...soldLog];
+    setSoldLog(nextLog);
+    try { await setDoc(doc(db,"boba_sold",user.uid), { entries: nextLog }); }
+    catch(e){ console.error("save sold log failed:", e); }
+  }
+  // Undo — puts a card back in your collection and removes the ledger entry.
+  async function undoSell(entryId) {
+    const entry = soldLog.find(e=>e.id===entryId);
+    if (!entry || !user) return;
+    const nextOwned = {...owned};
+    nextOwned[entry.cardId] = (parseInt(nextOwned[entry.cardId])||0) + (entry.qty||1);
+    setOwned(nextOwned);
+    queueOwnedSave(nextOwned);
+    const nextLog = soldLog.filter(e=>e.id!==entryId);
+    setSoldLog(nextLog);
+    try { await setDoc(doc(db,"boba_sold",user.uid), { entries: nextLog }); }
+    catch(e){ console.error("undo sell failed:", e); }
+  }
+
   const wantSaveRef = useRef(null);
   async function toggleWant(cardId) {
     if (!user) { setSigningIn(true); return; }
@@ -30623,6 +30772,12 @@ See you in there!
     if(filterWeapon && canonWeapon(c.weapon)!==canonWeapon(filterWeapon))  return false;
     if(filterTreat  && c.treatment!==filterTreat) return false;
     if(filterOwned==="owned"   && !owned[c.id])  return false;
+    // Kid collections: "mine" = owned but not tagged to any kid; a group id = tagged to that kid.
+    if(kidFilter!=="all"){
+      if(!owned[c.id]) return false;                       // only ever filters your own cards
+      const tag = kidAssign[c.id];
+      if(kidFilter==="mine" ? !!tag : tag!==kidFilter) return false;
+    }
     if(filterOwned==="missing" &&  owned[c.id])  return false;
     if(filterNoImg && c.imageUrl && String(c.imageUrl).startsWith("http")) return false;
     if(filterPower.size>0 && !filterPower.has(Number(c.power||0))) return false;
@@ -30638,7 +30793,8 @@ See you in there!
   // PERF: `owned` only changes the result when the Owned/Missing filter is active, so gate it —
   // otherwise every tap while adding cards re-filters the entire 31k checklist.
   }), [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchTerms, searchIndex,
-       (filterOwned === "owned" || filterOwned === "missing") ? owned : null]);
+       kidFilter, kidAssign,
+       (filterOwned === "owned" || filterOwned === "missing" || kidFilter !== "all") ? owned : null]);
 
   // PERF: THIS SORT WAS THE BOTTLENECK. It ran on every keystroke over the whole result set and
   // called localeCompare() inside the comparator — full Unicode collation, ~500k+ times on a big
@@ -32023,6 +32179,132 @@ See you in there!
 
       {/* ── CARD FX OVERLAY ── */}
       {animsOn && cardFx && <CardFxOverlay fx={cardFx} onDone={()=>setCardFx(null)} />}
+
+      {/* ── KIDS MANAGER ──────────────────────────────────────────────────────────────────── */}
+      {kidsModal && (
+        <div onClick={()=>setKidsModal(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-surface)",border:"1px solid var(--bz-line)",borderRadius:16,padding:22,width:"100%",maxWidth:420}}>
+            <div style={{fontSize:16,fontWeight:800,color:"var(--bz-ink)",marginBottom:4}}>🧒 Kids' Collections</div>
+            <div style={{fontSize:11.5,color:"var(--bz-ink-3)",marginBottom:16,lineHeight:1.6}}>
+              Tag cards you own to a kid's binder. The cards stay in <strong>your</strong> collection and still count
+              toward your totals and decks — the tag just tracks whose they are.
+            </div>
+            {kidGroups.map(g=>(
+              <div key={g.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                <span style={{width:10,height:10,borderRadius:"50%",background:g.color,flexShrink:0}}/>
+                <input defaultValue={g.name} onBlur={e=>renameKidGroup(g.id, e.target.value)}
+                  style={{flex:1,background:"var(--bz-bg)",border:"1px solid var(--bz-line-2)",borderRadius:8,padding:"7px 10px",fontSize:13,color:"var(--bz-ink)",fontFamily:"inherit"}}/>
+                <span style={{fontSize:11,color:"var(--bz-ink-3)",whiteSpace:"nowrap"}}>
+                  {Object.keys(kidAssign).filter(cid=>kidAssign[cid]===g.id && owned[cid]).length} cards
+                </span>
+                <button onClick={()=>{ if(window.confirm(`Remove ${g.name}'s collection? The cards stay in your collection — only the tags are removed.`)) removeKidGroup(g.id); }}
+                  style={{background:"none",border:"none",color:"#8a8a8a",cursor:"pointer",fontSize:16,padding:"0 4px"}}>×</button>
+              </div>
+            ))}
+            <form onSubmit={e=>{e.preventDefault(); const v=e.target.kidname.value; if(addKidGroup(v)) e.target.reset();}} style={{display:"flex",gap:8,marginTop:12}}>
+              <input name="kidname" placeholder="Add a kid's name…" autoComplete="off"
+                style={{flex:1,background:"var(--bz-bg)",border:"1px solid var(--bz-line-2)",borderRadius:8,padding:"9px 12px",fontSize:13,color:"var(--bz-ink)",fontFamily:"inherit"}}/>
+              <button type="submit" style={{background:"#7B9CFF",color:"#04122e",border:"none",borderRadius:8,padding:"9px 16px",fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Add</button>
+            </form>
+            <button onClick={()=>setKidsModal(false)} style={{marginTop:16,width:"100%",background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:8,padding:"9px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── SELL / TRADE AWAY ─────────────────────────────────────────────────────────────── */}
+      {sellModal && (()=>{
+        const c = sellModal;
+        const have = parseInt(owned[c.id])||0;
+        return (
+          <div onClick={()=>setSellModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-surface)",border:"1px solid var(--bz-line)",borderRadius:16,padding:22,width:"100%",maxWidth:400}}>
+              <div style={{fontSize:16,fontWeight:800,color:"var(--bz-ink)",marginBottom:2}}>Move this card on</div>
+              <div style={{fontSize:12.5,color:"var(--bz-ink-2)",marginBottom:4}}>{c.hero} · #{c.cardNum} · {c.treatment}</div>
+              <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:16,lineHeight:1.6}}>
+                This drops it from your active collection but keeps the record — you'll still be able to see you
+                once owned it. You have <strong>{have}</strong> {have===1?"copy":"copies"}.
+              </div>
+              <form onSubmit={e=>{
+                e.preventDefault();
+                const f=e.target;
+                sellCard(c.id, { qty:f.qty.value, reason:f.reason.value, note:f.note.value, price:f.price.value });
+                setSellModal(null);
+              }}>
+                <div style={{display:"flex",gap:8,marginBottom:10}}>
+                  <div style={{flex:1}}>
+                    <label style={{fontSize:10.5,color:"var(--bz-ink-3)",fontWeight:700,display:"block",marginBottom:4}}>How many</label>
+                    <input name="qty" type="number" min="1" max={have} defaultValue="1"
+                      style={{width:"100%",background:"var(--bz-bg)",border:"1px solid var(--bz-line-2)",borderRadius:8,padding:"8px 10px",fontSize:13,color:"var(--bz-ink)",fontFamily:"inherit"}}/>
+                  </div>
+                  <div style={{flex:2}}>
+                    <label style={{fontSize:10.5,color:"var(--bz-ink-3)",fontWeight:700,display:"block",marginBottom:4}}>What happened</label>
+                    <select name="reason" defaultValue="sold"
+                      style={{width:"100%",background:"var(--bz-bg)",border:"1px solid var(--bz-line-2)",borderRadius:8,padding:"8px 10px",fontSize:13,color:"var(--bz-ink)",fontFamily:"inherit",cursor:"pointer"}}>
+                      <option value="sold">Sold</option>
+                      <option value="traded">Traded</option>
+                      <option value="gifted">Gifted</option>
+                      <option value="lost">Lost / damaged</option>
+                    </select>
+                  </div>
+                </div>
+                <label style={{fontSize:10.5,color:"var(--bz-ink-3)",fontWeight:700,display:"block",marginBottom:4}}>Price (optional)</label>
+                <input name="price" type="number" step="0.01" placeholder="e.g. 45.00"
+                  style={{width:"100%",background:"var(--bz-bg)",border:"1px solid var(--bz-line-2)",borderRadius:8,padding:"8px 10px",fontSize:13,color:"var(--bz-ink)",fontFamily:"inherit",marginBottom:10}}/>
+                <label style={{fontSize:10.5,color:"var(--bz-ink-3)",fontWeight:700,display:"block",marginBottom:4}}>Note (optional)</label>
+                <input name="note" placeholder="Who to, what for…"
+                  style={{width:"100%",background:"var(--bz-bg)",border:"1px solid var(--bz-line-2)",borderRadius:8,padding:"8px 10px",fontSize:13,color:"var(--bz-ink)",fontFamily:"inherit",marginBottom:16}}/>
+                <div style={{display:"flex",gap:8}}>
+                  <button type="button" onClick={()=>setSellModal(null)} style={{flex:1,background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:8,padding:"10px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                  <button type="submit" style={{flex:1,background:"#E8317A",border:"none",color:"#fff",borderRadius:8,padding:"10px",fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Confirm</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── FORMERLY OWNED ────────────────────────────────────────────────────────────────── */}
+      {soldView && (
+        <div onClick={()=>setSoldView(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-surface)",border:"1px solid var(--bz-line)",borderRadius:16,padding:22,width:"100%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
+            <div style={{fontSize:16,fontWeight:800,color:"var(--bz-ink)",marginBottom:2}}>📜 Formerly owned</div>
+            <div style={{fontSize:11.5,color:"var(--bz-ink-3)",marginBottom:14}}>
+              Cards you've sold, traded, or given away. These don't count toward your collection — the record is just here so nothing is ever really lost.
+            </div>
+            {soldLog.length===0 ? (
+              <div style={{fontSize:12.5,color:"var(--bz-ink-3)",textAlign:"center",padding:"30px 0"}}>Nothing here yet.</div>
+            ) : (
+              <div style={{overflowY:"auto",display:"flex",flexDirection:"column",gap:6}}>
+                {soldLog.map(e=>{
+                  const c = cards.find(x=>x.id===e.cardId) || {};
+                  const REASON = { sold:"Sold", traded:"Traded", gifted:"Gifted", lost:"Lost" };
+                  return (
+                    <div key={e.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 11px",background:"var(--bz-bg)",border:"1px solid var(--bz-line-2)",borderRadius:9}}>
+                      {c.imageUrl && <img src={c.imageUrl} alt="" style={{width:32,height:44,objectFit:"cover",borderRadius:4,flexShrink:0}}/>}
+                      <div style={{minWidth:0,flex:1}}>
+                        <div style={{fontSize:12.5,fontWeight:700,color:"var(--bz-ink)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                          {c.hero || "Unknown card"} {c.cardNum?<span style={{color:"var(--bz-ink-3)",fontWeight:400}}>#{c.cardNum}</span>:null}
+                        </div>
+                        <div style={{fontSize:10.5,color:"var(--bz-ink-3)",marginTop:2}}>
+                          {REASON[e.reason]||e.reason}
+                          {e.qty>1?` ×${e.qty}`:""}
+                          {e.price?` · $${e.price.toFixed(2)}`:""}
+                          {" · "}{new Date(e.date).toLocaleDateString()}
+                          {e.note?` · ${e.note}`:""}
+                        </div>
+                      </div>
+                      <button onClick={()=>{ if(window.confirm("Put this card back in your collection?")) undoSell(e.id); }}
+                        title="Undo — add it back to your collection"
+                        style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-3)",borderRadius:6,padding:"4px 9px",fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Undo</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <button onClick={()=>setSoldView(false)} style={{marginTop:14,width:"100%",background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:8,padding:"9px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
+          </div>
+        </div>
+      )}
       {lotModal && <LotModal card={lotModal.card} lots={lotsForCard(lotModal.card.id)} onAdd={addLot} onUpdate={updateLot} onRemove={removeLot} onClose={()=>setLotModal(null)} inp={inp} />}
       {reviewModal && <ReviewModal sale={reviewModal.sale} onSubmit={submitReview} onClose={()=>setReviewModal(null)} inp={inp} />}
       <BackToTop />
@@ -33651,7 +33933,38 @@ See you in there!
               {_cardAdmin && (
                 <button onClick={()=>{setFilterNoImg(v=>!v);setPage(1);}} title="Admin: show only cards that still need an image" style={{background:filterNoImg?"rgba(123,47,247,0.25)":"transparent",color:filterNoImg?"#b794f6":"rgba(255,255,255,0.4)",border:`1.5px solid ${filterNoImg?"#7B2FF7":"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>🖼 No Image{filterNoImg?" ✓":""}</button>
               )}
-              <span style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginLeft:"auto"}}>{filtered.length.toLocaleString()} cards</span>
+              {/* Kid collections — tag cards you own to a kid's binder. */}
+              {user && (
+                <>
+                  {kidGroups.length>0 && [["all","All"],["mine","Mine"]].concat(kidGroups.map(g=>[g.id,g.name])).map(([id,label])=>{
+                    const on = kidFilter===id;
+                    const g = kidGroups.find(x=>x.id===id);
+                    const col = g ? g.color : (id==="mine" ? "#4ade80" : "rgba(255,255,255,0.5)");
+                    const count = id==="all" ? null
+                      : id==="mine" ? Object.keys(owned).filter(cid=>!kidAssign[cid]).length
+                      : Object.keys(kidAssign).filter(cid=>kidAssign[cid]===id && owned[cid]).length;
+                    return (
+                      <button key={id} onClick={()=>{setKidFilter(id);setPage(1);}}
+                        style={{background:on?`${col}26`:"transparent",color:on?col:"rgba(255,255,255,0.4)",border:`1.5px solid ${on?col:"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>
+                        {g ? "🧒 " : ""}{label}{count!==null?` (${count})`:""}
+                      </button>
+                    );
+                  })}
+                  <button onClick={()=>setKidsModal(true)} title="Set up collections for your kids"
+                    style={{background:"transparent",color:"rgba(255,255,255,0.35)",border:"1.5px dashed rgba(255,255,255,0.12)",borderRadius:20,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                    {kidGroups.length>0 ? "⚙" : "🧒 Add a kid"}
+                  </button>
+                </>
+              )}
+              <span style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginLeft:"auto",display:"flex",alignItems:"center",gap:10}}>
+                {user && soldLog.length>0 && (
+                  <button onClick={()=>setSoldView(true)} title="Cards you've sold, traded or given away"
+                    style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.35)",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textDecoration:"underline",textUnderlineOffset:3}}>
+                    📜 Formerly owned ({soldLog.length})
+                  </button>
+                )}
+                {filtered.length.toLocaleString()} cards
+              </span>
             </div>
             {cardView==="list" ? (
               <div style={{overflowX:"auto",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12}}>
@@ -33703,7 +34016,7 @@ See you in there!
                     toggleOwned={()=>{if(!user){setSigningIn(true);return;} toggleOwned(c.id);}}
                     setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear}/>
+                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear} kidGroups={kidGroups} kidTag={kidAssign[c.id]} onAssignKid={assignCardToKid} onSell={user?()=>setSellModal(c):null}/>
                   {/* Lock animation overlay */}
                   {privacyAnim===c.id&&(
                     <div style={{position:"absolute",inset:0,borderRadius:10,zIndex:20,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none",animation:"lockFadeOut 1.2s ease forwards",background:"rgba(0,0,0,0.55)"}}>
@@ -34062,7 +34375,7 @@ See you in there!
                                 toggleOwned={()=>{ if(!user){setSigningIn(true);return;} toggleOwned(c.id); }}
                                 setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                                 toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear}/>
+                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear} kidGroups={kidGroups} kidTag={kidAssign[c.id]} onAssignKid={assignCardToKid} onSell={user?()=>setSellModal(c):null}/>
                             ))}
                           </div>
                           {user && (
