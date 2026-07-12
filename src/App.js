@@ -18372,6 +18372,143 @@ function SwanCityBulkImport() {
   );
 }
 
+// ── DEDUPE ───────────────────────────────────────────────────────────────────
+// Finds cards that are the SAME physical card (same setName + cardNum) but exist as multiple
+// Firestore docs — which happens when an import's ID hash differs from the original (e.g. a
+// treatment/hero spelled differently). Keeps the BEST doc of each group (prefers one with an
+// image / market value / more fields) and deletes the rest. Preview before running.
+function CardDeduper() {
+  const [loading, setLoading] = useState(false);
+  const [groups,  setGroups]  = useState(null);   // [{key, keep, drop:[...]}]
+  const [running, setRunning] = useState(false);
+  const [done,    setDone]    = useState(null);
+  const [err,     setErr]     = useState("");
+
+  // Score a doc: higher = more worth keeping.
+  const score = c => {
+    let s = 0;
+    if (c.imageUrl) s += 100;                 // never throw away card art
+    if (c.mktValue || c.marketValue) s += 50; // or market values
+    if (c.dbs) s += 20;
+    s += Object.keys(c).length;               // richer doc wins ties
+    return s;
+  };
+
+  async function scan() {
+    setLoading(true); setErr(""); setGroups(null); setDone(null);
+    try {
+      const snap = await getDocs(collection(db,"boba_checklist"));
+      const all = snap.docs.map(d=>({id:d.id,...d.data()}));
+      const by = {};
+      all.forEach(c => {
+        // Same physical card = same set + same card number (normalized).
+        const num = String(c.cardNum||"").trim().toUpperCase();
+        if (!num) return;                     // no card number → can't dedupe safely, leave alone
+        const key = `${(c.setName||"").trim()}|${num}`;
+        (by[key] = by[key]||[]).push(c);
+      });
+      const dupes = Object.entries(by)
+        .filter(([,list]) => list.length > 1)
+        .map(([key,list]) => {
+          const sorted = list.slice().sort((a,b)=>score(b)-score(a));
+          return { key, keep: sorted[0], drop: sorted.slice(1) };
+        })
+        .sort((a,b)=>b.drop.length-a.drop.length);
+      setGroups(dupes);
+    } catch(e){ setErr(e.message||String(e)); }
+    setLoading(false);
+  }
+
+  async function runDedupe() {
+    if(!groups?.length || running) return;
+    const total = groups.reduce((n,g)=>n+g.drop.length,0);
+    if(!window.confirm(`Delete ${total.toLocaleString()} duplicate cards, keeping one of each. This cannot be undone. Continue?`)) return;
+    setRunning(true);
+    let deleted = 0;
+    try {
+      const toDrop = groups.flatMap(g=>g.drop);
+      const CHUNK = 300;
+      for (let i=0;i<toDrop.length;i+=CHUNK) {
+        const batch = writeBatch(db);
+        toDrop.slice(i,i+CHUNK).forEach(c => batch.delete(doc(db,"boba_checklist",c.id)));
+        await batch.commit();
+        deleted += Math.min(CHUNK, toDrop.length - i);
+        setDone({ deleted, total, inProgress:true });
+      }
+      // Rebuild the snapshot so the app reflects the cleanup.
+      const snap2 = await getDocs(collection(db,"boba_checklist"));
+      const all2 = snap2.docs.map(d=>({id:d.id,...d.data()}));
+      try {
+        const blob = new Blob([JSON.stringify(all2)], { type:"application/json" });
+        await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, { contentType:"application/json", cacheControl:"public,max-age=86400" });
+      } catch(e){}
+      try { await writeCardSnapshot(all2, 86400); } catch(e){}
+      try { await setDoc(doc(db,"meta","cards_version"), { ts: Date.now() }); } catch(e){}
+      try { localStorage.removeItem("boba_checklist_cache"); localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+      try { await idbClearCards(); } catch(e){}
+      setDone({ deleted, total, remaining: all2.length, inProgress:false });
+      setGroups(null);
+    } catch(e){ setErr(e.message||String(e)); }
+    setRunning(false);
+  }
+
+  const S = { card:{background:"#0d0d0d",border:"1px solid #2a2a2a",borderRadius:12,padding:18,marginTop:14} };
+  const totalDrop = groups ? groups.reduce((n,g)=>n+g.drop.length,0) : 0;
+
+  return (
+    <div style={S.card}>
+      <div style={{fontSize:15,fontWeight:800,color:"var(--bz-ink)",marginBottom:4}}>🧬 Find & Remove Duplicate Cards</div>
+      <div style={{fontSize:12,color:"var(--bz-ink-3)",marginBottom:14,lineHeight:1.6}}>
+        Finds cards that are the same physical card (same <strong>set + card number</strong>) but exist as multiple
+        database entries — usually from an import where a field was spelled differently. Keeps the best copy of each
+        (preferring one with card art or a market value) and deletes the rest.
+      </div>
+
+      <button onClick={scan} disabled={loading||running}
+        style={{background:(loading||running)?"#1a1a1a":"linear-gradient(135deg,#7B9CFF,#7B2FF7)",color:(loading||running)?"#555":"#fff",border:"none",borderRadius:8,padding:"10px 22px",fontSize:13,fontWeight:800,cursor:(loading||running)?"not-allowed":"pointer",fontFamily:"inherit"}}>
+        {loading?"Scanning all cards…":"Scan for duplicates"}
+      </button>
+
+      {err && <div style={{marginTop:12,color:"#EF4444",fontSize:12}}>⚠ {err}</div>}
+
+      {groups && (
+        <div style={{marginTop:16,background:"#141414",border:"1px solid #2a2a2a",borderRadius:10,padding:14}}>
+          {groups.length===0 ? (
+            <div style={{fontSize:13,color:"#4ade80",fontWeight:700}}>✓ No duplicates found — every card is unique.</div>
+          ) : (
+            <>
+              <div style={{fontSize:14,fontWeight:800,color:"#FBBF24",marginBottom:6}}>
+                Found {groups.length.toLocaleString()} duplicated cards · {totalDrop.toLocaleString()} extra copies to delete
+              </div>
+              <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:10}}>Examples (keeping the first, deleting the rest):</div>
+              {groups.slice(0,6).map(g=>(
+                <div key={g.key} style={{fontSize:11,color:"#ccc",padding:"6px 0",borderBottom:"1px solid #222"}}>
+                  <strong style={{color:"#7B9CFF"}}>{g.key}</strong> — {g.drop.length+1} copies
+                  <div style={{color:"#666",marginTop:2}}>
+                    keep: {g.keep.hero} / {g.keep.treatment||"—"} / {g.keep.weapon||"—"}{g.keep.imageUrl?" 🖼":""}
+                    {" · "}delete: {g.drop.map(d=>`${d.hero}/${d.treatment||"—"}`).join(", ").slice(0,80)}
+                  </div>
+                </div>
+              ))}
+              <button onClick={runDedupe} disabled={running}
+                style={{marginTop:14,background:running?"#1a1a1a":"#E8317A",color:running?"#555":"#fff",border:"none",borderRadius:8,padding:"11px 22px",fontSize:13,fontWeight:800,cursor:running?"not-allowed":"pointer",fontFamily:"inherit"}}>
+                {running?`Deleting… ${done?.deleted||0}/${totalDrop}`:`Delete ${totalDrop.toLocaleString()} duplicates`}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {done && !done.inProgress && (
+        <div style={{marginTop:16,background:"rgba(74,222,128,0.08)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:10,padding:14,fontSize:12,color:"#4ade80",lineHeight:1.7}}>
+          ✅ Deleted {done.deleted.toLocaleString()} duplicates · {done.remaining?.toLocaleString()} cards remain · snapshot rebuilt.
+          <div style={{marginTop:6}}><button onClick={()=>window.location.reload()} style={{background:"#4ade80",color:"#062b13",border:"none",borderRadius:6,padding:"6px 14px",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Reload app</button></div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── SET MERGER ───────────────────────────────────────────────────────────────
 // Consolidates legacy sets into a target set WITHOUT losing data. For each card in a
 // source set it finds the matching card in the target set (by cardNum), copies over any
@@ -18380,6 +18517,7 @@ function SwanCityBulkImport() {
 function SetMerger() {
   const [allCards, setAllCards] = useState([]);
   const [loading,  setLoading]  = useState(true);
+  const [loadErr,  setLoadErr]  = useState("");
   const [sources,  setSources]  = useState(new Set());
   const [target,   setTarget]   = useState("");
   const [preview,  setPreview]  = useState(null);
@@ -18394,7 +18532,10 @@ function SetMerger() {
       try {
         const snap = await getDocs(collection(db,"boba_checklist"));
         setAllCards(snap.docs.map(d=>({id:d.id,...d.data()})));
-      } catch(e){ console.error("merge: load failed", e); }
+      } catch(e){
+        console.error("merge: load failed", e);
+        setLoadErr(e.message || String(e));
+      }
       setLoading(false);
     })();
   }, []);
@@ -18454,7 +18595,8 @@ function SetMerger() {
 
   const S={ card:{background:"#0d0d0d",border:"1px solid #2a2a2a",borderRadius:12,padding:18,marginTop:14} };
 
-  if(loading) return <div style={{...S.card,color:"#888"}}>Loading checklist…</div>;
+  if(loading) return <div style={{...S.card,color:"#888"}}>Loading checklist from the database… (62k+ cards can take 30–60s)</div>;
+  if(loadErr) return <div style={{...S.card,color:"#EF4444"}}>Failed to load: {loadErr}</div>;
 
   return (
     <div style={S.card}>
@@ -19289,7 +19431,7 @@ function CardSetImporter({ userRole }) {
 
       {/* Mode toggle */}
       <div style={{ display:"flex", gap:8 }}>
-        {[["data","📄 Import Data"],["images","🖼 Import by Filename"],["merge","🔀 Merge Sets"],["cleanup","🧹 Cleanup"],["manual","🎯 Manual Image"]].map(([m,l])=>(
+        {[["data","📄 Import Data"],["images","🖼 Import by Filename"],["dedupe","🧬 Dedupe"],["merge","🔀 Merge Sets"],["cleanup","🧹 Cleanup"],["manual","🎯 Manual Image"]].map(([m,l])=>(
           <button key={m} onClick={()=>{ setMode(m); setResults(null); setErrors([]); }}
             style={{ background:mode===m?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${mode===m?"#E8317A":"#2a2a2a"}`, color:mode===m?"#E8317A":"#888", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
             {l}
@@ -19495,6 +19637,9 @@ function CardSetImporter({ userRole }) {
         </button>
       </div>
       )}
+
+      {/* Dedupe mode */}
+      {mode==="dedupe" && <CardDeduper/>}
 
       {/* Merge sets mode */}
       {mode==="merge" && <SetMerger/>}
