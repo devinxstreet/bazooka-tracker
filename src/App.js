@@ -15252,6 +15252,216 @@ const BOBA_EVENTS = {
 const PUBLIC_DBS_CAP = 1000;
 
 // --- PUBLIC DECK BUILDER (no auth required) --------------------
+// ── SHARED DECK (/deck/<id>) ─────────────────────────────────────────────────
+// A read-only view of someone's deck. No login needed, so you can send the link to anyone.
+// Shows the cards, the format it's built to, that format's rules, and whether it's actually legal.
+const SHARED_DECK_RULES = {
+  none:["Up to 60 cards","No duplicate cards","Max 6 at any power level"],
+  spec:["Up to 60 cards","Power ceiling: 160","Max 6 at any power level"],
+  apex:["Up to 60 cards","No power cap","Max 6 at any power level"],
+  specplus:["Up to 70 Heroes","A complete 60-card \u2264160 core is REQUIRED","Then up to 10 higher: 165 \u00D72, 170 \u00D72, one each of 175\u2013200","Nothing above 200"],
+  elite:["Up to 60 cards","8,250 TOTAL power across the whole deck","No Trainer cards","Max 6 at any power level"],
+  brawl:["Up to 60 cards","Brawl weapon only","Max 6 at any power level"],
+  gghilo:["Up to 60 cards","Grandma\u2019s Linoleum (min 10)","Great Grandma Linoleum (min 10)","Any Gum-weapon card (min 10)"],
+  powerglove:["60 cards","Power Glove treatment only","Every card must be unique"],
+  blast:["30-card deck","2025 Alpha Blast cards only","Max 3 at any power level"],
+  apexmadness:["60-card Spec core (\u2264160)","Every 10 matching Inserts unlocks an Apex Hero (max 6)","Four different Foil Hot Dogs unlock four more","Ceiling: 70 Heroes"],
+  vegasbaby:["Spec rules (\u2264160 power)","Max 6 at any power level"],
+};
+
+function SharedDeck({ deckId }) {
+  const [deck,  setDeck]  = useState(null);
+  const [cards, setCards] = useState([]);
+  const [owner, setOwner] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, "boba_decks", deckId));
+        if (!snap.exists()) { setErr("That deck doesn't exist, or it's been deleted."); setLoading(false); return; }
+        const d = { id: snap.id, ...snap.data() };
+        setDeck(d);
+        const all = await readCardSnapshot(true).catch(()=>null);
+        setCards(Array.isArray(all) ? all : []);
+        if (d.userId) {
+          try { const p = await getDoc(doc(db, "boba_profiles", d.userId)); if (p.exists()) setOwner(p.data()); } catch(e){}
+        }
+      } catch(e) { setErr(e.message || String(e)); }
+      setLoading(false);
+    })();
+  }, [deckId]);
+
+  const byId = useMemo(() => { const m = {}; cards.forEach(c=>{m[c.id]=c;}); return m; }, [cards]);
+  const deckCards = useMemo(() => (deck?.cardIds || []).map(id => byId[id]).filter(Boolean), [deck, byId]);
+
+  // Same rules as the builder, so a deck can't read legal here and illegal there.
+  const legality = useMemo(() => {
+    if (!deck || deckCards.length === 0) return null;
+    const F = fmtOf(deck.deckType);
+    const problems = [];
+    const total = deckCards.reduce((s,c)=>s+(parseFloat(c.power)||0), 0);
+    if (deckCards.length > (F.size||60)) problems.push(`${deckCards.length} cards \u2014 ${F.short} allows ${F.size||60}`);
+    if (F.totalPower && total > F.totalPower) problems.push(`${total.toLocaleString()} total power \u2014 caps at ${F.totalPower.toLocaleString()}`);
+    if (F.powerCap) {
+      const over = deckCards.filter(c=>(parseFloat(c.power)||0) > F.powerCap).length;
+      if (over) problems.push(`${over} card${over!==1?"s":""} above ${F.powerCap} power`);
+    }
+    const pp = {};
+    deckCards.forEach(c => { const p = String(c.power||"0"); pp[p] = (pp[p]||0)+1; });
+    Object.entries(pp).forEach(([p,n]) => { if (n > (F.perPower||6)) problems.push(`${n} cards at power ${p} \u2014 max ${F.perPower||6}`); });
+    if (F.coreSize && F.coreCap) {
+      const core = deckCards.filter(c=>(parseFloat(c.power)||0) <= F.coreCap).length;
+      const high = deckCards.length - core;
+      if (high > 0 && core < F.coreSize) problems.push(`Core incomplete: ${core}/${F.coreSize} at \u2264${F.coreCap}`);
+    }
+    if (F.groups) {
+      const stray = deckCards.filter(c => !F.groups.some(g=>g.match(c))).length;
+      if (stray) problems.push(`${stray} card${stray!==1?"s":""} outside the allowed inserts`);
+      F.groups.forEach(g => {
+        if (!g.min) return;
+        const have = deckCards.filter(c=>g.match(c)).length;
+        if (have < g.min) problems.push(`${have}/${g.min} ${g.label}`);
+      });
+    }
+    if (F.unique) {
+      const ids = deckCards.map(c=>c.id);
+      if (new Set(ids).size !== ids.length) problems.push("Duplicate cards \u2014 every card must be unique");
+    }
+    return { ok: problems.length===0, problems, total };
+  }, [deck, deckCards]);
+
+  const stats = useMemo(() => {
+    if (!deckCards.length) return null;
+    const total = deckCards.reduce((s,c)=>s+(parseFloat(c.power)||0), 0);
+    const weapons = {}, inserts = {};
+    deckCards.forEach(c => {
+      const w = canonWeapon(c.weapon) || "\u2014"; weapons[w] = (weapons[w]||0)+1;
+      const t = c.treatment || "\u2014"; inserts[t] = (inserts[t]||0)+1;
+    });
+    return {
+      total, avg: Math.round(total/deckCards.length),
+      heroes: new Set(deckCards.map(c=>c.hero)).size,
+      weapons: Object.entries(weapons).sort((a,b)=>b[1]-a[1]),
+      inserts: Object.entries(inserts).sort((a,b)=>b[1]-a[1]),
+    };
+  }, [deckCards]);
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(window.location.href).then(()=>{ setCopied(true); setTimeout(()=>setCopied(false), 2000); });
+  };
+
+  const wrap = { minHeight:"100vh", background:"#0a0a0a", color:"#fff", fontFamily:"'DM Sans',system-ui,sans-serif", padding:"32px 20px" };
+
+  if (loading) return <div style={{...wrap, display:"flex", alignItems:"center", justifyContent:"center"}}>
+    <div style={{color:"rgba(255,255,255,0.4)", fontSize:14}}>Loading deck\u2026</div></div>;
+
+  if (err || !deck) return <div style={{...wrap, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:14}}>
+    <div style={{fontSize:34}}>{"\uD83C\uDCCF"}</div>
+    <div style={{fontSize:16, fontWeight:800}}>Deck not found</div>
+    <div style={{fontSize:13, color:"rgba(255,255,255,0.45)"}}>{err || "That deck doesn't exist."}</div>
+    <a href="/cards" style={{marginTop:8, color:"#E8317A", fontSize:13, fontWeight:700}}>Go to Bazooka Dash \u2192</a>
+  </div>;
+
+  const F = fmtOf(deck.deckType);
+  const RULES = SHARED_DECK_RULES[deck.deckType] || SHARED_DECK_RULES.none;
+
+  return (
+    <div style={wrap}>
+      <div style={{maxWidth:1100, margin:"0 auto"}}>
+        <div style={{display:"flex", alignItems:"flex-start", gap:14, flexWrap:"wrap", marginBottom:22}}>
+          <div style={{flex:1, minWidth:240}}>
+            <div style={{fontSize:11, fontWeight:800, color:"#E8317A", letterSpacing:1.4, textTransform:"uppercase", marginBottom:4}}>Bazooka \u00B7 Shared Deck</div>
+            <h1 style={{fontSize:30, fontWeight:900, margin:"0 0 6px", letterSpacing:-0.5}}>{deck.name || "Untitled deck"}</h1>
+            <div style={{fontSize:13, color:"rgba(255,255,255,0.45)"}}>
+              {owner?.displayName ? <>Built by <strong style={{color:"rgba(255,255,255,0.75)"}}>{owner.displayName}</strong> {"\u00B7"} </> : null}
+              {deckCards.length} card{deckCards.length!==1?"s":""}
+            </div>
+          </div>
+          <button onClick={copyLink} style={{background:copied?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.05)", border:`1px solid ${copied?"#4ade80":"rgba(255,255,255,0.14)"}`, color:copied?"#4ade80":"rgba(255,255,255,0.7)", borderRadius:9, padding:"9px 16px", fontSize:12.5, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap"}}>
+            {copied ? "\u2713 Link copied" : "\uD83D\uDD17 Copy link"}
+          </button>
+        </div>
+
+        <div style={{background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:14, padding:"16px 18px", marginBottom:18}}>
+          <div style={{display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", marginBottom:10}}>
+            <span style={{fontSize:12, fontWeight:900, color:"#FBBF24", background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.35)", borderRadius:7, padding:"4px 11px", letterSpacing:0.6}}>
+              {F.short === "\u2014" ? "NO RESTRICTIONS" : F.short}
+            </span>
+            <span style={{fontSize:13, color:"rgba(255,255,255,0.6)"}}>{F.label}</span>
+            {legality && (legality.ok
+              ? <span style={{marginLeft:"auto", fontSize:12.5, fontWeight:800, color:"#4ade80"}}>{"\u2705"} Legal deck</span>
+              : <span style={{marginLeft:"auto", fontSize:12.5, fontWeight:800, color:"#EF4444"}}>{"\u26A0\uFE0F"} Not legal</span>)}
+          </div>
+          <div style={{display:"flex", flexWrap:"wrap", gap:"5px 18px"}}>
+            {RULES.map((r,i)=>(
+              <span key={i} style={{fontSize:11.5, color:"rgba(255,255,255,0.5)", display:"flex", alignItems:"center", gap:6}}>
+                <span style={{color:"#FBBF24"}}>{"\u2022"}</span>{r}
+              </span>
+            ))}
+          </div>
+          {legality && !legality.ok && (
+            <div style={{marginTop:10, paddingTop:10, borderTop:"1px solid rgba(239,68,68,0.25)"}}>
+              {legality.problems.map((p,i)=>(<div key={i} style={{fontSize:11.5, color:"#FCA5A5", lineHeight:1.7}}>{"\u2022"} {p}</div>))}
+            </div>
+          )}
+        </div>
+
+        {stats && (
+          <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))", gap:10, marginBottom:18}}>
+            {[
+              { l:"Total power",   v: stats.total.toLocaleString(), c:"#E8317A" },
+              { l:"Avg power",     v: stats.avg,                    c:"#FBBF24" },
+              { l:"Cards",         v: deckCards.length,             c:"#7B9CFF" },
+              { l:"Unique heroes", v: stats.heroes,                 c:"#4ade80" },
+            ].map(s=>(
+              <div key={s.l} style={{background:"rgba(255,255,255,0.03)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:11, padding:"12px 14px"}}>
+                <div style={{fontSize:22, fontWeight:900, color:s.c}}>{s.v}</div>
+                <div style={{fontSize:10, color:"rgba(255,255,255,0.35)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.8, marginTop:2}}>{s.l}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {stats && (
+          <div style={{display:"flex", gap:18, flexWrap:"wrap", marginBottom:20, fontSize:11.5, color:"rgba(255,255,255,0.45)"}}>
+            <div><strong style={{color:"rgba(255,255,255,0.7)"}}>Weapons:</strong> {stats.weapons.map(([w,n])=>`${w} ${n}`).join(" \u00B7 ")}</div>
+            <div style={{minWidth:0}}><strong style={{color:"rgba(255,255,255,0.7)"}}>Inserts:</strong> {stats.inserts.slice(0,5).map(([t,n])=>`${t} ${n}`).join(" \u00B7 ")}{stats.inserts.length>5?` +${stats.inserts.length-5} more`:""}</div>
+          </div>
+        )}
+
+        <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))", gap:10}}>
+          {[...deckCards].sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0)).map((c,i)=>{
+            const wc = WEAPON_COLORS[canonWeapon(c.weapon)] || "#666";
+            return (
+              <div key={`${c.id}_${i}`} style={{background:"#111", border:"1px solid #262626", borderRadius:9, overflow:"hidden"}}>
+                <div style={{position:"relative", aspectRatio:"3/4", background:`linear-gradient(135deg, ${wc}18, #0a0a0a 70%)`}}>
+                  {c.imageUrl
+                    ? <img src={c.imageUrl} alt={c.hero} loading="lazy" decoding="async" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
+                    : <div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"rgba(255,255,255,0.2)"}}>no image</div>}
+                  <div style={{position:"absolute", top:5, right:6, background:"rgba(0,0,0,0.75)", color:"#FBBF24", borderRadius:5, padding:"1px 6px", fontSize:11, fontWeight:900}}>{c.power}</div>
+                </div>
+                <div style={{padding:"6px 8px"}}>
+                  <div style={{fontSize:11, fontWeight:800, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{c.hero}</div>
+                  <div style={{fontSize:9.5, color:"rgba(255,255,255,0.35)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>
+                    <span style={{color:wc, fontWeight:700}}>{canonWeapon(c.weapon)}</span> {"\u00B7"} {c.treatment}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{marginTop:30, textAlign:"center", fontSize:12, color:"rgba(255,255,255,0.3)"}}>
+          Built with <a href="/cards" style={{color:"#E8317A", fontWeight:700, textDecoration:"none"}}>Bazooka Dash</a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PublicDeckBuilder() {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25544,6 +25754,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const [deckFamilyOnly, setDeckFamilyOnly] = useState(false);
   // When "My collection" is picked (as opposed to "Mine + family"), exclude borrowable family cards.
   const [deckMineOnly, setDeckMineOnly] = useState(false);
+  const [sharedDeckId, setSharedDeckId] = useState(null);   // deck whose link was just copied
   const [progressExpanded, setProgressExpanded] = useState(false);
   const [deckPage, setDeckPage] = useState(1);
   const [showPickList, setShowPickList] = useState(false);   // printable pick-list modal
@@ -26109,6 +26320,18 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         <div key={d.id} style={{display:"flex",alignItems:"center",gap:3,background:deckLoadId===d.id?"#1A1A2E":"#1a1a1a",border:`1px solid ${deckLoadId===d.id?"#7B9CFF":"#2a2a2a"}`,borderRadius:7,padding:"3px 8px"}}>
                           <button onClick={()=>loadDeckTab(d)} style={{background:"none",border:"none",color:deckLoadId===d.id?"#7B9CFF":"#888",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{d.name} <span style={{color:"var(--bz-ink-3)",fontWeight:400}}>({d.cardCount})</span></button>
                           <button onClick={()=>{ const objs=(d.cardIds||[]).map(id=>cards.find(c=>c.id===id)).filter(Boolean); if(objs.length){ setFanMode("grid"); setFanDeck({name:d.name,cards:objs}); } }} title="Expand to view this deck" style={{background:"none",border:"none",color:"#7B9CFF",cursor:"pointer",fontSize:12,lineHeight:1,padding:"0 1px"}}>⛶</button>
+                          {/* Share — copies a public link. Anyone can open it, no login, and it shows
+                              the deck plus the format rules it's built to and whether it's legal. */}
+                          <button onClick={()=>{
+                            const url = `${window.location.origin}/deck/${d.id}`;
+                            navigator.clipboard.writeText(url).then(()=>{
+                              setSharedDeckId(d.id);
+                              setTimeout(()=>setSharedDeckId(null), 2000);
+                            });
+                          }} title="Copy a shareable link to this deck"
+                            style={{background:"none",border:"none",color: sharedDeckId===d.id ? "#4ade80" : "#8a8a8a",cursor:"pointer",fontSize:12,lineHeight:1,padding:"0 2px"}}>
+                            {sharedDeckId===d.id ? "✓" : "🔗"}
+                          </button>
                           <button onClick={()=>deleteDeckTab(d.id)} style={{background:"none",border:"none",color:"#8a8a8a",cursor:"pointer",fontSize:13,lineHeight:1,padding:"0 1px"}}>×</button>
                         </div>
                       ))}
@@ -38853,6 +39076,11 @@ function AppInner() {
     const uid2 = params.get("uid");
     return <BobaShowcase uid={uid2} />;
   }
+
+  // Shared deck — /deck/<id>. Read-only, no login needed, shows the deck plus the format rules
+  // it's built to and whether it's legal. This is what you send someone who isn't in the app.
+  const sharedDeck = window.location.pathname.match(/^\/deck\/([A-Za-z0-9_-]+)$/);
+  if (sharedDeck) return <SharedDeck deckId={sharedDeck[1]} />;
 
   if (window.location.pathname === "/deck")     return <PublicDeckBuilder />;
   if (window.location.pathname === "/bugs")     return <BugAdmin user={user} />;
