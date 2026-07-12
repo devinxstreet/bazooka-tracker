@@ -19005,7 +19005,10 @@ function CardSetImporter({ userRole }) {
         setErrors(prev => [...prev, `Snapshot rebuild failed: ${e.message}. Cards were written to the database, but the app reads a snapshot — they won't appear until this succeeds.`]);
       }
     }
+    // The card list lives in IndexedDB (12MB — too big for localStorage). Both must be
+    // cleared or the app keeps serving the pre-import list.
     try { localStorage.removeItem("boba_checklist_cache"); localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+    try { await idbClearCards(); } catch(e) { console.warn("idb clear failed", e); }
   }
 
   // ── Image import ─────────────────────────────────────────────────────────
@@ -19472,9 +19475,18 @@ function CardSetImporter({ userRole }) {
             try { await writeCardSnapshot(all, 86400); } catch(e){ errs.push(`Gzipped snapshot failed: ${e.message}`); }
             try { await setDoc(doc(db,"meta","cards_version"), { ts: Date.now() }); }
             catch(e){ errs.push(`Version bump failed: ${e.message} — clients will keep serving the old list.`); }
+            // CRITICAL: the 12MB card list lives in IndexedDB (too big for localStorage).
+            // Clearing localStorage alone leaves the stale list in place.
             try { localStorage.removeItem("boba_checklist_cache"); localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+            try { await idbClearCards(); } catch(e){ errs.push(`IndexedDB clear failed: ${e.message}`); }
             setErrors(errs);
-            if(!errs.length) setResults({ written:0, skipped:0, files:0, snapshot: all.length });
+            if(!errs.length) {
+              setResults({ written:0, skipped:0, files:0, snapshot: all.length });
+              setProgress(null); setImporting(false);
+              // Reload so the fresh snapshot is actually pulled in.
+              setTimeout(()=>window.location.reload(), 900);
+              return;
+            }
           } catch(e){ setErrors([`Rebuild failed: ${e.message}`]); }
           setImporting(false); setProgress(null);
         }} disabled={importing}
