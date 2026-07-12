@@ -18635,6 +18635,208 @@ function CardDeduper() {
   );
 }
 
+// ── PREFIX MAPPER ────────────────────────────────────────────────────────────
+// Card numbers encode the treatment: in Alpha Edition "BGBF-4" is a Bubble Gum Battlefoil,
+// "PL-7" is a Paper Play, "HOD-2" is a Hot Dog. An import that doesn't know those conventions
+// gets the treatment wrong (my Plays all came in tagged "Battlefoil"), which then breaks the
+// deck builder — it excludes Plays by treatment, so mislabelled Plays leak into hero decks.
+//
+// Rather than hand-patch each import, define the mapping ONCE per set. Prefixes mean different
+// things in different sets, so this is deliberately scoped to one set at a time.
+function PrefixMapper() {
+  const [allCards, setAllCards] = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [setName,  setSetName]  = useState("");
+  const [rules,    setRules]    = useState({});   // { prefix: {treatment, cardType} }
+  const [running,  setRunning]  = useState(false);
+  const [done,     setDone]     = useState(null);
+  const [err,      setErr]      = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const snap = await getDocs(collection(db,"boba_checklist"));
+        setAllCards(snap.docs.map(d=>({id:d.id,...d.data()})));
+      } catch(e){ setErr(e.message||String(e)); }
+      setLoading(false);
+    })();
+  }, []);
+
+  const setNames = useMemo(
+    () => Array.from(new Set(allCards.map(c=>c.setName).filter(Boolean))).sort(),
+    [allCards]
+  );
+
+  // A card number's prefix is the leading letters before the first digit or dash.
+  // "BGBF-4" -> BGBF   "PL-7" -> PL   "S-01/100" -> S   "145" -> "" (no prefix)
+  const prefixOf = num => {
+    const s = String(num||"").trim().toUpperCase();
+    const m = s.match(/^([A-Z]+)/);
+    return m ? m[1] : "";
+  };
+
+  // Every distinct prefix in the chosen set, with a sample card and the treatments currently on it.
+  const prefixes = useMemo(() => {
+    if (!setName) return [];
+    const m = {};
+    allCards.filter(c=>c.setName===setName).forEach(c => {
+      const p = prefixOf(c.cardNum);
+      if (!m[p]) m[p] = { prefix:p, count:0, treatments:{}, cardTypes:{}, sample:c };
+      m[p].count++;
+      const t = c.treatment || "—";
+      m[p].treatments[t] = (m[p].treatments[t]||0)+1;
+      const ct = c.cardType || "—";
+      m[p].cardTypes[ct] = (m[p].cardTypes[ct]||0)+1;
+    });
+    return Object.values(m).sort((a,b)=>b.count-a.count);
+  }, [allCards, setName]);
+
+  // Treatments already in use anywhere — so you can pick an existing one rather than retyping it
+  // (and risking "Silver Blast" vs "SILVER BLAST", which is what created duplicates before).
+  const knownTreatments = useMemo(
+    () => Array.from(new Set(allCards.map(c=>c.treatment).filter(Boolean))).sort(),
+    [allCards]
+  );
+  const CARD_TYPES = ["Hero","Play","Hot Dog","Bonus Play","Home Team Discount"];
+
+  const setRule = (prefix, field, value) => {
+    setRules(r => ({ ...r, [prefix]: { ...(r[prefix]||{}), [field]: value } }));
+  };
+
+  const pending = Object.entries(rules).filter(([,v]) => v.treatment || v.cardType);
+  const affected = pending.reduce((n,[p]) => {
+    const pf = prefixes.find(x=>x.prefix===p);
+    return n + (pf?pf.count:0);
+  }, 0);
+
+  async function apply() {
+    if (!setName || pending.length===0 || running) return;
+    const lines = pending.map(([p,v]) => {
+      const pf = prefixes.find(x=>x.prefix===p);
+      const bits = [v.treatment && `treatment → "${v.treatment}"`, v.cardType && `type → "${v.cardType}"`].filter(Boolean);
+      return `  ${p || "(no prefix)"}-*  (${pf?.count||0} cards):  ${bits.join(", ")}`;
+    }).join("\n");
+    if (!window.confirm(`Update ${affected.toLocaleString()} cards in "${setName}"?\n\n${lines}\n\nThis rewrites those fields on every matching card.`)) return;
+
+    setRunning(true); setErr(""); setDone(null);
+    try {
+      const targets = allCards.filter(c => {
+        if (c.setName !== setName) return false;
+        const r = rules[prefixOf(c.cardNum)];
+        return r && (r.treatment || r.cardType);
+      });
+      const CHUNK = 300;
+      let updated = 0;
+      for (let i=0;i<targets.length;i+=CHUNK) {
+        const batch = writeBatch(db);
+        targets.slice(i,i+CHUNK).forEach(c => {
+          const r = rules[prefixOf(c.cardNum)];
+          const patch = {};
+          if (r.treatment) patch.treatment = r.treatment;
+          if (r.cardType)  patch.cardType  = r.cardType;
+          batch.update(doc(db,"boba_checklist",c.id), patch);
+        });
+        await batch.commit();
+        updated += Math.min(CHUNK, targets.length - i);
+        setDone({ updated, total: targets.length, inProgress:true });
+      }
+      // Republish so the change reaches everyone, and clear the local caches.
+      const snap2 = await getDocs(collection(db,"boba_checklist"));
+      const all2 = snap2.docs.map(d=>({id:d.id,...d.data()}));
+      try { await writeCardSnapshot(all2, 86400); } catch(e){}
+      try { await setDoc(doc(db,"meta","cards_version"), { ts: Date.now(), count: all2.length }); } catch(e){}
+      try { localStorage.removeItem("boba_checklist_cache"); localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+      try { await idbClearCards(); } catch(e){}
+      setDone({ updated, total: targets.length, inProgress:false });
+      setAllCards(all2);
+      setRules({});
+    } catch(e){ setErr(e.message||String(e)); }
+    setRunning(false);
+  }
+
+  const S = { card:{background:"#0d0d0d",border:"1px solid #2a2a2a",borderRadius:12,padding:18,marginTop:14} };
+
+  return (
+    <div style={S.card}>
+      <div style={{fontSize:15,fontWeight:800,color:"var(--bz-ink)",marginBottom:4}}>🏷 Map Card Prefixes → Treatments</div>
+      <div style={{fontSize:12,color:"var(--bz-ink-3)",marginBottom:14,lineHeight:1.6}}>
+        Card numbers encode what a card is — <strong>BGBF-4</strong> is a Bubble Gum Battlefoil, <strong>PL-7</strong> is a
+        Paper Play, <strong>HOD-2</strong> is a Hot Dog. Imports don't know those conventions and get the treatment wrong.
+        Map each prefix once and every matching card is corrected. Prefixes mean different things in different sets, so
+        pick a set first.
+      </div>
+
+      {loading ? <div style={{fontSize:12,color:"var(--bz-ink-3)"}}>Loading checklist…</div> : (
+        <>
+          <select value={setName} onChange={e=>{setSetName(e.target.value); setRules({});}}
+            style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:13,color:"#fff",fontFamily:"inherit",cursor:"pointer",marginBottom:14}}>
+            <option value="">— Choose a set —</option>
+            {setNames.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+
+          {setName && (
+            <div style={{border:"1px solid #2a2a2a",borderRadius:10,overflow:"hidden"}}>
+              <div style={{display:"grid",gridTemplateColumns:"90px 1fr 150px 130px",gap:8,padding:"9px 12px",background:"#141414",borderBottom:"1px solid #2a2a2a",fontSize:10,fontWeight:800,color:"var(--bz-ink-3)",textTransform:"uppercase",letterSpacing:0.6}}>
+                <span>Prefix</span><span>Currently</span><span>Set treatment →</span><span>Set type →</span>
+              </div>
+              {prefixes.map(p => {
+                const curT = Object.entries(p.treatments).sort((a,b)=>b[1]-a[1]);
+                const r = rules[p.prefix] || {};
+                const changed = r.treatment || r.cardType;
+                return (
+                  <div key={p.prefix} style={{display:"grid",gridTemplateColumns:"90px 1fr 150px 130px",gap:8,padding:"9px 12px",borderBottom:"1px solid #1c1c1c",alignItems:"center",background:changed?"rgba(74,222,128,0.05)":"transparent"}}>
+                    <div>
+                      <div style={{fontSize:12.5,fontWeight:800,color:"#7B9CFF"}}>{p.prefix || "(none)"}</div>
+                      <div style={{fontSize:10,color:"var(--bz-ink-3)"}}>{p.count} cards</div>
+                    </div>
+                    <div style={{fontSize:11,color:"var(--bz-ink-3)",minWidth:0}}>
+                      <div style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                        {curT.map(([t,n])=>`${t} (${n})`).join(", ")}
+                      </div>
+                      <div style={{fontSize:10,opacity:0.6,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                        e.g. #{p.sample.cardNum} · {p.sample.hero||"—"}
+                      </div>
+                    </div>
+                    <input list="known-treatments" value={r.treatment||""} placeholder="—"
+                      onChange={e=>setRule(p.prefix,"treatment",e.target.value)}
+                      style={{background:"#0b0b0b",border:`1px solid ${r.treatment?"#4ade80":"#333"}`,borderRadius:7,padding:"7px 9px",fontSize:12,color:"#fff",fontFamily:"inherit",width:"100%"}}/>
+                    <select value={r.cardType||""} onChange={e=>setRule(p.prefix,"cardType",e.target.value)}
+                      style={{background:"#0b0b0b",border:`1px solid ${r.cardType?"#4ade80":"#333"}`,borderRadius:7,padding:"7px 9px",fontSize:12,color:"#fff",fontFamily:"inherit",width:"100%",cursor:"pointer"}}>
+                      <option value="">—</option>
+                      {CARD_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                );
+              })}
+              <datalist id="known-treatments">
+                {knownTreatments.map(t=><option key={t} value={t}/>)}
+              </datalist>
+            </div>
+          )}
+
+          {err && <div style={{marginTop:12,color:"#EF4444",fontSize:12}}>⚠ {err}</div>}
+
+          {pending.length>0 && (
+            <button onClick={apply} disabled={running}
+              style={{marginTop:14,background:running?"#1a1a1a":"linear-gradient(135deg,#4ade80,#22c55e)",color:running?"#555":"#062b13",border:"none",borderRadius:8,padding:"11px 22px",fontSize:13,fontWeight:800,cursor:running?"not-allowed":"pointer",fontFamily:"inherit"}}>
+              {running ? `Updating… ${done?.updated||0}/${done?.total||0}` : `Apply to ${affected.toLocaleString()} cards`}
+            </button>
+          )}
+
+          {done && !done.inProgress && (
+            <div style={{marginTop:14,background:"rgba(74,222,128,0.08)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:10,padding:14,fontSize:12,color:"#4ade80",lineHeight:1.7}}>
+              ✅ Updated {done.updated.toLocaleString()} cards · snapshot republished.
+              <div style={{marginTop:6}}>
+                <button onClick={()=>window.location.reload()} style={{background:"#4ade80",color:"#062b13",border:"none",borderRadius:6,padding:"6px 14px",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Reload app</button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── SET MERGER ───────────────────────────────────────────────────────────────
 // Consolidates legacy sets into a target set WITHOUT losing data. For each card in a
 // source set it finds the matching card in the target set (by cardNum), copies over any
@@ -19557,7 +19759,7 @@ function CardSetImporter({ userRole }) {
 
       {/* Mode toggle */}
       <div style={{ display:"flex", gap:8 }}>
-        {[["data","📄 Import Data"],["images","🖼 Import by Filename"],["dedupe","🧬 Dedupe"],["merge","🔀 Merge Sets"],["cleanup","🧹 Cleanup"],["manual","🎯 Manual Image"]].map(([m,l])=>(
+        {[["data","📄 Import Data"],["images","🖼 Import by Filename"],["prefix","🏷 Prefixes"],["dedupe","🧬 Dedupe"],["merge","🔀 Merge Sets"],["cleanup","🧹 Cleanup"],["manual","🎯 Manual Image"]].map(([m,l])=>(
           <button key={m} onClick={()=>{ setMode(m); setResults(null); setErrors([]); }}
             style={{ background:mode===m?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${mode===m?"#E8317A":"#2a2a2a"}`, color:mode===m?"#E8317A":"#888", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
             {l}
@@ -19776,6 +19978,9 @@ function CardSetImporter({ userRole }) {
         </button>
       </div>
       )}
+
+      {/* Prefix mapping mode */}
+      {mode==="prefix" && <PrefixMapper/>}
 
       {/* Dedupe mode */}
       {mode==="dedupe" && <CardDeduper/>}
