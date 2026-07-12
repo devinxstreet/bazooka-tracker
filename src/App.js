@@ -25126,13 +25126,15 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, familyOwnerByCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, familyOwnerByCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab }) {
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
   const DECK_SIZE = 60;
   const [deckOwnedOnly, setDeckOwnedOnly] = useState(false);
   const [deckFamilyOnly, setDeckFamilyOnly] = useState(false);
+  // When "My collection" is picked (as opposed to "Mine + family"), exclude borrowable family cards.
+  const [deckMineOnly, setDeckMineOnly] = useState(false);
   const [progressExpanded, setProgressExpanded] = useState(false);
   const [deckPage, setDeckPage] = useState(1);
   const [showPickList, setShowPickList] = useState(false);   // printable pick-list modal
@@ -25215,7 +25217,12 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const deckAvail = useMemo(() => cards.filter(c=>{
     if(deckSet.has(c.id)) return false;
     if(deckFamilyOnly && !familyOwnerByCard[c.id]) return false;
-    if(deckOwnedOnly && !(owned && owned[c.id]) && !familyOwnerByCard[c.id]) return false;
+    // "My collection" = my cards only. "Mine + family" = my cards plus borrowable family cards.
+    if(deckOwnedOnly){
+      const isMine = !!(owned && owned[c.id]);
+      const isFam  = !!familyOwnerByCard[c.id];
+      if(deckMineOnly ? !isMine : (!isMine && !isFam)) return false;
+    }
     if(deckFilterW && c.weapon!==deckFilterW) return false;
     if(deckFilterP && deckFilterP.size>0 && !deckFilterP.has(String(c.power||""))) return false;
     if(deckFilterS && c.setName!==deckFilterS) return false;
@@ -25229,10 +25236,10 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     return true;
   }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0)),
   // `owned` only matters here when the "My collection" filter is on — see the note on `filtered`.
-  [cards, deckSet, deckFamilyOnly, deckOwnedOnly, familyOwnerByCard, deckFilterW, deckFilterP, deckFilterS, deckFilterT, deckSearchTerms, deckSearchIndex,
+  [cards, deckSet, deckFamilyOnly, deckOwnedOnly, deckMineOnly, familyOwnerByCard, deckFilterW, deckFilterP, deckFilterS, deckFilterT, deckSearchTerms, deckSearchIndex,
    deckOwnedOnly ? owned : null]);
   const deckVisible = useMemo(()=>deckAvail.slice(0, deckPage*DECK_PAGE_SIZE), [deckAvail, deckPage]);
-  useEffect(()=>{ setDeckPage(1); }, [deckSearch, deckFilterW, deckFilterS, deckFilterT, deckOwnedOnly, deckFamilyOnly, deckType]);
+  useEffect(()=>{ setDeckPage(1); }, [deckSearch, deckFilterW, deckFilterS, deckFilterT, deckOwnedOnly, deckFamilyOnly, deckMineOnly, deckType]);
   return (
         <>
           <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column-reverse":"row",gap:16,alignItems:"stretch",height:isMobile?"auto":"calc(100vh - 150px)",minHeight:isMobile?"auto":520}}>
@@ -25330,9 +25337,67 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     )}
                     {deckProgress.maxMode && deckProgress.maxShort>0 && (
                       <div style={{marginTop:10,background:"rgba(232,49,122,0.08)",border:"1px solid rgba(232,49,122,0.3)",borderRadius:10,padding:"9px 12px",fontSize:11,color:"#ffb3d0",lineHeight:1.5}}>
-                        ⚠️ Short by <strong>{deckProgress.maxShort}</strong> card{deckProgress.maxShort!==1?"s":""} — you only have {deckProgress.have} eligible cards in the {deckProgress.maxWindowLabel} window. Padding with weaker cards would make the deck illegal, so it's left short.
+                        ⚠️ <strong>{deckProgress.have}/60</strong> — you have {deckProgress.have} eligible cards in the {deckProgress.maxWindowLabel} window, so this deck is <strong>{deckProgress.maxShort}</strong> short of a full 60. It's still legal to play (60 is the max, not a minimum) — it just isn't at full strength. Turn off max mode to fill the rest with cards outside the window.
                       </div>
                     )}
+
+                    {/* WHAT'S MISSING — the cards that would finish the deck, and whether any are
+                        for sale right now. Cross-references live marketplace listings by cardId. */}
+                    {deckProgress?.missing?.length > 0 && (() => {
+                      const forSale = {};
+                      (listings||[]).forEach(l => {
+                        if(!l.cardId) return;
+                        const cur = forSale[l.cardId];
+                        const price = parseFloat(l.askingPrice)||0;
+                        // Keep the cheapest active listing per card.
+                        if(!cur || price < cur.price) forSale[l.cardId] = { price, listing:l };
+                      });
+                      const missing = deckProgress.missing;
+                      const available = missing.filter(c => forSale[c.id]);
+                      return (
+                        <div style={{marginTop:10,background:"rgba(123,156,255,0.06)",border:"1px solid rgba(123,156,255,0.25)",borderRadius:10,padding:"12px 14px"}}>
+                          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:8}}>
+                            <span style={{fontSize:12.5,fontWeight:800,color:"#7B9CFF"}}>🔎 What you're missing</span>
+                            <span style={{fontSize:11,color:"var(--bz-ink-3)"}}>
+                              {missing.length} card{missing.length!==1?"s":""} would complete this deck
+                            </span>
+                            {available.length>0 && (
+                              <span style={{fontSize:11,fontWeight:800,color:"#4ade80",background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.35)",borderRadius:12,padding:"2px 9px"}}>
+                                🛒 {available.length} on the marketplace now
+                              </span>
+                            )}
+                          </div>
+                          <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                            {missing.slice(0,10).map(c=>{
+                              const sale = forSale[c.id];
+                              const wc = WEAPON_COLORS[c.weapon] || "#888";
+                              return (
+                                <div key={c.id} style={{display:"flex",alignItems:"center",gap:8,fontSize:11,padding:"5px 8px",background:sale?"rgba(74,222,128,0.07)":"rgba(255,255,255,0.02)",border:`1px solid ${sale?"rgba(74,222,128,0.25)":"rgba(255,255,255,0.05)"}`,borderRadius:7}}>
+                                  <span style={{fontWeight:800,color:"var(--bz-ink)",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.hero}</span>
+                                  <span style={{color:"var(--bz-ink-3)"}}>#{c.cardNum}</span>
+                                  {c.weapon && <span style={{color:wc,fontWeight:700}}>{c.weapon}</span>}
+                                  <span style={{color:"var(--bz-ink-3)"}}>{c.treatment}</span>
+                                  <span style={{fontWeight:800,color:"#FBBF24",marginLeft:"auto",whiteSpace:"nowrap"}}>{c.power}⚡</span>
+                                  {sale ? (
+                                    <button onClick={()=>setActiveTab&&setActiveTab("market")}
+                                      style={{background:"#4ade80",color:"#062b13",border:"none",borderRadius:6,padding:"3px 10px",fontSize:10.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                                      🛒 ${sale.price.toFixed(0)}
+                                    </button>
+                                  ) : (
+                                    <span style={{fontSize:10,color:"var(--bz-ink-3)",whiteSpace:"nowrap"}}>not listed</span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {missing.length>10 && (
+                            <div style={{fontSize:10.5,color:"var(--bz-ink-3)",marginTop:6}}>
+                              +{missing.length-10} more
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {/* Card source — which collection(s) the quick builder may draw from. Only shown
                         when you actually have family cards available to borrow. */}
                     {Object.keys(familyOwnerByCard).length>0 && (
@@ -25431,20 +25496,36 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 <select value={deckFilterT} onChange={e=>setDeckFilterT(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",color:deckFilterT?"#FBBF24":"rgba(255,255,255,0.4)"}}>
                   <option value="">All Treatments</option>{treatments.map(t=><option key={t} value={t}>{t}</option>)}
                 </select>
-                <div onClick={()=>{ if(!user){setSigningIn(true);return;} setDeckOwnedOnly(v=>!v); }} title={user?"Show only cards you own":"Sign in to filter by your collection"} style={{display:"flex",alignItems:"center",gap:7,background:deckOwnedOnly?"rgba(74,222,128,0.12)":"rgba(255,255,255,0.03)",border:`1px solid ${deckOwnedOnly?"#4ade80":"#2a2a2a"}`,borderRadius:8,padding:"6px 11px",cursor:"pointer",whiteSpace:"nowrap"}}>
-                  <div style={{width:28,height:16,borderRadius:8,background:deckOwnedOnly?"#4ade80":"#333",position:"relative",transition:"background 0.2s",flexShrink:0}}>
-                    <div style={{position:"absolute",top:2,left:deckOwnedOnly?14:2,width:12,height:12,borderRadius:"50%",background:"#fff",transition:"left 0.2s"}}/>
-                  </div>
-                  <span style={{fontSize:12,fontWeight:700,color:deckOwnedOnly?"#4ade80":"rgba(255,255,255,0.6)"}}>My collection{Object.keys(familyOwnerByCard).length>0?" + family":""}{deckOwnedOnly&&ownedCount>0?` (${ownedCount})`:""}</span>
-                </div>
-                {Object.keys(familyOwnerByCard).length>0 && (
-                  <div onClick={()=>setDeckFamilyOnly(v=>!v)} title="Show only cards you can borrow from family" style={{display:"flex",alignItems:"center",gap:7,background:deckFamilyOnly?"rgba(192,132,252,0.15)":"rgba(255,255,255,0.03)",border:`1px solid ${deckFamilyOnly?"#C084FC":"#2a2a2a"}`,borderRadius:8,padding:"6px 11px",cursor:"pointer",whiteSpace:"nowrap"}}>
-                    <div style={{width:28,height:16,borderRadius:8,background:deckFamilyOnly?"#C084FC":"#333",position:"relative",transition:"background 0.2s",flexShrink:0}}>
-                      <div style={{position:"absolute",top:2,left:deckFamilyOnly?14:2,width:12,height:12,borderRadius:"50%",background:"#fff",transition:"left 0.2s"}}/>
+                {/* Card source — matches the quick builder's selector. One choice, no conflicting
+                    toggles: All cards / My collection / Mine + family / Family only. */}
+                {(() => {
+                  const famCount = Object.keys(familyOwnerByCard).length;
+                  // Derive the current mode from the two underlying flags.
+                  const mode = deckFamilyOnly ? "family" : (deckOwnedOnly ? (deckMineOnly ? "mine" : "both") : "all");
+                  const setMode = (m) => {
+                    if(!user && m!=="all"){ setSigningIn(true); return; }
+                    if(m==="all")    { setDeckOwnedOnly(false); setDeckFamilyOnly(false); }
+                    if(m==="mine")   { setDeckOwnedOnly(true);  setDeckFamilyOnly(false); setDeckMineOnly(true); }
+                    if(m==="both")   { setDeckOwnedOnly(true);  setDeckFamilyOnly(false); setDeckMineOnly(false); }
+                    if(m==="family") { setDeckOwnedOnly(false); setDeckFamilyOnly(true); }
+                  };
+                  const opts = [["all","All cards"], ["mine","My collection"]];
+                  if(famCount>0) opts.push(["both",`Mine + family`], ["family",`👪 Family (${famCount})`]);
+                  return (
+                    <div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
+                      {opts.map(([id,label])=>{
+                        const on = mode===id;
+                        const col = id==="family" ? "#C084FC" : id==="all" ? "rgba(255,255,255,0.5)" : "#4ade80";
+                        return (
+                          <button key={id} onClick={()=>setMode(id)}
+                            style={{background:on?(id==="all"?"rgba(255,255,255,0.08)":`${col}22`):"transparent",border:`1px solid ${on?col:"#2a2a2a"}`,color:on?col:"rgba(255,255,255,0.45)",borderRadius:14,padding:"6px 12px",fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                            {label}{on && id==="mine" && ownedCount>0 ? ` (${ownedCount})` : ""}
+                          </button>
+                        );
+                      })}
                     </div>
-                    <span style={{fontSize:12,fontWeight:700,color:deckFamilyOnly?"#C084FC":"rgba(255,255,255,0.6)"}}>👪 Family ({Object.keys(familyOwnerByCard).length})</span>
-                  </div>
-                )}
+                  );
+                })()}
                 <span style={{fontSize:11,color:"rgba(255,255,255,0.2)"}}>{deckAvail.length}</span>
               </div>
               {(()=>{
@@ -30871,9 +30952,9 @@ See you in there!
     }
 
     // ── Other deck types: cluster by TREATMENT (fill one insert as deep as possible, then move on) ──
-    const ownedCards = cards.filter(c => {
-      if(!isOwned(c)) return false;
-      if(!isAvailable(c)) return false; // cross-deck lock
+    // Format rules only — ownership is checked separately, so the "what's missing" pass below can
+    // reuse the exact same eligibility test against cards you DON'T own.
+    const formatEligible = c => {
       if(isPlayCard(c)) return false;
       if(weaponFilter && canonWeapon(c.weapon) !== canonWeapon(weaponFilter)) return false;
       if(treatmentFilter && c.treatment !== treatmentFilter) return false;
@@ -30881,7 +30962,8 @@ See you in there!
       if(!inMaxWindow(c)) return false; // max deck power window
       if(specCap && (powerOf(c) > 160)) return false; // Spec/Vegas Baby: ≤160 only
       return true;
-    });
+    };
+    const ownedCards = cards.filter(c => isOwned(c) && isAvailable(c) && formatEligible(c));
 
     // POWER FIRST. Always build the strongest legal deck. Treatment is only a TIEBREAK: among
     // cards of the SAME power, prefer the insert we're already deepest in (free clustering that
@@ -30918,12 +31000,38 @@ See you in there!
       .map(([treatment,count])=>({treatment,count}))
       .sort((a,b)=>b.count-a.count);
 
+    // ── WHAT'S MISSING ──────────────────────────────────────────────────────────────────────
+    // When the deck comes up short, work out which cards WOULD complete it: cards that pass every
+    // eligibility rule for this format (power window, weapon/treatment/set filters, not a Play) but
+    // that you don't own — or own only as copies already locked into other decks. Ranked strongest
+    // first, and respecting the same "max 6 per power level / no duplicate hero+power" deck rules,
+    // so the list is genuinely buildable rather than a dump of every card you lack.
+    let missing = [];
+    const shortBy = Math.max(0, DECK_SIZE - usable.length);
+    if (shortBy > 0) {
+      const seenM = new Set(seen);                 // don't suggest a dup of something already in
+      const perPowerM = { ...perPower };
+      const pool = cards
+        .filter(c => formatEligible(c) && !(isOwned(c) && isAvailable(c)))  // fits the format, but not yours to play
+        .sort((a,b)=>powerOf(b)-powerOf(a));
+      for (const c of pool) {
+        if (missing.length >= shortBy) break;
+        const k = dupKey(c);
+        if (seenM.has(k)) continue;
+        const pk = String(c.power||"0");
+        if ((perPowerM[pk]||0) >= 6) continue;
+        seenM.add(k); perPowerM[pk]=(perPowerM[pk]||0)+1;
+        missing.push(c);
+      }
+    }
+
     return {
       have: usable.length, need: DECK_SIZE, perPower, ownedEligible: ownedCards.length, cards: usable,
       familyCount: usable.filter(c=>!isMine(c)&&famOwner(c)).length,
       treatUsed, // which inserts the deck ended up drawing from
       maxMode: !!maxMode, maxWindowLabel,
       maxShort: maxMode ? Math.max(0, DECK_SIZE - usable.length) : 0,
+      missing, // cards that would finish the deck but that you don't have
       avgPower: usable.length ? Math.round(usable.reduce((s,c)=>s+powerOf(c),0)/usable.length) : 0,
       totalPower: usable.reduce((s,c)=>s+powerOf(c),0),
     };
@@ -34120,7 +34228,7 @@ See you in there!
             canAddToDeck={canAddToDeck} isMobile={isMobile}
             savedDecks={savedDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
             saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} setFanDeck={setFanDeck} setFanMode={setFanMode}
-            deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} deckSource={deckSource} setDeckSource={setDeckSource} computeDeckProgress={computeDeckProgress}
+            deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} deckSource={deckSource} setDeckSource={setDeckSource} computeDeckProgress={computeDeckProgress} listings={listings} setActiveTab={setActiveTab}
           />
         )}
 
