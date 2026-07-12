@@ -16062,7 +16062,7 @@ function athleteSport(name) {
   return ATHLETE_SPORT[name.trim()] || ATHLETE_SPORT[name] || null;
 }
 
-function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand }) {
+function BobaCardInner({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand }) {
   const wc = WEAPON_COLORS[canonWeapon(c.weapon)] || "#444";
   const isFlipped = flippedCard === c.id;
   const [bioOpen, setBioOpen] = useState(false);
@@ -16434,6 +16434,28 @@ function BobaCard({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwn
     </div>
   );
 }
+
+// PERF: cards are heavy (mouse-driven foil effects, 3D transforms, refs). Without memo, EVERY
+// card re-renders whenever the parent re-renders (every keystroke in search, every filter click,
+// every owned-toggle) — which is what makes a 500+ card collection feel laggy. Memoize so a card
+// only re-renders when its own data actually changes. Function props (toggleOwned, etc.) are
+// recreated each parent render but behave identically, so we deliberately ignore their identity.
+const BobaCard = React.memo(BobaCardInner, (prev, next) => {
+  if (prev.c !== next.c) return false;
+  if (prev.isOwned !== next.isOwned) return false;
+  if (prev.ownedQty !== next.ownedQty) return false;
+  if (prev.lotCount !== next.lotCount) return false;
+  if (prev.isAdmin !== next.isAdmin) return false;
+  // Only the flipped card itself cares about flippedCard changing.
+  const wasFlipped = prev.flippedCard === prev.c?.id;
+  const isFlipped  = next.flippedCard === next.c?.id;
+  if (wasFlipped !== isFlipped) return false;
+  // Only re-render if THIS card's want status changed.
+  const prevWant = !!prev.wantList?.[prev.c?.id];
+  const nextWant = !!next.wantList?.[next.c?.id];
+  if (prevWant !== nextWant) return false;
+  return true; // otherwise skip the re-render
+});
 
 const PLAYER_NOTES = {
   // AUTOGRAPHS
@@ -20266,7 +20288,9 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
   const weapons    = [...new Set(cards.filter(c=>!filterSet||c.setName===filterSet).map(c=>c.weapon).filter(Boolean))].sort();
   const notations  = [...new Set(cards.filter(c=>!filterSet||c.setName===filterSet).map(c=>c.notation).filter(Boolean))].sort();
 
-  const filtered = cards.filter(c => {
+  // PERF: memoized — re-filtering/sorting the whole card DB on every render (every keystroke,
+  // every toggle) is a major source of lag with large collections.
+  const filtered = useMemo(() => cards.filter(c => {
     if(filterSet && c.setName !== filterSet) return false;
     if(search && !`${c.cardNum} ${c.hero} ${c.variation} ${c.athlete}`.toLowerCase().includes(search.toLowerCase())) return false;
     if(filterTreat && c.treatment !== filterTreat) return false;
@@ -20287,7 +20311,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
     if(sortBy==="weapon")     return (a.weapon||"").localeCompare(b.weapon||"");
     if(sortBy==="owned")      return (owned[b.id]?1:0)-(owned[a.id]?1:0);
     return 0;
-  });
+  }), [cards, filterSet, search, filterTreat, filterWeapon, filterNote, filterOwned, filterPower, sortBy, owned]);
 
   const totalOwned = Object.keys(owned).length; // unique cards
   const totalCollection = Object.values(owned).reduce((s,q)=>s+(q||0),0); // total copies
