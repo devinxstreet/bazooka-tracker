@@ -16146,7 +16146,7 @@ function athleteSport(name) {
   return ATHLETE_SPORT[name.trim()] || ATHLETE_SPORT[name] || null;
 }
 
-function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand, myScanPhoto, cardWidthHint=200, kidGroups=[], kidTag=null, onAssignKid, onSell }) {
+function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand, myScanPhoto, cardWidthHint=200, kidGroups=[], kidTags=null, onAssignKid, onSell }) {
   const wc = WEAPON_COLORS[canonWeapon(c.weapon)] || "#444";
   // Image priority: official admin imageUrl → my own private scan photo → coming-soon placeholder.
   // Foil/shine overlays only apply to the official art, not to a raw scan photo.
@@ -16507,13 +16507,30 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
             {/* Kid tag — only on cards you own, and only once you've set up a kid. Cycles through
                 Mine → Kid 1 → Kid 2 → Mine, so tagging is a single tap while you're adding cards. */}
             {isOwned && onAssignKid && kidGroups.length>0 && (()=>{
-              const g = kidGroups.find(k=>k.id===kidTag);
+              const qty = parseInt(ownedQty) || 1;
+              // Multiple copies can belong to different people, so summarise rather than pretending
+              // there's one owner. Tapping cycles ONLY when there's a single copy — with more than
+              // one, open the card to tag each copy individually (the tile has no room for that).
+              const tags = Array.from({length:qty}, (_,i)=> kidTags?.[i] ?? null);
+              const uniq = [...new Set(tags)];
+              if (qty > 1) {
+                const names = uniq.map(t => t ? (kidGroups.find(k=>k.id===t)?.name || "?") : "Mine");
+                const col = uniq.length===1 && uniq[0] ? (kidGroups.find(k=>k.id===uniq[0])?.color||"#888") : "#888";
+                return (
+                  <span title="Open the card to tag each copy"
+                    style={{ background:"transparent", border:`1px solid ${col}55`, color:col, borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, whiteSpace:"nowrap", maxWidth:92, overflow:"hidden", textOverflow:"ellipsis" }}>
+                    🧒 {names.join(" + ")}
+                  </span>
+                );
+              }
+              const cur = tags[0];
+              const g = kidGroups.find(k=>k.id===cur);
               const next = () => {
-                const i = kidGroups.findIndex(k=>k.id===kidTag);
+                const i = kidGroups.findIndex(k=>k.id===cur);
                 return i === -1 ? kidGroups[0].id : (i === kidGroups.length-1 ? null : kidGroups[i+1].id);
               };
               return (
-                <button onClick={e=>{e.stopPropagation(); onAssignKid(c.id, next());}}
+                <button onClick={e=>{e.stopPropagation(); onAssignKid(c.id, next(), 0);}}
                   title={g?`${g.name}'s card — tap to change`:"Tap to tag this card to a kid"}
                   style={{ background:g?`${g.color}22`:"transparent", border:`1px solid ${g?g.color:"#333"}`, color:g?g.color:"#444", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", maxWidth:78, overflow:"hidden", textOverflow:"ellipsis" }}>
                   {g ? `🧒 ${g.name}` : "🧒"}
@@ -16544,7 +16561,7 @@ const BobaCard = React.memo(BobaCardImpl, (prev, next) => {
   if (prev.isAdmin !== next.isAdmin) return false;
   if (prev.lotCount !== next.lotCount) return false;
   if (prev.myScanPhoto !== next.myScanPhoto) return false;
-  if (prev.kidTag !== next.kidTag) return false;
+  if (prev.kidTags !== next.kidTags) return false;
   if (prev.kidGroups !== next.kidGroups) return false;
   // Want status for THIS card only.
   const id = next.c?.id;
@@ -29103,9 +29120,16 @@ See you in there!
     if (kidFilter===id) setKidFilter("all");
   }
   // Tag a card to a kid (or pass null to make it yours again).
-  function assignCardToKid(cardId, groupId) {
+  // KEYED PER COPY, not per card: if you own 2 of something, one can be yours and one a kid's.
+  // The key is `${cardId}#${copyIndex}` (0-based). A bare cardId key from before the per-copy
+  // change is read as copy 0, so older tags still work.
+  const copyKey = (cardId, i=0) => `${cardId}#${i}`;
+  const kidOfCopy = (cardId, i=0) => kidAssign[copyKey(cardId,i)] ?? (i===0 ? (kidAssign[cardId] ?? null) : null);
+  function assignCardToKid(cardId, groupId, copyIndex = 0) {
     const next = {...kidAssign};
-    if (groupId) next[cardId] = groupId; else delete next[cardId];
+    delete next[cardId];                                   // drop any legacy per-card key
+    const k = copyKey(cardId, copyIndex);
+    if (groupId) next[k] = groupId; else delete next[k];
     saveKids(kidGroups, next);
   }
 
@@ -29125,8 +29149,14 @@ See you in there!
     setOwned(nextOwned);
     queueOwnedSave(nextOwned);
 
-    // 2. If that was the last copy and it was tagged to a kid, drop the tag too.
-    if (have - n <= 0 && kidAssign[cardId]) assignCardToKid(cardId, null);
+    // 2. Keep the per-copy kid tags in step. Copies are indexed 0..qty-1, so when some leave we
+    // drop the tags for the copies that no longer exist. (We remove from the end — the tags that
+    // remain stay attached to the copies that remain.)
+    const remaining = have - n;
+    const nextTags = {...kidAssign};
+    delete nextTags[cardId];                       // legacy per-card key
+    for (let i = remaining; i < have; i++) delete nextTags[`${cardId}#${i}`];
+    saveKids(kidGroups, nextTags);
 
     // 3. Write the paper trail.
     const entry = {
@@ -29251,9 +29281,14 @@ See you in there!
     const next = {...kidAssign};
     let n = 0;
     selectedIds.forEach(id => {
-      if (!owned[id]) return;               // only ever tags cards you actually own
-      if (groupId) next[id] = groupId; else delete next[id];
-      n++;
+      const qty = parseInt(owned[id]) || 0;
+      if (!qty) return;                     // only ever tags cards you actually own
+      delete next[id];                      // drop any legacy per-card key
+      for (let i=0; i<qty; i++) {
+        const k = `${id}#${i}`;
+        if (groupId) next[k] = groupId; else delete next[k];
+      }
+      n += qty;                             // bulk tags EVERY copy of the selected cards
     });
     if (n === 0) { alert("None of the selected cards are in your collection."); return; }
     setKidAssign(next);
@@ -29275,8 +29310,11 @@ See you in there!
     const now = new Date().toISOString();
     ids.forEach(id => {
       const have = parseInt(nextOwned[id])||0;
-      if (have - 1 <= 0) { delete nextOwned[id]; delete nextAssign[id]; }
-      else nextOwned[id] = have - 1;
+      const remaining = have - 1;
+      if (remaining <= 0) delete nextOwned[id]; else nextOwned[id] = remaining;
+      // Drop the tag for the copy that just left (copies are indexed 0..qty-1).
+      delete nextAssign[id];                                  // legacy per-card key
+      for (let i = Math.max(0, remaining); i < have; i++) delete nextAssign[`${id}#${i}`];
       entries.push({
         id:`sold_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
         cardId:id, qty:1, reason, note:"", price:null, date:now,
@@ -30937,11 +30975,18 @@ See you in there!
     if(filterWeapon && canonWeapon(c.weapon)!==canonWeapon(filterWeapon))  return false;
     if(filterTreat  && c.treatment!==filterTreat) return false;
     if(filterOwned==="owned"   && !owned[c.id])  return false;
-    // Kid collections: "mine" = owned but not tagged to any kid; a group id = tagged to that kid.
+    // Kid collections: a card shows under a kid if ANY of its copies is tagged to them; it shows
+    // under "Mine" if any copy is untagged. (You can own 2 and have one be Brooks' — so the same
+    // card can legitimately appear under both.)
     if(kidFilter!=="all"){
-      if(!owned[c.id]) return false;                       // only ever filters your own cards
-      const tag = kidAssign[c.id];
-      if(kidFilter==="mine" ? !!tag : tag!==kidFilter) return false;
+      const qty = parseInt(owned[c.id]) || 0;
+      if(!qty) return false;                              // only ever filters your own cards
+      let match = false;
+      for (let i=0; i<qty; i++) {
+        const tag = kidAssign[`${c.id}#${i}`] ?? (i===0 ? (kidAssign[c.id] ?? null) : null);
+        if (kidFilter==="mine" ? !tag : tag===kidFilter) { match = true; break; }
+      }
+      if(!match) return false;
     }
     if(filterOwned==="missing" &&  owned[c.id])  return false;
     if(filterNoImg && c.imageUrl && String(c.imageUrl).startsWith("http")) return false;
@@ -30992,16 +31037,36 @@ See you in there!
   // million comparisons per keystroke, which is exactly why typing felt frozen even when zero
   // cards were on screen. Build an id Set once and make the lookup O(1).
   const cardIdSet = useMemo(() => new Set(cards.map(c=>c.id)), [cards]);
-  // Kid chip counts — computed once per owned/assign change, not per chip per render.
+  // Kid chip counts — by COPY, not by card. If you own 2 of something and one is Brooks', that's
+  // 1 for you and 1 for Brooks. Computed once per owned/assign change.
   const kidCounts = useMemo(() => {
     const m = { __mine: 0 };
     for (const cid of Object.keys(owned)) {
-      const tag = kidAssign[cid];
-      if (tag) m[tag] = (m[tag]||0) + 1;
-      else m.__mine += 1;
+      const qty = parseInt(owned[cid]) || 1;
+      for (let i=0; i<qty; i++) {
+        const tag = kidAssign[`${cid}#${i}`] ?? (i===0 ? (kidAssign[cid] ?? null) : null);
+        if (tag) m[tag] = (m[tag]||0) + 1;
+        else m.__mine += 1;
+      }
     }
     return m;
   }, [owned, kidAssign]);
+
+  // cardId -> [tagForCopy0, tagForCopy1, ...]. Memoized so the grid can render each tile's kid
+  // badge without recomputing per card per render.
+  const kidTagsByCard = useMemo(() => {
+    const m = {};
+    if (kidGroups.length === 0) return m;
+    for (const cid of Object.keys(owned)) {
+      const qty = parseInt(owned[cid]) || 1;
+      const arr = [];
+      for (let i=0; i<qty; i++) {
+        arr.push(kidAssign[`${cid}#${i}`] ?? (i===0 ? (kidAssign[cid] ?? null) : null));
+      }
+      m[cid] = arr;
+    }
+    return m;
+  }, [owned, kidAssign, kidGroups]);
   const { uniqueOwned, totalOwned } = useMemo(() => {
     let uniq = 0, total = 0;
     for (const k of Object.keys(owned)) {
@@ -32116,23 +32181,33 @@ See you in there!
                 {/* Trade Bait flag + per-copy breakdown */}
                 {owned[c.id] && (
                   <div style={{ marginTop:12 }}>
-                    {/* Whose card is it? Tag it to a kid's binder (or keep it yours). */}
-                    {kidGroups.length>0 && (
-                      <div style={{ marginBottom:10 }}>
-                        <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", fontWeight:700, marginBottom:6 }}>Whose card is this?</div>
-                        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                          {[{id:null,name:"Mine",color:"#4ade80"}].concat(kidGroups).map(g=>{
-                            const on = (kidAssign[c.id]||null) === g.id;
-                            return (
-                              <button key={g.id||"mine"} onClick={()=>assignCardToKid(c.id, g.id)}
-                                style={{ background:on?`${g.color}22`:"rgba(255,255,255,0.04)", border:`1.5px solid ${on?g.color:"#333"}`, color:on?g.color:"#999", borderRadius:9, padding:"7px 13px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
-                                {g.id?"🧒 ":""}{g.name}
-                              </button>
-                            );
-                          })}
+                    {/* Whose card is it? With one copy this is a single choice. With several, each
+                        copy is tagged on its own — you can own 2 and have one be a kid's. */}
+                    {kidGroups.length>0 && (()=>{
+                      const qty = parseInt(owned[c.id]) || 1;
+                      const opts = [{id:null,name:"Mine",color:"#4ade80"}].concat(kidGroups);
+                      return (
+                        <div style={{ marginBottom:10 }}>
+                          <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", fontWeight:700, marginBottom:6 }}>
+                            {qty>1 ? `Whose are they? (you own ${qty})` : "Whose card is this?"}
+                          </div>
+                          {Array.from({length:qty}).map((_,i)=>(
+                            <div key={i} style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", marginBottom:qty>1?6:0 }}>
+                              {qty>1 && <span style={{ fontSize:11, color:"rgba(255,255,255,0.35)", fontWeight:700, minWidth:52 }}>Copy {i+1}</span>}
+                              {opts.map(g=>{
+                                const on = kidOfCopy(c.id, i) === g.id;
+                                return (
+                                  <button key={g.id||"mine"} onClick={()=>assignCardToKid(c.id, g.id, i)}
+                                    style={{ background:on?`${g.color}22`:"rgba(255,255,255,0.04)", border:`1.5px solid ${on?g.color:"#333"}`, color:on?g.color:"#999", borderRadius:9, padding:"6px 12px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+                                    {g.id?"🧒 ":""}{g.name}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ))}
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                     {kidGroups.length===0 && (
                       <button onClick={()=>setKidsModal(true)}
                         style={{ width:"100%", background:"transparent", border:"1.5px dashed #333", color:"rgba(255,255,255,0.35)", borderRadius:10, padding:"9px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", marginBottom:10 }}>
@@ -34250,7 +34325,7 @@ See you in there!
                     toggleOwned={()=>{if(!user){setSigningIn(true);return;} toggleOwned(c.id);}}
                     setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear} kidGroups={kidGroups} kidTag={kidAssign[c.id]} onAssignKid={assignCardToKid} onSell={user?()=>setSellModal(c):null}/>
+                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear} kidGroups={kidGroups} kidTags={kidTagsByCard[c.id]} onAssignKid={assignCardToKid} onSell={user?()=>setSellModal(c):null}/>
                   {/* Lock animation overlay */}
                   {privacyAnim===c.id&&(
                     <div style={{position:"absolute",inset:0,borderRadius:10,zIndex:20,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none",animation:"lockFadeOut 1.2s ease forwards",background:"rgba(0,0,0,0.55)"}}>
@@ -34609,7 +34684,7 @@ See you in there!
                                 toggleOwned={()=>{ if(!user){setSigningIn(true);return;} toggleOwned(c.id); }}
                                 setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                                 toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear} kidGroups={kidGroups} kidTag={kidAssign[c.id]} onAssignKid={assignCardToKid} onSell={user?()=>setSellModal(c):null}/>
+                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear} kidGroups={kidGroups} kidTags={kidTagsByCard[c.id]} onAssignKid={assignCardToKid} onSell={user?()=>setSellModal(c):null}/>
                             ))}
                           </div>
                           {user && (
