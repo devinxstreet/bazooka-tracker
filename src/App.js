@@ -28548,6 +28548,10 @@ See you in there!
     scrollRestoredRef.current = true;
   }, [loading]);
   const PAGE_SIZE = 100;
+  // Never paint more than this many pages. Without a ceiling, scrolling mounts every one of the
+  // 35k cards and never unmounts them — every later state change then re-renders the whole lot,
+  // which is what took ~6 SECONDS per render. Past ~1,500 cards nobody is scroll-hunting anyway.
+  const MAX_PAGES = 15;
 
   // -- Rainbow Tracker --
   const [rainbowFilter,    setRainbowFilter]    = useState("all");
@@ -29552,13 +29556,22 @@ See you in there!
   // Infinite scroll (rAF-throttled; stops bumping page once everything is shown).
   // Reads the current filtered length from a ref so this effect never depends on
   // `filtered` (which is declared later — referencing it here caused a TDZ crash).
+  //
+  // HARD CEILING: without one, scrolling through 35k cards mounts 35k card components and never
+  // unmounts any of them. Every subsequent state change then has to re-render the lot — which is
+  // what made the page take ~6 SECONDS to render, getting worse the longer you scrolled. Cap the
+  // number of pages we'll ever paint; past that, narrow the search instead of scrolling forever.
   const filteredLenRef = useRef(0);
   useEffect(() => {
     let ticking = false;
     function check() {
       ticking = false;
       if (document.documentElement.scrollHeight-window.scrollY-window.innerHeight<600) {
-        setPage(p => (p*PAGE_SIZE >= filteredLenRef.current ? p : p+1));
+        setPage(p => {
+          if (p >= MAX_PAGES) return p;                       // don't grow the DOM without bound
+          if (p*PAGE_SIZE >= filteredLenRef.current) return p; // everything's already shown
+          return p+1;
+        });
       }
     }
     function onScroll() { if(!ticking){ ticking=true; requestAnimationFrame(check); } }
@@ -35195,6 +35208,18 @@ See you in there!
                 </div>
               ))}
             </div>
+            )}
+            {/* Display cap — we deliberately stop painting past MAX_PAGES. Mounting all 35k cards
+                is what made a render take ~6 SECONDS. Say so plainly rather than silently stopping. */}
+            {page >= MAX_PAGES && sorted.length > visibleCards.length && (
+              <div style={{marginTop:18,padding:"14px 16px",background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.25)",borderRadius:10,textAlign:"center"}}>
+                <div style={{fontSize:12.5,fontWeight:800,color:"#FBBF24",marginBottom:3}}>
+                  Showing the first {visibleCards.length.toLocaleString()} of {sorted.length.toLocaleString()} cards
+                </div>
+                <div style={{fontSize:11.5,color:"rgba(255,255,255,0.45)",lineHeight:1.6}}>
+                  Use the search or filters above to narrow things down \u2014 painting the whole database at once grinds the page to a halt.
+                </div>
+              </div>
             )}
             {cards.length===0 && !loading && (
               <div style={{textAlign:"center",padding:"60px 20px",color:"rgba(255,255,255,0.5)"}}>
