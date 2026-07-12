@@ -26630,7 +26630,7 @@ See you in there!
     }
     scrollRestoredRef.current = true;
   }, [loading]);
-  const PAGE_SIZE = 100;
+  const PAGE_SIZE = 48;  // PERF: fewer heavy foil cards mounted at once (was 100) — big win on tab switch / scroll
 
   // -- Rainbow Tracker --
   const [rainbowFilter,    setRainbowFilter]    = useState("all");
@@ -29097,7 +29097,9 @@ See you in there!
   const treatments    = [...new Set(filteredBySet.map(c=>c.treatment).filter(Boolean))].sort();
   const powers        = [...new Set(filteredBySet.map(c=>Number(c.power)).filter(Boolean))].sort((a,b)=>b-a);
 
-  const filtered = cards.filter(c=>{
+  // PERF: memoized. This filter+sort over the whole card DB previously re-ran on EVERY render
+  // of the main component — including tab switches and unrelated state changes.
+  const filtered = useMemo(() => cards.filter(c=>{
     if(filterSet    && c.setName!==filterSet)    return false;
     if(filterWeapon && canonWeapon(c.weapon)!==canonWeapon(filterWeapon))  return false;
     if(filterTreat  && c.treatment!==filterTreat) return false;
@@ -29112,7 +29114,7 @@ See you in there!
     if(sortBy==="power") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
     if(sortBy==="cardNum"){const na=parseInt(String(a.cardNum||"").replace(/[^0-9]/g,"")||"0"),nb=parseInt(String(b.cardNum||"").replace(/[^0-9]/g,"")||"0");return na-nb;}
     return (a[sortBy]||"").toString().localeCompare((b[sortBy]||"").toString());
-  });
+  }), [cards, filterSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, search, sortBy, owned]);
   const visibleCards=filtered.slice(0,page*PAGE_SIZE);
   const _baseId = (k)=> String(k).replace(/::foil$/,"");
   const _ownedKeyValid = (k)=> !!cards.find(c=>c.id===_baseId(k));
@@ -29136,8 +29138,8 @@ See you in there!
   })();
 
   // -- Deck logic --
-  const deckSet=new Set(deckCards);
-  const inDeck=cards.filter(c=>deckSet.has(c.id));
+  const deckSet=useMemo(()=>new Set(deckCards),[deckCards]);
+  const inDeck=useMemo(()=>cards.filter(c=>deckSet.has(c.id)),[cards,deckSet]);
   const isSpec=deckType==="spec"||deckType==="vegasbaby",isAM=deckType==="apexmadness";
   const dupKey=c=>`${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
   const inDeckDupKeys=new Set(inDeck.map(dupKey));
@@ -29154,7 +29156,7 @@ See you in there!
     if(isAM&&p>160){const t=(c.treatment||"").toLowerCase();if((treatCore[t]||0)<10)return{ok:false,reason:`Need 10 core ${c.treatment} first (${treatCore[t]||0}/10)`};if((treatApex[t]||0)>=1)return{ok:false,reason:`Already have 1 ${c.treatment} apex card`};}
     return{ok:true};
   }
-  const deckAvail=cards.filter(c=>{
+  const deckAvail=useMemo(()=>cards.filter(c=>{
     if(deckSet.has(c.id))return false;
     if(deckFilterW&&canonWeapon(c.weapon)!==canonWeapon(deckFilterW))return false;
     if(deckFilterP.size>0&&!deckFilterP.has(String(c.power||"")))return false;
@@ -29164,7 +29166,7 @@ See you in there!
     const t=(c.treatment||"").toLowerCase();
     if(t==="plays"||t==="bonus plays"||t==="home team discount")return false;
     return true;
-  }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
+  }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0)),[cards,deckSet,deckFilterW,deckFilterP,deckFilterS,deckFilterT,deckSearch]);
 
   // -- "How close am I to a deck?" — from OWNED cards, respecting deck type + weapon/treatment filter --
   function computeDeckProgress(weaponFilter, treatmentFilter, dtype, setFilter, maxDeck) {
@@ -29223,7 +29225,7 @@ See you in there!
   const [deckGoalT, setDeckGoalT] = useState("");
   const [deckGoalSets, setDeckGoalSets] = useState([]); // selected sets to restrict to ([] = all)
   const [deckMaxBuild, setDeckMaxBuild] = useState(false); // "Build max deck" — tighter power ranges
-  const deckProgress = computeDeckProgress(deckGoalW, deckGoalT, deckType, deckGoalSets, deckMaxBuild);
+  const deckProgress = useMemo(()=>computeDeckProgress(deckGoalW, deckGoalT, deckType, deckGoalSets, deckMaxBuild), [cards, owned, deckGoalW, deckGoalT, deckType, deckGoalSets, deckMaxBuild]);
 
 
   const totalNotifs = friendReqs.length+teamInvites.length+marketNotifs.length+wantNotifs.length+unreadThreads;
