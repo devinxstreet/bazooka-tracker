@@ -30500,6 +30500,23 @@ See you in there!
     return m;
   }, [savedDecks, deckLoadId]);
 
+  // Same as otherDeckUse but counting EVERY saved deck, including the one open in the editor.
+  // The quick builder is proposing a brand-new deck, so a card sitting in the currently-loaded
+  // deck is just as unavailable as one in any other deck. (otherDeckUse deliberately excludes the
+  // open deck, because the manual builder must still show you the cards already in it.)
+  const allDeckUse = useMemo(() => {
+    const m = {};
+    (savedDecks||[]).forEach(d => {
+      const seen = new Set();
+      (d.cardIds||[]).forEach(cid => {
+        if (seen.has(cid)) return;
+        seen.add(cid);
+        m[cid] = (m[cid]||0) + 1;
+      });
+    });
+    return m;
+  }, [savedDecks]);
+
   // Family cards you can borrow, merged for the deck builder. A family copy surfaces when EITHER
   // you don't own the card, OR you own it but all your copies are committed to other decks — so
   // borrowing genuinely adds capacity. familyOwnerByCard: cardId -> {uid,name,copies}.
@@ -30573,11 +30590,13 @@ See you in there!
     const isOwned = c => isMine(c) || !!famOwner(c);
     // Cross-deck lock: available copies = your copies + borrowable family copies, minus copies
     // already committed to OTHER decks. Prefer your own; family fills the gap.
+    // Uses allDeckUse (not otherDeckUse): the quick builder proposes a NEW deck, so a card sitting
+    // in the deck currently open in the editor is unavailable too.
     const isAvailable = c => {
       const mine = (owned && owned[c.id]) ? (parseInt(owned[c.id])||1) : 0;
       const fam = famOwner(c) ? (famOwner(c).copies||1) : 0;
       const copies = mine + fam;
-      const usedElsewhere = otherDeckUse[c.id] || 0;
+      const usedElsewhere = allDeckUse[c.id] || 0;
       return copies > usedElsewhere;
     };
     // Tiebreak sorter: same-priority cards ordered YOURS first, then family.
@@ -30760,7 +30779,7 @@ See you in there!
   const deckProgress = useMemo(
     () => (activeTab === "deck" ? computeDeckProgress(deckGoalW, deckGoalT, deckType, deckGoalSets, deckMaxMode) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [activeTab, deckGoalW, deckGoalT, deckType, deckGoalSets, deckMaxMode, owned, familyAvail, otherDeckUse, cards]
+    [activeTab, deckGoalW, deckGoalT, deckType, deckGoalSets, deckMaxMode, owned, familyAvail, otherDeckUse, allDeckUse, cards]
   );
 
 
