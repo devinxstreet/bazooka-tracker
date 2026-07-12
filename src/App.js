@@ -18693,10 +18693,16 @@ function PrefixMapper() {
 
   // Treatments already in use anywhere — so you can pick an existing one rather than retyping it
   // (and risking "Silver Blast" vs "SILVER BLAST", which is what created duplicates before).
-  const knownTreatments = useMemo(
-    () => Array.from(new Set(allCards.map(c=>c.treatment).filter(Boolean))).sort(),
-    [allCards]
-  );
+  // Treatments that exist IN THIS SET. Offering every treatment in the whole database is worse
+  // than useless — it surfaces treatments that belong to other sets, plus any junk a bad import
+  // left behind (a mis-parsed Play ability ending up in the treatment column, say). Scope it to
+  // the set being edited so the options are only things that legitimately appear there.
+  const knownTreatments = useMemo(() => {
+    if (!setName) return [];
+    return Array.from(new Set(
+      allCards.filter(c => c.setName === setName).map(c => c.treatment).filter(Boolean)
+    )).sort();
+  }, [allCards, setName]);
   const CARD_TYPES = ["Hero","Play","Hot Dog","Bonus Play","Home Team Discount"];
 
   const setRule = (prefix, field, value) => {
@@ -18797,9 +18803,17 @@ function PrefixMapper() {
                         e.g. #{p.sample.cardNum} · {p.sample.hero||"—"}
                       </div>
                     </div>
-                    <input list="known-treatments" value={r.treatment||""} placeholder="—"
-                      onChange={e=>setRule(p.prefix,"treatment",e.target.value)}
-                      style={{background:"#0b0b0b",border:`1px solid ${r.treatment?"#4ade80":"#333"}`,borderRadius:7,padding:"7px 9px",fontSize:12,color:"#fff",fontFamily:"inherit",width:"100%"}}/>
+                    <div style={{position:"relative"}}>
+                      <input list={`treat-${p.prefix}`} value={r.treatment||""} placeholder="—"
+                        onChange={e=>setRule(p.prefix,"treatment",e.target.value)}
+                        style={{background:"#0b0b0b",border:`1px solid ${r.treatment?"#4ade80":"#333"}`,borderRadius:7,padding:"7px 9px",fontSize:12,color:"#fff",fontFamily:"inherit",width:"100%"}}/>
+                      {/* Only the treatments that appear in THIS set — and you can still type a name
+                          that isn't there yet, which is exactly what you need when a whole prefix is
+                          currently mislabelled (e.g. Plays sitting under "Battlefoil"). */}
+                      <datalist id={`treat-${p.prefix}`}>
+                        {knownTreatments.map(t=><option key={t} value={t}/>)}
+                      </datalist>
+                    </div>
                     <select value={r.cardType||""} onChange={e=>setRule(p.prefix,"cardType",e.target.value)}
                       style={{background:"#0b0b0b",border:`1px solid ${r.cardType?"#4ade80":"#333"}`,borderRadius:7,padding:"7px 9px",fontSize:12,color:"#fff",fontFamily:"inherit",width:"100%",cursor:"pointer"}}>
                       <option value="">—</option>
@@ -18808,9 +18822,6 @@ function PrefixMapper() {
                   </div>
                 );
               })}
-              <datalist id="known-treatments">
-                {knownTreatments.map(t=><option key={t} value={t}/>)}
-              </datalist>
             </div>
           )}
 
