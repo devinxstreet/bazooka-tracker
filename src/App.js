@@ -28108,21 +28108,10 @@ See you in there!
         }
       } catch(e) {}
 
-      // 0b. FIRST-EVER VISIT ONLY: no cache at all. Paint the bundled /cards-data.json so the page
-      // isn't blank while the real snapshot downloads. This file has NO imageUrl and NOT the real
-      // Firestore doc ids, so it makes "owned" read wrong and cards look art-less — it is a
-      // placeholder, never the truth. Critically we do NOT write it to IndexedDB: caching it would
-      // make every subsequent load start from the broken data (2 owned, no images) until the
-      // snapshot lands.
-      if (!cacheHasCards) {
-        try {
-          const rs = await withTimeout(fetch("/cards-data.json"), 4000);
-          if (rs.ok) {
-            const all = await rs.json();
-            if (Array.isArray(all) && all.length>0) { setCards(all); setLoading(false); }
-          }
-        } catch(e) {}
-      }
+      // NOTE: we deliberately do NOT paint the bundled /cards-data.json here. That file lacks
+      // imageUrl and doesn't carry the real Firestore doc ids, so rendering it shows art-less
+      // cards and a wrong owned count (`owned` is keyed by doc id). A brief spinner is far better
+      // than briefly showing the user incorrect data. The real snapshot below is the only source.
 
       // 2. THE LIVE SNAPSHOT IS THE SOURCE OF TRUTH. It comes from Firestore, so it carries the
       // real doc ids (which `owned` is keyed by) and every imageUrl. Always pull it and let it
