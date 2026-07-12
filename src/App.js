@@ -16124,7 +16124,7 @@ function athleteSport(name) {
   return ATHLETE_SPORT[name.trim()] || ATHLETE_SPORT[name] || null;
 }
 
-function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand, myScanPhoto }) {
+function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand, myScanPhoto, cardWidthHint=200 }) {
   const wc = WEAPON_COLORS[canonWeapon(c.weapon)] || "#444";
   // Image priority: official admin imageUrl → my own private scan photo → coming-soon placeholder.
   // Foil/shine overlays only apply to the official art, not to a raw scan photo.
@@ -16137,14 +16137,12 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
   const qty = ownedQty || 0;
   const isWanted = !!(wantList && wantList[c.id]);
   const cardRef = useRef(null);
-  const [cardW, setCardW] = useState(200);
-  useEffect(() => {
-    if (!cardRef.current || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(entries => { const w = entries[0]?.contentRect?.width; if (w) setCardW(w); });
-    ro.observe(cardRef.current);
-    return () => ro.disconnect();
-  }, []);
-  const isSmallCard = cardW < 165;
+  // PERF: this used to create a ResizeObserver PER CARD and call setCardW() on mount, forcing a
+  // second render of every tile in the grid. With ~100 tiles that's 100 observers and 100 extra
+  // renders every time the list changes (i.e. on every search). The card width only matters for
+  // one thing — hiding some detail on narrow tiles — so derive it from the grid density instead
+  // of measuring each card individually.
+  const isSmallCard = cardWidthHint < 165;
   const foilRef = useRef(null);
   const glareRef = useRef(null);
   const animRef = useRef(null);
