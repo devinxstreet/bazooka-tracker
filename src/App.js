@@ -15333,7 +15333,10 @@ function SharedDeck({ deckId }) {
     const F = fmtOf(deck.deckType);
     const problems = [];
     const total = deckCards.reduce((s,c)=>s+(parseFloat(c.power)||0), 0);
-    if (deckCards.length > (F.size||60)) problems.push(`${deckCards.length} cards \u2014 ${F.short} allows ${F.size||60}`);
+    // Deck size is exact: a short deck is as illegal as an oversized one.
+    const SZ = F.size || 60;
+    if (deckCards.length > SZ) problems.push(`${deckCards.length} cards — ${F.short} allows ${SZ}`);
+    if (deckCards.length < SZ) problems.push(`${deckCards.length}/${SZ} cards — ${SZ} are required`);
     if (F.totalPower && total > F.totalPower) problems.push(`${total.toLocaleString()} total power \u2014 caps at ${F.totalPower.toLocaleString()}`);
     if (F.powerCap) {
       const over = deckCards.filter(c=>(parseFloat(c.power)||0) > F.powerCap).length;
@@ -26166,7 +26169,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     )}
                     {deckProgress.maxMode && deckProgress.maxShort>0 && (
                       <div style={{marginTop:10,background:"rgba(232,49,122,0.08)",border:"1px solid rgba(232,49,122,0.3)",borderRadius:10,padding:"9px 12px",fontSize:11,color:"#ffb3d0",lineHeight:1.5}}>
-                        ⚠️ <strong>{deckProgress.have}/60</strong> — you have {deckProgress.have} eligible cards in the {deckProgress.maxWindowLabel} window, so this deck is <strong>{deckProgress.maxShort}</strong> short of a full 60. It's still legal to play (60 is the max, not a minimum) — it just isn't at full strength. Turn off max mode to fill the rest with cards outside the window.
+                        ⚠️ <strong>{deckProgress.have}/60</strong> — max mode only draws from the {deckProgress.maxWindowLabel} power window, and you own just {deckProgress.have} eligible cards there. <strong>60 is required</strong>, so this deck can't be played as it stands. <strong>Turn off max mode</strong> to fill the remaining {deckProgress.maxShort} from outside the window — you'll get a legal 60 at slightly lower average power.
                       </div>
                     )}
 
@@ -31972,8 +31975,13 @@ See you in there!
 
     const total = inDeck.reduce((s,c)=>s+(parseFloat(c.power)||0), 0);
 
-    if (inDeck.length > (F.size||60))
-      problems.push(`${inDeck.length} cards — ${F.short} allows ${F.size||60}`);
+    // Deck size is EXACT. 60 (or the format's size) is a REQUIREMENT, not a maximum — a 50-card
+    // deck cannot be played, so it must read as illegal rather than "legal but not at full strength".
+    const SZ = F.size || 60;
+    if (inDeck.length > SZ)
+      problems.push(`${inDeck.length} cards — ${F.short} allows ${SZ}`);
+    if (inDeck.length < SZ)
+      problems.push(`${inDeck.length}/${SZ} cards — ${SZ} are required`);
 
     if (F.totalPower && total > F.totalPower)
       problems.push(`${total.toLocaleString()} total power — ${F.short} caps at ${F.totalPower.toLocaleString()}`);
