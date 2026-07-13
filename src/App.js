@@ -36053,7 +36053,6 @@ See you in there!
               WEAPON_COLORS={WEAPON_COLORS}
               setSigningIn={setSigningIn}
             />
-        )}
         </div>{/* end messages tab */}
 
 
