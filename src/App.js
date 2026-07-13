@@ -28323,13 +28323,19 @@ function Leaderboard({ user, marketSales=[], onViewProfile }) {
     { key:"deals",           label:"🤝 Deals Done" },
   ];
 
+  // Fetch the user list ONCE, not on every marketSales change.
+  //
+  // This reads every doc in /users with no limit. It used to depend on [marketSales] — a live
+  // Firestore listener — so every marketplace event refetched the entire user collection, and the
+  // tab sat blank for as long as that took. The deal counts are derived from marketSales, but that
+  // is a cheap local tally: it does not need a refetch, so it is computed separately below.
+  const [loadingLb, setLoadingLb] = useState(true);
   useEffect(() => {
     let alive = true;
     (async () => {
+      setLoadingLb(true);
       try {
         const snap = await getDocs(collection(db,"users"));
-        const dealCounts = {};
-        marketSales.forEach(s => { if(s.sellerUid){dealCounts[s.sellerUid]=(dealCounts[s.sellerUid]||0)+1;} if(s.buyerUid){dealCounts[s.buyerUid]=(dealCounts[s.buyerUid]||0)+1;} });
         const list = snap.docs.map(d => { const x=d.data(); return {
           uid: d.id,
           name: x.username ? `@${x.username}` : (x.displayName ? x.displayName.split(" ")[0] : "Collector"),
@@ -28338,19 +28344,40 @@ function Leaderboard({ user, marketSales=[], onViewProfile }) {
           uniqueCount: x.uniqueCount||0,
           rainbowCount: x.rainbowCount||0,
           oneOfOneCount: x.oneOfOneCount||0,
-          deals: dealCounts[d.id]||0,
         }; });
         if (alive) setRows(list);
       } catch(e) { console.error("leaderboard load failed:", e); if(alive) setRows([]); }
+      if (alive) setLoadingLb(false);
     })();
     return () => { alive = false; };
+  }, []);
+
+  // Deal counts come from marketSales, which updates live. Tally locally instead of refetching.
+  const dealCounts = useMemo(() => {
+    const m = {};
+    marketSales.forEach(s => { if(s.sellerUid) m[s.sellerUid] = (m[s.sellerUid]||0)+1; });
+    return m;
   }, [marketSales]);
 
-  const ranked = (rows||[]).filter(r => (r[cat]||0) > 0).sort((a,b)=>(b[cat]||0)-(a[cat]||0));
+  const rowsWithDeals = useMemo(
+    () => (rows||[]).map(r => ({ ...r, deals: dealCounts[r.uid]||0 })),
+    [rows, dealCounts]
+  );
+
+  const ranked = rowsWithDeals.filter(r => (r[cat]||0) > 0).sort((a,b)=>(b[cat]||0)-(a[cat]||0));
   const top = ranked.slice(0,100);
   const myRank = user ? ranked.findIndex(r=>r.uid===user.uid) : -1;
-  const myRow = user ? (rows||[]).find(r=>r.uid===user.uid) : null;
+  const myRow = user ? rowsWithDeals.find(r=>r.uid===user.uid) : null;
   const medal = (i)=> i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}`;
+
+  // Show something while the user list loads. Previously `rows` began as null with no loading
+  // state, so the whole tab rendered blank until the fetch finished — which read as "broken".
+  if (loadingLb) return (
+    <div style={{ maxWidth:720, margin:"0 auto", padding:"60px 20px", textAlign:"center" }}>
+      <div style={{ fontSize:28, marginBottom:12 }}>{"\uD83C\uDFC6"}</div>
+      <div style={{ fontSize:14, fontWeight:700, color:"rgba(255,255,255,0.7)" }}>Loading the leaderboard{"\u2026"}</div>
+    </div>
+  );
 
   return (
     <div style={{ maxWidth:720, margin:"0 auto" }}>
