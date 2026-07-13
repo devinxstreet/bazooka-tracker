@@ -15314,7 +15314,21 @@ function SharedDeck({ deckId }) {
         if (!snap.exists()) { setErr("That deck doesn't exist, or it's been deleted."); setLoading(false); return; }
         const d = { id: snap.id, ...snap.data() };
         setDeck(d);
-        const all = await readCardSnapshot(true).catch(()=>null);
+        // The checklist lives as a gzipped blob in Firebase STORAGE (not Firestore), so a shared
+        // link depends on Storage allowing an anonymous read. If that fails, fall back to reading
+        // the checklist collection directly — and if BOTH fail, say so rather than silently
+        // rendering an empty deck, which is what a bare .catch(()=>null) was doing.
+        let all = null;
+        try {
+          all = await readCardSnapshot(true);
+        } catch (e1) {
+          try {
+            const cs = await getDocs(collection(db, "boba_checklist"));
+            all = cs.docs.map(dd => ({ id: dd.id, ...dd.data() }));
+          } catch (e2) {
+            setErr("Couldn't load the card list. The deck exists, but its cards can't be shown.");
+          }
+        }
         setCards(Array.isArray(all) ? all : []);
         if (d.userId) {
           try { const p = await getDoc(doc(db, "boba_profiles", d.userId)); if (p.exists()) setOwner(p.data()); } catch(e){}
@@ -15393,7 +15407,7 @@ function SharedDeck({ deckId }) {
 
   if (err || !deck) return <div style={{...wrap, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:14}}>
     <div style={{fontSize:34}}>{"\uD83C\uDCCF"}</div>
-    <div style={{fontSize:16, fontWeight:800}}>Deck not found</div>
+    <div style={{fontSize:16, fontWeight:800}}>{deck ? "Couldn't show this deck" : "Deck not found"}</div>
     <div style={{fontSize:13, color:"rgba(255,255,255,0.45)"}}>{err || "That deck doesn't exist."}</div>
     <a href="/cards" style={{marginTop:8, color:"#E8317A", fontSize:13, fontWeight:700}}>Go to Bazooka Dash \u2192</a>
   </div>;
