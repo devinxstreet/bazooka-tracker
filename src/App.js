@@ -34814,7 +34814,6 @@ See you in there!
             </div>
           );
         })()}
-        </div>
 
         {/* /34 BOJAX CLAIM MODAL */}
         {bojaxModal!=null && (()=>{
