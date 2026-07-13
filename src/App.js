@@ -25816,12 +25816,12 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                         onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.borderColor=blocked?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.08)";e.currentTarget.style.zIndex="";e.currentTarget.style.boxShadow="";}}>
                         {c.imageUrl
                           ? <img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
-                          : <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:6,textAlign:"center"}}><div style={{fontSize:11,fontWeight:800,color:wc}}>{c.hero}</div><div style={{fontSize:8,color:"rgba(255,255,255,0.3)",marginTop:3}}>{bonus?"Bonus Play":"Play"}</div></div>}
+                          : <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"20px 7px 8px",textAlign:"center",gap:4}}><div style={{fontSize:11,fontWeight:800,color:wc,lineHeight:1.25}}>{c.playName||c.hero}</div>{c.text&&<div style={{fontSize:8.5,color:"rgba(255,255,255,0.55)",lineHeight:1.35,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:5,WebkitBoxOrient:"vertical"}}>{c.text}</div>}<div style={{fontSize:8,color:"rgba(255,255,255,0.28)",marginTop:"auto"}}>{bonus?"Bonus Play":"Play"}</div></div>}
                         <div style={{position:"absolute",inset:0,background:"linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.1) 40%, transparent 62%)",pointerEvents:"none"}}/>
                         <div style={{position:"absolute",left:0,right:0,bottom:0,padding:"7px 8px",pointerEvents:"none"}}>
-                          <div style={{fontSize:11,fontWeight:800,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textShadow:"0 1px 3px rgba(0,0,0,0.8)"}}>{c.hero}</div>
+                          <div style={{fontSize:11,fontWeight:800,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textShadow:"0 1px 3px rgba(0,0,0,0.8)"}}>{c.playName||c.hero}</div>
                           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:2,gap:4}}>
-                            {c.playCost!==undefined&&c.playCost!==""?<span style={{fontSize:9,color:"#FBBF24",fontWeight:700}}>Cost {c.playCost}</span>:<span/>}
+                            <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:7.5,fontWeight:800,color:"#fff",background:(bonus?"#7B9CFF":"#E8317A")+"dd",borderRadius:3,padding:"1px 5px",letterSpacing:0.3}}>{bonus?"BPL":"PLAY"}</span>{c.playCost!==undefined&&c.playCost!==""?<span style={{fontSize:9,color:"#FBBF24",fontWeight:700}}>Cost {c.playCost}</span>:<span/>}</span>
                             {_pbAdmin
                               ? <input type="number"
                                   value={dbsEdits[c.id]!==undefined ? dbsEdits[c.id] : (c.dbs!==undefined&&c.dbs!==""?c.dbs:"")}
@@ -25835,7 +25835,6 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                               : (c.dbs!==undefined&&c.dbs!==""&&<span style={{fontSize:11,fontWeight:900,color:"#C084FC",textShadow:"0 1px 3px rgba(0,0,0,0.9)"}}>{c.dbs}</span>)}
                           </div>
                         </div>
-                        <div style={{position:"absolute",top:6,left:6,fontSize:8,fontWeight:800,color:"#fff",background:(bonus?"#7B9CFF":"#E8317A")+"dd",borderRadius:4,padding:"2px 6px",pointerEvents:"none"}}>{bonus?"BPL":"PLAY"}</div>
                         {!blocked&&<div className="deck-add-badge" style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:38,height:38,borderRadius:"50%",background:"rgba(74,222,128,0.95)",color:"#000",fontSize:24,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",opacity:0,transition:"opacity 0.15s",pointerEvents:"none",boxShadow:"0 4px 16px rgba(0,0,0,0.5)",zIndex:2}}>+</div>}
                       </div>
                     );
@@ -28803,12 +28802,15 @@ See you in there!
     return () => clearTimeout(t);
   }, [search]);
   const debouncedSearch = useDebounce(search, 250);
-  const [filterSet,     setFilterSet]     = useState(savedUI.filterSet ?? "");
+  // Set / weapon / treatment are MULTI-SELECT now, the way filterPower already was.
+  // Empty Set = no filter. savedUI may hold an old single string, so tolerate both shapes.
+  const [filterSet,      setFilterSet]      = useState(()=> new Set(Array.isArray(savedUI.filterSet) ? savedUI.filterSet : (savedUI.filterSet ? [savedUI.filterSet] : [])));
   const [filterSubSet,  setFilterSubSet]  = useState(""); // e.g. L.A. / Philadelphia / Oklahoma City within a set
-  const [filterWeapon,  setFilterWeapon]  = useState(savedUI.filterWeapon ?? "");
-  const [filterTreat,   setFilterTreat]   = useState(savedUI.filterTreat ?? "");
+  const [filterWeapon,   setFilterWeapon]   = useState(()=> new Set(Array.isArray(savedUI.filterWeapon) ? savedUI.filterWeapon : (savedUI.filterWeapon ? [savedUI.filterWeapon] : [])));
+  const [filterTreat,    setFilterTreat]    = useState(()=> new Set(Array.isArray(savedUI.filterTreat) ? savedUI.filterTreat : (savedUI.filterTreat ? [savedUI.filterTreat] : [])));
   const [filterPower,   setFilterPower]   = useState(()=> new Set(Array.isArray(savedUI.filterPower) ? savedUI.filterPower : []));
   const [powerMenuOpen, setPowerMenuOpen] = useState(false);
+  const [multiOpen,     setMultiOpen]     = useState(null); // "set" | "treat" | "weapon" | null
   const [navMenu,       setNavMenu]       = useState(null); // "collect" | "play" | null (hover dropdowns)
   const navGroupItems = useRef({});
   const [msgPanelOpen,  setMsgPanelOpen]  = useState(false);
@@ -28876,8 +28878,12 @@ See you in there!
       const prev = loadUI();
       sessionStorage.setItem(UI_STATE_KEY, JSON.stringify({
         ...prev,
-        activeTab, search, filterSet, filterWeapon, filterTreat,
-        filterPower: Array.from(filterPower), filterOwned, sortBy, page, cardView, animsOn,
+        activeTab, search,
+        // Sets don't survive JSON.stringify — serialize like filterPower already did.
+        filterSet:    Array.from(filterSet),
+        filterWeapon: Array.from(filterWeapon),
+        filterTreat:  Array.from(filterTreat),
+        filterPower:  Array.from(filterPower), filterOwned, sortBy, page, cardView, animsOn,
       }));
     } catch(e) {}
   }, [activeTab, search, filterSet, filterWeapon, filterTreat, filterPower, filterOwned, sortBy, page, cardView, animsOn]);
@@ -31933,7 +31939,7 @@ See you in there!
 
   // -- Computed --
   const sets          = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
-  const filteredBySet = filterSet ? cards.filter(c=>c.setName===filterSet) : cards;
+  const filteredBySet = filterSet.size>0 ? cards.filter(c=>filterSet.has(c.setName)) : cards;
   const weapons       = [...new Set(filteredBySet.map(c=>c.weapon).filter(Boolean))].sort();
   const treatments    = [...new Set(filteredBySet.map(c=>c.treatment).filter(Boolean))].sort();
   const powers        = [...new Set(filteredBySet.map(c=>Number(c.power)).filter(Boolean))].sort((a,b)=>b-a);
@@ -31961,10 +31967,10 @@ See you in there!
   );
 
   const filtered = useMemo(() => cards.filter(c=>{
-    if(filterSet    && c.setName!==filterSet)    return false;
+    if(filterSet.size>0    && !filterSet.has(c.setName)) return false;
     if(filterSubSet && c.subSet!==filterSubSet)  return false;
-    if(filterWeapon && canonWeapon(c.weapon)!==canonWeapon(filterWeapon))  return false;
-    if(filterTreat  && c.treatment!==filterTreat) return false;
+    if(filterWeapon.size>0 && !filterWeapon.has(canonWeapon(c.weapon))) return false;
+    if(filterTreat.size>0  && !filterTreat.has(c.treatment)) return false;
     if(filterOwned==="owned"   && !owned[c.id])  return false;
     // Kid collections: a card shows under a kid if ANY of its copies is tagged to them; it shows
     // under "Mine" if any copy is untagged. (You can own 2 and have one be Brooks' — so the same
@@ -34302,11 +34308,11 @@ See you in there!
                             <div style={{fontSize:10,fontWeight:800,color:"#71717a",textTransform:"uppercase",letterSpacing:1,padding:"6px 10px 8px"}}>Admin Tools</div>
                             <label style={{display:"flex",alignItems:"center",gap:9,width:"100%",background:"transparent",borderRadius:9,padding:"10px 11px",fontSize:13,fontWeight:700,color:"#E8317A",cursor:"pointer",fontFamily:"inherit"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                               🖼 Import Image Folder
-                              <input type="file" accept=".webp,.jpg,.jpeg,.png" multiple webkitdirectory="" directory="" style={{display:"none"}} onChange={e=>{ const f=Array.from(e.target.files||[]).filter(x=>/\.(webp|jpe?g|png)$/i.test(x.name)); if(f.length){ const hasSub=f.some(x=>(x.webkitRelativePath||"").split("/").filter(Boolean).length>2); setBulkImg({files:f, setName:filterSet||"", byFolder:hasSub}); setAdminMenuOpen(false); } e.target.value=""; }}/>
+                              <input type="file" accept=".webp,.jpg,.jpeg,.png" multiple webkitdirectory="" directory="" style={{display:"none"}} onChange={e=>{ const f=Array.from(e.target.files||[]).filter(x=>/\.(webp|jpe?g|png)$/i.test(x.name)); if(f.length){ const hasSub=f.some(x=>(x.webkitRelativePath||"").split("/").filter(Boolean).length>2); setBulkImg({files:f, setName:(filterSet.size===1 ? [...filterSet][0] : ""), byFolder:hasSub}); setAdminMenuOpen(false); } e.target.value=""; }}/>
                             </label>
                             <label style={{display:"flex",alignItems:"center",gap:9,width:"100%",background:"transparent",borderRadius:9,padding:"10px 11px",fontSize:13,fontWeight:700,color:"#b794f6",cursor:"pointer",fontFamily:"inherit"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                               📄 Import Image Files
-                              <input type="file" accept=".webp,.jpg,.jpeg,.png" multiple style={{display:"none"}} onChange={e=>{ const f=e.target.files; if(f&&f.length){ setBulkImg({files:Array.from(f), setName:filterSet||""}); setAdminMenuOpen(false); } e.target.value=""; }}/>
+                              <input type="file" accept=".webp,.jpg,.jpeg,.png" multiple style={{display:"none"}} onChange={e=>{ const f=e.target.files; if(f&&f.length){ setBulkImg({files:Array.from(f), setName:(filterSet.size===1 ? [...filterSet][0] : "")}); setAdminMenuOpen(false); } e.target.value=""; }}/>
                             </label>
                             <button onClick={async()=>{ setAdminMenuOpen(false); if(!window.confirm("Permanently fix weapon casing in the database? (ALT→Alt, FIRE→Fire, etc.) This rewrites affected card records.")) return; try{ setToast("Scanning for weapon casing dupes…"); const snap=await getDocs(collection(db,"boba_checklist")); let fixed=0; let batch=writeBatch(db); let inBatch=0; for(const d of snap.docs){ const w=d.data().weapon; if(!w) continue; const cw=canonWeapon(w); if(cw!==w){ batch.update(doc(db,"boba_checklist",d.id),{weapon:cw}); fixed++; inBatch++; if(inBatch>=400){ await batch.commit(); batch=writeBatch(db); inBatch=0; } } } if(inBatch>0) await batch.commit(); setToast(`✅ Fixed ${fixed} cards. Click 🔄 Refresh to reload.`); }catch(e){ alert("Failed: "+e.message); } }} style={{display:"flex",alignItems:"center",gap:9,width:"100%",background:"transparent",border:"none",borderRadius:9,padding:"10px 11px",fontSize:13,fontWeight:700,color:"#a1a1aa",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>🔧 Fix Weapon Casing</button>
                             <button onClick={()=>{ setEarlyAccessModal(true); setAdminMenuOpen(false); }} style={{display:"flex",alignItems:"center",gap:9,width:"100%",background:"transparent",border:"none",borderRadius:9,padding:"10px 11px",fontSize:13,fontWeight:700,color:"#4ade80",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>🔑 Early Access List</button>
@@ -35397,39 +35403,71 @@ See you in there!
             })()}
             <div className="filter-bar" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:"14px 18px",marginBottom:16,backdropFilter:"blur(10px)",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",position:"relative",zIndex:powerMenuOpen?10000:"auto"}}>
               <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} placeholder="Search hero, card #, athlete, treatment..." style={{...inp,flex:2,minWidth:200}}/>
-              <select value={filterSet} onChange={e=>{
-                const ns=e.target.value;
-                const scope = ns ? cards.filter(c=>c.setName===ns) : cards;
-                // keep weapon/treatment/power only if they still exist in the new set
-                if(filterWeapon && !scope.some(c=>c.weapon===filterWeapon)) setFilterWeapon("");
-                if(filterTreat && !scope.some(c=>c.treatment===filterTreat)) setFilterTreat("");
-                if(filterPower.size>0){ const avail=new Set(scope.map(c=>Number(c.power||0))); const kept=new Set([...filterPower].filter(p=>avail.has(p))); if(kept.size!==filterPower.size) setFilterPower(kept); }
-                setFilterSet(ns); setFilterSubSet(""); setPage(1);
-              }} style={{...inp,flex:1,minWidth:140,cursor:"pointer"}}>
-                <option value="">All Sets</option>{sets.map(s=><option key={s} value={s}>{s}</option>)}
-              </select>
+              {/* Multi-select dropdown — set, treatment and weapon all work like the power filter now.
+                  Same markup for each, so it's one helper rather than three near-identical blocks. */}
+              {(() => {
+                const MultiFilter = ({ label, options, sel, setSel, openKey }) => {
+                  const open = multiOpen === openKey;
+                  const text = sel.size===0 ? label : sel.size===1 ? [...sel][0] : `${sel.size} selected`;
+                  return (
+                    <div style={{position:"relative",zIndex:open?10000:"auto",flex:1,minWidth:140}}>
+                      <button onClick={()=>setMultiOpen(open?null:openKey)}
+                        style={{...inp,width:"100%",height:"auto",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",gap:4}}>
+                        <span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:sel.size?"#E8317A":undefined,fontWeight:sel.size?700:undefined}}>{text}</span>
+                        <span style={{fontSize:10,opacity:0.5,marginLeft:4}}>{"\u25BE"}</span>
+                      </button>
+                      {open && (
+                        <>
+                          <div onClick={()=>setMultiOpen(null)} style={{position:"fixed",inset:0,zIndex:9998}}/>
+                          <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:9999,background:"#141414",border:"1px solid #2a2a2a",borderRadius:10,padding:6,minWidth:200,maxHeight:320,overflowY:"auto",boxShadow:"0 10px 30px rgba(0,0,0,0.6)"}}>
+                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 8px 6px",borderBottom:"1px solid #222",marginBottom:4}}>
+                              <span style={{fontSize:10,color:"var(--bz-ink-2)",fontWeight:700,letterSpacing:0.5}}>{label.toUpperCase()}</span>
+                              {sel.size>0 && <button onClick={()=>{setSel(new Set());setPage(1);}} style={{background:"none",border:"none",color:"var(--bz-ink-3)",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Clear</button>}
+                            </div>
+                            {options.map(o=>{
+                              const on=sel.has(o);
+                              return (
+                                <label key={o} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 8px",borderRadius:6,cursor:"pointer",background:on?"rgba(232,49,122,0.12)":"transparent"}}
+                                  onMouseEnter={e=>{if(!on)e.currentTarget.style.background="rgba(255,255,255,0.04)";}}
+                                  onMouseLeave={e=>{if(!on)e.currentTarget.style.background="transparent";}}>
+                                  <input type="checkbox" checked={on} onChange={()=>{setSel(prev=>{const n=new Set(prev); n.has(o)?n.delete(o):n.add(o); return n;}); setPage(1);}} style={{accentColor:"#E8317A",cursor:"pointer"}}/>
+                                  <span style={{fontSize:12,fontWeight:700,color:on?"#E8317A":"#ccc"}}>{o}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                };
+                return (
+                  <>
+                    <MultiFilter label="All Sets"       options={sets}       sel={filterSet}    setSel={setFilterSet}    openKey="set"/>
+                    <MultiFilter label="All Treatments" options={treatments} sel={filterTreat}  setSel={setFilterTreat}  openKey="treat"/>
+                    <MultiFilter label="All Weapons"    options={weapons}    sel={filterWeapon} setSel={setFilterWeapon} openKey="weapon"/>
+                  </>
+                );
+              })()}
               {/* Sub-set chips (e.g. World Champions Series → L.A. / Philadelphia / Oklahoma City) */}
               {(() => {
-                if(!filterSet) return null;
-                const subs = Array.from(new Set(cards.filter(c=>c.setName===filterSet && c.subSet).map(c=>c.subSet))).sort();
+                // Sub-sets only make sense within a single set, so only show these chips when
+                // exactly one set is selected.
+                if(filterSet.size !== 1) return null;
+                const theSet = [...filterSet][0];
+                const subs = Array.from(new Set(cards.filter(c=>c.setName===theSet && c.subSet).map(c=>c.subSet))).sort();
                 if(subs.length<2) return null;
                 return (
                   <div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
                     <button onClick={()=>{setFilterSubSet("");setPage(1);}} style={{background:!filterSubSet?"rgba(74,222,128,0.15)":"transparent",border:`1px solid ${!filterSubSet?"#4ade80":"rgba(255,255,255,0.12)"}`,color:!filterSubSet?"#4ade80":"rgba(255,255,255,0.45)",borderRadius:14,padding:"5px 11px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>All</button>
                     {subs.map(s=>{
                       const on=filterSubSet===s;
-                      const n=cards.filter(c=>c.setName===filterSet && c.subSet===s).length;
+                      const n=cards.filter(c=>c.setName===theSet && c.subSet===s).length;
                       return <button key={s} onClick={()=>{setFilterSubSet(on?"":s);setPage(1);}} style={{background:on?"rgba(123,156,255,0.18)":"transparent",border:`1px solid ${on?"#7B9CFF":"rgba(255,255,255,0.12)"}`,color:on?"#7B9CFF":"rgba(255,255,255,0.45)",borderRadius:14,padding:"5px 11px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{s} ({n})</button>;
                     })}
                   </div>
                 );
               })()}
-              <select value={filterTreat} onChange={e=>{setFilterTreat(e.target.value);setPage(1);}} style={{...inp,flex:1,minWidth:140,cursor:"pointer"}}>
-                <option value="">All Treatments</option>{treatments.map(t=><option key={t} value={t}>{t}</option>)}
-              </select>
-              <select value={filterWeapon} onChange={e=>{setFilterWeapon(e.target.value);setPage(1);}} style={{...inp,width:130,cursor:"pointer"}}>
-                <option value="">All Weapons</option>{weapons.map(w=><option key={w} value={w}>{w}</option>)}
-              </select>
               {/* Power multi-select dropdown */}
               <div style={{position:"relative",zIndex:powerMenuOpen?10000:"auto",flex:1,minWidth:140}}>
                 <button onClick={()=>setPowerMenuOpen(o=>!o)}
@@ -35460,6 +35498,22 @@ See you in there!
                   </>
                 )}
               </div>
+              {/* Clear every filter at once. With five multi-selects it's easy to end up with a
+                  narrow result and not remember which one caused it — one button beats hunting. */}
+              {(() => {
+                const active = filterSet.size + filterTreat.size + filterWeapon.size + filterPower.size
+                             + (filterSubSet?1:0) + (search?1:0) + (filterOwned!=="all"?1:0);
+                if(!active) return null;
+                return (
+                  <button onClick={()=>{
+                    setFilterSet(new Set()); setFilterTreat(new Set()); setFilterWeapon(new Set());
+                    setFilterPower(new Set()); setFilterSubSet(""); setSearch(""); setFilterOwned("all");
+                    setMultiOpen(null); setPowerMenuOpen(false); setPage(1);
+                  }} style={{background:"rgba(232,49,122,0.1)",border:"1px solid #E8317A55",color:"#E8317A",borderRadius:8,padding:"7px 12px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                    {"\u2715"} Clear {active} filter{active>1?"s":""}
+                  </button>
+                );
+              })()}
               <select value={sortBy} onChange={e=>{setSortBy(e.target.value);setPage(1);}} style={{...inp,width:150,cursor:"pointer"}}>
                 <option value="cardNum">Card #</option>
                 <option value="hero">{"Hero A\u2192Z"}</option>
