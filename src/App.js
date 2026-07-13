@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { auth, db, googleProvider, storage } from "./firebase";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, updateProfile, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from "firebase/auth";
-import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, getDocFromServer, deleteField, arrayUnion, arrayRemove, updateDoc, limit, writeBatch } from "firebase/firestore";
+import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, getDocFromServer, deleteField, arrayUnion, arrayRemove, updateDoc, limit, writeBatch, documentId } from "firebase/firestore";
 import { ref, uploadBytes, uploadString, getDownloadURL } from "firebase/storage";
 
 // --- Early-access allowlist ---------------------------------------------
@@ -15314,17 +15314,26 @@ function SharedDeck({ deckId }) {
         if (!snap.exists()) { setErr("That deck doesn't exist, or it's been deleted."); setLoading(false); return; }
         const d = { id: snap.id, ...snap.data() };
         setDeck(d);
-        // The checklist lives as a gzipped blob in Firebase STORAGE (not Firestore), so a shared
-        // link depends on Storage allowing an anonymous read. If that fails, fall back to reading
-        // the checklist collection directly — and if BOTH fail, say so rather than silently
-        // rendering an empty deck, which is what a bare .catch(()=>null) was doing.
+        // Resolve just this deck's cards.
+        //
+        // Prefer the gzipped checklist in Storage — it's one compressed request for everything.
+        // Don't cache-bust it (readCardSnapshot(true) forces a fresh multi-MB download on every
+        // page view, which made shared links crawl); a shared deck does not need second-fresh data.
+        //
+        // If Storage fails, fetch ONLY the ~60 cards this deck actually uses, not the whole 35k
+        // checklist. Firestore `in` queries cap at 30 ids, so chunk them.
+        const ids = Array.from(new Set(d.cardIds || []));
         let all = null;
         try {
-          all = await readCardSnapshot(true);
+          all = await readCardSnapshot(false);
         } catch (e1) {
           try {
-            const cs = await getDocs(collection(db, "boba_checklist"));
-            all = cs.docs.map(dd => ({ id: dd.id, ...dd.data() }));
+            const chunks = [];
+            for (let i = 0; i < ids.length; i += 30) chunks.push(ids.slice(i, i + 30));
+            const results = await Promise.all(
+              chunks.map(ch => getDocs(query(collection(db, "boba_checklist"), where(documentId(), "in", ch))))
+            );
+            all = results.flatMap(r => r.docs.map(dd => ({ id: dd.id, ...dd.data() })));
           } catch (e2) {
             setErr("Couldn't load the card list. The deck exists, but its cards can't be shown.");
           }
@@ -15481,7 +15490,7 @@ function SharedDeck({ deckId }) {
 
         <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(120px,1fr))", gap:10}}>
           {[...deckCards].sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0)).map((c,i)=>{
-            const wc = WEAPON_COLORS[canonWeapon(c.weapon)] || "#666";
+            const wc = PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)] || "#666";
             return (
               <div key={`${c.id}_${i}`} style={{background:"#111", border:"1px solid #262626", borderRadius:9, overflow:"hidden"}}>
                 <div style={{position:"relative", aspectRatio:"3/4", background:`linear-gradient(135deg, ${wc}18, #0a0a0a 70%)`}}>
@@ -26096,7 +26105,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   useEffect(()=>{ setDeckPage(1); }, [deckSearch, deckFilterW, deckFilterS, deckFilterT, deckOwnedOnly, deckFamilyOnly, deckMineOnly, deckType]);
   return (
         <>
-          <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column-reverse":"row",gap:16,alignItems:"stretch",height:isMobile?"auto":"calc(100vh - 150px)",minHeight:isMobile?"auto":520}}>
+          <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column":"row",gap:16,alignItems:"stretch",height:isMobile?"auto":"calc(100vh - 150px)",minHeight:isMobile?"auto":520}}>
             <div style={{display:"flex",flexDirection:"column",gap:10,flex:1,minWidth:0,minHeight:0,overflowY:isMobile?"visible":"auto",paddingRight:isMobile?0:6}}>
               {user && deckProgress && (() => {
                 const pct = Math.min(100, Math.round((deckProgress.have/deckProgress.need)*100));
@@ -26657,13 +26666,13 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                   })}
                 </div>
               )}
-              <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:3,marginBottom:12}}>
+              {(!isMobile || inDeck.length>0) && <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:3,marginBottom:10}}>
                 {Array.from({length:DECK_SIZE}).map((_,i)=>{
                   const c=inDeck[i];
                   if(c){const wc=WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";return(<div key={i} title={`${c.hero} ${c.power} — click to remove`} onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))} style={{position:"relative",aspectRatio:"3/4",borderRadius:4,overflow:"hidden",cursor:"pointer",border:`1.5px solid ${wc}33`,background:"var(--bz-s1)"}} onMouseEnter={ev=>{ev.currentTarget.style.borderColor=wc;const x=ev.currentTarget.querySelector(".deck-rm");if(x)x.style.opacity="1";}} onMouseLeave={ev=>{ev.currentTarget.style.borderColor=wc+"33";const x=ev.currentTarget.querySelector(".deck-rm");if(x)x.style.opacity="0";}}>{c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:<div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:7,color:wc,fontWeight:700,textAlign:"center",padding:2}}>{c.hero?.split(" ")[0]}</div>}<div className="deck-rm" style={{position:"absolute",inset:0,background:"rgba(232,49,122,0.6)",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:18,fontWeight:900,opacity:0,transition:"opacity 0.15s"}}>×</div></div>);}
                   return <div key={i} style={{aspectRatio:"3/4",borderRadius:4,border:"1px dashed rgba(255,255,255,0.05)",background:"rgba(255,255,255,0.01)",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:8,color:"rgba(255,255,255,0.1)",fontWeight:700}}>{i+1}</span></div>;
                 })}
-              </div>
+              </div>}
               {inDeck.length>0&&<button onClick={()=>{if(window.confirm("Clear deck?"))setDeckCards([]);}} style={{width:"100%",background:"transparent",border:"1px solid rgba(232,49,122,0.15)",color:"rgba(232,49,122,0.5)",borderRadius:10,padding:"6px 0",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}
                 onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.4)";e.currentTarget.style.color="#E8317A";}}
                 onMouseLeave={e=>{e.currentTarget.style.borderColor="rgba(232,49,122,0.15)";e.currentTarget.style.color="rgba(232,49,122,0.5)";}}>
