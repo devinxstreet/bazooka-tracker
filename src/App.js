@@ -33058,7 +33058,9 @@ See you in there!
         const sport = ath ? athleteSport(ath) : null;
         const sportEmoji={"MLB":"⚾","NFL":"🏈","NBA":"🏀","WNBA":"🏀","NHL":"🏒","PGA":"⛳","WTA":"🎾","ATP":"🎾","Boxing":"🥊","MMA":"🥊","MLS":"⚽","USMNT":"⚽","USWNT":"⚽","Music":"🎤","Acting":"🎬"};
         const emoji = sport ? (sport.split(/[\/\s]/).map(s=>sportEmoji[s]).find(Boolean)||"🏅") : "🏅";
-        const sku = SKU_MAP[c.treatment]; const skuLabel = sku && SKU_LABEL[sku];
+        // The expanded modal had its OWN hardcoded SKU_MAP lookup, bypassing the live per-set
+        // map entirely — so editing "Found In" updated the tiles but never this. Same helper now.
+        const foundPacks = foundInFor(c, foundInMap);
         const _tl = (c.treatment||"").toLowerCase();
         const isDualTreatment = _tl.includes("paper") && (_tl.includes("battlefoil")||_tl.includes("foil"));
         const showFoil = isDualTreatment && modalFoilView === "foil";
@@ -33220,7 +33222,7 @@ See you in there!
                     {bio.notes && <div style={{ fontSize:13, color:"#bbb", lineHeight:1.6 }}>{bio.notes}</div>}
                   </div>
                 )}
-                {skuLabel && <div style={{ display:"inline-flex", alignItems:"center", gap:5, background:skuLabel.bg, border:`1px solid ${skuLabel.border}`, borderRadius:8, padding:"4px 12px", fontSize:12, fontWeight:700, alignSelf:"flex-start" }}><span style={{ color:"#a0a0a0" }}>Found In:</span><span style={{ color:skuLabel.color }}>{skuLabel.label}</span></div>}
+                {foundPacks.length>0 && <div style={{ display:"inline-flex", alignItems:"center", gap:6, flexWrap:"wrap", alignSelf:"flex-start" }}><span style={{ color:"#a0a0a0", fontSize:12, fontWeight:700 }}>Found In:</span>{foundPacks.map(pk => <span key={pk.id} style={{ background:`${pk.color}1a`, border:`1px solid ${pk.color}44`, borderRadius:8, padding:"4px 12px", fontSize:12, fontWeight:700, color:pk.color }}>{pk.label}</span>)}</div>}
                 <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:4 }}>
                   {user && (isDualTreatment ? (
                     <div style={{ flex:1, minWidth:200, display:"flex", flexDirection:"column", gap:6 }}>
