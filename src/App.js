@@ -16443,7 +16443,7 @@ function athleteSport(name) {
   return ATHLETE_SPORT[name.trim()] || ATHLETE_SPORT[name] || null;
 }
 
-function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand, myScanPhoto, cardWidthHint=200, kidGroups=[], kidTags=null, onAssignKid, onSell }) {
+function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand, myScanPhoto, cardWidthHint=200, kidGroups=[], kidTags=null, onAssignKid, onSell, foundInMap={} }) {
   const wc = WEAPON_COLORS[canonWeapon(c.weapon)] || "#444";
   // Image priority: official admin imageUrl → my own private scan photo → coming-soon placeholder.
   // Foil/shine overlays only apply to the official art, not to a raw scan photo.
@@ -16742,7 +16742,7 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
                 );
               })()}
               {c.variation && <div style={{ fontSize:10, color:"var(--bz-ink-3)" }}>{c.variation}</div>}
-              {(() => { const sku = SKU_MAP[c.treatment]; const s = sku && SKU_LABEL[sku]; return s ? <div style={{ display:"inline-flex", alignItems:"center", gap:4, marginTop:6, background:s.bg, border:`1px solid ${s.border}`, borderRadius:6, padding:"2px 8px", fontSize:10, fontWeight:700 }}><span style={{ color:"var(--bz-ink-3)" }}>Found In:</span><span style={{ color:s.color }}>{s.label}</span></div> : null; })()}
+              {(() => { const packs = foundInFor(c, foundInMap); if(!packs.length) return null; return <div style={{ display:"inline-flex", alignItems:"center", gap:5, marginTop:6, flexWrap:"wrap" }}><span style={{ color:"var(--bz-ink-3)", fontSize:10, fontWeight:700 }}>Found In:</span>{packs.map(pk => <span key={pk.id} style={{ background:`${pk.color}1a`, border:`1px solid ${pk.color}44`, borderRadius:6, padding:"2px 8px", fontSize:10, fontWeight:700, color:pk.color }}>{pk.label}</span>)}</div>; })()}
               </>}
             </div>
             <div>
@@ -16795,7 +16795,7 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
           {c.treatment && <span style={{ fontSize:9, color:"var(--bz-ink-2)", background:"#1a1a1a", borderRadius:4, padding:"1px 5px" }}>{c.treatment}</span>}
           {c.notation && <span style={{ fontSize:9, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 5px", fontWeight:700 }}>{c.notation}</span>}
         </div>
-        {(() => { const sku = SKU_MAP[c.treatment]; const s = sku && SKU_LABEL[sku]; return s ? <div style={{ display:"inline-flex", alignItems:"center", gap:4, background:s.bg, border:`1px solid ${s.border}`, borderRadius:6, padding:"1px 6px", fontSize:9, fontWeight:700, alignSelf:"flex-start" }}><span style={{ color:"var(--bz-ink-3)" }}>Found In:</span><span style={{ color:s.color }}>{s.label}</span></div> : null; })()}
+        {(() => { const packs = foundInFor(c, foundInMap); if(!packs.length) return null; return <div style={{ display:"inline-flex", alignItems:"center", gap:3, flexWrap:"wrap", alignSelf:"flex-start" }}><span style={{ color:"var(--bz-ink-3)", fontSize:9, fontWeight:700 }}>Found In:</span>{packs.map(pk => <span key={pk.id} style={{ background:`${pk.color}1a`, border:`1px solid ${pk.color}44`, borderRadius:5, padding:"1px 5px", fontSize:9, fontWeight:700, color:pk.color }}>{pk.label}</span>)}</div>; })()}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:1 }}>
           <div style={{ display:"flex", gap:5, alignItems:"center" }}>
             {toggleWant && <button onClick={e=>{e.stopPropagation();toggleWant(c.id);}} style={{ background:isWanted?"#1a0f00":"transparent", border:`1px solid ${isWanted?"#FBBF24":"#333"}`, color:isWanted?"#FBBF24":"#444", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{isWanted?"\uD83C\uDFAF":"+ Want"}</button>}
@@ -18102,6 +18102,36 @@ const SKU_MAP = {
   "Pixel Helmet Alt":                 "dayone",
 };
 
+// Where a card can be pulled from. A treatment can appear in more than one pack type, and the
+// answer differs BY SET — Bubble Gum might be Hobby-only in one release and Double Mega in the
+// next — so this is edited per set in the importer's "Found In" tool and stored in Firestore
+// (config/found_in), not hardcoded here.
+const PACK_TYPES = [
+  { id:"hobby",         label:"Hobby",                 color:"#7B9CFF" },
+  { id:"booster",       label:"Booster",               color:"#4ade80" },
+  { id:"jumbo",         label:"Jumbo",                 color:"#C084FC" },
+  { id:"double",        label:"Double Mega",           color:"#E8317A" },
+  { id:"blaster",       label:"Blaster",               color:"#FB923C" },
+  { id:"rdblaster",     label:"Release Day Blaster",   color:"#F472B6" },
+  { id:"rddouble",      label:"Release Day Double Mega", color:"#FBBF24" },
+];
+const PACK_BY_ID = Object.fromEntries(PACK_TYPES.map(p => [p.id, p]));
+
+// Where can this card be pulled from? Prefers the live per-set map (config/found_in, edited in the
+// importer's "Found In" tool); falls back to the old global SKU_MAP for sets not yet mapped.
+function foundInFor(card, foundInMap) {
+  const key = `${card.setName}|${card.treatment || "(none)"}`;
+  const packs = foundInMap && foundInMap[key];
+  if (packs && packs.length) {
+    return packs.map(id => PACK_BY_ID[id]).filter(Boolean);
+  }
+  const sku = SKU_MAP[card.treatment];
+  const legacy = sku && SKU_LABEL[sku];
+  return legacy ? [{ id: sku, label: legacy.label, color: legacy.color }] : [];
+}
+
+
+// Legacy single-value SKUs, kept so old data still renders while sets get remapped.
 const SKU_LABEL = {
   all:    { label:"Hobby & Double Mega", color:"#4ade80", bg:"rgba(74,222,128,0.1)",   border:"rgba(74,222,128,0.25)"  },
   hobby:  { label:"Hobby",              color:"#7B9CFF", bg:"rgba(123,156,255,0.1)",  border:"rgba(123,156,255,0.25)" },
@@ -18936,6 +18966,147 @@ function CardDeduper() {
           ✅ Deleted {done.deleted.toLocaleString()} duplicates · {done.remaining?.toLocaleString()} cards remain · snapshot rebuilt.
           <div style={{marginTop:6}}><button onClick={()=>window.location.reload()} style={{background:"#4ade80",color:"#062b13",border:"none",borderRadius:6,padding:"6px 14px",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Reload app</button></div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// ── FOUND IN EDITOR ──────────────────────────────────────────────────────────
+// Which pack types a treatment can be pulled from — edited PER SET, because the answer genuinely
+// differs between releases (a treatment that's Hobby-only in one set can be Double Mega in the
+// next). Stored in config/found_in as { "<set>|<treatment>": ["hobby","jumbo",...] } and read live
+// by every client, so a change here updates the "Found In" badge for everyone immediately.
+function FoundInEditor() {
+  const [allCards, setAllCards] = useState([]);
+  const [map,      setMap]      = useState({});   // { "set|treatment": [packIds] }
+  const [setName,  setSetName]  = useState("");
+  const [loading,  setLoading]  = useState(true);
+  const [saving,   setSaving]   = useState(false);
+  const [saved,    setSaved]    = useState(false);
+  const [err,      setErr]      = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [snap, cfg] = await Promise.all([
+          getDocs(collection(db,"boba_checklist")),
+          getDoc(doc(db,"config","found_in")),
+        ]);
+        setAllCards(snap.docs.map(d=>({id:d.id,...d.data()})));
+        setMap(cfg.exists() ? (cfg.data().map || {}) : {});
+      } catch(e){ setErr(e.message||String(e)); }
+      setLoading(false);
+    })();
+  }, []);
+
+  const setNames = useMemo(
+    () => Array.from(new Set(allCards.map(c=>c.setName).filter(Boolean))).sort(),
+    [allCards]
+  );
+
+  // Treatments actually present in the chosen set, with how many cards carry each.
+  const treatments = useMemo(() => {
+    if (!setName) return [];
+    const m = {};
+    allCards.filter(c => c.setName === setName).forEach(c => {
+      const t = c.treatment || "(none)";
+      m[t] = (m[t] || 0) + 1;
+    });
+    return Object.entries(m).sort((a,b) => b[1]-a[1]);
+  }, [allCards, setName]);
+
+  const keyFor = t => `${setName}|${t}`;
+  const packsFor = t => map[keyFor(t)] || [];
+
+  const togglePack = (t, packId) => {
+    const k = keyFor(t);
+    const cur = map[k] || [];
+    const next = cur.includes(packId) ? cur.filter(x=>x!==packId) : [...cur, packId];
+    setMap(m => ({ ...m, [k]: next }));
+    setSaved(false);
+  };
+
+  // Apply one treatment's packs to every other treatment in this set — most sets have the same
+  // answer for nearly everything, so this saves a lot of clicking.
+  const applyToAll = (t) => {
+    const packs = packsFor(t);
+    if (!packs.length) { alert("Pick at least one pack type first."); return; }
+    const labels = packs.map(id=>PACK_BY_ID[id]?.label).join(", ");
+    if (!window.confirm(`Set EVERY treatment in "${setName}" to: ${labels}?`)) return;
+    const next = { ...map };
+    treatments.forEach(([tr]) => { next[`${setName}|${tr}`] = [...packs]; });
+    setMap(next); setSaved(false);
+  };
+
+  async function save() {
+    setSaving(true); setErr("");
+    try {
+      await setDoc(doc(db,"config","found_in"), { map }, { merge:true });
+      setSaved(true);
+      setTimeout(()=>setSaved(false), 2500);
+    } catch(e){ setErr(e.message||String(e)); }
+    setSaving(false);
+  }
+
+  const S = { card:{background:"#0d0d0d",border:"1px solid #2a2a2a",borderRadius:12,padding:18,marginTop:14} };
+
+  return (
+    <div style={S.card}>
+      <div style={{fontSize:15,fontWeight:800,color:"var(--bz-ink)",marginBottom:4}}>{"\uD83D\uDCE6"} Found In — which packs contain what</div>
+      <div style={{fontSize:12,color:"var(--bz-ink-3)",marginBottom:14,lineHeight:1.6}}>
+        Set which pack types each treatment can be pulled from. This drives the <strong>Found In</strong> badge on every
+        card. It{"\u2019"}s per set on purpose \u2014 a treatment that{"\u2019"}s Hobby-only in one release can be Double Mega in
+        the next. Changes go live for everyone as soon as you save.
+      </div>
+
+      {loading ? <div style={{fontSize:12,color:"var(--bz-ink-3)"}}>Loading{"\u2026"}</div> : (
+        <>
+          <select value={setName} onChange={e=>setSetName(e.target.value)}
+            style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:13,color:"#fff",fontFamily:"inherit",cursor:"pointer",marginBottom:14}}>
+            <option value="">{"\u2014 Choose a set \u2014"}</option>
+            {setNames.map(s2 => <option key={s2} value={s2}>{s2}</option>)}
+          </select>
+
+          {setName && (
+            <div style={{border:"1px solid #2a2a2a",borderRadius:10,overflow:"hidden"}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,padding:"9px 12px",background:"#141414",borderBottom:"1px solid #2a2a2a",fontSize:10,fontWeight:800,color:"var(--bz-ink-3)",textTransform:"uppercase",letterSpacing:0.6}}>
+                <span>Treatment</span><span>Found in</span>
+              </div>
+              {treatments.map(([t,n]) => (
+                <div key={t} style={{padding:"10px 12px",borderBottom:"1px solid #1c1c1c"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:7,flexWrap:"wrap"}}>
+                    <span style={{fontSize:12.5,fontWeight:800,color:"var(--bz-ink)"}}>{t}</span>
+                    <span style={{fontSize:10,color:"var(--bz-ink-3)"}}>{n} cards</span>
+                    <button onClick={()=>applyToAll(t)} title="Give every treatment in this set the same packs"
+                      style={{marginLeft:"auto",background:"transparent",border:"1px solid #333",color:"var(--bz-ink-3)",borderRadius:6,padding:"2px 9px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                      apply to all
+                    </button>
+                  </div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    {PACK_TYPES.map(pk => {
+                      const on = packsFor(t).includes(pk.id);
+                      return (
+                        <button key={pk.id} onClick={()=>togglePack(t, pk.id)}
+                          style={{background:on?`${pk.color}22`:"transparent",border:`1.5px solid ${on?pk.color:"#2f2f2f"}`,color:on?pk.color:"#666",borderRadius:7,padding:"5px 11px",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                          {on ? "\u2713 " : ""}{pk.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {err && <div style={{marginTop:12,color:"#EF4444",fontSize:12}}>{"\u26A0"} {err}</div>}
+
+          {setName && (
+            <button onClick={save} disabled={saving}
+              style={{marginTop:14,background:saving?"#1a1a1a":(saved?"#4ade80":"linear-gradient(135deg,#E8317A,#7B2FF7)"),color:saving?"#555":(saved?"#062b13":"#fff"),border:"none",borderRadius:8,padding:"11px 22px",fontSize:13,fontWeight:800,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit"}}>
+              {saving ? "Saving\u2026" : saved ? "\u2713 Saved \u2014 live for everyone" : "Save"}
+            </button>
+          )}
+        </>
       )}
     </div>
   );
@@ -20095,7 +20266,7 @@ function CardSetImporter({ userRole }) {
 
       {/* Mode toggle */}
       <div style={{ display:"flex", gap:8 }}>
-        {[["data","📄 Import Data"],["images","🖼 Import by Filename"],["prefix","🏷 Prefixes"],["dedupe","🧬 Dedupe"],["merge","🔀 Merge Sets"],["cleanup","🧹 Cleanup"],["manual","🎯 Manual Image"]].map(([m,l])=>(
+        {[["data","📄 Import Data"],["images","🖼 Import by Filename"],["prefix","🏷 Prefixes"],["foundin","📦 Found In"],["dedupe","🧬 Dedupe"],["merge","🔀 Merge Sets"],["cleanup","🧹 Cleanup"],["manual","🎯 Manual Image"]].map(([m,l])=>(
           <button key={m} onClick={()=>{ setMode(m); setResults(null); setErrors([]); }}
             style={{ background:mode===m?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${mode===m?"#E8317A":"#2a2a2a"}`, color:mode===m?"#E8317A":"#888", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
             {l}
@@ -20317,6 +20488,9 @@ function CardSetImporter({ userRole }) {
 
       {/* Prefix mapping mode */}
       {mode==="prefix" && <PrefixMapper/>}
+
+      {/* Which packs contain which treatments, per set */}
+      {mode==="foundin" && <FoundInEditor/>}
 
       {/* Dedupe mode */}
       {mode==="dedupe" && <CardDeduper/>}
@@ -28392,6 +28566,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const [cardSize, setCardSize] = useState(200); // grid card min-width in px, adjustable via slider
   const showToast = (msg) => { try { setToast(msg); setTimeout(()=>{ try{setToast(null);}catch(e){} }, 3500); } catch(e){} };
   const [cards,         setCards]         = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return cc;} } catch(e){} return []; });
+  const [foundInMap,    setFoundInMap]    = useState(()=>{ try { const r=localStorage.getItem("found_in_v1"); return r?JSON.parse(r):{}; } catch(e){ return {}; } }); // live {set|treatment: [packIds]}
   const [dbsOverrides,  setDbsOverrides]  = useState(()=>{ try { const r=localStorage.getItem("dbs_overrides_v1"); return r?JSON.parse(r):{}; } catch(e){ return {}; } }); // live {cardId: dbs} — instant DBS updates for everyone
   const [loading, setLoading] = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return false;} } catch(e){} return true; });
   const [user,          setUser]          = useState(null);
@@ -28956,6 +29131,17 @@ See you in there!
       const data = snap.exists() ? (snap.data().values || snap.data() || {}) : {};
       setDbsOverrides(data);
       try { localStorage.setItem("dbs_overrides_v1", JSON.stringify(data)); } catch(e){}
+    });
+    return ()=>unsub();
+  }, []);
+
+  // -- Live "Found In" map: which pack types contain which treatment, per set. One small doc that
+  // every client subscribes to, so remapping a set updates the badge for everyone immediately. --
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db,"config","found_in"), snap => {
+      const data = snap.exists() ? (snap.data().map || {}) : {};
+      setFoundInMap(data);
+      try { localStorage.setItem("found_in_v1", JSON.stringify(data)); } catch(e){}
     });
     return ()=>unsub();
   }, []);
@@ -35238,7 +35424,7 @@ See you in there!
                     toggleOwned={()=>{if(!user){setSigningIn(true);return;} toggleOwned(c.id);}}
                     setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear} kidGroups={kidGroups} kidTags={kidTagsByCard[c.id]} onAssignKid={assignCardToKid} onSell={user?()=>setSellModal(c):null}/>
+                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear} kidGroups={kidGroups} kidTags={kidTagsByCard[c.id]} onAssignKid={assignCardToKid} onSell={user?()=>setSellModal(c):null} foundInMap={foundInMap}/>
                   {/* Lock animation overlay */}
                   {privacyAnim===c.id&&(
                     <div style={{position:"absolute",inset:0,borderRadius:10,zIndex:20,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none",animation:"lockFadeOut 1.2s ease forwards",background:"rgba(0,0,0,0.55)"}}>
@@ -35609,7 +35795,7 @@ See you in there!
                                 toggleOwned={()=>{ if(!user){setSigningIn(true);return;} toggleOwned(c.id); }}
                                 setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                                 toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear} kidGroups={kidGroups} kidTags={kidTagsByCard[c.id]} onAssignKid={assignCardToKid} onSell={user?()=>setSellModal(c):null}/>
+                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear} kidGroups={kidGroups} kidTags={kidTagsByCard[c.id]} onAssignKid={assignCardToKid} onSell={user?()=>setSellModal(c):null} foundInMap={foundInMap}/>
                             ))}
                           </div>
                           {user && (
