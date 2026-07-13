@@ -27527,6 +27527,7 @@ function ComingSoon() {
   const [emName, setEmName] = useState("");
   const [emBusy, setEmBusy] = useState(false);
   const [emErr, setEmErr] = useState("");
+  const [emOk, setEmOk] = useState("");   // the form said NOTHING on success — that was the bug
   async function earlyAccessLogin() {
     setSigningIn(true);
     try { await signInWithPopup(auth, googleProvider); }
@@ -27537,7 +27538,7 @@ function ComingSoon() {
     return m[code]||"Something went wrong. Try again.";
   }
   async function submitEmail(){
-    setEmErr("");
+    setEmErr(""); setEmOk("");
     const email=emEmail.trim().toLowerCase();
     if(!email){ setEmErr("Enter your email."); return; }
     if(!emPass||emPass.length<6){ setEmErr("Password must be at least 6 characters."); return; }
@@ -27546,11 +27547,24 @@ function ComingSoon() {
       if(emailMode==="signup"){
         const cred=await createUserWithEmailAndPassword(auth,email,emPass);
         if(emName.trim()){ try{ await updateProfile(cred.user,{displayName:emName.trim()}); }catch(e){} }
+        setEmOk("Account created \u2014 taking you in\u2026");
       } else {
         await signInWithEmailAndPassword(auth,email,emPass);
+        setEmOk("Signed in \u2014 taking you in\u2026");
       }
-    } catch(e){ setEmErr(emErrMsg(e.code)); }
-    finally{ setEmBusy(false); }
+      // Deliberately DON'T clear emBusy. On success the button stays locked through the hand-off,
+      // so it can't be pressed a second time.
+      //
+      // Previously the success path did nothing at all: no message, no redirect, button re-enabled.
+      // The account WAS created, but the form looked dead, so people pressed "Create Account" again
+      // and got told the email was already in use. Awful first impression, and entirely avoidable.
+      //
+      // Then take them straight to the card database. Landing a brand-new user back on a marketing
+      // page after they've just signed up is a dead end — they came here for the cards, so show
+      // them the cards.
+      setTimeout(() => { window.location.href = "/cards"; }, 700);
+      return;
+    } catch(e){ setEmErr(emErrMsg(e.code)); setEmBusy(false); }
   }
   return (
     <div style={{ minHeight:"100vh", background:"#08000a", color:"var(--bz-ink)", fontFamily:"'Trebuchet MS',sans-serif", display:"flex", alignItems:"center", justifyContent:"center", padding:24, position:"relative", overflow:"hidden" }}>
@@ -27596,8 +27610,14 @@ function ComingSoon() {
                 <input value={emEmail} onChange={e=>setEmEmail(e.target.value)} type="email" placeholder="Email" style={{ width:"100%", background:"var(--bz-bg)", color:"#fff", border:"1px solid var(--bz-line-2)", borderRadius:9, padding:"11px 13px", fontSize:14, fontFamily:"inherit", marginBottom:10, boxSizing:"border-box" }}/>
                 <input value={emPass} onChange={e=>setEmPass(e.target.value)} type="password" placeholder="Password (6+ characters)" onKeyDown={e=>e.key==="Enter"&&submitEmail()} style={{ width:"100%", background:"var(--bz-bg)", color:"#fff", border:"1px solid var(--bz-line-2)", borderRadius:9, padding:"11px 13px", fontSize:14, fontFamily:"inherit", marginBottom:emErr?8:14, boxSizing:"border-box" }}/>
                 {emErr && <div style={{ fontSize:12, color:"#ff6b9d", marginBottom:12, lineHeight:1.4 }}>{emErr}</div>}
+                {/* Confirm success. The whole reason people double-submitted was that this didn't exist. */}
+                {emOk && (
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8, fontSize:13, fontWeight:800, color:"#4ade80", background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.3)", borderRadius:10, padding:"10px 14px", marginBottom:12 }}>
+                    <span>{"\u2705"}</span>{emOk}
+                  </div>
+                )}
                 <button onClick={submitEmail} disabled={emBusy} style={{ width:"100%", background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", border:"none", borderRadius:10, padding:"13px", fontSize:14, fontWeight:900, cursor:emBusy?"wait":"pointer", fontFamily:"inherit", boxShadow:"0 4px 18px rgba(232,49,122,0.35)" }}>
-                  {emBusy ? "Please wait…" : emailMode==="signup" ? "Create Account" : "Log In"}
+                  {emOk ? "\u2713 Taking you in\u2026" : emBusy ? "Creating your account\u2026" : emailMode==="signup" ? "Create Account" : "Log In"}
                 </button>
                 <button onClick={()=>setShowEmail(false)} style={{ width:"100%", background:"none", border:"none", color:"rgba(255,255,255,0.35)", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit", marginTop:10 }}>← Back to Google sign-in</button>
               </div>
