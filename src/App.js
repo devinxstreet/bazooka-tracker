@@ -29561,7 +29561,17 @@ See you in there!
           if (!effectiveUsername && !usernameClaimedThisSession.current) setOnboarding(true);
         } catch(e) { console.error("user record failed:", e); }
         try {
-          const [ownSnap, wSnap, prvSnap, lotSnap, kidSnap, soldSnap] = await Promise.all([
+          // allSettled, NOT all. These six are independent, and Promise.all is all-or-nothing:
+          // if any ONE of them is denied, the whole block throws and NONE of the six get applied.
+          // That's how a user could have their cards load fine but their scan photos silently not
+          // (lots stays []), because setOwned ran before the throw and setLots never did.
+          //
+          // An admin never sees this: the catch-all rule (`match /{document=**} if isAdmin()`) means
+          // every read succeeds for @bazookabreaks.com, so the failure is invisible in testing and
+          // only shows up for real users. Each fetch now stands or falls on its own, and any denial
+          // is named in the console instead of vanishing into one generic catch.
+          const _names = ["boba_owned","boba_wants","boba_public","boba_lots","boba_kids","boba_sold"];
+          const _res = await Promise.allSettled([
             getDoc(doc(db,"boba_owned",u.uid)),
             getDoc(doc(db,"boba_wants",u.uid)),
             getDoc(doc(db,"boba_public",u.uid)),
@@ -29569,12 +29579,16 @@ See you in there!
             getDoc(doc(db,"boba_kids",u.uid)),
             getDoc(doc(db,"boba_sold",u.uid)),
           ]);
-          const kd = kidSnap.exists() ? kidSnap.data() : {};
+          _res.forEach((r,i) => { if (r.status === "rejected") console.error(`read DENIED: ${_names[i]} \u2014`, r.reason); });
+          const _snap = i => _res[i].status === "fulfilled" ? _res[i].value : null;
+          const _ok   = s2 => !!s2 && s2.exists();
+          const ownSnap=_snap(0), wSnap=_snap(1), prvSnap=_snap(2), lotSnap=_snap(3), kidSnap=_snap(4), soldSnap=_snap(5);
+          const kd = _ok(kidSnap) ? kidSnap.data() : {};
           setKidGroups(Array.isArray(kd.groups) ? kd.groups : []);
           setKidAssign(kd.assign && typeof kd.assign==="object" ? kd.assign : {});
-          const sd = soldSnap.exists() ? soldSnap.data() : {};
+          const sd = _ok(soldSnap) ? soldSnap.data() : {};
           setSoldLog(Array.isArray(sd.entries) ? sd.entries : []);
-          setOwned(ownSnap.exists() ? ownSnap.data() : {});
+          setOwned(_ok(ownSnap) ? ownSnap.data() : {});
           setOwnedDocId(u.uid);
           // Live subscription so cards scanned on any device (e.g. phone) appear in
           // the collection here instantly, without a refresh.
@@ -29603,11 +29617,11 @@ See you in there!
             setCustomTrackers(list);
             try { localStorage.setItem("customTrackers_v1", JSON.stringify(list)); } catch {}
           } catch(e){}
-          setWantList(wSnap.exists() ? wSnap.data() : {});
+          setWantList(_ok(wSnap) ? wSnap.data() : {});
           try { const trSnap = await getDoc(doc(db,"boba_intransit",u.uid)); setInTransit(trSnap.exists() ? trSnap.data() : {}); } catch(e){}
-          setPublicCards(prvSnap.exists() ? prvSnap.data() : {});
+          setPublicCards(_ok(prvSnap) ? prvSnap.data() : {});
           try { const tbSnap = await getDoc(doc(db,"boba_tradebait",u.uid)); setTradeBait(tbSnap.exists() ? tbSnap.data() : {}); } catch(e){}
-          setLots(lotSnap.exists() && Array.isArray(lotSnap.data().lots) ? lotSnap.data().lots : []);
+          setLots(_ok(lotSnap) && Array.isArray(lotSnap.data().lots) ? lotSnap.data().lots : []);
           try { const umSnap = await getDoc(doc(db,"user_missing",u.uid)); setUserMissing(umSnap.exists() && Array.isArray(umSnap.data().cards) ? umSnap.data().cards : []); } catch(e){}
           try {
             const revSnap = await getDocs(query(collection(db,"boba_reviews"), where("buyerUid","==",u.uid)));
