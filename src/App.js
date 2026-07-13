@@ -16861,6 +16861,9 @@ const BobaCard = React.memo(BobaCardImpl, (prev, next) => {
   if (prev.isAdmin !== next.isAdmin) return false;
   if (prev.lotCount !== next.lotCount) return false;
   if (prev.myScanPhoto !== next.myScanPhoto) return false;
+  // Which packs a card is found in. Without this the memo skips the re-render and the badge
+  // keeps showing stale data even though the live map has already updated.
+  if (prev.foundInMap !== next.foundInMap) return false;
   // Compare by VALUE. These are small arrays, and comparing by reference meant a
   // fresh-but-identical array (exactly what a `= []` default prop yields on every render)
   // re-rendered every card in the grid for no reason — thousands of wasted renders.
@@ -19040,7 +19043,11 @@ function FoundInEditor() {
   async function save() {
     setSaving(true); setErr("");
     try {
-      await setDoc(doc(db,"config","found_in"), { map }, { merge:true });
+      // Overwrite the map wholesale rather than merging. With merge:true, Firestore deep-merges
+      // the nested object, so clearing every pack from a treatment would leave the old value
+      // behind instead of emptying it. The editor holds the full map in state, so a plain write
+      // is both correct and safe.
+      await setDoc(doc(db,"config","found_in"), { map });
       setSaved(true);
       setTimeout(()=>setSaved(false), 2500);
     } catch(e){ setErr(e.message||String(e)); }
