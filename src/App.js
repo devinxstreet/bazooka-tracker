@@ -25967,7 +25967,8 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const [deckFamilyOnly, setDeckFamilyOnly] = useState(false);
   // When "My collection" is picked (as opposed to "Mine + family"), exclude borrowable family cards.
   const [deckMineOnly, setDeckMineOnly] = useState(false);
-  const [sharedDeckId, setSharedDeckId] = useState(null);   // deck whose link was just copied
+  const [sharedDeckId, setSharedDeckId] = useState(null);
+  const [setsOpen, setSetsOpen] = useState(false);   // set picker collapsed by default   // deck whose link was just copied
   const [progressExpanded, setProgressExpanded] = useState(false);
   const [deckPage, setDeckPage] = useState(1);
   const [showPickList, setShowPickList] = useState(false);   // printable pick-list modal
@@ -26247,16 +26248,12 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     {Object.keys(familyOwnerByCard).length>0 && (
                       <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginTop:10}}>
                         <span style={{fontSize:11,color:"var(--bz-ink-3)",fontWeight:700}}>Cards:</span>
-                        {[["mine","My collection"],["both","Mine + family"],["family","👪 Family only"]].map(([id,label])=>{
-                          const on = deckSource===id;
-                          const col = id==="family" ? "#C084FC" : id==="both" ? "#4ade80" : "#7B9CFF";
-                          return (
-                            <button key={id} onClick={()=>setDeckSource(id)}
-                              style={{background:on?`${col}26`:"transparent",border:`1px solid ${on?col:"var(--bz-line-2)"}`,color:on?col:"var(--bz-ink-3)",borderRadius:14,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                              {label}
-                            </button>
-                          );
-                        })}
+                        <select value={deckSource} onChange={e=>setDeckSource(e.target.value)}
+                          style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:deckSource==="family"?"#C084FC":deckSource==="both"?"#4ade80":"#7B9CFF"}}>
+                          <option value="mine">My collection only</option>
+                          <option value="both">Mine + family</option>
+                          <option value="family">{"\uD83D\uDC6A"} Family only</option>
+                        </select>
                         <span style={{fontSize:10.5,color:"var(--bz-ink-3)"}}>
                           {deckSource==="mine" ? "Only cards you own — no borrowing."
                             : deckSource==="family" ? "Only cards borrowed from family."
@@ -26269,15 +26266,32 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       const allSets = Array.from(new Set(cards.map(c=>c.setName).filter(Boolean))).sort();
                       if(allSets.length===0) return null;
                       const toggleSet = s => setDeckGoalSets(prev => { const n=new Set(prev); if(n.has(s)) n.delete(s); else n.add(s); return n; });
+                      // A wall of set chips was the biggest source of clutter here. Collapse it to a
+                      // single line saying what's selected; the checklist only opens if you want it.
+                      const setLabel = deckGoalSets.size===0 ? "All sets"
+                        : deckGoalSets.size===1 ? Array.from(deckGoalSets)[0]
+                        : `${deckGoalSets.size} sets`;
                       return (
-                        <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginTop:10}}>
-                          <span style={{fontSize:11,color:"var(--bz-ink-3)",fontWeight:700}}>Sets:</span>
-                          <button onClick={()=>setDeckGoalSets(new Set())} style={{background:deckGoalSets.size===0?"rgba(74,222,128,0.15)":"transparent",border:`1px solid ${deckGoalSets.size===0?"#4ade80":"var(--bz-line-2)"}`,color:deckGoalSets.size===0?"#4ade80":"var(--bz-ink-3)",borderRadius:14,padding:"4px 11px",fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>All sets</button>
-                          {allSets.map(s=>{
-                            const on=deckGoalSets.has(s);
-                            return <button key={s} onClick={()=>toggleSet(s)} style={{background:on?"rgba(123,156,255,0.18)":"transparent",border:`1px solid ${on?"#7B9CFF":"var(--bz-line-2)"}`,color:on?"#7B9CFF":"var(--bz-ink-3)",borderRadius:14,padding:"4px 11px",fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{s}</button>;
-                          })}
-                          {deckGoalSets.size>0 && <span style={{fontSize:10,color:"#7B9CFF",fontWeight:700}}>{deckGoalSets.size} set{deckGoalSets.size!==1?"s":""} only</span>}
+                        <div style={{marginTop:10}}>
+                          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                            <span style={{fontSize:11,color:"var(--bz-ink-3)",fontWeight:700}}>Sets:</span>
+                            <button onClick={()=>setSetsOpen(v=>!v)}
+                              style={{...inp,width:"auto",fontSize:11,padding:"5px 10px",cursor:"pointer",fontWeight:700,color:deckGoalSets.size?"#7B9CFF":"rgba(255,255,255,0.55)"}}>
+                              {setLabel} <span style={{fontSize:9,opacity:0.7}}>{setsOpen?"\u25B2":"\u25BC"}</span>
+                            </button>
+                            {deckGoalSets.size>0 && (
+                              <button onClick={()=>setDeckGoalSets(new Set())}
+                                style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-3)",borderRadius:8,padding:"5px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Clear</button>
+                            )}
+                          </div>
+                          {setsOpen && (
+                            <div style={{marginTop:8,padding:"10px 12px",background:"rgba(0,0,0,0.3)",border:"1px solid var(--bz-line-2)",borderRadius:10,display:"flex",gap:6,flexWrap:"wrap"}}>
+                              {allSets.map(s2=>{
+                                const on=deckGoalSets.has(s2);
+                                return <button key={s2} onClick={()=>toggleSet(s2)} style={{background:on?"rgba(123,156,255,0.18)":"transparent",border:`1px solid ${on?"#7B9CFF":"var(--bz-line-2)"}`,color:on?"#7B9CFF":"var(--bz-ink-3)",borderRadius:14,padding:"4px 11px",fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{on?"\u2713 ":""}{s2}</button>;
+                              })}
+                            </div>
+                          )}
                         </div>
                       );
                     })()}
