@@ -18833,6 +18833,11 @@ function CardDeduper() {
     if (c.imageUrl) s += 100;                 // never throw away card art
     if (c.mktValue || c.marketValue) s += 50; // or market values
     if (c.dbs) s += 20;
+    // For plays/HTDs, the copy that actually has its play data is the one worth keeping — a twin
+    // missing playName/text is the junk import.
+    if (c.playName) s += 60;
+    if (c.text)     s += 40;
+    if (c.playCost !== undefined && c.playCost !== "") s += 20;
     // Prefer the clean card number. An import can leave Excel's float artifact ("100.0") where the
     // real number is "100" — when both exist, the clean one is the keeper.
     if (!/^\d+\.0+$/.test(String(c.cardNum||"").trim())) s += 30;
@@ -18859,11 +18864,18 @@ function CardDeduper() {
           const s = String(v||"").trim();
           return /^\d+\.0+$/.test(s) ? s.replace(/\.0+$/,"") : n(s);
         };
+        // Plays and Home Team Discounts (e.g. "1-4-1", "HTD-16") carry their name in playName,
+        // NOT hero — hero is often blank on them. The old key read hero only, so every play card
+        // was either skipped outright by the identifiable-check below, or keyed on an empty name.
+        // Either way their duplicates were invisible to this scan. They also have no weapon and no
+        // power, so the name is nearly all the identity they have; reading it from the wrong field
+        // meant they never matched.
+        const nameOf = x => n(x.playName) || n(x.hero);
         const key = [
-          n(c.setName), nNum(c.cardNum), n(c.hero), n(c.treatment), n(c.weapon), nNum(c.power),
+          n(c.setName), nNum(c.cardNum), nameOf(c), n(c.treatment), n(c.weapon), nNum(c.power),
         ].join("|");
-        // Require at least a set + number + hero to consider it identifiable.
-        if (!nNum(c.cardNum) || !n(c.hero)) return;
+        // Identifiable = a card number and SOME name (play name or hero).
+        if (!nNum(c.cardNum) || !nameOf(c)) return;
         (by[key] = by[key]||[]).push(c);
       });
       const dupes = Object.entries(by)
