@@ -170,6 +170,13 @@ const BREAKERS = ["Dev","Dre","Krystal","BigU","Vinny","Stephen"];
 // treatment as BigU across recap, commission math, True Net, and the report.
 const REMOTE_BREAKERS = ["bigu","vinny","stephen"];
 function isRemoteBreaker(name){ return REMOTE_BREAKERS.includes((name||"").toLowerCase().replace(/\s+/g,"")); }
+// Remote breakers front their own supplies and get reimbursed — but not for everything.
+//  • Top loaders: Bazooka provides these to everyone. Never reimbursed.
+//  • Magpros: Bazooka provides them to Stephen. Reimbursed for BigU and Vinny only.
+function reimbursesMagpros(name){
+  const n = (name||"").toLowerCase().replace(/\s+/g,"");
+  return isRemoteBreaker(n) && n !== "stephen";
+}
 // Resolve which breaker a logged-in user is — tolerant of display-name vs breaker-name
 // differences (e.g. "Big U" vs "BigU"), checking first name, full name, and email.
 function resolveBreaker(user) {
@@ -214,8 +221,13 @@ function calcStream(s, targetBreaker=null) {
   const collabAmt    = 0;
   const bazOwnShare  = isSingles ? 0 : bazNet;
   const isBigU        = isRemoteBreaker(s.breaker);
-  // BigU pays his own mags/packaging/topLoaders and gets reimbursed separately —
-  // don't deduct those from his commission. Still report to IMC for 70% reimbursement.
+  // Remote breakers (BigU, Vinny, Stephen) front their own supplies, so those costs are NOT
+  // deducted from their commission — they're settled through the reimbursement below instead.
+  // Still reported to IMC for the 70% reimbursement.
+  //
+  // Note this is the DEDUCTION side. What actually gets paid back is decided separately in
+  // biguReimb: top loaders are supplied by Bazooka and never reimbursed, and Stephen's magpros
+  // are supplied too. Either way they don't come out of anyone's commission.
   const repExpBase    = isBigU
     ? (parseFloat(s.whatnotPromo)||0) + (parseFloat(s.chaserCards)||0)
     : streamExp;
@@ -249,7 +261,7 @@ function calcStream(s, targetBreaker=null) {
            : (primaryCommAmt - repExpShare * splitPct + salesBonus + tips) + myEventFee;
   }
   const biguReimb = isBigU
-    ? (parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0)+(parseFloat(s.biguChaserCards)||0)+biguShippingHalf
+    ? (reimbursesMagpros(s.breaker) ? (parseFloat(s.magpros)||0) : 0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0)+(parseFloat(s.biguChaserCards)||0)+biguShippingHalf
     : 0;
 
   return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, bazOwnShare, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet, externalChannel:externalCh, isSingles, isBigU, biguReimb, biguShippingHalf, excludeFinancials:!!s.excludeFinancials };
