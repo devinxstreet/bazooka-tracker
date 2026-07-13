@@ -16854,31 +16854,27 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
 // EVERY tile (because flippedCard lives in the parent), rebuilding all their DOM + animations.
 // This comparator makes a tile re-render only when something about THAT tile actually changed —
 // notably, flippedCard only matters if it involves this card.
-// TEMP: count WHY cards re-render, so we stop guessing. window.__cardRerenders shows the tally.
-if (typeof window !== "undefined" && !window.__cardRerenders) window.__cardRerenders = {};
-const _bump = k => { if (typeof window !== "undefined") window.__cardRerenders[k] = (window.__cardRerenders[k]||0)+1; };
-
 const BobaCard = React.memo(BobaCardImpl, (prev, next) => {
-  if (prev.c !== next.c) { _bump("c"); return false; }
-  if (prev.isOwned !== next.isOwned) { _bump("isOwned"); return false; }
-  if (prev.ownedQty !== next.ownedQty) { _bump("ownedQty"); return false; }
-  if (prev.isAdmin !== next.isAdmin) { _bump("isAdmin"); return false; }
-  if (prev.lotCount !== next.lotCount) { _bump("lotCount"); return false; }
-  if (prev.myScanPhoto !== next.myScanPhoto) { _bump("myScanPhoto"); return false; }
+  if (prev.c !== next.c) return false;
+  if (prev.isOwned !== next.isOwned) return false;
+  if (prev.ownedQty !== next.ownedQty) return false;
+  if (prev.isAdmin !== next.isAdmin) return false;
+  if (prev.lotCount !== next.lotCount) return false;
+  if (prev.myScanPhoto !== next.myScanPhoto) return false;
   // Compare by VALUE. These are small arrays, and comparing by reference meant a
   // fresh-but-identical array (exactly what a `= []` default prop yields on every render)
   // re-rendered every card in the grid for no reason — thousands of wasted renders.
   const kgPrev = prev.kidGroups || [], kgNext = next.kidGroups || [];
-  if (kgPrev.length !== kgNext.length || kgPrev.some((g,i)=>g!==kgNext[i])) { _bump("kidGroups"); return false; }
+  if (kgPrev.length !== kgNext.length || kgPrev.some((g,i)=>g!==kgNext[i])) return false;
   const ktPrev = prev.kidTags || [], ktNext = next.kidTags || [];
-  if (ktPrev.length !== ktNext.length || ktPrev.some((t,i)=>t!==ktNext[i])) { _bump("kidTags"); return false; }
+  if (ktPrev.length !== ktNext.length || ktPrev.some((t,i)=>t!==ktNext[i])) return false;
   // Want status for THIS card only.
   const id = next.c?.id;
-  if ((prev.wantList?.[id] ? 1 : 0) !== (next.wantList?.[id] ? 1 : 0)) { _bump("wantList"); return false; }
+  if ((prev.wantList?.[id] ? 1 : 0) !== (next.wantList?.[id] ? 1 : 0)) return false;
   // Flip state only matters if this card is (or was) the flipped one.
   const wasFlipped = prev.flippedCard === id;
   const isFlipped  = next.flippedCard === id;
-  if (wasFlipped !== isFlipped) { _bump("flipped"); return false; }
+  if (wasFlipped !== isFlipped) return false;
   return true; // otherwise: skip the re-render
 });
 
@@ -28330,6 +28326,7 @@ function Leaderboard({ user, marketSales=[], onViewProfile }) {
   // tab sat blank for as long as that took. The deal counts are derived from marketSales, but that
   // is a cheap local tally: it does not need a refetch, so it is computed separately below.
   const [loadingLb, setLoadingLb] = useState(true);
+  const [lbError,   setLbError]   = useState("");   // surface the real reason instead of a blank tab
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -28346,7 +28343,7 @@ function Leaderboard({ user, marketSales=[], onViewProfile }) {
           oneOfOneCount: x.oneOfOneCount||0,
         }; });
         if (alive) setRows(list);
-      } catch(e) { console.error("leaderboard load failed:", e); if(alive) setRows([]); }
+      } catch(e) { console.error("leaderboard load failed:", e); if(alive){ setRows([]); setLbError(e.code || e.message || String(e)); } }
       if (alive) setLoadingLb(false);
     })();
     return () => { alive = false; };
@@ -28648,14 +28645,6 @@ See you in there!
     const next = earlyAccessList.filter(x=>x!==em);
     try { await setDoc(doc(db,"config","early_access"), { emails: next }, { merge:true }); } catch(e){ alert("Failed to remove: "+e.message); }
   }
-  // TEMP PERF PROBE — declared FIRST so every memo below can safely write to it.
-  const __perf = useRef({ filter:0, sort:0, deckAvail:0, familyMemo:0, render:0, renders:0 });
-  const __t = performance.now();
-  useEffect(() => {
-    __perf.current.render = performance.now() - __t;
-    __perf.current.renders = (__perf.current.renders||0) + 1;
-  });
-
   const [owned,         setOwned]         = useState(()=>{ try { const c=localStorage.getItem("boba_owned_cache_v1"); if(c){ const p=JSON.parse(c); return p&&p.owned?p.owned:{}; } } catch(e){} return {}; });
   const [publicCards,   setPublicCards]   = useState({});
   const [trackerAutoPublic, setTrackerAutoPublic] = useState(() => { try { const c=localStorage.getItem("trackerAutoPublic_v1"); return c?JSON.parse(c):{}; } catch { return {}; } }); // cards made public because a tracker covering them is public
@@ -31853,7 +31842,7 @@ See you in there!
     [searchDebounced]
   );
 
-  const filtered = useMemo(() => { const _t0=performance.now(); const _r = cards.filter(c=>{
+  const filtered = useMemo(() => cards.filter(c=>{
     if(filterSet    && c.setName!==filterSet)    return false;
     if(filterSubSet && c.subSet!==filterSubSet)  return false;
     if(filterWeapon && canonWeapon(c.weapon)!==canonWeapon(filterWeapon))  return false;
@@ -31886,10 +31875,7 @@ See you in there!
     return true;
   // PERF: `owned` only changes the result when the Owned/Missing filter is active, so gate it —
   // otherwise every tap while adding cards re-filters the entire 31k checklist.
-  });
-  __perf.current.filter = performance.now()-_t0;
-  return _r;
-  }, [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchTerms, searchIndex,
+  }), [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchTerms, searchIndex,
        kidFilter, kidAssign,
        (filterOwned === "owned" || filterOwned === "missing" || kidFilter !== "all") ? owned : null]);
 
@@ -32087,7 +32073,6 @@ See you in there!
   // you don't own the card, OR you own it but all your copies are committed to other decks — so
   // borrowing genuinely adds capacity. familyOwnerByCard: cardId -> {uid,name,copies}.
   const { familyOwnerByCard, deckOwnedMerged } = useMemo(() => {
-    const _t0 = performance.now();
     const fam = {};
     const merged = { ...owned };
     Object.entries(familyAvail).forEach(([famUid, info]) => {
@@ -32102,7 +32087,6 @@ See you in there!
         }
       });
     });
-    __perf.current.familyMemo = performance.now()-_t0;
     return { familyOwnerByCard: fam, deckOwnedMerged: merged };
   }, [owned, familyAvail, otherDeckUse]);
   function canAddToDeck(c){
@@ -35409,19 +35393,7 @@ See you in there!
                   🧒 Add a kid
                 </button>
               )}
-              {_cardAdmin && (
-                <span style={{fontSize:11,color:"#FBBF24",fontWeight:700,marginLeft:"auto",fontFamily:"monospace",textAlign:"right",lineHeight:1.5}}>
-                  <div>filter {__perf.current.filter.toFixed(0)}ms · family {__perf.current.familyMemo.toFixed(0)}ms · render {__perf.current.render.toFixed(0)}ms · #{__perf.current.renders}</div>
-                  <div style={{color:"#F472B6"}}>
-                    cards painted: {visibleCards.length} · re-render causes: {
-                      typeof window!=="undefined" && window.__cardRerenders
-                        ? (Object.entries(window.__cardRerenders).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${k} ${v}`).join(" · ") || "none")
-                        : "—"
-                    }
-                  </div>
-                </span>
-              )}
-              <span style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginLeft:_cardAdmin?12:"auto"}}>{filtered.length.toLocaleString()} cards</span>
+              <span style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginLeft:"auto"}}>{filtered.length.toLocaleString()} cards</span>
             </div>
             {cardView==="list" ? (
               <div style={{overflowX:"auto",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12}}>
