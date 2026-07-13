@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { auth, db, googleProvider, storage } from "./firebase";
+import { getApp } from "firebase/app";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, updateProfile, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from "firebase/auth";
 import { collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, where, getDoc, getDocs, getDocFromServer, deleteField, arrayUnion, arrayRemove, updateDoc, limit, writeBatch, documentId } from "firebase/firestore";
 import { ref, uploadBytes, uploadString, getDownloadURL } from "firebase/storage";
@@ -19001,6 +19003,207 @@ function CardDeduper() {
 // differs between releases (a treatment that's Hobby-only in one set can be Double Mega in the
 // next). Stored in config/found_in as { "<set>|<treatment>": ["hobby","jumbo",...] } and read live
 // by every client, so a change here updates the "Found In" badge for everyone immediately.
+// ── ADMIN: USER MANAGEMENT ───────────────────────────────────────────────────
+// Disable, reset, delete and purge accounts. Every action runs through a Cloud Function, because
+// the Firebase client SDK can only ever act on the CURRENTLY SIGNED-IN user — there is no browser
+// API to touch someone else's account. The function re-checks admin status server-side; Firestore
+// rules do not protect callable endpoints.
+function AdminUsers() {
+  const [users, setUsers]     = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr]         = useState("");
+  const [q, setQ]             = useState("");
+  const [busyUid, setBusyUid] = useState(null);
+  const [resetLink, setResetLink] = useState(null);   // {email, link}
+  const [purgeFor, setPurgeFor]   = useState(null);   // user object
+  const [purgeConfirm, setPurgeConfirm] = useState("");
+  const [toast, setToast] = useState("");
+
+  const fns = useMemo(() => getFunctions(getApp()), []);
+  const call = (name) => httpsCallable(fns, name);
+
+  const load = async () => {
+    setLoading(true); setErr("");
+    try {
+      const r = await call("adminListUsers")({});
+      setUsers(r.data.users || []);
+    } catch (e) {
+      setErr(e.message || String(e));
+    }
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);   // eslint-disable-line
+
+  const flash = (m) => { setToast(m); setTimeout(()=>setToast(""), 3000); };
+
+  async function toggleDisabled(u) {
+    setBusyUid(u.uid);
+    try {
+      await call("adminSetUserDisabled")({ uid: u.uid, disabled: !u.disabled });
+      setUsers(list => list.map(x => x.uid===u.uid ? { ...x, disabled: !u.disabled } : x));
+      flash(u.disabled ? `${u.email} can sign in again` : `${u.email} is locked out`);
+    } catch (e) { alert(e.message); }
+    setBusyUid(null);
+  }
+
+  async function sendReset(u) {
+    setBusyUid(u.uid);
+    try {
+      const r = await call("adminSendPasswordReset")({ uid: u.uid });
+      setResetLink({ email: r.data.email, link: r.data.link });
+    } catch (e) { alert(e.message); }
+    setBusyUid(null);
+  }
+
+  async function deleteAuth(u) {
+    if (!window.confirm(
+      `Delete the account for ${u.email}?\n\n` +
+      `They won't be able to sign in, but their cards, decks and sale history STAY.\n\n` +
+      `Use "Purge" instead only if they've asked to have all their data erased.`
+    )) return;
+    setBusyUid(u.uid);
+    try {
+      await call("adminDeleteUser")({ uid: u.uid });
+      setUsers(list => list.filter(x => x.uid !== u.uid));
+      flash(`${u.email} deleted \u2014 their cards were kept`);
+    } catch (e) { alert(e.message); }
+    setBusyUid(null);
+  }
+
+  async function purge() {
+    const u = purgeFor;
+    setBusyUid(u.uid);
+    try {
+      const r = await call("adminPurgeUser")({ uid: u.uid, confirmEmail: purgeConfirm });
+      setUsers(list => list.filter(x => x.uid !== u.uid));
+      setPurgeFor(null); setPurgeConfirm("");
+      flash(`${r.data.email} purged \u2014 ${r.data.deleted.length} collections wiped, ${r.data.anonymized.length} anonymized`);
+    } catch (e) { alert(e.message); }
+    setBusyUid(null);
+  }
+
+  const shown = users
+    .filter(u => !q.trim() || (u.email + " " + u.displayName).toLowerCase().includes(q.toLowerCase().trim()))
+    .sort((a,b) => new Date(b.createdAt||0) - new Date(a.createdAt||0));
+
+  const S = {
+    card: { background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:12, padding:18 },
+    btn:  { border:"1px solid #333", background:"transparent", color:"#bbb", borderRadius:6, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" },
+  };
+
+  return (
+    <div style={S.card}>
+      <div style={{fontSize:15,fontWeight:800,color:"var(--bz-ink)",marginBottom:4}}>{"\uD83D\uDC65"} Users</div>
+      <div style={{fontSize:12,color:"var(--bz-ink-3)",marginBottom:14,lineHeight:1.6}}>
+        <strong>Disable</strong> locks someone out but keeps everything \u2014 it{"\u2019"}s reversible, so reach for it first.
+        {" "}<strong>Delete</strong> removes their login but keeps their cards and sale history.
+        {" "}<strong>Purge</strong> erases everything and can{"\u2019"}t be undone \u2014 only for a data-deletion request.
+      </div>
+
+      {toast && (
+        <div style={{background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:8,padding:"9px 13px",fontSize:12,fontWeight:700,marginBottom:12}}>
+          {"\u2713"} {toast}
+        </div>
+      )}
+      {err && (
+        <div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.3)",color:"#FCA5A5",borderRadius:8,padding:"10px 13px",fontSize:12,marginBottom:12,lineHeight:1.6}}>
+          <strong style={{color:"#EF4444"}}>Couldn{"\u2019"}t load users.</strong> {err}
+          <div style={{marginTop:6,color:"var(--bz-ink-3)"}}>
+            If this says the function doesn{"\u2019"}t exist, the Cloud Functions haven{"\u2019"}t been deployed yet \u2014 run <code>firebase deploy --only functions</code>.
+          </div>
+        </div>
+      )}
+
+      <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search by email or name\u2026"
+          style={{flex:1,minWidth:200,background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"9px 12px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
+        <button onClick={load} style={{...S.btn, padding:"9px 14px", fontSize:12}}>{"\u21BB"} Refresh</button>
+      </div>
+
+      {loading ? <div style={{fontSize:12,color:"var(--bz-ink-3)",padding:"20px 0"}}>Loading users{"\u2026"}</div> : (
+        <>
+          <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:8}}>{shown.length} of {users.length} users</div>
+          <div style={{border:"1px solid #2a2a2a",borderRadius:10,overflow:"hidden"}}>
+            {shown.map(u => (
+              <div key={u.uid} style={{padding:"11px 13px",borderBottom:"1px solid #1c1c1c",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",opacity:u.disabled?0.55:1}}>
+                <div style={{flex:1,minWidth:180}}>
+                  <div style={{fontSize:12.5,fontWeight:800,color:"var(--bz-ink)",display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>
+                    {u.email || "(no email)"}
+                    {u.disabled && <span style={{fontSize:9.5,fontWeight:800,color:"#EF4444",background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:5,padding:"1px 6px"}}>LOCKED OUT</span>}
+                  </div>
+                  <div style={{fontSize:10.5,color:"var(--bz-ink-3)",marginTop:2}}>
+                    {u.displayName || "\u2014"}
+                    {" \u00B7 joined "}{u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "?"}
+                    {u.lastSignIn ? ` \u00B7 last seen ${new Date(u.lastSignIn).toLocaleDateString()}` : " \u00B7 never signed in"}
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                  <button disabled={busyUid===u.uid} onClick={()=>sendReset(u)} style={S.btn}>{"\uD83D\uDD11"} Reset password</button>
+                  <button disabled={busyUid===u.uid} onClick={()=>toggleDisabled(u)}
+                    style={{...S.btn, borderColor:u.disabled?"#4ade80":"#F59E0B", color:u.disabled?"#4ade80":"#F59E0B"}}>
+                    {u.disabled ? "\u2713 Let back in" : "\uD83D\uDD12 Disable"}
+                  </button>
+                  <button disabled={busyUid===u.uid} onClick={()=>deleteAuth(u)} style={{...S.btn, borderColor:"#7f1d1d", color:"#EF4444"}}>Delete</button>
+                  <button disabled={busyUid===u.uid} onClick={()=>{setPurgeFor(u);setPurgeConfirm("");}} style={{...S.btn, borderColor:"#7f1d1d", color:"#EF4444", background:"rgba(239,68,68,0.08)"}}>Purge</button>
+                </div>
+              </div>
+            ))}
+            {shown.length===0 && <div style={{padding:"24px 13px",textAlign:"center",fontSize:12,color:"var(--bz-ink-3)"}}>No users match that search.</div>}
+          </div>
+        </>
+      )}
+
+      {/* Reset link — shown so you can paste it to someone whose email is the broken part */}
+      {resetLink && (
+        <div onClick={()=>setResetLink(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:13000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #333",borderRadius:14,padding:22,maxWidth:520,width:"100%"}}>
+            <div style={{fontSize:15,fontWeight:800,color:"#fff",marginBottom:6}}>{"\u2705"} Reset link sent to {resetLink.email}</div>
+            <div style={{fontSize:12,color:"#999",lineHeight:1.6,marginBottom:14}}>
+              Firebase has emailed them. If their email is the thing that{"\u2019"}s broken, copy this link and send it another way \u2014 it lets them set a new password themselves.
+            </div>
+            <div style={{background:"#0b0b0b",border:"1px solid #2a2a2a",borderRadius:8,padding:"10px 12px",fontSize:10.5,color:"#7B9CFF",wordBreak:"break-all",fontFamily:"monospace",marginBottom:12}}>
+              {resetLink.link}
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>{navigator.clipboard.writeText(resetLink.link);}} style={{flex:1,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:9,padding:"11px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Copy link</button>
+              <button onClick={()=>setResetLink(null)} style={{flex:1,background:"transparent",border:"1px solid #333",color:"#999",borderRadius:9,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Purge — irreversible, so make them type the email */}
+      {purgeFor && (
+        <div onClick={()=>setPurgeFor(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:13000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #7f1d1d",borderRadius:14,padding:22,maxWidth:520,width:"100%"}}>
+            <div style={{fontSize:16,fontWeight:900,color:"#EF4444",marginBottom:8}}>{"\u26A0\uFE0F"} Purge everything for {purgeFor.email}?</div>
+            <div style={{fontSize:12.5,color:"#ccc",lineHeight:1.7,marginBottom:12}}>
+              This <strong>permanently erases</strong> their collection, decks, playbooks, wants, trade bait and profile.
+              It cannot be undone.
+            </div>
+            <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid #2a2a2a",borderRadius:8,padding:"10px 12px",fontSize:11.5,color:"#999",lineHeight:1.7,marginBottom:14}}>
+              Their <strong style={{color:"#ccc"}}>sales, DMs and borrow records are kept but anonymized</strong> \u2014 deleting those
+              would tear holes in other people{"\u2019"}s purchase history. They{"\u2019"}ll show as {"\u201C"}[deleted user]{"\u201D"}.
+              <div style={{marginTop:6,color:"#666"}}>Only use this for an actual data-deletion request. To just revoke access, use <strong style={{color:"#999"}}>Delete</strong>.</div>
+            </div>
+            <div style={{fontSize:11.5,color:"#999",marginBottom:6}}>Type <strong style={{color:"#EF4444"}}>{purgeFor.email}</strong> to confirm:</div>
+            <input value={purgeConfirm} onChange={e=>setPurgeConfirm(e.target.value)} autoFocus
+              style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:13,color:"#fff",fontFamily:"inherit",marginBottom:12}}/>
+            <div style={{display:"flex",gap:8}}>
+              <button disabled={purgeConfirm.trim().toLowerCase()!==purgeFor.email.toLowerCase() || busyUid===purgeFor.uid}
+                onClick={purge}
+                style={{flex:1,background:purgeConfirm.trim().toLowerCase()===purgeFor.email.toLowerCase()?"#EF4444":"#2a1515",color:purgeConfirm.trim().toLowerCase()===purgeFor.email.toLowerCase()?"#fff":"#666",border:"none",borderRadius:9,padding:"11px",fontSize:13,fontWeight:800,cursor:purgeConfirm.trim().toLowerCase()===purgeFor.email.toLowerCase()?"pointer":"not-allowed",fontFamily:"inherit"}}>
+                {busyUid===purgeFor.uid ? "Purging\u2026" : "Purge everything"}
+              </button>
+              <button onClick={()=>setPurgeFor(null)} style={{flex:1,background:"transparent",border:"1px solid #333",color:"#999",borderRadius:9,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FoundInEditor() {
   const [allCards, setAllCards] = useState([]);
   const [map,      setMap]      = useState({});   // { "set|treatment": [packIds] }
@@ -20295,7 +20498,7 @@ function CardSetImporter({ userRole }) {
 
       {/* Mode toggle */}
       <div style={{ display:"flex", gap:8 }}>
-        {[["data","📄 Import Data"],["images","🖼 Import by Filename"],["prefix","🏷 Prefixes"],["foundin","📦 Found In"],["dedupe","🧬 Dedupe"],["merge","🔀 Merge Sets"],["cleanup","🧹 Cleanup"],["manual","🎯 Manual Image"]].map(([m,l])=>(
+        {[["data","📄 Import Data"],["images","🖼 Import by Filename"],["prefix","🏷 Prefixes"],["foundin","📦 Found In"],["users","👥 Users"],["dedupe","🧬 Dedupe"],["merge","🔀 Merge Sets"],["cleanup","🧹 Cleanup"],["manual","🎯 Manual Image"]].map(([m,l])=>(
           <button key={m} onClick={()=>{ setMode(m); setResults(null); setErrors([]); }}
             style={{ background:mode===m?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${mode===m?"#E8317A":"#2a2a2a"}`, color:mode===m?"#E8317A":"#888", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
             {l}
@@ -20520,6 +20723,9 @@ function CardSetImporter({ userRole }) {
 
       {/* Which packs contain which treatments, per set */}
       {mode==="foundin" && <FoundInEditor/>}
+
+      {/* Account management — disable, reset, delete, purge */}
+      {mode==="users" && <AdminUsers/>}
 
       {/* Dedupe mode */}
       {mode==="dedupe" && <CardDeduper/>}
