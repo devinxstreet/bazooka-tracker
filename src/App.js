@@ -14960,10 +14960,12 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
       {isAdmin && BREAKERS.filter(b=>isRemoteBreaker(b)).map(remoteBreaker => {
         const biguStreams = filteredStreams.filter(s =>
           (s.breaker||"").toLowerCase().replace(/\s+/g,"") === remoteBreaker.toLowerCase().replace(/\s+/g,"") &&
-          ((parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0))>0
+          ((reimbursesMagpros(remoteBreaker) ? (parseFloat(s.magpros)||0) : 0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0)+(parseFloat(s.biguShipping)||0)) > 0
         );
         if (!biguStreams.length) return null;
-        const totalReimb = biguStreams.reduce((sum,s)=>sum+(parseFloat(s.magpros)||0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.topLoaders)||0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0),0);
+        // Top loaders are supplied by Bazooka, so they are never reimbursed. Stephen's magpros
+        // are supplied too — reimbursesMagpros() is the single source of truth for that rule.
+        const totalReimb = biguStreams.reduce((sum,s)=>sum+(reimbursesMagpros(remoteBreaker) ? (parseFloat(s.magpros)||0) : 0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0)+((parseFloat(s.biguShipping)||0)*0.5), 0);
         return (
           <div key={remoteBreaker} style={{ ...S.card, borderLeft:"3px solid #FBBF24" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
@@ -14975,9 +14977,12 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               /* Mobile: stacked cards, one per stream */
               <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                 {biguStreams.map(s=>{
-                  const mags=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, tl=parseFloat(s.topLoaders)||0;
+                  // Magpros only count for breakers we don't supply (i.e. not Stephen).
+                  const mags=reimbursesMagpros(remoteBreaker) ? (parseFloat(s.magpros)||0) : 0;
+                  const pack=parseFloat(s.packagingMaterial)||0;
                   const giveaway=parseFloat(s.biguGiveawayCards)||0, insurance=parseFloat(s.biguInsuranceCards)||0;
-                  const tot=mags+pack+tl+giveaway+insurance;
+                  const ship=(parseFloat(s.biguShipping)||0)*0.5;
+                  const tot=mags+pack+giveaway+insurance+ship;
                   const line=(lbl,v)=> v>0 ? (
                     <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}>
                       <span style={{ color:"#a0a0a0" }}>{lbl}</span><span style={{ color:"var(--bz-ink)" }}>${v.toFixed(2)}</span>
@@ -14995,9 +15000,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                       <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
                         {line("MagPros",mags)}
                         {line("Packaging",pack)}
-                        {line("Top Loaders",tl)}
                         {line("Giveaway Cards",giveaway)}
                         {line("Insurance Cards",insurance)}
+                        {line("Shipping (half)",ship)}
                       </div>
                     </div>
                   );
@@ -15011,24 +15016,28 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
             <div style={{ overflowX:"auto" }}>
             <table style={{ width:"100%", fontSize:11, borderCollapse:"collapse" }}>
               <thead><tr style={{ borderBottom:"1px solid rgba(251,191,36,0.2)" }}>
-                {["Date","Stream","MagPros","Packaging","Top Loaders","Giveaway Cards","Insurance Cards","Total"].map(h=>(
+                {["Date","Stream","MagPros","Packaging","Giveaway Cards","Insurance Cards","Shipping ½","Total"].map(h=>(
                   <th key={h} style={{ padding:"4px 8px", textAlign:"left", color:"var(--bz-ink-3)", fontWeight:700, fontSize:10, textTransform:"uppercase", letterSpacing:1 }}>{h}</th>
                 ))}
               </tr></thead>
               <tbody>
                 {biguStreams.map(s=>{
-                  const mags=parseFloat(s.magpros)||0, pack=parseFloat(s.packagingMaterial)||0, tl=parseFloat(s.topLoaders)||0;
+                  // Top loaders are Bazooka-supplied and never reimbursed, so the column is gone.
+                  // Magpros are Bazooka-supplied for Stephen, so they only count for BigU and Vinny.
+                  const mags=reimbursesMagpros(remoteBreaker) ? (parseFloat(s.magpros)||0) : 0;
+                  const pack=parseFloat(s.packagingMaterial)||0;
                   const giveaway=parseFloat(s.biguGiveawayCards)||0, insurance=parseFloat(s.biguInsuranceCards)||0;
-                  const tot=mags+pack+tl+giveaway+insurance;
+                  const ship=(parseFloat(s.biguShipping)||0)*0.5;
+                  const tot=mags+pack+giveaway+insurance+ship;
                   return (
                     <tr key={s.id} style={{ borderBottom:"1px solid var(--bz-line)" }}>
                       <td style={{ padding:"6px 8px", color:"var(--bz-ink-2)" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                       <td style={{ padding:"6px 8px", color:"var(--bz-ink-2)" }}>{s.streamName||s.breakType||"Break"}</td>
                       <td style={{ padding:"6px 8px", color:mags>0?"var(--bz-ink)":"#333" }}>{mags>0?"$"+mags.toFixed(2):"—"}</td>
                       <td style={{ padding:"6px 8px", color:pack>0?"var(--bz-ink)":"#333" }}>{pack>0?"$"+pack.toFixed(2):"—"}</td>
-                      <td style={{ padding:"6px 8px", color:tl>0?"var(--bz-ink)":"#333"  }}>{tl>0?"$"+tl.toFixed(2):"—"}</td>
                       <td style={{ padding:"6px 8px", color:giveaway>0?"var(--bz-ink)":"#333" }}>{giveaway>0?"$"+giveaway.toFixed(2):"—"}</td>
                       <td style={{ padding:"6px 8px", color:insurance>0?"var(--bz-ink)":"#333" }}>{insurance>0?"$"+insurance.toFixed(2):"—"}</td>
+                      <td style={{ padding:"6px 8px", color:ship>0?"var(--bz-ink)":"#333" }}>{ship>0?"$"+ship.toFixed(2):"—"}</td>
                       <td style={{ padding:"6px 8px", color:"#FBBF24", fontWeight:700 }}>${tot.toFixed(2)}</td>
                     </tr>
                   );
@@ -26009,7 +26018,9 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   // When "My collection" is picked (as opposed to "Mine + family"), exclude borrowable family cards.
   const [deckMineOnly, setDeckMineOnly] = useState(false);
   const [sharedDeckId, setSharedDeckId] = useState(null);
-  const [setsOpen, setSetsOpen] = useState(false);   // set picker collapsed by default   // deck whose link was just copied
+  const [setsOpen, setSetsOpen] = useState(false);   // set picker collapsed by default
+  const [goalWOpen, setGoalWOpen] = useState(false); // weapon picker — collapsed, like the sets one
+  const [goalTOpen, setGoalTOpen] = useState(false); // treatment picker
   const [progressExpanded, setProgressExpanded] = useState(false);
   const [deckPage, setDeckPage] = useState(1);
   const [showPickList, setShowPickList] = useState(false);   // printable pick-list modal
@@ -26140,7 +26151,8 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 }
                 const weapons = sortWeapons(Array.from(new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))));
                 const treatments = Array.from(new Set(cards.map(c=>c.treatment).filter(t=>t&&!["plays","bonus plays","home team discount"].includes(t.toLowerCase())))).sort();
-                const goalLabel = [deckGoalW, deckGoalT].filter(Boolean).join(" ");
+                // Sets, not strings: "Hex + Gum Prismatic" rather than "Hex Prismatic".
+                const goalLabel = [Array.from(deckGoalW).join(" + "), Array.from(deckGoalT).join(" + ")].filter(Boolean).join(" ");
                 const dtLabel = deckType==="spec"?"Spec (≤160)":deckType==="vegasbaby"?"Vegas Baby (≤160)":deckType==="apex"?"Apex":deckType==="apexmadness"?"Apex Madness":deckType==="none"?"":deckType;
                 return (
                   <div style={{background:done?"linear-gradient(135deg,rgba(74,222,128,0.12),rgba(34,197,94,0.06))":"rgba(255,255,255,0.02)",border:`1px solid ${done?"rgba(74,222,128,0.4)":"rgba(232,49,122,0.25)"}`,borderRadius:14,padding:"14px 16px"}}>
@@ -26178,15 +26190,45 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:deckType==="none"?"rgba(255,255,255,0.5)":"#FBBF24"}}>
                         {Object.entries(DECK_FORMATS).map(([k,f])=><option key={k} value={k}>{f.label}</option>)}
                       </select>
-                      <select value={deckGoalW} onChange={e=>setDeckGoalW(e.target.value)} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer"}}>
-                        <option value="">Any weapon</option>
-                        {weapons.map(w=><option key={w} value={w}>{w} only</option>)}
-                      </select>
-                      <select value={deckGoalT} onChange={e=>setDeckGoalT(e.target.value)} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer"}}>
-                        <option value="">Any treatment</option>
-                        {treatments.map(t=><option key={t} value={t}>{t} only</option>)}
-                      </select>
-                      {(deckGoalW||deckGoalT) && <button onClick={()=>{setDeckGoalW("");setDeckGoalT("");}} style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:8,padding:"5px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Clear</button>}
+                      {/* Weapon + treatment goals are multi-select: an "all Hex and Gum" Apex deck is
+                          a normal thing to want. Same collapsed-picker pattern as the set filter, so
+                          a long list of weapons doesn't turn back into chip soup. */}
+                      {(() => {
+                        const toggleW = w => setDeckGoalW(prev => { const n=new Set(prev); n.has(w)?n.delete(w):n.add(w); return n; });
+                        const toggleT = t => setDeckGoalT(prev => { const n=new Set(prev); n.has(t)?n.delete(t):n.add(t); return n; });
+                        const label = (sel, none, one) => sel.size===0 ? none : sel.size===1 ? `${Array.from(sel)[0]} ${one}` : `${sel.size} ${none.split(" ")[1]}s`;
+                        const pill = (on) => ({
+                          background: on ? "rgba(232,49,122,0.18)" : "rgba(255,255,255,0.04)",
+                          border: `1px solid ${on ? "#E8317A" : "var(--bz-line-2)"}`,
+                          color: on ? "#fff" : "var(--bz-ink-2)",
+                          borderRadius: 7, padding: "4px 9px", fontSize: 11, fontWeight: on?800:600,
+                          cursor: "pointer", fontFamily: "inherit",
+                        });
+                        return (
+                          <>
+                            <button onClick={()=>setGoalWOpen(v=>!v)} style={{...inp,width:"auto",fontSize:11,padding:"5px 10px",cursor:"pointer",textAlign:"left"}}>
+                              {label(deckGoalW,"Any weapon","only")} <span style={{fontSize:9,opacity:0.7}}>{goalWOpen?"\u25B2":"\u25BC"}</span>
+                            </button>
+                            <button onClick={()=>setGoalTOpen(v=>!v)} style={{...inp,width:"auto",fontSize:11,padding:"5px 10px",cursor:"pointer",textAlign:"left"}}>
+                              {label(deckGoalT,"Any treatment","only")} <span style={{fontSize:9,opacity:0.7}}>{goalTOpen?"\u25B2":"\u25BC"}</span>
+                            </button>
+                            {(deckGoalW.size>0||deckGoalT.size>0) && (
+                              <button onClick={()=>{setDeckGoalW(new Set());setDeckGoalT(new Set());}}
+                                style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:8,padding:"5px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Clear</button>
+                            )}
+                            {goalWOpen && (
+                              <div style={{width:"100%",marginTop:6,padding:"10px 12px",background:"rgba(0,0,0,0.25)",border:"1px solid var(--bz-line)",borderRadius:10,display:"flex",flexWrap:"wrap",gap:6}}>
+                                {weapons.map(w=><button key={w} onClick={()=>toggleW(w)} style={pill(deckGoalW.has(w))}>{w}</button>)}
+                              </div>
+                            )}
+                            {goalTOpen && (
+                              <div style={{width:"100%",marginTop:6,padding:"10px 12px",background:"rgba(0,0,0,0.25)",border:"1px solid var(--bz-line)",borderRadius:10,display:"flex",flexWrap:"wrap",gap:6}}>
+                                {treatments.map(t=><button key={t} onClick={()=>toggleT(t)} style={pill(deckGoalT.has(t))}>{t}</button>)}
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                     {/* Build Max Deck — enforce the format's legal power window (Apex 155+, Spec 115–160)
                         instead of just grabbing your top 60 regardless of power. */}
@@ -26344,7 +26386,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         <button onClick={()=>{
                           const ids=(deckProgress.cards||[]).map(c=>c.id);
                           setDeckCards(ids);
-                          const nm=[deckGoalW,deckGoalT].filter(Boolean).join(" ");
+                          const nm=[Array.from(deckGoalW).join(" + "), Array.from(deckGoalT).join(" + ")].filter(Boolean).join(" ");
                           setDeckName(nm?`My ${nm} Deck`:(done?"My Complete Deck":"My Deck"));
                           if(typeof window!=="undefined") window.scrollTo({top:0,behavior:"smooth"});
                         }} style={{background:done?"linear-gradient(135deg,#4ade80,#22c55e)":"linear-gradient(135deg,#E8317A,#7B2FF7)",border:"none",color:done?"#062b13":"#fff",borderRadius:8,padding:"7px 15px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
@@ -32261,6 +32303,12 @@ See you in there!
 
   // -- "How close am I to a deck?" — from OWNED cards, respecting deck type + weapon/treatment filter --
   function computeDeckProgress(weaponFilter, treatmentFilter, dtype, setFilter, maxMode, source="both") {
+    // weaponFilter / treatmentFilter are Sets. Empty (or absent) means "no restriction".
+    // Tolerate a bare string too, so any older call site still behaves.
+    const asSet = v => v instanceof Set ? v : (v ? new Set([v]) : new Set());
+    const wSet = asSet(weaponFilter), tSet = asSet(treatmentFilter);
+    const weaponOk = c => wSet.size===0 || wSet.has(canonWeapon(c.weapon));
+    const treatOk  = c => tSet.size===0 || tSet.has(c.treatment);
     const isPlayCard = c => { const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="bonus plays"||t==="home team discount"; };
     const F = fmtOf(dtype);                       // this format's rules — see DECK_FORMATS
     const DECK_SIZE  = F.size || 60;
@@ -32314,7 +32362,7 @@ See you in there!
     // Then each owned FOILED HOT DOG adds 1 more apex from any insert (highest left), capped at 4. Ceiling 70.
     if (dtype === "apexmadness") {
       const base = cards.filter(c => isOwned(c) && isAvailable(c) && !isPlayCard(c)
-        && (!weaponFilter || canonWeapon(c.weapon)===canonWeapon(weaponFilter))
+        && weaponOk(c)
         && (!setFilter || setFilter.size===0 || setFilter.has(c.setName)));
       const insertOf = c => (c.treatment || "—");
 
@@ -32422,8 +32470,8 @@ See you in there!
     // reuse the exact same eligibility test against cards you DON'T own.
     const formatEligible = c => {
       if(isPlayCard(c)) return false;
-      if(weaponFilter && canonWeapon(c.weapon) !== canonWeapon(weaponFilter)) return false;
-      if(treatmentFilter && c.treatment !== treatmentFilter) return false;
+      if(!weaponOk(c)) return false;
+      if(!treatOk(c)) return false;
       if(setFilter && setFilter.size>0 && !setFilter.has(c.setName)) return false; // set restriction
       if(!inMaxWindow(c)) return false; // max deck power window
       // ── Format restrictions (see DECK_FORMATS) ──
@@ -32600,8 +32648,10 @@ See you in there!
       totalPower: usable.reduce((s,c)=>s+powerOf(c),0),
     };
   }
-  const [deckGoalW, setDeckGoalW] = useState("");
-  const [deckGoalT, setDeckGoalT] = useState("");
+  // Weapon and treatment goals are SETS, not single strings — an "all Hex and Gum" Apex deck is a
+  // perfectly normal thing to want to build. Empty set = no restriction (same as deckGoalSets).
+  const [deckGoalW, setDeckGoalW] = useState(()=>new Set());
+  const [deckGoalT, setDeckGoalT] = useState(()=>new Set());
   const [deckGoalSets, setDeckGoalSets] = useState(()=>new Set()); // empty = all sets allowed
   const [deckMaxMode, setDeckMaxMode] = useState(false); // enforce the format's legal power window
   // Which cards the quick builder may draw from: "mine" | "both" | "family"
