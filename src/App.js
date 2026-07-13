@@ -36054,6 +36054,7 @@ See you in there!
               setSigningIn={setSigningIn}
             />
         )}
+        </div>{/* end messages tab */}
 
 
         {/* FRIENDS TAB */}
