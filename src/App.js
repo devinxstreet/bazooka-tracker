@@ -15725,7 +15725,7 @@ function PublicDeckBuilder() {
               <input value={deckSearch} onChange={e=>setDeckSearch(e.target.value)} placeholder="Search hero, card #, treatment..." style={{ ...S.inp, flex:1, minWidth:140 }}/>
               <select value={deckFilterWeap} onChange={e=>setDeckFilterWeap(e.target.value)} style={{ ...S.inp, width:"auto", cursor:"pointer" }}>
                 <option value="">All Weapons</option>
-                {[...new Set((deckFilterSet ? cards.filter(c=>c.setName===deckFilterSet) : cards).map(c=>c.weapon).filter(Boolean))].sort().map(w=><option key={w} value={w}>{w}</option>)}
+                {sortWeapons([...new Set((deckFilterSet ? cards.filter(c=>c.setName===deckFilterSet) : cards).map(c=>canonWeapon(c.weapon)).filter(Boolean))]).map(w=><option key={w} value={w}>{w}</option>)}
               </select>
               <select value={deckFilterSet} onChange={e=>{ setDeckFilterSet(e.target.value); setDeckFilterWeap(""); setDeckFilterTreat(""); setDeckFilterHero(""); }} style={{ ...S.inp, width:"auto", cursor:"pointer", color:deckFilterSet?"#7B9CFF":"#888" }}>
                 <option value="">All Sets</option>
@@ -22265,7 +22265,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
 
   const sets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.filter(c=>!filterSet||c.setName===filterSet).map(c=>c.treatment).filter(Boolean))].sort();
-  const weapons    = [...new Set(cards.filter(c=>!filterSet||c.setName===filterSet).map(c=>c.weapon).filter(Boolean))].sort();
+  const weapons    = sortWeapons([...new Set(cards.filter(c=>!filterSet||c.setName===filterSet).map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const notations  = [...new Set(cards.filter(c=>!filterSet||c.setName===filterSet).map(c=>c.notation).filter(Boolean))].sort();
 
   const filtered = cards.filter(c => {
@@ -24033,7 +24033,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
         const deckSets     = [...new Set(cardPool.map(c=>c.setName).filter(Boolean))].sort();
         const deckTreats   = [...new Set(cardPool.map(c=>c.treatment).filter(Boolean))].sort();
         const deckHeroes   = [...new Set(cardPool.map(c=>c.hero).filter(Boolean))].sort();
-        const deckWeapons  = [...new Set(cardPool.map(c=>c.weapon).filter(Boolean))].sort();
+        const deckWeapons  = sortWeapons([...new Set(cardPool.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
 
         return (
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -32357,7 +32357,11 @@ See you in there!
   // -- Computed --
   const sets          = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const filteredBySet = filterSet.size>0 ? cards.filter(c=>filterSet.has(c.setName)) : cards;
-  const weapons       = [...new Set(filteredBySet.map(c=>c.weapon).filter(Boolean))].sort();
+  // Canonicalize BEFORE deduping. The data holds both "FIRE" and "Fire", so mapping the raw
+  // c.weapon into a Set kept both as separate filter options — while the filter itself compares
+  // with canonWeapon(), so the list and the filter disagreed. Steel is Steel however it was typed.
+  // sortWeapons() then orders them the way the game does rather than alphabetically.
+  const weapons       = sortWeapons([...new Set(filteredBySet.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const treatments    = [...new Set(filteredBySet.map(c=>c.treatment).filter(Boolean))].sort();
   const powers        = [...new Set(filteredBySet.map(c=>Number(c.power)).filter(Boolean))].sort((a,b)=>b-a);
 
@@ -37206,9 +37210,9 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
   const allSets      = [...new Set(bobaCards.map(c=>c.setName).filter(Boolean))].sort();
   const setCards     = fSet ? bobaCards.filter(c=>c.setName===fSet) : [];
   const setHeroes    = [...new Set(setCards.map(c=>c.hero).filter(Boolean))].sort();
-  const setWeapons   = [...new Set(setCards.map(c=>c.weapon).filter(Boolean))].sort((a,b)=>WEAPON_ORDER.indexOf(a)-WEAPON_ORDER.indexOf(b));
+  const setWeapons   = sortWeapons([...new Set(setCards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const setTreats    = [...new Set(setCards.map(c=>c.treatment).filter(Boolean))].sort();
-  const heroWeapons  = fHero ? [...new Set(setCards.filter(c=>c.hero===fHero).map(c=>c.weapon).filter(Boolean))].sort((a,b)=>WEAPON_ORDER.indexOf(a)-WEAPON_ORDER.indexOf(b)) : [];
+  const heroWeapons  = fHero ? sortWeapons([...new Set(setCards.filter(c=>c.hero===fHero).map(c=>canonWeapon(c.weapon)).filter(Boolean))]) : [];
 
   const CHASE_MODES = [
     { id:"hero",            label:"🦸 Hero Rainbow",              desc:"Every card for one hero — all weapons, all treatments" },
@@ -37225,7 +37229,8 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
       case "treatment":
         return fTreat ? setCards.filter(c=>c.treatment===fTreat).sort(byWeapon) : [];
       case "treatment_weapon":
-        return (fTreat&&fWeapon) ? setCards.filter(c=>c.treatment===fTreat&&c.weapon===fWeapon).sort((a,b)=>(a.hero||"").localeCompare(b.hero||"")) : [];
+        // Compare canonically: the dropdown now offers "Fire", but a card may be tagged "FIRE".
+        return (fTreat&&fWeapon) ? setCards.filter(c=>c.treatment===fTreat&&canonWeapon(c.weapon)===canonWeapon(fWeapon)).sort((a,b)=>(a.hero||"").localeCompare(b.hero||"")) : [];
       default: return [];
     }
   }, [fSet, fMode, fHero, fWeapon, fTreat, bobaCards]);
@@ -37389,7 +37394,7 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
                   <label style={S.lbl}>Weapon Type</label>
                   <select value={fWeapon} onChange={e=>setFWeapon(e.target.value)} style={{ ...S.inp, cursor:"pointer", color:fWeapon?"var(--bz-ink)":"#555" }}>
                     <option value="">— Choose weapon —</option>
-                    {[...new Set(setCards.filter(c=>c.treatment===fTreat).map(c=>c.weapon).filter(Boolean))].sort((a,b)=>WEAPON_ORDER.indexOf(a)-WEAPON_ORDER.indexOf(b)).map(w=>(
+                    {sortWeapons([...new Set(setCards.filter(c=>c.treatment===fTreat).map(c=>canonWeapon(c.weapon)).filter(Boolean))]).map(w=>(
                       <option key={w} value={w}>{w}</option>
                     ))}
                   </select>
