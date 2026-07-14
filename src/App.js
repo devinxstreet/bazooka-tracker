@@ -25771,9 +25771,25 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
                           <div style={{fontSize:13,fontWeight:700}}>{f.friendName}{f.isFamily&&<span style={{marginLeft:6,fontSize:9,fontWeight:800,color:"#4ade80",background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:5,padding:"1px 6px"}}>👪 FAMILY</span>}</div>
                           <div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{friendOwned[f.friendUid]?`${Object.keys(friendOwned[f.friendUid]).length} cards owned`:"Loading..."}</div>
                         </div>
-                        <button onClick={()=>toggleFamily(f)} title={f.isFamily?"Family — you can use their available cards in your decks. Click to remove.":"Mark as family to use their available cards in your decks"}
-                          style={{background:f.isFamily?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)",border:`1px solid ${f.isFamily?"rgba(74,222,128,0.4)":"rgba(255,255,255,0.08)"}`,color:f.isFamily?"#4ade80":"rgba(255,255,255,0.4)",borderRadius:10,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
-                          {f.isFamily?"👪 Family":"+ Family"}
+                        {/* Three states, and the difference is the whole point:
+                              nothing shared         -> "+ Family"
+                              I shared, they haven't -> "Waiting"     (they can't see mine either)
+                              they shared, I haven't -> "Share back"
+                              both shared            -> "Family"
+                            Sharing is an OFFER, not a taking. */}
+                        <button onClick={()=>toggleFamily(f)}
+                          title={f.isFamily
+                            ? "You're sharing cards both ways. Click to stop sharing yours."
+                            : f.iShared
+                              ? `You've shared your cards with ${f.friendName}. You'll see theirs when they share back. Click to withdraw.`
+                              : f.theyShared
+                                ? `${f.friendName} shared their cards with you. Share yours back to use theirs in decks.`
+                                : "Share your cards with them. You'll see theirs once they share back."}
+                          style={{background:f.isFamily?"rgba(74,222,128,0.15)":f.theyShared?"rgba(251,191,36,0.15)":"rgba(255,255,255,0.04)",border:`1px solid ${f.isFamily?"rgba(74,222,128,0.4)":f.theyShared?"rgba(251,191,36,0.45)":"rgba(255,255,255,0.08)"}`,color:f.isFamily?"#4ade80":f.theyShared?"#FBBF24":f.iShared?"rgba(255,255,255,0.55)":"rgba(255,255,255,0.4)",borderRadius:10,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>
+                          {f.isFamily ? "\uD83D\uDC6A Family"
+                            : f.theyShared ? "\uD83D\uDC6A Share back"
+                            : f.iShared ? "\u23F3 Waiting"
+                            : "+ Family"}
                         </button>
                         <button onClick={()=>{setViewingFriend(viewingFriend===f.friendUid?null:f.friendUid);}}
                           style={{background:viewingFriend===f.friendUid?"rgba(123,156,255,0.2)":"rgba(255,255,255,0.04)",border:`1px solid ${viewingFriend===f.friendUid?"rgba(123,156,255,0.4)":"rgba(255,255,255,0.08)"}`,color:viewingFriend===f.friendUid?"#7B9CFF":"rgba(255,255,255,0.4)",borderRadius:10,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
@@ -27604,7 +27620,7 @@ function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS , cards, 
   const exact = stats(exactSales);
   const near = stats(nearSales);
   return (
-  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)",padding:16}} onClick={()=>setCompCard(null)}>
+  <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",zIndex:12500,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)",padding:16}} onClick={()=>setCompCard(null)}>
     <div style={{background:"linear-gradient(135deg,#0d0d0d,#0a0d1a)",border:`1px solid ${wc}33`,borderRadius:24,width:"100%",maxWidth:560,maxHeight:"90vh",overflowY:"auto",boxShadow:`0 40px 120px ${wc}22`,animation:"floatUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
       {/* Header */}
       <div style={{display:"flex",gap:14,padding:"24px 24px 20px",borderBottom:`1px solid ${wc}22`}}>
@@ -29118,6 +29134,14 @@ function ProfileModal({ profileUid, onClose, currentUser, cards=[], onAddFriend,
 function PublicCardDatabase({ swancity = false } = {}) {
   // -- Core state --
   const [toast, setToast] = useState(null);
+  // Auto-dismiss. There are a dozen setToast() calls in here and NOT ONE of them ever cleared it,
+  // so any toast simply stayed on screen forever \u2014 covering the buttons underneath it. One effect
+  // here beats remembering a setTimeout at every call site (which is how it got missed).
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3200);
+    return () => clearTimeout(t);
+  }, [toast]);
   const [fanDeck, setFanDeck] = useState(null); // {name, cards:[cardObjs]} for hand-fan view
   const [fanMode, setFanMode] = useState("grid"); // "grid" | "fan"
   const [cardSize, setCardSize] = useState(200); // grid card min-width in px, adjustable via slider
@@ -30081,10 +30105,17 @@ See you in there!
     const uid2 = user.uid;
     const unsubs = [
       onSnapshot(query(collection(db,"friend_requests"), where("from","==",uid2), where("status","==","accepted")),
-        snap => setFriends(prev => { const ff=snap.docs.map(d=>({...d.data(),id:d.id,friendUid:d.data().to,friendName:d.data().toName||d.data().toEmail,isFamily:(d.data().familyBy||[]).includes(uid2)})); return [...ff,...prev.filter(f=>f._dir==="to")]; })
+        snap => setFriends(prev => { const ff=snap.docs.map(d=>{ const fb=d.data().familyBy||[]; const them=d.data().to;
+          // isFamily needs BOTH uids. familyBy alone used to be enough \u2014 that was the hole.
+          return {...d.data(),id:d.id,friendUid:them,friendName:d.data().toName||d.data().toEmail,
+                  isFamily: fb.includes(uid2) && fb.includes(them),
+                  iShared: fb.includes(uid2), theyShared: fb.includes(them)}; }); return [...ff,...prev.filter(f=>f._dir==="to")]; })
       ),
       onSnapshot(query(collection(db,"friend_requests"), where("to","==",uid2), where("status","==","accepted")),
-        snap => setFriends(prev => { const tf=snap.docs.map(d=>({...d.data(),id:d.id,friendUid:d.data().from,friendName:d.data().fromName||d.data().fromEmail,_dir:"to",isFamily:(d.data().familyBy||[]).includes(uid2)})); return [...prev.filter(f=>f._dir!=="to"),...tf]; })
+        snap => setFriends(prev => { const tf=snap.docs.map(d=>{ const fb=d.data().familyBy||[]; const them=d.data().from;
+          return {...d.data(),id:d.id,friendUid:them,friendName:d.data().fromName||d.data().fromEmail,_dir:"to",
+                  isFamily: fb.includes(uid2) && fb.includes(them),
+                  iShared: fb.includes(uid2), theyShared: fb.includes(them)}; }); return [...prev.filter(f=>f._dir!=="to"),...tf]; })
       ),
       onSnapshot(query(collection(db,"friend_requests"), where("to","==",uid2), where("status","==","pending")),
         snap => setFriendReqs(snap.docs.map(d=>({...d.data(),id:d.id})))
@@ -31937,13 +31968,29 @@ See you in there!
   }
   // Mark/unmark a friend as family. Writes my uid into the relationship's familyBy array,
   // which grants ME access to THEIR available cards in the deck builder.
+  // Family sharing is MUTUAL. It has to be.
+  //
+  // familyBy used to be a single one-sided array: I add my uid, and that ALONE granted me read
+  // access to their entire collection \u2014 every card, every quantity. They were never asked and never
+  // told. Anyone could help themselves to anyone else's collection with one click.
+  //
+  // Now familyBy means "I have OFFERED to share with this person". Access is granted only where BOTH
+  // parties appear in it. Marking someone as family shares YOUR cards with THEM; you see theirs when
+  // they do the same. Consent runs both ways or it is not consent.
   async function toggleFamily(f) {
     if(!user||!f?.id) return;
     try {
       const snap = await getDoc(doc(db,"friend_requests",f.id));
       const cur = snap.exists() ? (snap.data().familyBy||[]) : [];
-      const next = cur.includes(user.uid) ? cur.filter(u=>u!==user.uid) : [...cur, user.uid];
+      const mine = cur.includes(user.uid);
+      const next = mine ? cur.filter(u=>u!==user.uid) : [...cur, user.uid];
       await setDoc(doc(db,"friend_requests",f.id),{familyBy:next},{merge:true});
+      if (!mine) {
+        const theirs = cur.includes(f.friendUid);
+        setToast(theirs
+          ? `\u{1F46A} You and ${f.friendName} are now sharing cards`
+          : `\u2713 Your cards are shared with ${f.friendName} \u2014 you'll see theirs once they share back`);
+      }
     } catch(e){ console.error("toggleFamily failed:",e); }
   }
 
@@ -33706,7 +33753,9 @@ See you in there!
           </div>
         </div>
       )}
-      {toast && <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",zIndex:11000,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",padding:"12px 22px",borderRadius:12,fontSize:14,fontWeight:700,boxShadow:"0 8px 32px rgba(232,49,122,0.4)",maxWidth:"90vw",textAlign:"center"}}>{toast}</div>}
+      {/* Sits ABOVE the select toolbar (which is at bottom:20), not on top of it \u2014 a toast that
+          covers the buttons you are trying to press is worse than no toast. */}
+      {toast && <div style={{position:"fixed",bottom:96,left:"50%",transform:"translateX(-50%)",zIndex:11000,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",padding:"12px 22px",borderRadius:12,fontSize:14,fontWeight:700,boxShadow:"0 8px 32px rgba(232,49,122,0.4)",maxWidth:"90vw",textAlign:"center"}}>{toast}</div>}
       {bulkImg && !bulkProg && (()=>{
         const sets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
         const treatPool = bulkImg.setName ? cards.filter(c=>c.setName===bulkImg.setName) : cards;
@@ -34129,6 +34178,31 @@ See you in there!
         .pub-card-grid > *:nth-child(4n){animation-delay:0.15s}
         .market-card:hover{transform:translateY(-4px)!important;box-shadow:0 20px 60px rgba(232,49,122,0.3)!important}
         .filter-bar select,.filter-bar input{transition:border-color 0.2s ease,box-shadow 0.2s ease}
+        /* Mobile filter bar. Every control was flex:1 with minWidth:140, so on a phone five dropdowns
+           plus a search box plus a sort select all fought for the same row and each ended up a useless
+           sliver. Two per row instead — wide enough to actually read the label. Search gets its own
+           full-width row because it's the one people reach for most. */
+        @media (max-width: 640px) {
+          .filter-bar { padding: 12px !important; gap: 7px !important; }
+          .filter-bar > div, .filter-bar > select {
+            flex: 1 1 calc(50% - 4px) !important;
+            min-width: 0 !important;
+          }
+          .filter-bar > input { flex: 1 1 100% !important; min-width: 0 !important; }
+          .filter-bar button { min-height: 40px; }
+          .filter-bar select { min-height: 40px; }
+        }
+        /* Dropdown panels: on a phone, anchor them to the screen rather than the button they hang off,
+           or a right-hand dropdown opens half off the edge. */
+        @media (max-width: 640px) {
+          .filter-menu {
+            position: fixed !important;
+            left: 12px !important; right: 12px !important;
+            top: auto !important;
+            min-width: 0 !important;
+            max-height: 50vh !important;
+          }
+        }
         .filter-bar select:focus,.filter-bar input:focus{border-color:#E8317A!important;box-shadow:0 0 0 3px rgba(232,49,122,0.15)!important}
 
         /* ── HUNT FX (mark wanted) ── */
@@ -36067,7 +36141,7 @@ See you in there!
                       {open && (
                         <>
                           <div onClick={()=>setMultiOpen(null)} style={{position:"fixed",inset:0,zIndex:9998}}/>
-                          <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:9999,background:"#141414",border:"1px solid #2a2a2a",borderRadius:10,padding:6,minWidth:200,maxHeight:320,overflowY:"auto",boxShadow:"0 10px 30px rgba(0,0,0,0.6)"}}>
+                          <div className="filter-menu" style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:9999,background:"#141414",border:"1px solid #2a2a2a",borderRadius:10,padding:6,minWidth:200,maxHeight:320,overflowY:"auto",boxShadow:"0 10px 30px rgba(0,0,0,0.6)"}}>
                             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 8px 6px",borderBottom:"1px solid #222",marginBottom:4}}>
                               <span style={{fontSize:10,color:"var(--bz-ink-2)",fontWeight:700,letterSpacing:0.5}}>{label.toUpperCase()}</span>
                               {sel.size>0 && <button onClick={()=>{setSel(new Set());setPage(1);}} style={{background:"none",border:"none",color:"var(--bz-ink-3)",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Clear</button>}
@@ -36126,7 +36200,7 @@ See you in there!
                 {powerMenuOpen && (
                   <>
                     <div onClick={()=>setPowerMenuOpen(false)} style={{position:"fixed",inset:0,zIndex:9998}}/>
-                    <div style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:9999,background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",width:180,maxHeight:280,overflowY:"auto",padding:6}}>
+                    <div className="filter-menu" style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:9999,background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",width:180,maxHeight:280,overflowY:"auto",padding:6}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 8px 6px",borderBottom:"1px solid #2a2a2a",marginBottom:4}}>
                         <span style={{fontSize:10,color:"var(--bz-ink-2)",fontWeight:700,letterSpacing:1}}>POWER LEVEL</span>
                         {filterPower.size>0 && <button onClick={()=>{setFilterPower(new Set());setPage(1);}} style={{background:"none",border:"none",color:"#E8317A",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Clear</button>}
