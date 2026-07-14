@@ -30901,14 +30901,50 @@ See you in there!
 
   async function toggleTradeBait(cardId) {
     if (!user) { setSigningIn(true); return; }
+    const wasFlagged = !!tradeBait[cardId];
     const next = {...tradeBait};
     if (next[cardId]) delete next[cardId]; else next[cardId]=true;
     setTradeBait(next);
     try {
       await setDoc(doc(db,"boba_tradebait",user.uid), next);
       // Keep the public index in step \u2014 but ONLY if they've opted in. See publishTradeIndex.
-      if (tradePublic) await publishTradeIndex(next, true);
+      if (tradePublic) {
+        await publishTradeIndex(next, true);
+        // Newly flagged AND publicly listed: tell the people who want this card. Same shape as the
+        // marketplace want-notification, so it lands in the same inbox they already watch.
+        if (!wasFlagged) await notifyWanters(cardId);
+      }
     } catch(e){ console.error("save tradebait failed:", e); }
+  }
+
+  // Anyone with this card on their want list hears about it. Mirrors the createListing() fan-out.
+  //
+  // Only fires when the card is flagged AND the user is publicly listed \u2014 flagging a card while
+  // opted OUT notifies nobody, which is the point of the opt-in being meaningful.
+  async function notifyWanters(cardId) {
+    if (!user) return;
+    const card = cards.find(c => c.id === cardId);
+    if (!card) return;
+    try {
+      const wantSnaps = await getDocs(collection(db,"boba_wants"));
+      const batch = [];
+      wantSnaps.forEach(wsnap => {
+        if (wsnap.id === user.uid) return;              // don't notify yourself
+        if (!wsnap.data()[cardId]) return;              // they don't want it
+        batch.push(setDoc(doc(db,"market_notifs",uid()), {
+          toUid: wsnap.id,
+          cardId,
+          cardName: card.hero || card.playName || "",
+          cardImage: card.imageUrl || null,
+          traderUid: user.uid,
+          traderName: user.displayName || user.email,
+          type: "want_tradeable",                       // distinct from "want_listed" \u2014 it's a trade, not a sale
+          read: false,
+          createdAt: new Date().toISOString(),
+        }));
+      });
+      await Promise.all(batch);
+    } catch(e) { console.error("trade notification error:", e); }
   }
 
   // ── Public trade index ───────────────────────────────────────────────────────────────────────
@@ -30948,6 +30984,12 @@ See you in there!
     try {
       await publishTradeIndex(tradeBait, on);
       setTradePublic(on);
+      // Switching ON with cards already flagged: those become visible now, so notify for them too.
+      // Without this, the common path (flag a few cards, THEN opt in) would notify nobody at all.
+      if (on) {
+        const flagged = Object.keys(tradeBait).filter(k => tradeBait[k]);
+        for (const cid of flagged) await notifyWanters(cid);
+      }
       await setDoc(doc(db,"boba_profiles",user.uid), { tradePublic: on }, { merge:true });
       setToast(on
         ? `\u2713 You're listed as a trade partner \u2014 ${Object.keys(tradeBait).length} card${Object.keys(tradeBait).length===1?"":"s"} visible`
@@ -35466,7 +35508,13 @@ See you in there!
               <div key={n.id} style={{display:"flex",alignItems:"center",gap:8,background:"rgba(232,49,122,0.08)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:12,padding:"6px 12px"}}>
                 {n.cardImage&&<img src={n.cardImage} alt={n.cardName} style={{width:24,height:32,objectFit:"cover",borderRadius:4,flexShrink:0}}/>}
                 <span style={{fontSize:12,color:"#E8317A",fontWeight:700}}>{n.cardName}</span>
-                <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>by {n.sellerName} · ${(n.askingPrice||0).toFixed(2)}</span>
+                {/* A trade notification has no seller and no price \u2014 rendering the sale text for one
+                    would print "by undefined \u00b7 $NaN". Branch on the type. */}
+                <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>
+                  {n.type==="want_tradeable"
+                    ? <>{n.traderName} will trade it</>
+                    : <>by {n.sellerName} \u00b7 ${(n.askingPrice||0).toFixed(2)}</>}
+                </span>
                 <button onClick={()=>{setActiveTab("market");setDoc(doc(db,"market_notifs",n.id),{read:true},{merge:true});}} style={{background:"rgba(232,49,122,0.15)",border:"1px solid rgba(232,49,122,0.3)",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>View</button>
                 <button onClick={()=>setDoc(doc(db,"market_notifs",n.id),{read:true},{merge:true})} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.2)",cursor:"pointer",fontSize:14,padding:"0 2px"}}>{"\u00D7"}</button>
               </div>
