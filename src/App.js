@@ -26410,6 +26410,10 @@ function guessPlayCategory(playName) {
 function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, WEAPON_COLORS, setSigningIn, cards, setCards, owned, inp, isMobile, pbName, setPbName, setPbCards, savedPlaybooks=[], pbSaving, pbSaved, pbLoadId, savePbTab, deletePbTab, loadPbTab, newPbTab, setFanDeck, setFanMode }) {
   const _pbAdmin = (user?.email||"").toLowerCase().endsWith("@bazookabreaks.com");
   const [dbsEdits, setDbsEdits] = useState({});
+  // Hover preview. Scaling the tile to 1.28x gets you ~140px \u2014 nowhere near enough to READ a
+  // play, which is the entire reason you are looking at it. So show a proper floating panel
+  // instead: the card at a readable size, plus the play text spelled out beside it.
+  const [pbHover, setPbHover] = useState(null);   // {card, x, y}
   const [pbView, setPbView] = useState("grid"); // grid | list
   const [dbsImporting, setDbsImporting] = useState(false);
   const [dbsImportSet, setDbsImportSet] = useState(""); // "" = auto (use CSV prefix); else force this set
@@ -26763,8 +26767,8 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                     return (
                       <div key={c.id} onClick={addIt} title={blocked?(playFull?"Play limit reached":"DBS cap reached"):`Add ${c.hero}`}
                         style={{position:"relative",aspectRatio:"3/4",borderRadius:10,overflow:"hidden",cursor:blocked?"not-allowed":"pointer",opacity:blocked?0.4:1,border:`1.5px solid ${blocked?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.08)"}`,background:"var(--bz-s1)",transition:"transform 0.15s ease, border-color 0.15s ease"}}
-                        onMouseEnter={e=>{if(!blocked){e.currentTarget.style.transform="scale(1.28)";e.currentTarget.style.borderColor=wc;e.currentTarget.style.zIndex="10";e.currentTarget.style.boxShadow="0 12px 40px rgba(0,0,0,0.7)";}}}
-                        onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.borderColor=blocked?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.08)";e.currentTarget.style.zIndex="";e.currentTarget.style.boxShadow="";}}>
+                        onMouseEnter={e=>{const r=e.currentTarget.getBoundingClientRect(); setPbHover({card:c, x:r.right, y:r.top}); if(!blocked){e.currentTarget.style.transform="scale(1.08)";e.currentTarget.style.borderColor=wc;e.currentTarget.style.zIndex="10";e.currentTarget.style.boxShadow="0 12px 40px rgba(0,0,0,0.7)";}}}
+                        onMouseLeave={e=>{setPbHover(null); e.currentTarget.style.transform="none";e.currentTarget.style.borderColor=blocked?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.08)";e.currentTarget.style.zIndex="";e.currentTarget.style.boxShadow="";}}>
                         {c.imageUrl
                           ? <img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
                           : <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"20px 7px 8px",textAlign:"center",gap:4}}><div style={{fontSize:11,fontWeight:800,color:wc,lineHeight:1.25}}>{c.playName||c.hero}</div>{c.text&&<div style={{fontSize:8.5,color:"rgba(255,255,255,0.55)",lineHeight:1.35,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:5,WebkitBoxOrient:"vertical"}}>{c.text}</div>}<div style={{fontSize:8,color:"rgba(255,255,255,0.28)",marginTop:"auto"}}>{bonus?"Bonus Play":"Play"}</div></div>}
@@ -26792,6 +26796,51 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                   })}
                   </div>}
                 </div>
+
+              {/* Hover preview. The tile itself can't grow enough to be readable — it's locked in a grid
+                  and would just shove its neighbours around. A fixed-position panel can be as big as it
+                  needs to be, and it can spell the play text out in full rather than clipping it. */}
+              {pbHover && !isMobile && (() => {
+                const c = pbHover.card;
+                const W = 300;
+                // Flip to the left of the tile if there isn't room on the right.
+                const left = (pbHover.x + 14 + W > window.innerWidth) ? pbHover.x - W - 180 : pbHover.x + 14;
+                const top  = Math.max(12, Math.min(pbHover.y - 40, window.innerHeight - 440));
+                return (
+                  <div style={{position:"fixed",left,top,width:W,zIndex:13000,pointerEvents:"none",
+                    background:"#161616",border:"1px solid #333",borderRadius:14,padding:14,
+                    boxShadow:"0 24px 70px rgba(0,0,0,0.8)",animation:"fabIn 0.12s ease"}}>
+                    {c.imageUrl && (
+                      <img src={c.imageUrl} alt="" style={{width:"100%",borderRadius:9,display:"block",marginBottom:11}}/>
+                    )}
+                    <div style={{fontSize:15,fontWeight:800,color:"#fff",lineHeight:1.3,marginBottom:4}}>
+                      {c.playName || c.hero || "\u2014"}
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9,flexWrap:"wrap"}}>
+                      {c.playCost!==undefined && c.playCost!=="" && (
+                        <span style={{fontSize:11,fontWeight:800,color:"#FBBF24"}}>Cost {c.playCost}</span>
+                      )}
+                      {c.dbs!==undefined && c.dbs!=="" && (
+                        <span style={{fontSize:11,fontWeight:900,color:"#C084FC"}}>{c.dbs} DBS</span>
+                      )}
+                      <span style={{fontSize:10.5,color:"rgba(255,255,255,0.35)"}}>{c.cardNum}</span>
+                    </div>
+                    {/* The whole point: the play text, in full, at a size a person can actually read. */}
+                    {c.text && (
+                      <div style={{fontSize:12.5,color:"rgba(255,255,255,0.75)",lineHeight:1.65,
+                        background:"rgba(255,255,255,0.03)",borderRadius:8,padding:"10px 11px",
+                        borderLeft:"2px solid rgba(255,255,255,0.15)"}}>
+                        {c.text}
+                      </div>
+                    )}
+                    {!c.text && !c.imageUrl && (
+                      <div style={{fontSize:11.5,color:"rgba(255,255,255,0.3)",fontStyle:"italic"}}>
+                        No play text on this card yet.
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               </div>
               <div className="deck-pb-panel" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:"20px 18px",backdropFilter:"blur(10px)",width:isMobile?"100%":"clamp(280px,30%,360px)",flexShrink:0,overflowY:"auto",minHeight:0}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
