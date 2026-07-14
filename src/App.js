@@ -25160,7 +25160,7 @@ function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onRec
             </div>
             <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:12}}>
               <CardRow list={v.iGet}  label="YOU GET"  color="#4ade80"/>
-              <div style={{display:"flex",alignItems:"center",color:"rgba(255,255,255,0.2)",fontSize:16,fontWeight:800,alignSelf:"stretch"}}>\u21C4</div>
+              <div style={{display:"flex",alignItems:"center",color:"rgba(255,255,255,0.2)",fontSize:16,fontWeight:800,alignSelf:"stretch"}}>{"\u21C4"}</div>
               <CardRow list={v.iGive} label="YOU GIVE" color="#FBBF24"/>
             </div>
             {t.note && <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",fontStyle:"italic",marginBottom:12,paddingLeft:10,borderLeft:"2px solid #333"}}>{t.note}</div>}
@@ -25181,7 +25181,7 @@ function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onRec
             </div>
             <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:12}}>
               <CardRow list={v.iGet}  label="YOU GET"  color="#4ade80"/>
-              <div style={{display:"flex",alignItems:"center",color:"rgba(255,255,255,0.2)",fontSize:16,fontWeight:800,alignSelf:"stretch"}}>\u21C4</div>
+              <div style={{display:"flex",alignItems:"center",color:"rgba(255,255,255,0.2)",fontSize:16,fontWeight:800,alignSelf:"stretch"}}>{"\u21C4"}</div>
               <CardRow list={v.iGive} label="YOU GIVE" color="#FBBF24"/>
             </div>
             <button onClick={()=>onCancel(t)} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:8,padding:"7px 14px",fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Withdraw offer</button>
@@ -25209,7 +25209,7 @@ function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onRec
               </div>
             <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:14}}>
               <CardRow list={v.iGet}  label="INCOMING" color="#4ade80"/>
-              <div style={{display:"flex",alignItems:"center",color:"rgba(255,255,255,0.2)",fontSize:16,fontWeight:800,alignSelf:"stretch"}}>\u21C4</div>
+              <div style={{display:"flex",alignItems:"center",color:"rgba(255,255,255,0.2)",fontSize:16,fontWeight:800,alignSelf:"stretch"}}>{"\u21C4"}</div>
               <CardRow list={v.iGive} label="OUTGOING" color="#FBBF24"/>
             </div>
 
@@ -25242,6 +25242,12 @@ function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onRec
             <div style={{fontSize:10.5,color:"rgba(255,255,255,0.3)",marginTop:8,lineHeight:1.55}}>
               Your collection updates when you confirm {"\u2014"} the cards you receive are added, the ones you sent are removed.
             </div>
+              {/* Trades fall through. Without a way out, a dead trade sits here forever — and its
+                  cards stay locked, unable to be offered to anyone else. */}
+              <button onClick={()=>onCancel(t)}
+                style={{marginTop:10,background:"transparent",border:"1px solid rgba(255,255,255,0.12)",color:"rgba(255,255,255,0.4)",borderRadius:7,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                Cancel trade
+              </button>
           </div>
         );}}
       </Section>
@@ -25280,17 +25286,34 @@ function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onRec
   );
 }
 
-function TradeOfferModal({ trader, cards, owned, tradeBait, onSend, onClose }) {
+function TradeOfferModal({ trader, cards, owned, tradeBait, myTrades = [], myUid, onSend, onClose }) {
   const [want, setWant] = useState(new Set());
   const [give, setGive] = useState(new Set());
   const [note, setNote] = useState("");
   const [sending, setSending] = useState(false);
 
   const theirCards = trader.theirCards || [];
-  // What I could offer: cards I own AND flagged as trade bait.
+
+  // How many copies of each card I've already promised away in a live trade. This is a COUNT, not a
+  // flag: if you own three of something and promised one, the other two are still yours to offer.
+  const committed = useMemo(() => {
+    const n = {};
+    for (const t of myTrades) {
+      if (t.status !== "pending" && t.status !== "accepted") continue;
+      const iAmSender = t.fromUid === myUid;
+      const mine = iAmSender ? (t.giving||[]) : (t.getting||[]);   // what I'm handing over
+      mine.forEach(c => { n[c.id] = (n[c.id]||0) + 1; });
+    }
+    return n;
+  }, [myTrades, myUid]);
+
+  // What I can offer: owned, flagged as trade bait, and not already spoken for.
+  //
+  // Without this you can promise the same physical card to two people, and the second trade is one
+  // you have already made yourself unable to honour.
   const myOfferable = useMemo(
-    () => cards.filter(c => owned[c.id] && tradeBait[c.id]),
-    [cards, owned, tradeBait]
+    () => cards.filter(c => tradeBait[c.id] && (owned[c.id]||0) > (committed[c.id]||0)),
+    [cards, owned, tradeBait, committed]
   );
 
   const toggle = (set, setter, id) => setter(prev => {
@@ -25357,7 +25380,9 @@ function TradeOfferModal({ trader, cards, owned, tradeBait, onSend, onClose }) {
               YOU GIVE {give.size > 0 && `(${give.size})`}
             </div>
             <Picker list={myOfferable} sel={give} setter={setGive} accent="#FBBF24"
-              empty={"You haven't flagged any cards as trade bait yet. Flag some first \u2014 only cards you've marked as tradeable can be offered."}/>
+              empty={Object.keys(committed).length > 0
+                ? "Nothing left to offer \u2014 every card you've flagged is already committed to another trade. They free up when those trades complete or fall through."
+                : "You haven't flagged any cards as trade bait yet. Flag some first \u2014 only cards you've marked as tradeable can be offered."}/>
           </div>
         </div>
 
@@ -25538,21 +25563,55 @@ function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, a
     return m;
   }, [cards]);
 
+  // ── Cards already committed to a live trade ──────────────────────────────────────────────────
+  // A card promised in a pending or accepted trade is spoken for. Leaving it on offer means you can
+  // promise the same physical card to three people and only be able to honour one — which is a good
+  // way to get a reputation you can't undo.
+  //
+  // Keyed by "uid:cardId" so it locks the card FOR THAT PERSON, not globally: two collectors can
+  // each have their own copy of the same card, and one of them trading it shouldn't withdraw the
+  // other's.
+  //
+  // Only pending and accepted lock. Declined, cancelled and complete release the card again.
+  const lockedCards = useMemo(() => {
+    const locked = new Set();
+    for (const t of tradeOffers) {
+      if (t.status !== "pending" && t.status !== "accepted") continue;
+      (t.giving  || []).forEach(c => locked.add(`${t.fromUid}:${c.id}`));
+      (t.getting || []).forEach(c => locked.add(`${t.toUid}:${c.id}`));
+    }
+    return locked;
+  }, [tradeOffers]);
+
   const traders = useMemo(() => {
+
     const q = (search||"").toLowerCase();
+
     return tradeIndex
+
       .filter(t => t.uid !== user?.uid)                      // your own entry is not a match
+
       .map(t => {
-        const theirCards = (t.cardIds||[]).map(id => cardById.get(id)).filter(Boolean);
+
+        // Drop anything they've already committed elsewhere.
+
+        const theirCards = (t.cardIds||[])
+
+          .filter(id => !lockedCards.has(`${t.uid}:${id}`))
+
+          .map(id => cardById.get(id)).filter(Boolean);
+
         const matches = theirCards.filter(c => wantList[c.id]);
+
         return { ...t, theirCards, matches };
+
       })
       .filter(t => t.theirCards.length > 0)
       .filter(t => !q
         || (t.name||"").toLowerCase().includes(q)
         || t.theirCards.some(c => `${c.hero||""} ${c.playName||""} ${c.cardNum||""} ${c.treatment||""} ${c.weapon||""}`.toLowerCase().includes(q)))
       .sort((a,b) => (b.matches.length - a.matches.length) || (b.theirCards.length - a.theirCards.length));
-  }, [tradeIndex, cardById, wantList, user, search]);
+  }, [tradeIndex, cardById, wantList, user, search, lockedCards]);
 
   const matchCount = traders.reduce((n,t) => n + t.matches.length, 0);
 
@@ -25849,6 +25908,7 @@ function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, a
       {/* Offer builder — opened from a trader row in For Trade. */}
       {offerTo && (
         <TradeOfferModal trader={offerTo} cards={cards} owned={owned} tradeBait={tradeBait}
+          myTrades={tradeOffers} myUid={user?.uid}
           onSend={onSendTrade} onClose={()=>setOfferTo(null)}/>
       )}
 
@@ -33062,6 +33122,22 @@ See you in there!
   // ── Trade actions ────────────────────────────────────────────────────────────────────────────
   async function sendTradeOffer({ toUid, toName, theirCards, myCards, note }) {
     if (!user || !toUid || theirCards.length === 0 || myCards.length === 0) return;
+
+    // Re-check at SEND time, not just at render time. The card list you're looking at could be
+    // seconds old — someone else may have locked the same card in the meantime, and the client-side
+    // filter would never know. Better to fail loudly here than to promise a card that's gone.
+    const live = tradeOffers.filter(t => t.status === "pending" || t.status === "accepted");
+    const theirsLocked = new Set();
+    live.forEach(t => {
+      (t.giving  || []).forEach(c => theirsLocked.add(`${t.fromUid}:${c.id}`));
+      (t.getting || []).forEach(c => theirsLocked.add(`${t.toUid}:${c.id}`));
+    });
+    const clash = theirCards.find(c => theirsLocked.has(`${toUid}:${c.id}`))
+               || myCards.find(c => theirsLocked.has(`${user.uid}:${c.id}`));
+    if (clash) {
+      alert(`"${clash.hero || clash.playName || "That card"}" is already committed to another trade. Refresh and try again.`);
+      return;
+    }
     const id = uid();
     const now = new Date().toISOString();
     const slim = c => ({ id:c.id, name:c.hero||c.playName||"", image:c.imageUrl||null,
@@ -33107,13 +33183,49 @@ See you in there!
     } catch(e) { alert("Couldn't respond: " + e.message); }
   }
 
+  // Back out of a trade. Deals fall through — someone goes quiet, a card turns out to be damaged,
+  // people change their minds — and an app that won't let you cancel just leaves dead trades sitting
+  // there forever, holding cards hostage in the lock.
+  //
+  // The awkward case is cancelling AFTER someone has confirmed receipt: their collection has already
+  // changed, and no status flag can un-post a package. So say that plainly rather than implying a
+  // clean undo.
   async function cancelTradeOffer(t) {
     if (!user || (t.fromUid !== user.uid && t.toUid !== user.uid)) return;
-    if (!window.confirm("Cancel this trade?")) return;
+
+    const iAmSender  = t.fromUid === user.uid;
+    const iReceived  = iAmSender ? t.fromReceived : t.toReceived;
+    const theyGot    = iAmSender ? t.toReceived   : t.fromReceived;
+    const anySettled = iReceived || theyGot;
+    const accepted   = t.status === "accepted";
+
+    let msg;
+    if (anySettled) {
+      // Cards have already moved in someone's collection. Cancelling does NOT reverse that.
+      msg = "Cards have already changed hands in this trade.\n\n"
+          + "Cancelling will close it, but it will NOT undo any collection changes or return anything "
+          + "that has been posted. Sort that out between yourselves.\n\nClose this trade anyway?";
+    } else if (accepted) {
+      msg = "Cancel this agreed trade?\n\n"
+          + "The other person has already accepted, and may have posted their cards. Make sure "
+          + "you've spoken to them first.\n\nYour cards will be released back for trading.";
+    } else {
+      msg = "Withdraw this offer?";
+    }
+    if (!window.confirm(msg)) return;
+
     try {
       await setDoc(doc(db,"trade_offers",t.id),
         { status:"cancelled", cancelledBy:user.uid, cancelledAt:new Date().toISOString() },
         { merge:true });
+      // Tell the other side. A trade vanishing with no explanation is worse than a decline.
+      const other = iAmSender ? t.toUid : t.fromUid;
+      await setDoc(doc(db,"market_notifs",uid()), {
+        toUid: other, type:"trade_cancelled", tradeId:t.id,
+        fromName: user.displayName || user.email,
+        read:false, createdAt:new Date().toISOString(),
+      });
+      showToast("Trade cancelled");
     } catch(e) { alert("Couldn't cancel: " + e.message); }
   }
 
@@ -36304,6 +36416,7 @@ See you in there!
                   {n.type==="trade_offer"    ? `${n.fromName||"Someone"} offered you a trade`
                    : n.type==="trade_accepted" ? `${n.fromName||"Someone"} accepted your trade`
                    : n.type==="trade_declined" ? `${n.fromName||"Someone"} declined your trade`
+                   : n.type==="trade_cancelled" ? `${n.fromName||"Someone"} cancelled a trade`
                    : n.cardName}
                 </span>
                 {/* Every notification type gets its own line. This used to branch only on
@@ -36313,6 +36426,7 @@ See you in there!
                   {n.type==="trade_offer"      ? <>Open My Trades to accept or decline</>
                    : n.type==="trade_accepted" ? <>Send your cards and add tracking</>
                    : n.type==="trade_declined" ? <>No cards changed hands</>
+                   : n.type==="trade_cancelled" ? <>Your cards are released back for trading</>
                    : n.type==="want_tradeable" ? <>{n.traderName} will trade it</>
                    : <>by {n.sellerName||"Seller"} {"\u00b7"} ${(n.askingPrice||0).toFixed(2)}</>}
                 </span>
