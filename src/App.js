@@ -18979,6 +18979,13 @@ function CardDeduper() {
   const [running, setRunning] = useState(false);
   const [done,    setDone]    = useState(null);
   const [err,     setErr]     = useState("");
+  // STRICT groups on every identifying field. LOOSE groups on set + number + name only.
+  //
+  // Loose exists because a re-import that drifted a treatment or power name forks the card into
+  // a second document, and strict can never see those as duplicates — a different treatment is,
+  // correctly, a different card. But two docs with the same set, number and hero are the same
+  // physical card whatever else disagrees, and that is precisely the mess a bad re-import makes.
+  const [mode, setMode] = useState("strict");   // "strict" | "loose"
 
   // Score a doc: higher = more worth keeping.
   const score = c => {
@@ -19024,9 +19031,9 @@ function CardDeduper() {
         // power, so the name is nearly all the identity they have; reading it from the wrong field
         // meant they never matched.
         const nameOf = x => n(x.playName) || n(x.hero);
-        const key = [
-          n(c.setName), nNum(c.cardNum), nameOf(c), n(c.treatment), n(c.weapon), nNum(c.power),
-        ].join("|");
+        const key = mode === "loose"
+          ? [n(c.setName), nNum(c.cardNum), nameOf(c)].join("|")
+          : [n(c.setName), nNum(c.cardNum), nameOf(c), n(c.treatment), n(c.weapon), nNum(c.power)].join("|");
         // Identifiable = a card number and SOME name (play name or hero).
         if (!nNum(c.cardNum) || !nameOf(c)) return;
         (by[key] = by[key]||[]).push(c);
@@ -19063,6 +19070,27 @@ function CardDeduper() {
     setRunning(true);
     let deleted = 0;
     try {
+      // Before deleting a duplicate, salvage anything the keeper is MISSING. The keeper is chosen
+      // by score (card art wins), but a losing twin may still hold a field the winner never got —
+      // a dbs value, a market value, play text. Deleting outright would throw that away for good.
+      const SALVAGE = ["imageUrl","dbs","mktValue","marketValue","text","playName","playCost","notation","treatment","weapon","power"];
+      const patches = [];
+      groups.forEach(g => {
+        const patch = {};
+        SALVAGE.forEach(f => {
+          const missing = g.keep[f]===undefined || g.keep[f]===null || g.keep[f]==="";
+          if (!missing) return;
+          const donor = g.drop.find(d => d[f]!==undefined && d[f]!==null && d[f]!=="");
+          if (donor) patch[f] = donor[f];
+        });
+        if (Object.keys(patch).length) patches.push([g.keep.id, patch]);
+      });
+      for (let i=0;i<patches.length;i+=300) {
+        const b = writeBatch(db);
+        patches.slice(i,i+300).forEach(([id,patch]) => b.set(doc(db,"boba_checklist",id), patch, {merge:true}));
+        await b.commit();
+      }
+
       const toDrop = groups.flatMap(g=>g.drop);
       const CHUNK = 300;
       for (let i=0;i<toDrop.length;i+=CHUNK) {
@@ -19115,6 +19143,26 @@ function CardDeduper() {
         database entries — usually from an import where a field was spelled differently. Keeps the best copy of each
         (preferring one with card art or a market value) and deletes the rest.
       </div>
+      {/* Strict vs loose. A re-import that drifted one field forks the card into a second doc that
+          strict can never match — loose ignores treatment/weapon/power and groups on identity alone. */}
+      <div style={{display:"flex",gap:8,marginBottom:12}}>
+        {[["strict","Exact match","Same set, number, name, treatment, weapon and power."],
+          ["loose","Same card, any variant","Same set, number and name \u2014 ignores treatment, weapon and power. Use this after a bad re-import."]].map(([m,label,help])=>(
+          <button key={m} onClick={()=>{setMode(m); setGroups(null); setDone(null);}} title={help}
+            style={{flex:1,textAlign:"left",background:mode===m?"rgba(123,156,255,0.12)":"transparent",border:`1px solid ${mode===m?"#7B9CFF":"#2a2a2a"}`,borderRadius:10,padding:"10px 12px",cursor:"pointer",fontFamily:"inherit"}}>
+            <div style={{fontSize:12.5,fontWeight:800,color:mode===m?"#7B9CFF":"#ccc",marginBottom:2}}>{label}</div>
+            <div style={{fontSize:10.5,color:"var(--bz-ink-3)",lineHeight:1.45}}>{help}</div>
+          </button>
+        ))}
+      </div>
+      {mode==="loose" && (
+        <div style={{background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:9,padding:"10px 12px",fontSize:11.5,color:"#FBBF24",lineHeight:1.6,marginBottom:12}}>
+          {"\u26A0\uFE0F"} Loose mode treats cards as duplicates even when their treatment or power disagree.
+          That is what you want after a re-import forked your cards {"\u2014"} but it would also merge two genuinely
+          different treatments that share a card number. <strong>Read the keep/drop list before applying.</strong>
+        </div>
+      )}
+
 
       <button onClick={scan} disabled={loading||running}
         style={{background:(loading||running)?"#1a1a1a":"linear-gradient(135deg,#7B9CFF,#7B2FF7)",color:(loading||running)?"#555":"#fff",border:"none",borderRadius:8,padding:"10px 22px",fontSize:13,fontWeight:800,cursor:(loading||running)?"not-allowed":"pointer",fontFamily:"inherit"}}>
@@ -20151,8 +20199,22 @@ function CardSetImporter({ userRole }) {
           const batch = writeBatch(db);
           chunk.forEach(card => {
             if (!card.id) {
-              const key = `${card.setName||""}${card.cardNum||""}${card.hero||""}${card.treatment||""}`;
-              card.id = key.toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,20)+"_"+Math.abs(key.split("").reduce((h,c)=>((h<<5)-h)+c.charCodeAt(0)|0,0)).toString(16).slice(0,6);
+              // The doc id must be IDEMPOTENT: the same card, imported twice, has to land on the
+              // same id or the re-import silently creates a second copy of every card.
+              //
+              // The old key hashed the RAW field values while slugging the normalized ones, so
+              // "Showtime" and "showtime " produced the same slug but a DIFFERENT hash — i.e. a
+              // different document. One trailing space in a CSV cell was enough to fork a card,
+              // and because the importer strips imageUrl (below) the forked copy came out with no
+              // image. That is exactly the "duped cards, some with no images" failure.
+              //
+              // Normalize FIRST, then derive both the slug and the hash from the same normalized
+              // string. Whitespace, case and punctuation can no longer change a card's identity.
+              const nrm = v => String(v==null?"":v).trim().toLowerCase().replace(/\s+/g," ");
+              const key = [nrm(card.setName), nrm(card.cardNum), nrm(card.hero||card.playName), nrm(card.treatment)].join("|");
+              const slug = key.replace(/[^a-z0-9]/g,"").slice(0,20);
+              const hash = Math.abs(key.split("").reduce((h,c)=>((h<<5)-h)+c.charCodeAt(0)|0,0)).toString(16).slice(0,6);
+              card.id = slug + "_" + hash;
             }
             // Never overwrite imageUrl or mktValue — preserve existing data
             const { imageUrl, mktValue, ...cardData } = card;
