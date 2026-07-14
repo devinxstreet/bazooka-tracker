@@ -785,6 +785,7 @@ function GlobalStyles() {
       @keyframes slideIn { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:translateX(0); } }
       @keyframes numPop { from { transform:scale(0.8); opacity:0; } to { transform:scale(1); opacity:1; } }
       @keyframes spin { to { transform:rotate(360deg); } }
+      @keyframes fabIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
       @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
       @keyframes toastIn { from { opacity:0; transform:translateY(20px) scale(0.95); } to { opacity:1; transform:translateY(0) scale(1); } }
       @keyframes expandDown { from { opacity:0; transform:scaleY(0.96) translateY(-6px); transform-origin:top; } to { opacity:1; transform:scaleY(1) translateY(0); } }
@@ -39917,6 +39918,7 @@ function BugReporter({ user }) {
   // as someone who thinks something is broken \u2014 and most of the time they are the same person.
   // Answering the question first means they never file the bug at all.
   const [helpOpen, setHelpOpen] = useState(false);
+  const [fabOpen,  setFabOpen]  = useState(false);   // the fan-out, collapsed by default
   const [desc, setDesc] = useState("");
   const [severity, setSeverity] = useState("annoying");
   const [sending, setSending] = useState(false);
@@ -39980,23 +39982,43 @@ function BugReporter({ user }) {
 
   return (
     <>
-      <button onClick={()=>setOpen(true)} title="Report a bug" style={{
-        position:"fixed", bottom:18, left:18, zIndex:11500,
-        background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff",
-        border:"none", borderRadius:30, padding:"11px 18px", fontSize:13, fontWeight:800,
-        cursor:"pointer", fontFamily:"inherit", boxShadow:"0 6px 24px rgba(232,49,122,0.45)",
-        display:"flex", alignItems:"center", gap:6
-      }}>🐛 Report Bug</button>
-
-      <button onClick={()=>setHelpOpen(true)} title="Help" style={{
-        position:"fixed", bottom:18, left:150, zIndex:11500,
-        background:"rgba(20,20,20,0.9)", color:"rgba(255,255,255,0.65)",
-        border:"1px solid rgba(255,255,255,0.15)", borderRadius:30,
-        padding:"11px 16px", fontSize:13, fontWeight:800,
-        cursor:"pointer", fontFamily:"inherit", backdropFilter:"blur(8px)",
-        boxShadow:"0 6px 24px rgba(0,0,0,0.4)",
-        display:"flex", alignItems:"center", gap:6
-      }}>\u2753 Help</button>
+      {/* One small button, not two banners. Two permanently-parked pills over the app is clutter —
+          and the whole point of the feedback we got is that the app shouldn't shout at you. Tap it
+          and the two real actions fan out; tap anywhere else and they fold away again. */}
+      <div style={{position:"fixed", bottom:18, left:18, zIndex:11500}}>
+        {fabOpen && (
+          <>
+            {/* Click-catcher so tapping anywhere closes the fan. */}
+            <div onClick={()=>setFabOpen(false)} style={{position:"fixed",inset:0,zIndex:-1}}/>
+            <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:10,animation:"fabIn 0.15s ease"}}>
+              <button onClick={()=>{setHelpOpen(true);setFabOpen(false);}} style={{
+                background:"rgba(20,20,20,0.95)", color:"rgba(255,255,255,0.75)",
+                border:"1px solid rgba(255,255,255,0.15)", borderRadius:30,
+                padding:"10px 16px", fontSize:12.5, fontWeight:800, cursor:"pointer",
+                fontFamily:"inherit", backdropFilter:"blur(8px)", whiteSpace:"nowrap",
+                boxShadow:"0 6px 24px rgba(0,0,0,0.5)", display:"flex", alignItems:"center", gap:7
+              }}>{"\u2753"} Help</button>
+              <button onClick={()=>{setOpen(true);setFabOpen(false);}} style={{
+                background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff",
+                border:"none", borderRadius:30, padding:"10px 16px", fontSize:12.5, fontWeight:800,
+                cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap",
+                boxShadow:"0 6px 24px rgba(232,49,122,0.45)", display:"flex", alignItems:"center", gap:7
+              }}>{"\uD83D\uDC1B"} Report Bug</button>
+            </div>
+          </>
+        )}
+        <button onClick={()=>setFabOpen(o=>!o)} title={fabOpen?"Close":"Help & feedback"} style={{
+          width:44, height:44, borderRadius:"50%",
+          background: fabOpen ? "rgba(30,30,30,0.95)" : "rgba(20,20,20,0.75)",
+          color: fabOpen ? "#fff" : "rgba(255,255,255,0.5)",
+          border:"1px solid rgba(255,255,255,0.14)",
+          fontSize:17, fontWeight:800, cursor:"pointer", fontFamily:"inherit",
+          backdropFilter:"blur(8px)", boxShadow:"0 4px 18px rgba(0,0,0,0.4)",
+          display:"flex", alignItems:"center", justifyContent:"center",
+          transition:"all 0.18s ease",
+          transform: fabOpen ? "rotate(45deg)" : "none"
+        }}>{fabOpen ? "\u00D7" : "\u2753"}</button>
+      </div>
 
       {helpOpen && <HelpPanel onClose={()=>setHelpOpen(false)}/>}
 
