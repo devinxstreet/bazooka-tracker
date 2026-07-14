@@ -18972,6 +18972,146 @@ function TreatmentMerge() {
   );
 }
 
+// ── ADMIN: JUNK PLAY CLEANUP ─────────────────────────────────────────────────
+// A misaligned CSV import shifted a column: on some Play / Bonus Play cards the HOT DOG COST landed
+// in the playName field, so the name reads "0.0", "1.0", "2.0" instead of the actual play name.
+//
+// Those became SEPARATE documents (the doc id is derived from the name, so a different name means a
+// different card), which is why the correct play and the junk one both exist. The deduper can't pair
+// them for exactly the same reason: to it, they are two different cards.
+//
+// A real play name is never a bare number. That makes the junk safely identifiable, and the correct
+// twin already exists, so deleting them loses nothing. Nothing is deleted until you have seen the list.
+function JunkPlayCleanup() {
+  const [cards,   setCards]   = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [running, setRunning] = useState(false);
+  const [done,    setDone]    = useState(null);
+  const [err,     setErr]     = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const snap = await getDocs(collection(db,"boba_checklist"));
+        setCards(snap.docs.map(d=>({id:d.id,...d.data()})));
+      } catch(e) { setErr(e.message); }
+      setLoading(false);
+    })();
+  }, []);
+
+  // A playName that is nothing but a number ("0", "1.0", "2.00") is the cost, not a name.
+  const isJunkName = v => {
+    const t = String(v==null?"":v).trim();
+    return t !== "" && /^\d+(\.\d+)?$/.test(t);
+  };
+
+  const junk = useMemo(() => cards.filter(c => isJunkName(c.playName)), [cards]);
+
+  // For each junk card, does the properly-named twin actually exist? If it does, deleting is safe.
+  // If it does NOT, deleting would lose the only copy of that card — so those are held back.
+  const analyzed = useMemo(() => {
+    const n = v => String(v==null?"":v).trim().toLowerCase();
+    const bySetNum = {};
+    cards.forEach(c => {
+      const k = n(c.setName)+"|"+n(c.cardNum);
+      (bySetNum[k] = bySetNum[k]||[]).push(c);
+    });
+    return junk.map(c => {
+      const siblings = (bySetNum[n(c.setName)+"|"+n(c.cardNum)]||[]).filter(x => x.id !== c.id);
+      const goodTwin = siblings.find(x => x.playName && !isJunkName(x.playName));
+      return { card:c, goodTwin: goodTwin||null };
+    });
+  }, [junk, cards]);
+
+  const safe   = analyzed.filter(a => a.goodTwin);
+  const unsafe = analyzed.filter(a => !a.goodTwin);
+
+  async function run() {
+    if (safe.length === 0) return;
+    if (!window.confirm(
+      `Delete ${safe.length} junk play card${safe.length===1?"":"s"}?\n\n` +
+      `Each one has a correctly-named twin that stays. This can't be undone.`
+    )) return;
+    setRunning(true); setErr(""); setDone(null);
+    try {
+      let n = 0;
+      for (let i=0; i<safe.length; i+=300) {
+        const batch = writeBatch(db);
+        safe.slice(i, i+300).forEach(a => { batch.delete(doc(db,"boba_checklist",a.card.id)); n++; });
+        await batch.commit();
+      }
+      setDone(n);
+      const snap = await getDocs(collection(db,"boba_checklist"));
+      setCards(snap.docs.map(d=>({id:d.id,...d.data()})));
+    } catch(e) { setErr(e.message); }
+    setRunning(false);
+  }
+
+  const S = { card:{ background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:12, padding:18 } };
+
+  if (loading) return <div style={S.card}><div style={{fontSize:12,color:"var(--bz-ink-3)"}}>Scanning cards{"\u2026"}</div></div>;
+
+  return (
+    <div style={S.card}>
+      <div style={{fontSize:15,fontWeight:800,color:"var(--bz-ink)",marginBottom:4}}>{"\uD83E\uDDF9"} Junk Play Cleanup</div>
+      <div style={{fontSize:12,color:"var(--bz-ink-3)",marginBottom:14,lineHeight:1.6}}>
+        Finds Play cards whose <strong>name is a number</strong> ({"\u201C"}0.0{"\u201D"}, {"\u201C"}1.0{"\u201D"}{"\u2026"}) {"\u2014"} the hot dog cost
+        landed in the name column during a misaligned import, creating a second, broken copy of the card.
+      </div>
+
+      {err && <div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.3)",color:"#FCA5A5",borderRadius:8,padding:"10px 13px",fontSize:12,marginBottom:12}}>{err}</div>}
+      {done!==null && <div style={{background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:8,padding:"10px 13px",fontSize:12,fontWeight:700,marginBottom:12}}>{"\u2713"} {done} junk cards deleted.</div>}
+
+      {junk.length===0 ? (
+        <div style={{textAlign:"center",padding:"30px 20px",color:"var(--bz-ink-3)",fontSize:13}}>
+          {"\u2713"} No junk plays found {"\u2014"} every play card has a real name.
+        </div>
+      ) : (
+        <>
+          <div style={{display:"flex",gap:10,marginBottom:14}}>
+            <div style={{flex:1,background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:9,padding:"11px 13px"}}>
+              <div style={{fontSize:19,fontWeight:900,color:"#EF4444"}}>{safe.length}</div>
+              <div style={{fontSize:10.5,color:"var(--bz-ink-3)",lineHeight:1.4}}>safe to delete {"\u2014"} the real card exists</div>
+            </div>
+            {unsafe.length>0 && (
+              <div style={{flex:1,background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.25)",borderRadius:9,padding:"11px 13px"}}>
+                <div style={{fontSize:19,fontWeight:900,color:"#FBBF24"}}>{unsafe.length}</div>
+                <div style={{fontSize:10.5,color:"var(--bz-ink-3)",lineHeight:1.4}}>held back {"\u2014"} no good twin found</div>
+              </div>
+            )}
+          </div>
+
+          {unsafe.length>0 && (
+            <div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.25)",borderRadius:9,padding:"11px 13px",fontSize:11.5,color:"#FBBF24",lineHeight:1.6,marginBottom:14}}>
+              {"\u26A0\uFE0F"} {unsafe.length} junk card{unsafe.length===1?" has":"s have"} no correctly-named twin, so {unsafe.length===1?"it is":"they are"} the
+              only copy of that card. Deleting {unsafe.length===1?"it":"them"} would lose the card entirely, so {unsafe.length===1?"it is":"they are"} left alone.
+              You{"\u2019"}ll need to re-import {unsafe.length===1?"it":"them"} with the columns lined up.
+            </div>
+          )}
+
+          <div style={{border:"1px solid #2a2a2a",borderRadius:10,maxHeight:300,overflowY:"auto",marginBottom:14}}>
+            {analyzed.slice(0,150).map(({card:c, goodTwin})=>(
+              <div key={c.id} style={{padding:"8px 12px",borderBottom:"1px solid #1a1a1a",fontSize:11,fontFamily:"monospace",display:"flex",alignItems:"center",gap:8}}>
+                <span style={{color:goodTwin?"#EF4444":"#FBBF24",fontWeight:800,minWidth:52}}>{goodTwin?"DELETE":"KEEP"}</span>
+                <span style={{color:"var(--bz-ink-2)",minWidth:130}}>{c.setName}</span>
+                <span style={{color:"var(--bz-ink-2)",minWidth:60}}>{c.cardNum}</span>
+                <span style={{color:"#EF4444"}}>name: {"\u201C"}{String(c.playName)}{"\u201D"}</span>
+                {goodTwin && <span style={{color:"#4ade80",marginLeft:"auto"}}>{"\u2192"} keeping {"\u201C"}{goodTwin.playName}{"\u201D"}</span>}
+              </div>
+            ))}
+            {analyzed.length>150 && <div style={{padding:"8px 12px",fontSize:11,color:"var(--bz-ink-3)"}}>{"\u2026and "}{analyzed.length-150} more</div>}
+          </div>
+
+          <button onClick={run} disabled={safe.length===0||running}
+            style={{width:"100%",background:safe.length===0?"#222":"#EF4444",color:safe.length===0?"#666":"#fff",border:"none",borderRadius:10,padding:"12px",fontSize:13.5,fontWeight:800,cursor:(safe.length===0||running)?"not-allowed":"pointer",fontFamily:"inherit"}}>
+            {running ? "Deleting\u2026" : `Delete ${safe.length} junk play card${safe.length===1?"":"s"}`}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function CardDeduper() {
   const [loading, setLoading] = useState(false);
   const [groups,  setGroups]  = useState(null);   // [{key, keep, drop:[...]}]
@@ -20543,7 +20683,7 @@ function CardSetImporter({ userRole }) {
 
       {/* Mode toggle */}
       <div style={{ display:"flex", gap:8 }}>
-        {[["data","📄 Import Data"],["images","🖼 Import by Filename"],["prefix","🏷 Prefixes"],["foundin","📦 Found In"],["treatments","🏷 Merge Treatments"],["dedupe","🧬 Dedupe"],["merge","🔀 Merge Sets"],["cleanup","🧹 Cleanup"],["manual","🎯 Manual Image"]].map(([m,l])=>(
+        {[["data","📄 Import Data"],["images","🖼 Import by Filename"],["prefix","🏷 Prefixes"],["foundin","📦 Found In"],["treatments","🏷 Merge Treatments"],["junkplays","🧹 Junk Plays"],["dedupe","🧬 Dedupe"],["merge","🔀 Merge Sets"],["cleanup","🧹 Cleanup"],["manual","🎯 Manual Image"]].map(([m,l])=>(
           <button key={m} onClick={()=>{ setMode(m); setResults(null); setErrors([]); }}
             style={{ background:mode===m?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${mode===m?"#E8317A":"#2a2a2a"}`, color:mode===m?"#E8317A":"#888", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
             {l}
@@ -20773,6 +20913,8 @@ function CardSetImporter({ userRole }) {
       {/* Collapse junk treatment variants (Silver Blast → Blast) BEFORE running dedupe —
           the merge is what turns them into detectable duplicates in the first place. */}
       {mode==="treatments" && <TreatmentMerge/>}
+      {/* Play cards whose name is a number — the cost column landed in the name column. */}
+      {mode==="junkplays" && <JunkPlayCleanup/>}
       {mode==="dedupe" && <CardDeduper/>}
 
       {/* Merge sets mode */}
@@ -29568,7 +29710,13 @@ See you in there!
       }
     };
 
-    // Absolute safety net: if nothing resolves in 12s, try the plain file, then give up gracefully.
+    // Absolute safety net. This used to fire at 12s, which was SHORTER than a first-time user
+    // needs to pull the ~12MB card list on a phone or a slow line. So the gzip download would be
+    // abandoned mid-flight and this would start fetching the UNCOMPRESSED file instead — bigger,
+    // slower, and throwing away everything already downloaded. A first load could never win.
+    //
+    // 45s is generous, but it only ever matters on a genuinely cold, genuinely slow first load,
+    // and the alternative is what we had: guaranteeing that load fails.
     const hardStop = setTimeout(async () => {
       if (done) return;
       try {
@@ -29578,7 +29726,7 @@ See you in there!
         if (Array.isArray(all) && all.length) { finish(all); return; }
       } catch(e) {}
       finish(null); // stop the spinner no matter what
-    }, 12000);
+    }, 45000);
 
     (async () => {
       // 1. INSTANT: the cached real card list (real doc ids + images). This is what makes the page
@@ -29621,7 +29769,10 @@ See you in there!
       }
 
       try {
-        const all = await withTimeout(readCardSnapshot(true), 9000);
+        // NOT cache-busted. Staleness is already handled above by comparing the cached card count
+        // against meta/cards_version, so appending ?v=Date.now() just defeats the CDN and forces
+        // every cache-miss to re-pull ~12MB from origin instead of a nearby edge.
+        const all = await withTimeout(readCardSnapshot(false), 20000);
         if (all && all.length>0) { clearTimeout(hardStop); finish(all); idbSetCards(all, Date.now()); return; }
       } catch(e) {}
       // 4. Plain uncompressed snapshot file.
@@ -35895,6 +36046,26 @@ See you in there!
                 </div>
               </div>
             )}
+            {/* First run. A new user has to pull the full ~12MB card list once, which can take a
+                while on a phone. With no feedback at all a blank screen just reads as broken — so
+                say what's happening, and say it only happens once. */}
+            {loading && cards.length===0 && (
+              <div style={{textAlign:"center",padding:"70px 20px"}}>
+                <div style={{width:38,height:38,margin:"0 auto 18px",border:"3px solid rgba(255,255,255,0.1)",borderTopColor:"#E8317A",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+                <div style={{fontSize:15,fontWeight:800,color:"#fff",marginBottom:7}}>Setting up your card database{"\u2026"}</div>
+                <div style={{fontSize:12.5,color:"rgba(255,255,255,0.4)",lineHeight:1.65,maxWidth:330,margin:"0 auto"}}>
+                  Downloading every BoBA card {"\u2014"} all 35,000 of them. This only happens once;
+                  after this it loads instantly.
+                </div>
+              </div>
+            )}
+            {/* Loading with a cache present — quieter, since they already have cards on screen. */}
+            {loading && cards.length>0 && (
+              <div style={{textAlign:"center",padding:"14px 20px",fontSize:11.5,color:"rgba(255,255,255,0.3)"}}>
+                {"\u21BB"} Checking for new cards{"\u2026"}
+              </div>
+            )}
+
             {cards.length===0 && !loading && (
               <div style={{textAlign:"center",padding:"60px 20px",color:"rgba(255,255,255,0.5)"}}>
                 <div style={{fontSize:40,marginBottom:14}}>📭</div>
