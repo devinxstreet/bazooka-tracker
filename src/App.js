@@ -30650,7 +30650,37 @@ See you in there!
     setSelectedIds(prev => { const n=new Set(prev); if(n.has(cardId)) n.delete(cardId); else n.add(cardId); return n; });
   }
   function clearSelection(){ setSelectedIds(new Set()); }
-  function exitSelectMode(){ setSelectMode(false); setSelectedIds(new Set()); }
+  function exitSelectMode(){ setSelectMode(false); setSelectedIds(new Set()); setDragAnchor(null); }
+
+  // ── Drag-select and shift-click ──────────────────────────────────────────────────────────────
+  // Clicking 200 cards one at a time is nobody's idea of a good time. Two additions:
+  //
+  //   • DRAG  — press on a card and sweep across others; everything you pass over gets selected.
+  //   • SHIFT — click one card, shift-click another, and the whole run between them is selected.
+  //
+  // Both work off the VISIBLE order (visibleCards), so a range means what you see on screen, not
+  // some underlying array order. Dragging always ADDS — it never deselects — because a sweep that
+  // silently unpicked things you'd already chosen would be maddening.
+  const [dragging, setDragging] = useState(false);
+  const [dragAnchor, setDragAnchor] = useState(null);   // last card clicked, for shift-ranges
+
+  // Release the drag wherever the mouse comes up — including outside the grid, or off-window.
+  useEffect(() => {
+    if (!dragging) return;
+    const end = () => setDragging(false);
+    window.addEventListener("mouseup", end);
+    window.addEventListener("mouseleave", end);
+    return () => { window.removeEventListener("mouseup", end); window.removeEventListener("mouseleave", end); };
+  }, [dragging]);
+
+  function selectRangeTo(cardId, list) {
+    if (!dragAnchor) { toggleSelect(cardId); setDragAnchor(cardId); return; }
+    const ids = list.map(c => c.id);
+    const a = ids.indexOf(dragAnchor), b = ids.indexOf(cardId);
+    if (a === -1 || b === -1) { toggleSelect(cardId); setDragAnchor(cardId); return; }
+    const [lo, hi] = a < b ? [a, b] : [b, a];
+    setSelectedIds(prev => { const n = new Set(prev); for (let i=lo; i<=hi; i++) n.add(ids[i]); return n; });
+  }
   // Bulk make public / private — one write via the whole map.
   async function bulkSetPublic(makePublic) {
     if (!user || selectedIds.size===0) return;
@@ -34176,6 +34206,8 @@ See you in there!
       {selectMode && (
         <div style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",zIndex:9000,background:"rgba(18,18,26,0.97)",border:"1px solid rgba(123,156,255,0.4)",borderRadius:16,padding:"12px 16px",display:"flex",alignItems:"center",gap:10,boxShadow:"0 12px 40px rgba(0,0,0,0.6)",backdropFilter:"blur(10px)",maxWidth:"94vw",overflowX:"auto"}}>
           <span style={{fontSize:13,fontWeight:800,color:"#7B9CFF",whiteSpace:"nowrap"}}>{selectedIds.size} selected</span>
+          {/* Nobody discovers a drag gesture on their own — say it. */}
+          {selectedIds.size===0 && <span style={{fontSize:10.5,color:"rgba(255,255,255,0.3)",whiteSpace:"nowrap",lineHeight:1.3}}>drag to sweep{"\u00A0"}·{"\u00A0"}shift-click for a range</span>}
           <button onClick={()=>{ const vis=visibleCards.map(c=>c.id); setSelectedIds(new Set(vis)); }} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.6)",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Select shown</button>
           <button onClick={clearSelection} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.6)",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Clear</button>
           <div style={{width:1,height:24,background:"rgba(255,255,255,0.12)"}}/>
@@ -36192,7 +36224,14 @@ See you in there!
               {visibleCards.map(c=>(
                 <div key={c.id} style={{position:"relative"}}>
                   {selectMode && (
-                    <div onClick={e=>{ e.stopPropagation(); toggleSelect(c.id); }} style={{position:"absolute",inset:0,zIndex:30,borderRadius:10,cursor:"pointer",border:selectedIds.has(c.id)?"3px solid #7B9CFF":"3px solid transparent",background:selectedIds.has(c.id)?"rgba(123,156,255,0.18)":"rgba(0,0,0,0.15)",transition:"all 0.12s"}}>
+                    <div
+                      onMouseDown={e=>{ e.preventDefault(); e.stopPropagation();
+                        if (e.shiftKey) { selectRangeTo(c.id, visibleCards); return; }
+                        setDragging(true); setDragAnchor(c.id); toggleSelect(c.id);
+                      }}
+                      onMouseEnter={()=>{ if (dragging) setSelectedIds(prev => prev.has(c.id) ? prev : new Set(prev).add(c.id)); }}
+                      onTouchStart={e=>{ e.stopPropagation(); toggleSelect(c.id); setDragAnchor(c.id); }}
+                      style={{position:"absolute",inset:0,zIndex:30,borderRadius:10,cursor:"pointer",userSelect:"none",border:selectedIds.has(c.id)?"3px solid #7B9CFF":"3px solid transparent",background:selectedIds.has(c.id)?"rgba(123,156,255,0.18)":"rgba(0,0,0,0.15)",transition:"all 0.12s"}}>
                       <div style={{position:"absolute",top:8,left:8,width:26,height:26,borderRadius:"50%",background:selectedIds.has(c.id)?"#7B9CFF":"rgba(0,0,0,0.6)",border:"2px solid #fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:900,color:"#fff",boxShadow:"0 2px 6px rgba(0,0,0,0.5)"}}>{selectedIds.has(c.id)?"✓":""}</div>
                     </div>
                   )}
