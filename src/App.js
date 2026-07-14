@@ -25079,6 +25079,7 @@ function MessagesTab({ user, activeThread, setActiveThread, threads, threadMsgs,
 // worse than no tracking at all.
 function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onReceived }) {
   const [trackDraft, setTrackDraft] = useState({});
+  const [zoom, setZoom] = useState(null);   // a card from the trade, shown full size
 
   const mine = tradeOffers.filter(t => t.fromUid === user?.uid || t.toUid === user?.uid);
   const incoming = mine.filter(t => t.status === "pending" && t.toUid === user?.uid);
@@ -25098,16 +25099,27 @@ function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onRec
     );
   }
 
+  // You're about to post cards to a stranger based on this. 20px thumbnails and clipped names aren't
+  // enough to check it against what's in your hand — so show the actual cards, at a size where a
+  // wrong treatment or a wrong parallel is obvious before it's in an envelope.
   const CardRow = ({ list, label, color }) => (
-    <div style={{flex:1,minWidth:150}}>
-      <div style={{fontSize:9.5,fontWeight:800,color,letterSpacing:0.5,marginBottom:5}}>{label}</div>
-      <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+    <div style={{flex:1,minWidth:210}}>
+      <div style={{fontSize:10,fontWeight:800,color,letterSpacing:0.5,marginBottom:8}}>
+        {label} <span style={{color:"rgba(255,255,255,0.25)"}}>({list.length})</span>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(74px,1fr))",gap:8}}>
         {list.map(c => (
-          <div key={c.id} title={c.name} style={{display:"flex",alignItems:"center",gap:5,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:6,padding:"3px 7px 3px 3px"}}>
+          <div key={c.id} onClick={()=>c.image && setZoom(c)} title={c.image ? "Click to enlarge" : c.name}
+            style={{cursor:c.image?"zoom-in":"default"}}>
             {c.image
-              ? <img src={c.image} alt="" style={{width:20,height:27,objectFit:"cover",borderRadius:3}}/>
-              : <div style={{width:20,height:27,borderRadius:3,background:"rgba(255,255,255,0.05)"}}/>}
-            <span style={{fontSize:10.5,fontWeight:700,color:"#ccc",whiteSpace:"nowrap",maxWidth:100,overflow:"hidden",textOverflow:"ellipsis"}}>{c.name}</span>
+              ? <img src={c.image} alt="" style={{width:"100%",aspectRatio:"3/4",objectFit:"cover",borderRadius:7,border:`1px solid ${color}44`,display:"block"}}/>
+              : <div style={{width:"100%",aspectRatio:"3/4",borderRadius:7,background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)"}}/>}
+            <div style={{fontSize:10.5,fontWeight:700,color:"#ddd",marginTop:5,lineHeight:1.3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.name}</div>
+            {(c.treatment || c.weapon) && (
+              <div style={{fontSize:9,color:"rgba(255,255,255,0.35)",lineHeight:1.3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                {[c.treatment, c.weapon].filter(Boolean).join(" \u00b7 ")}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -25148,6 +25160,7 @@ function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onRec
             </div>
             <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:12}}>
               <CardRow list={v.iGet}  label="YOU GET"  color="#4ade80"/>
+              <div style={{display:"flex",alignItems:"center",color:"rgba(255,255,255,0.2)",fontSize:16,fontWeight:800,alignSelf:"stretch"}}>\u21C4</div>
               <CardRow list={v.iGive} label="YOU GIVE" color="#FBBF24"/>
             </div>
             {t.note && <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",fontStyle:"italic",marginBottom:12,paddingLeft:10,borderLeft:"2px solid #333"}}>{t.note}</div>}
@@ -25168,6 +25181,7 @@ function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onRec
             </div>
             <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:12}}>
               <CardRow list={v.iGet}  label="YOU GET"  color="#4ade80"/>
+              <div style={{display:"flex",alignItems:"center",color:"rgba(255,255,255,0.2)",fontSize:16,fontWeight:800,alignSelf:"stretch"}}>\u21C4</div>
               <CardRow list={v.iGive} label="YOU GIVE" color="#FBBF24"/>
             </div>
             <button onClick={()=>onCancel(t)} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:8,padding:"7px 14px",fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Withdraw offer</button>
@@ -25183,6 +25197,7 @@ function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onRec
             </div>
             <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:14}}>
               <CardRow list={v.iGet}  label="INCOMING" color="#4ade80"/>
+              <div style={{display:"flex",alignItems:"center",color:"rgba(255,255,255,0.2)",fontSize:16,fontWeight:800,alignSelf:"stretch"}}>\u21C4</div>
               <CardRow list={v.iGive} label="OUTGOING" color="#FBBF24"/>
             </div>
 
@@ -25229,6 +25244,26 @@ function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onRec
           </div>
         );}}
       </Section>
+
+      {/* Full-size view. The whole reason to open a trade is to check the cards are the ones you
+          think they are — before they're in an envelope. */}
+      {zoom && (
+        <div onClick={()=>setZoom(null)}
+          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:14900,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,cursor:"zoom-out"}}>
+          <img src={zoom.image} alt={zoom.name} onClick={e=>e.stopPropagation()}
+            style={{maxWidth:"min(92vw, 440px)",maxHeight:"76vh",objectFit:"contain",borderRadius:12,boxShadow:"0 20px 60px rgba(0,0,0,0.7)",cursor:"default"}}/>
+          <div style={{marginTop:15,textAlign:"center"}}>
+            <div style={{fontSize:16,fontWeight:800,color:"#fff"}}>{zoom.name}</div>
+            {(zoom.treatment || zoom.weapon || zoom.setName) && (
+              <div style={{fontSize:12,color:"rgba(255,255,255,0.45)",marginTop:3}}>
+                {[zoom.treatment, zoom.weapon, zoom.setName].filter(Boolean).join(" \u00b7 ")}
+              </div>
+            )}
+          </div>
+          <button onClick={()=>setZoom(null)}
+            style={{position:"fixed",top:20,right:20,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fff",width:38,height:38,borderRadius:"50%",fontSize:19,cursor:"pointer",fontFamily:"inherit",lineHeight:1}}>{"\u00D7"}</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -37614,7 +37649,7 @@ See you in there!
                                 <div onClick={()=>{ const start = (r.ownedCards[0] || r.allCards[0]); if(start && start.imageUrl){ setZoomFlipped(false); setZoomCard({ card:start, siblings:r.allCards, hero:r.hero }); } }} style={{ cursor:"pointer", background:r.complete?"rgba(74,222,128,0.06)":r.hasTransit?"rgba(251,191,36,0.08)":"rgba(255,255,255,0.02)", border:`1.5px solid ${r.complete?"rgba(74,222,128,0.45)":r.hasTransit?"rgba(251,191,36,0.6)":"rgba(255,255,255,0.06)"}`, borderRadius:12, overflow:"hidden" }}>
                                   <div style={{ position:"relative", aspectRatio:"3/4", background:"rgba(0,0,0,0.4)" }}>
                                     {rep?.imageUrl
-                                      ? <img src={rep.imageUrl} alt={r.hero} style={{ width:"100%", height:"100%", objectFit:"cover", opacity:r.complete?1:r.hasTransit?0.55:0.4, filter:r.complete?"none":r.hasTransit?"grayscale(45%) sepia(30%)":"grayscale(70%)" }}/>
+                                      ? <img src={rep.imageUrl} alt={r.hero} style={{ width:"100%", height:"100%", objectFit:"cover", opacity:r.complete?1:r.hasTransit?0.8:0.72, filter:r.complete?"none":r.hasTransit?"grayscale(30%) sepia(25%)":"grayscale(55%) brightness(0.9)" }}/>
                                       : <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", fontSize:11, color:"rgba(255,255,255,0.4)", padding:6, textAlign:"center" }}>{r.hero}</div>}
                                     <div style={{ position:"absolute", top:6, right:6, background:r.complete?"rgba(74,222,128,0.9)":r.hasTransit?"rgba(251,191,36,0.95)":"rgba(0,0,0,0.7)", color:r.hasTransit&&!r.complete?"#000":"#fff", borderRadius:20, padding:"2px 8px", fontSize:10, fontWeight:800 }}>{r.complete?"✅":r.hasTransit?"🚚":"—"}</div>
                                     <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent,rgba(0,0,0,0.85))", padding:"14px 8px 6px" }}>
@@ -37636,7 +37671,7 @@ See you in there!
                                         <div key={c.id} onClick={()=>c.imageUrl&&setZoomCard({ card:c, siblings:r.allCards, hero:r.hero })} style={{ background:have?"rgba(74,222,128,0.08)":"rgba(0,0,0,0.4)", border:`1.5px solid ${have?"rgba(74,222,128,0.5)":"rgba(255,255,255,0.08)"}`, borderRadius:12, overflow:"hidden", cursor:c.imageUrl?"zoom-in":"default" }}>
                                           <div style={{ position:"relative", aspectRatio:"3/4" }}>
                                             {c.imageUrl
-                                              ? <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", opacity:have?1:0.35, filter:have?"drop-shadow(0 0 10px rgba(74,222,128,0.4))":"grayscale(75%)" }}/>
+                                              ? <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover", opacity:have?1:0.72, filter:have?"drop-shadow(0 0 10px rgba(74,222,128,0.4))":"grayscale(55%) brightness(0.9)" }}/>
                                               : <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", fontSize:10, color:"rgba(255,255,255,0.4)", padding:6, textAlign:"center" }}>{[c.weapon,c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" ")}</div>}
                                             <div style={{ position:"absolute", top:5, right:5, background:have?"rgba(74,222,128,0.9)":"rgba(0,0,0,0.75)", color:"#fff", borderRadius:20, padding:"1px 7px", fontSize:9, fontWeight:800 }}>{have?"✓ Have":"Missing"}</div>
                                           </div>
@@ -40814,7 +40849,7 @@ function PublicProfilePage({ username }) {
                             <div key={r.hero} onClick={()=>{ if(rep?.imageUrl) setProfileZoom({ card:rep, siblings:r.allCards, hero:r.hero, ownedSet:pubIdSet }); }} style={{ background:r.complete?"rgba(74,222,128,0.06)":r.hasTransit?"rgba(251,191,36,0.08)":"rgba(255,255,255,0.02)", border:`1.5px solid ${r.complete?"rgba(74,222,128,0.4)":r.hasTransit?"rgba(251,191,36,0.6)":"rgba(255,255,255,0.06)"}`, borderRadius:9, overflow:"hidden", cursor:rep?.imageUrl?"pointer":"default" }}>
                               <div style={{ position:"relative", aspectRatio:"3/4", background:"rgba(0,0,0,0.4)" }}>
                                 {rep?.imageUrl
-                                  ? <img src={rep.imageUrl} alt={r.hero} style={{ width:"100%", height:"100%", objectFit:"cover", opacity:r.complete?1:r.hasTransit?0.5:0.4, filter:r.complete?"none":r.hasTransit?"grayscale(45%) sepia(25%)":"grayscale(75%)" }}/>
+                                  ? <img src={rep.imageUrl} alt={r.hero} style={{ width:"100%", height:"100%", objectFit:"cover", opacity:r.complete?1:r.hasTransit?0.8:0.72, filter:r.complete?"none":r.hasTransit?"grayscale(30%) sepia(25%)":"grayscale(55%) brightness(0.9)" }}/>
                                   : <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", fontSize:9, color:"rgba(255,255,255,0.4)", padding:4, textAlign:"center" }}>{r.hero}</div>}
                                 <div style={{ position:"absolute", top:4, right:4, background:r.complete?"rgba(74,222,128,0.9)":r.hasTransit?"rgba(251,191,36,0.95)":"rgba(0,0,0,0.7)", color:r.hasTransit&&!r.complete?"#000":"#fff", borderRadius:20, padding:"1px 6px", fontSize:9, fontWeight:800 }}>{r.complete?"✓":r.hasTransit?"🚚":"—"}</div>
                                 <div style={{ position:"absolute", bottom:0, left:0, right:0, background:"linear-gradient(transparent,rgba(0,0,0,0.85))", padding:"10px 5px 4px" }}>
