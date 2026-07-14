@@ -18819,6 +18819,159 @@ function SwanCityBulkImport() {
 // Firestore docs — which happens when an import's ID hash differs from the original (e.g. a
 // treatment/hero spelled differently). Keeps the BEST doc of each group (prefers one with an
 // image / market value / more fields) and deletes the rest. Preview before running.
+// ── ADMIN: TREATMENT MERGE ───────────────────────────────────────────────────
+// Collapse junk treatment variants into the real one. Imports produced colour-prefixed names
+// ("Silver Blast", "Orange Blast") that are really just "Blast" — the colour is describing the
+// weapon, which the weapon field already records. Two docs for one physical card is the result,
+// and the deduper can't catch them because a different treatment is, correctly, a different card.
+//
+// This does NOT guess. It shows every treatment with its card count, you choose what merges into
+// what, and it previews the exact rows before writing anything.
+function TreatmentMerge() {
+  const [allCards, setAllCards] = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [target,   setTarget]   = useState("");        // the treatment to keep
+  const [sources,  setSources]  = useState(new Set()); // treatments to fold into it
+  const [running,  setRunning]  = useState(false);
+  const [done,     setDone]     = useState(null);
+  const [err,      setErr]      = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const snap = await getDocs(collection(db,"boba_checklist"));
+        setAllCards(snap.docs.map(d=>({id:d.id,...d.data()})));
+      } catch(e) { setErr(e.message); }
+      setLoading(false);
+    })();
+  }, []);
+
+  // Every treatment, with how many cards carry it. Sorted by count so the real ones (many cards)
+  // sit at the top and the junk variants (a handful each) are easy to spot.
+  const treatments = useMemo(() => {
+    const m = {};
+    allCards.forEach(c => { const t=(c.treatment||"").trim(); if(t) m[t]=(m[t]||0)+1; });
+    return Object.entries(m).sort((a,b)=>b[1]-a[1]);
+  }, [allCards]);
+
+  // Cards that would actually change, so you can see the damage before you do it.
+  const affected = useMemo(
+    () => allCards.filter(c => sources.has((c.treatment||"").trim())),
+    [allCards, sources]
+  );
+
+  // After the merge, would any two cards collide? That's the whole point — it means the merge is
+  // creating the duplicate pairs the deduper can then clean up.
+  const collisions = useMemo(() => {
+    if (!target || sources.size===0) return [];
+    const n = v => String(v||"").trim().toLowerCase();
+    const by = {};
+    allCards.forEach(c => {
+      const t = sources.has((c.treatment||"").trim()) ? target : (c.treatment||"");
+      const k = [n(c.setName), n(c.cardNum), n(c.playName)||n(c.hero), n(t), n(c.weapon)].join("|");
+      (by[k] = by[k]||[]).push(c);
+    });
+    return Object.values(by).filter(g => g.length > 1);
+  }, [allCards, sources, target]);
+
+  async function run() {
+    if (!target || sources.size===0) return;
+    if (!window.confirm(
+      `Change ${affected.length} cards to treatment "${target}"?\n\n` +
+      `Merging: ${[...sources].join(", ")}\n\n` +
+      `This rewrites the treatment field on those cards. It can't be undone from here.`
+    )) return;
+    setRunning(true); setErr(""); setDone(null);
+    try {
+      let n = 0;
+      for (let i=0; i<affected.length; i+=400) {
+        const batch = writeBatch(db);
+        affected.slice(i, i+400).forEach(c => {
+          batch.set(doc(db,"boba_checklist",c.id), { treatment: target }, { merge:true });
+          n++;
+        });
+        await batch.commit();
+      }
+      setDone(n);
+      // Refresh so the counts reflect reality.
+      const snap = await getDocs(collection(db,"boba_checklist"));
+      setAllCards(snap.docs.map(d=>({id:d.id,...d.data()})));
+      setSources(new Set());
+    } catch(e) { setErr(e.message); }
+    setRunning(false);
+  }
+
+  const S = {
+    card: { background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:12, padding:18 },
+  };
+
+  if (loading) return <div style={S.card}><div style={{fontSize:12,color:"var(--bz-ink-3)"}}>Loading cards{"\u2026"}</div></div>;
+
+  return (
+    <div style={S.card}>
+      <div style={{fontSize:15,fontWeight:800,color:"var(--bz-ink)",marginBottom:4}}>{"\uD83C\uDFF7"} Merge Treatments</div>
+      <div style={{fontSize:12,color:"var(--bz-ink-3)",marginBottom:16,lineHeight:1.6}}>
+        Pick the treatment to <strong>keep</strong>, then tick the junk variants to fold into it.
+        Nothing is written until you confirm, and you{"\u2019"}ll see exactly how many cards change.
+      </div>
+
+      {err && <div style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.3)",color:"#FCA5A5",borderRadius:8,padding:"10px 13px",fontSize:12,marginBottom:12}}>{err}</div>}
+      {done!==null && <div style={{background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:8,padding:"10px 13px",fontSize:12,fontWeight:700,marginBottom:12}}>{"\u2713"} {done} cards updated. Run the Dedupe scan next to clean up the twins this creates.</div>}
+
+      <div style={{fontSize:11,fontWeight:800,color:"var(--bz-ink-2)",marginBottom:6,letterSpacing:0.5}}>KEEP THIS TREATMENT</div>
+      <select value={target} onChange={e=>{setTarget(e.target.value); setSources(prev=>{const n=new Set(prev); n.delete(e.target.value); return n;});}}
+        style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"9px 12px",fontSize:13,color:"#fff",fontFamily:"inherit",marginBottom:16,cursor:"pointer"}}>
+        <option value="">{"\u2014"} choose {"\u2014"}</option>
+        {treatments.map(([t,n])=><option key={t} value={t}>{t} ({n})</option>)}
+      </select>
+
+      {target && (
+        <>
+          <div style={{fontSize:11,fontWeight:800,color:"var(--bz-ink-2)",marginBottom:6,letterSpacing:0.5}}>
+            FOLD THESE INTO {"\u201C"}{target}{"\u201D"}
+          </div>
+          <div style={{border:"1px solid #2a2a2a",borderRadius:10,maxHeight:280,overflowY:"auto",marginBottom:14}}>
+            {treatments.filter(([t])=>t!==target).map(([t,n])=>{
+              const on = sources.has(t);
+              return (
+                <label key={t} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 12px",borderBottom:"1px solid #1a1a1a",cursor:"pointer",background:on?"rgba(232,49,122,0.1)":"transparent"}}>
+                  <input type="checkbox" checked={on} onChange={()=>setSources(prev=>{const s=new Set(prev); s.has(t)?s.delete(t):s.add(t); return s;})} style={{accentColor:"#E8317A",cursor:"pointer"}}/>
+                  <span style={{flex:1,fontSize:12.5,fontWeight:on?800:600,color:on?"#E8317A":"#ccc"}}>{t}</span>
+                  <span style={{fontSize:11,color:"var(--bz-ink-3)"}}>{n} card{n===1?"":"s"}</span>
+                </label>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {sources.size>0 && (
+        <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid #2a2a2a",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
+          <div style={{fontSize:12.5,fontWeight:800,color:"#fff",marginBottom:6}}>
+            {affected.length} card{affected.length===1?"":"s"} would change to {"\u201C"}{target}{"\u201D"}
+          </div>
+          <div style={{fontSize:11.5,color:"var(--bz-ink-3)",lineHeight:1.6}}>
+            {collisions.length>0
+              ? <>This creates <strong style={{color:"#FBBF24"}}>{collisions.length} duplicate group{collisions.length===1?"":"s"}</strong> {"\u2014"} which is the point. Run <strong>{"\uD83E\uDDEC"} Dedupe</strong> afterwards to collapse them.</>
+              : <>No duplicates would result {"\u2014"} these cards are distinct beyond the treatment name.</>}
+          </div>
+          {affected.slice(0,6).map(c=>(
+            <div key={c.id} style={{fontSize:11,color:"var(--bz-ink-2)",marginTop:6,fontFamily:"monospace"}}>
+              {c.cardNum} {"\u00B7"} {c.playName||c.hero} {"\u00B7"} <span style={{color:"#EF4444"}}>{c.treatment}</span> {"\u2192"} <span style={{color:"#4ade80"}}>{target}</span>
+            </div>
+          ))}
+          {affected.length>6 && <div style={{fontSize:11,color:"var(--bz-ink-3)",marginTop:5}}>{"\u2026and "}{affected.length-6} more</div>}
+        </div>
+      )}
+
+      <button onClick={run} disabled={!target||sources.size===0||running}
+        style={{width:"100%",background:(!target||sources.size===0)?"#222":"linear-gradient(135deg,#E8317A,#7B2FF7)",color:(!target||sources.size===0)?"#666":"#fff",border:"none",borderRadius:10,padding:"12px",fontSize:13.5,fontWeight:800,cursor:(!target||sources.size===0||running)?"not-allowed":"pointer",fontFamily:"inherit"}}>
+        {running ? "Merging\u2026" : sources.size===0 ? "Pick treatments to merge" : `Merge ${affected.length} cards into "${target}"`}
+      </button>
+    </div>
+  );
+}
+
 function CardDeduper() {
   const [loading, setLoading] = useState(false);
   const [groups,  setGroups]  = useState(null);   // [{key, keep, drop:[...]}]
@@ -20328,7 +20481,7 @@ function CardSetImporter({ userRole }) {
 
       {/* Mode toggle */}
       <div style={{ display:"flex", gap:8 }}>
-        {[["data","📄 Import Data"],["images","🖼 Import by Filename"],["prefix","🏷 Prefixes"],["foundin","📦 Found In"],["dedupe","🧬 Dedupe"],["merge","🔀 Merge Sets"],["cleanup","🧹 Cleanup"],["manual","🎯 Manual Image"]].map(([m,l])=>(
+        {[["data","📄 Import Data"],["images","🖼 Import by Filename"],["prefix","🏷 Prefixes"],["foundin","📦 Found In"],["treatments","🏷 Merge Treatments"],["dedupe","🧬 Dedupe"],["merge","🔀 Merge Sets"],["cleanup","🧹 Cleanup"],["manual","🎯 Manual Image"]].map(([m,l])=>(
           <button key={m} onClick={()=>{ setMode(m); setResults(null); setErrors([]); }}
             style={{ background:mode===m?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${mode===m?"#E8317A":"#2a2a2a"}`, color:mode===m?"#E8317A":"#888", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
             {l}
@@ -20555,6 +20708,9 @@ function CardSetImporter({ userRole }) {
       {mode==="foundin" && <FoundInEditor/>}
 
       {/* Dedupe mode */}
+      {/* Collapse junk treatment variants (Silver Blast → Blast) BEFORE running dedupe —
+          the merge is what turns them into detectable duplicates in the first place. */}
+      {mode==="treatments" && <TreatmentMerge/>}
       {mode==="dedupe" && <CardDeduper/>}
 
       {/* Merge sets mode */}
@@ -39046,6 +39202,17 @@ function AppInner() {
   const [gOpen,         setGOpen]         = useState(false);
   const [user,          setUser]          = useState(null);
   const [authReady,     setAuthReady]     = useState(false);
+  // The early-access allowlist has to be loaded HERE, in the component that owns the gate.
+  // It used to be loaded inside PublicCardDatabase — which only ever mounts once you are ALREADY
+  // past the gate. So for a beta tester the sequence was: sign in → gate checks an empty list →
+  // ComingSoon renders → PublicCardDatabase never mounts → the list never loads → gate stays shut.
+  // A deadlock: the listener that would let them in only ran after they were let in. Admins never
+  // hit it because hasEarlyAccess() short-circuits on @bazookabreaks.com before reading the list.
+  //
+  // It also has to be STATE, not just the module variable. hasEarlyAccess() reads a plain module
+  // array, and mutating that fires no re-render — so even once the list arrived, the gate would
+  // keep showing whatever it decided on first paint. Bumping this state is what re-runs the check.
+  const [eaLoaded,      setEaLoaded]      = useState(0);
   const [viewAs,        setViewAs]        = useState("");
   const [inventory,     setInventory]     = useState(() => { try { const c = localStorage.getItem("bz_inventory_v1"); return c ? JSON.parse(c) : []; } catch { return []; } });
   const [breaks,        setBreaks]        = useState(() => { try { const c = localStorage.getItem("bz_breaks_v1"); return c ? JSON.parse(c) : []; } catch { return []; } });
@@ -39548,19 +39715,42 @@ function AppInner() {
     { id:"importer",   label:"Import",       icon:"⬆️", roles:["Admin"] },
   ].filter(t => t.roles.includes(effectiveRole?.role));
 
+  // Load the early-access allowlist BEFORE the gate below runs. Bumping eaLoaded forces a
+  // re-render so the gate re-evaluates hasEarlyAccess() with the list actually in hand.
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db,"config","early_access"), snap => {
+      if (snap.exists()) {
+        const list = snap.data().emails || [];
+        setDynamicEarlyAccess(list, true);
+        try { localStorage.setItem("early_access_v1", JSON.stringify(list)); } catch(e){}
+      } else {
+        setDynamicEarlyAccess(EARLY_ACCESS_EMAILS, false);
+      }
+      setEaLoaded(v => v + 1);
+    }, () => { setEaLoaded(v => v + 1); });   // even on error, stop waiting
+    // Hard backstop. The gate holds gated pages until eaLoaded > 0, so if this listener were ever
+    // to hang (offline, rules change), those pages would spin forever. Fail open to the cached
+    // list rather than trapping people on a spinner.
+    const t = setTimeout(() => setEaLoaded(v => v || 1), 4000);
+    return () => { clearTimeout(t); try{unsub();}catch(e){} };
+  }, []);
+
+
   // -- PUBLIC ROUTES -- no auth required, check FIRST --
   const _path = window.location.pathname;
 
   // -- Pre-launch wall: inner pages locked until June 18 except @bazookabreaks.com team --
   const ACCESS_PAUSED = true; // flip to false on June 18 to open to everyone
-  const _isTeam = hasEarlyAccess(user?.email);
+  // eaLoaded is read here on purpose: hasEarlyAccess() consults a module-level array, so this
+  // line must re-run once the list arrives. Referencing the state is what ties them together.
+  const _isTeam = (eaLoaded, hasEarlyAccess(user?.email));
   const _gatedPaths = ["/cards","/rainbow","/supers","/1of1","/wants","/market","/messages","/friends","/team","/ledger","/leaderboard","/deck","/playbook","/chases","/showcase"];
-  if (ACCESS_PAUSED && authReady && !_isTeam && _gatedPaths.includes(_path)) {
+  if (ACCESS_PAUSED && authReady && eaLoaded>0 && !_isTeam && _gatedPaths.includes(_path)) {
     return <ComingSoon />;
   }
-  // While auth is still resolving, hold gated pages so we don't flash the wall at team members.
-  // authReady is capped at 3.5s by the auth listener's timeout, so this can never hang forever.
-  if (ACCESS_PAUSED && !authReady && _gatedPaths.includes(_path)) {
+  // Hold gated pages until BOTH auth and the allowlist have resolved — deciding early is what
+  // showed a beta tester the ComingSoon wall even though they were on the list.
+  if (ACCESS_PAUSED && (!authReady || eaLoaded===0) && _gatedPaths.includes(_path)) {
     return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#08000a", fontFamily:"'Trebuchet MS',sans-serif", fontSize:16, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
   }
   if (typeof document !== "undefined") {
