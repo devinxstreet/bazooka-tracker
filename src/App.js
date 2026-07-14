@@ -25505,9 +25505,9 @@ function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, a
                   })}
                 </div>
               )}
+            </div>
             </>
             )}
-            </div>
           </div>
   );
 }
