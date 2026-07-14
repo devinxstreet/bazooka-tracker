@@ -25466,9 +25466,13 @@ function TradeView({ user, traders, matchCount, wantList, onViewProfile, setActi
   );
 }
 
-function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, allMyOffers, marketSales, trackingInputs, setTrackingInputs, setListModal, setOfferModal, setOfferAmt, setOfferNote, setOfferSent, setCounterModal, setCounterAmt, buyNow, respondOffer, unsellListing, saveTracking, setSigningIn, setActiveTab, inp , listType, cards, owned, search, removeListing, tradeIndex=[], wantList={}, tradeBait={}, tradeOffers=[], onSendTrade, onRespondTrade, onCancelTrade, onTradeTracking, onTradeReceived}) {
+function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, allMyOffers, marketSales, trackingInputs, setTrackingInputs, setListModal, setOfferModal, setOfferAmt, setOfferNote, setOfferSent, setCounterModal, setCounterAmt, buyNow, respondOffer, unsellListing, saveTracking, setSigningIn, setActiveTab, inp , listType, cards, owned, search, removeListing, tradeIndex=[], wantList={}, tradeBait={}, tradeOffers=[], onSendTrade, onRespondTrade, onCancelTrade, onTradeTracking, onTradeReceived, initialView}) {
   // Sale and trade are the same idea in different currencies, so they sit side by side.
-  const [mktView, setMktView] = useState("sale");   // "sale" | "trade"
+  const [mktView, setMktView] = useState(initialView || "sale");   // "sale" | "trade" | "trades"
+  // A trade notification has to be able to DROP you on the trades view. Without this the View
+  // button just opened the marketplace on For Sale, and the offer \u2014 sitting in My Trades \u2014 was
+  // nowhere to be seen. Which is exactly the "it worked until I tried to accept" failure.
+  useEffect(() => { if (initialView) setMktView(initialView); }, [initialView]);
   // Card thumbnails in listings are 54x72 \u2014 you cannot judge a foil, a print line or a corner at
   // that size, which is a real problem when you're being asked to hand over money for it. Click any
   // card to see it properly.
@@ -31534,6 +31538,7 @@ See you in there!
   // Everyone who opted in to trade matching. Public read by design \u2014 the doc holds only a name
   // and the card ids they explicitly flagged, never their collection.
   const [tradeIndex,   setTradeIndex]   = useState([]);
+  const [mktInitView,  setMktInitView]  = useState(null);   // which marketplace view to open on
   useEffect(() => {
     const unsub = onSnapshot(collection(db,"trade_index"),
       snap => setTradeIndex(snap.docs.map(d => ({ id:d.id, ...d.data() }))),
@@ -31975,6 +31980,34 @@ See you in there!
   const [bulkDelOpen, setBulkDelOpen] = useState(false);
   const [bulkDelText, setBulkDelText] = useState("");
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  // Bulk add/remove from the want list. One write for the whole selection rather than one per card.
+  //
+  // Removing only ever touches cards that are actually ON the list, so sweeping a mixed selection
+  // with "Remove" won't quietly add the rest.
+  async function bulkWant(add) {
+    if (!user || selectedIds.size===0) return;
+    const next = {...wantList};
+    let n = 0;
+    selectedIds.forEach(id => {
+      if (add) { if (!next[id]) { next[id] = 1; n++; } }
+      else     { if (next[id])  { delete next[id]; n++; } }
+    });
+    if (n === 0) {
+      showToast(add ? "Already on your want list" : "None of those were on your want list");
+      return;
+    }
+    setWantList(next);
+    try {
+      await setDoc(doc(db,"boba_wants",user.uid), next);
+      showToast(add
+        ? `\u2713 ${n} card${n===1?"":"s"} added to your want list`
+        : `\u2713 ${n} card${n===1?"":"s"} removed from your want list`);
+      clearSelection();
+    } catch(e) {
+      alert("Couldn't update your want list: " + e.message);
+    }
+  }
+
   async function bulkDeleteCards() {
     if (!_cardAdmin || selectedIds.size===0) return;
     setBulkDeleting(true);
@@ -35196,6 +35229,16 @@ See you in there!
           <button disabled={selectedIds.size===0} onClick={()=>bulkSetPublic(true)} style={{background:selectedIds.size?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)",border:`1px solid ${selectedIds.size?"#4ade80":"#333"}`,color:selectedIds.size?"#4ade80":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>👁 Make Public</button>
           <button disabled={selectedIds.size===0} onClick={()=>bulkSetPublic(false)} style={{background:selectedIds.size?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.04)",border:"1px solid #333",color:selectedIds.size?"#ccc":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>🔒 Make Private</button>
           <button disabled={selectedIds.size===0} onClick={()=>setBulkListModal(true)} style={{background:selectedIds.size?"linear-gradient(135deg,#E8317A,#7B2FF7)":"rgba(255,255,255,0.04)",border:"none",color:selectedIds.size?"#fff":"#555",borderRadius:8,padding:"7px 14px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>💰 List for Sale</button>
+          {/* Want list. Both directions — you'll want to clear a chunk once you've pulled them. */}
+          <button disabled={selectedIds.size===0} onClick={()=>bulkWant(true)}
+            style={{background:selectedIds.size?"rgba(232,49,122,0.12)":"rgba(255,255,255,0.04)",border:`1px solid ${selectedIds.size?"rgba(232,49,122,0.4)":"#333"}`,color:selectedIds.size?"#E8317A":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+            {"\u2764\uFE0F"} Add to Wants
+          </button>
+          <button disabled={selectedIds.size===0} onClick={()=>bulkWant(false)}
+            style={{background:"transparent",border:"1px solid #333",color:selectedIds.size?"#888":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+            Remove from Wants
+          </button>
+
 
           {/* Admin-only: remove cards from the shared database entirely. Sits apart from the other
               actions (and after a divider) because it is the only one that affects every user. */}
@@ -36190,19 +36233,44 @@ See you in there!
       {wantNotifs.length>0&&(
         <div style={{background:"linear-gradient(135deg,rgba(232,49,122,0.08),rgba(123,47,247,0.05))",borderBottom:"1px solid rgba(232,49,122,0.15)",padding:"10px 24px"}}>
           <div style={{maxWidth:1400,margin:"0 auto",display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
-            <span style={{fontSize:12,color:"rgba(255,255,255,0.4)",fontWeight:700,whiteSpace:"nowrap"}}>{"\uD83C\uDFAF Cards on your want list are now available:"}</span>
+            {/* The header said "cards from your want list" for EVERYTHING \u2014 including trade
+                offers, which have nothing to do with a want list. Count them separately. */}
+            <span style={{fontSize:12,color:"rgba(255,255,255,0.4)",fontWeight:700,whiteSpace:"nowrap"}}>
+              {(() => {
+                const trades = wantNotifs.filter(n=>String(n.type||"").startsWith("trade_")).length;
+                const wants  = wantNotifs.length - trades;
+                if (trades && wants) return `\uD83D\uDD14 ${trades} trade${trades===1?"":"s"} \u00b7 ${wants} want-list hit${wants===1?"":"s"}`;
+                if (trades) return `\uD83D\uDD01 ${trades} trade update${trades===1?"":"s"}`;
+                return `\uD83C\uDF89 ${wants} card${wants===1?"":"s"} from your want list`;
+              })()}
+            </span>
             {wantNotifs.map(n=>(
               <div key={n.id} style={{display:"flex",alignItems:"center",gap:8,background:"rgba(232,49,122,0.08)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:12,padding:"6px 12px"}}>
-                {n.cardImage&&<img src={n.cardImage} alt={n.cardName} style={{width:24,height:32,objectFit:"cover",borderRadius:4,flexShrink:0}}/>}
-                <span style={{fontSize:12,color:"#E8317A",fontWeight:700}}>{n.cardName}</span>
-                {/* A trade notification has no seller and no price \u2014 rendering the sale text for one
-                    would print "by undefined \u00b7 $NaN". Branch on the type. */}
-                <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>
-                  {n.type==="want_tradeable"
-                    ? <>{n.traderName} will trade it</>
-                    : <>by {n.sellerName} \u00b7 ${(n.askingPrice||0).toFixed(2)}</>}
+                {n.cardImage&&<img src={n.cardImage} alt={n.cardName} style={{width:24,height:32,objectFit:"cover",borderRadius:4}}/>}
+                <span style={{fontSize:12,color:"#E8317A",fontWeight:700}}>
+                  {n.type==="trade_offer"    ? `${n.fromName||"Someone"} offered you a trade`
+                   : n.type==="trade_accepted" ? `${n.fromName||"Someone"} accepted your trade`
+                   : n.type==="trade_declined" ? `${n.fromName||"Someone"} declined your trade`
+                   : n.cardName}
                 </span>
-                <button onClick={()=>{setActiveTab("market");setDoc(doc(db,"market_notifs",n.id),{read:true},{merge:true});}} style={{background:"rgba(232,49,122,0.15)",border:"1px solid rgba(232,49,122,0.3)",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>View</button>
+                {/* Every notification type gets its own line. This used to branch only on
+                    want_tradeable, so a trade_offer fell through to the SALE text and rendered
+                    "by undefined · $0.00" — the price and seller a trade doesn't have. */}
+                <span style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>
+                  {n.type==="trade_offer"      ? <>Open My Trades to accept or decline</>
+                   : n.type==="trade_accepted" ? <>Send your cards and add tracking</>
+                   : n.type==="trade_declined" ? <>No cards changed hands</>
+                   : n.type==="want_tradeable" ? <>{n.traderName} will trade it</>
+                   : <>by {n.sellerName||"Seller"} {"\u00b7"} ${(n.askingPrice||0).toFixed(2)}</>}
+                </span>
+                <button onClick={()=>{
+                  // Route by type. A trade offer lives in My Trades \u2014 dropping someone on
+                  // For Sale and letting them hunt for it is how "I can't find it to accept"
+                  // happens.
+                  setMktInitView(String(n.type||"").startsWith("trade_") ? "trades" : "sale");
+                  setActiveTab("market");
+                  setDoc(doc(db,"market_notifs",n.id),{read:true},{merge:true});
+                }} style={{background:"rgba(232,49,122,0.15)",border:"1px solid rgba(232,49,122,0.3)",color:"#E8317A",borderRadius:6,padding:"3px 8px",fontSize:10,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>View</button>
                 <button onClick={()=>setDoc(doc(db,"market_notifs",n.id),{read:true},{merge:true})} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.2)",cursor:"pointer",fontSize:14,padding:"0 2px"}}>{"\u00D7"}</button>
               </div>
             ))}
@@ -37913,6 +37981,7 @@ See you in there!
             tradeIndex={tradeIndex} wantList={wantList} tradeBait={tradeBait}
             tradeOffers={tradeOffers} onSendTrade={sendTradeOffer} onRespondTrade={respondTradeOffer}
             onCancelTrade={cancelTradeOffer} onTradeTracking={saveTradeTracking} onTradeReceived={confirmTradeReceived}
+            initialView={mktInitView}
           />
         )}
 
