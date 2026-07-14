@@ -25065,7 +25065,7 @@ function MessagesTab({ user, activeThread, setActiveThread, threads, threadMsgs,
 // Matches (cards on YOUR want list) lead, because that's the question people actually came to answer.
 // Everything else they'd trade sits underneath, since you might want something you never got round to
 // adding to your want list.
-function TradeView({ user, traders, matchCount, wantList, onViewProfile, setActiveTab, setSigningIn, WEAPON_COLORS }) {
+function TradeView({ user, traders, matchCount, wantList, onViewProfile, setActiveTab, setSigningIn, WEAPON_COLORS, onZoom = ()=>{} }) {
   const [expanded, setExpanded] = useState(null);
 
   if (!user) {
@@ -25100,8 +25100,9 @@ function TradeView({ user, traders, matchCount, wantList, onViewProfile, setActi
   }
 
   const CardChip = ({ c, isMatch }) => (
-    <div title={`${c.hero||c.playName||""} \u00b7 ${c.treatment||""} \u00b7 ${c.cardNum||""}`}
-      style={{display:"flex",alignItems:"center",gap:7,background:isMatch?"rgba(74,222,128,0.1)":"rgba(255,255,255,0.03)",border:`1px solid ${isMatch?"rgba(74,222,128,0.35)":"rgba(255,255,255,0.07)"}`,borderRadius:8,padding:"5px 9px 5px 5px"}}>
+    <div onClick={()=>c.imageUrl && onZoom({image:c.imageUrl, name:c.hero||c.playName||"", sub:[c.treatment,c.weapon,c.setName].filter(Boolean).join(" \u00b7 ")})}
+      title={c.imageUrl ? "Click to enlarge" : `${c.hero||c.playName||""}`}
+      style={{display:"flex",alignItems:"center",gap:7,cursor:c.imageUrl?"zoom-in":"default",background:isMatch?"rgba(74,222,128,0.1)":"rgba(255,255,255,0.03)",border:`1px solid ${isMatch?"rgba(74,222,128,0.35)":"rgba(255,255,255,0.07)"}`,borderRadius:8,padding:"5px 9px 5px 5px"}}>
       {c.imageUrl
         ? <img src={c.imageUrl} alt="" style={{width:26,height:35,objectFit:"cover",borderRadius:4,flexShrink:0}}/>
         : <div style={{width:26,height:35,borderRadius:4,background:"rgba(255,255,255,0.05)",flexShrink:0}}/>}
@@ -25193,6 +25194,10 @@ function TradeView({ user, traders, matchCount, wantList, onViewProfile, setActi
 function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, allMyOffers, marketSales, trackingInputs, setTrackingInputs, setListModal, setOfferModal, setOfferAmt, setOfferNote, setOfferSent, setCounterModal, setCounterAmt, buyNow, respondOffer, unsellListing, saveTracking, setSigningIn, setActiveTab, inp , listType, cards, owned, search, removeListing, tradeIndex=[], wantList={}, tradeBait={}}) {
   // Sale and trade are the same idea in different currencies, so they sit side by side.
   const [mktView, setMktView] = useState("sale");   // "sale" | "trade"
+  // Card thumbnails in listings are 54x72 \u2014 you cannot judge a foil, a print line or a corner at
+  // that size, which is a real problem when you're being asked to hand over money for it. Click any
+  // card to see it properly.
+  const [zoomCard, setZoomCard] = useState(null);   // {image, name, sub}
 
   // ── Trade matching ──────────────────────────────────────────────────────────────────────────
   // For each person who opted in, which of their flagged cards are on MY want list? That intersection
@@ -25240,7 +25245,7 @@ function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, a
 
             {mktView==="trade" ? (
               <TradeView user={user} traders={traders} matchCount={matchCount}
-                wantList={wantList} onViewProfile={onViewProfile}
+                wantList={wantList} onViewProfile={onViewProfile} onZoom={setZoomCard}
                 setActiveTab={setActiveTab} setSigningIn={setSigningIn} WEAPON_COLORS={WEAPON_COLORS}/>
             ) : (
             <>
@@ -25509,6 +25514,23 @@ function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, a
             </div>
             </>
             )}
+
+      {/* Card lightbox. A 54x72 thumbnail can't tell you whether a foil is clean or a corner is
+          dinged — and that's exactly what you need to know before spending money. */}
+      {zoomCard && (
+        <div onClick={()=>setZoomCard(null)}
+          style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:14800,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,cursor:"zoom-out"}}>
+          <img src={zoomCard.image} alt={zoomCard.name}
+            onClick={e=>e.stopPropagation()}
+            style={{maxWidth:"min(92vw, 460px)",maxHeight:"76vh",objectFit:"contain",borderRadius:12,boxShadow:"0 20px 60px rgba(0,0,0,0.7)",cursor:"default"}}/>
+          <div style={{marginTop:16,textAlign:"center"}}>
+            <div style={{fontSize:16,fontWeight:800,color:"#fff"}}>{zoomCard.name}</div>
+            {zoomCard.sub && <div style={{fontSize:12,color:"rgba(255,255,255,0.45)",marginTop:3}}>{zoomCard.sub}</div>}
+          </div>
+          <button onClick={()=>setZoomCard(null)}
+            style={{position:"fixed",top:20,right:20,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fff",width:38,height:38,borderRadius:"50%",fontSize:19,cursor:"pointer",fontFamily:"inherit",lineHeight:1}}>{"\u00D7"}</button>
+        </div>
+      )}
           </div>
   );
 }
