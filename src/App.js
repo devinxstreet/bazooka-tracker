@@ -31221,8 +31221,9 @@ See you in there!
   // to change and what they become, before anything is written. Selecting a mixed batch and setting
   // hero="King Tuck" would otherwise silently flatten several different heroes into one.
   const [bulkEditOpen,  setBulkEditOpen]  = useState(false);
-  const [bulkEditField, setBulkEditField] = useState("hero");
-  const [bulkEditValue, setBulkEditValue] = useState("");
+  // {fieldId: newValue} for every field you've switched on. A typo like "Kyle Trucker" usually lives
+  // in BOTH hero and inspiredBy, so fixing one field at a time means running the same selection twice.
+  const [bulkEdits,     setBulkEdits]     = useState({});
   const [bulkEditing,   setBulkEditing]   = useState(false);
 
   const BULK_FIELDS = [
@@ -31238,27 +31239,30 @@ See you in there!
   ];
 
   async function bulkEditCards() {
-    if (!_cardAdmin || selectedIds.size===0 || !bulkEditField) return;
+    const fields = Object.keys(bulkEdits);
+    if (!_cardAdmin || selectedIds.size===0 || fields.length===0) return;
     setBulkEditing(true);
     try {
+      // Build the patch once. Power stays NUMERIC \u2014 sorting, power caps and deck legality all compare
+      // it as a number, and a string "150" would quietly break every one of them.
+      const patch = {};
+      fields.forEach(f => {
+        const raw = String(bulkEdits[f] ?? "").trim();
+        patch[f] = f === "power" ? (raw === "" ? null : Number(raw)) : raw;
+      });
+
       const ids = [...selectedIds];
-      // Power is numeric everywhere else in the app; keep it that way or sorting and deck legality
-      // start comparing strings to numbers.
-      const raw = bulkEditValue.trim();
-      const val = bulkEditField === "power"
-        ? (raw === "" ? null : Number(raw))
-        : raw;
       for (let i=0; i<ids.length; i+=300) {
         const batch = writeBatch(db);
         ids.slice(i, i+300).forEach(id =>
-          batch.set(doc(db,"boba_checklist",id), { [bulkEditField]: val }, { merge:true })
+          batch.set(doc(db,"boba_checklist",id), patch, { merge:true })
         );
         await batch.commit();
       }
-      // Reflect it locally so the grid updates without a reload.
-      setCards(prev => prev.map(c => selectedIds.has(c.id) ? { ...c, [bulkEditField]: val } : c));
-      setToast(`\u2713 Updated ${bulkEditField} on ${ids.length} card${ids.length===1?"":"s"}`);
-      setBulkEditOpen(false); setBulkEditValue(""); clearSelection();
+      // Reflect locally so the grid updates without a reload.
+      setCards(prev => prev.map(c => selectedIds.has(c.id) ? { ...c, ...patch } : c));
+      setToast(`\u2713 Updated ${fields.length} field${fields.length===1?"":"s"} on ${ids.length} card${ids.length===1?"":"s"}`);
+      setBulkEditOpen(false); setBulkEdits({}); clearSelection();
     } catch(e) {
       alert("Bulk edit failed: " + e.message);
     }
@@ -34387,7 +34391,7 @@ See you in there!
           {_cardAdmin && (
             <>
               <div style={{width:1,height:24,background:"rgba(255,255,255,0.12)"}}/>
-              <button disabled={selectedIds.size===0} onClick={()=>{setBulkEditValue("");setBulkEditOpen(true);}}
+              <button disabled={selectedIds.size===0} onClick={()=>{setBulkEdits({});setBulkEditOpen(true);}}
                 style={{background:selectedIds.size?"rgba(123,156,255,0.12)":"rgba(255,255,255,0.04)",border:`1px solid ${selectedIds.size?"#7B9CFF":"#333"}`,color:selectedIds.size?"#7B9CFF":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
                 {"\u270F\uFE0F"} Bulk Edit
               </button>
@@ -34433,68 +34437,97 @@ See you in there!
       )}
 
       {/* ── BULK LIST MODAL ── */}
-      {/* Bulk edit. Shows the DISTINCT current values across the selection, so if you've accidentally
-          grabbed three different heroes you can see that before you flatten them into one. */}
+      {/* Bulk edit. Switch on any number of fields and set them all in ONE write \u2014 a typo like
+          "Kyle Trucker" usually lives in both hero AND inspiredBy, and fixing one field at a time
+          means running the same selection twice.
+
+          Each field shows the DISTINCT values currently across the selection, so if you've grabbed
+          three different heroes by accident you see that BEFORE you flatten them into one. */}
       {bulkEditOpen && (()=>{
         const sel = cards.filter(c => selectedIds.has(c.id));
-        const fieldLabel = (BULK_FIELDS.find(f=>f.id===bulkEditField)||{}).label || bulkEditField;
-        // What's actually in this field right now, across everything selected.
-        const counts = {};
-        sel.forEach(c => {
-          const v = c[bulkEditField];
-          const k = (v===undefined||v===null||v==="") ? "(empty)" : String(v);
-          counts[k] = (counts[k]||0) + 1;
+        const enabled = Object.keys(bulkEdits);
+
+        // What's actually in a given field right now, across everything selected.
+        const distinctFor = (fid) => {
+          const counts = {};
+          sel.forEach(c => {
+            const v = c[fid];
+            const k = (v===undefined||v===null||v==="") ? "(empty)" : String(v);
+            counts[k] = (counts[k]||0) + 1;
+          });
+          return Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+        };
+
+        const toggle = (fid) => setBulkEdits(prev => {
+          const n = {...prev};
+          if (fid in n) delete n[fid];
+          else {
+            // Prefill with the current value when there IS only one \u2014 you're usually correcting a
+            // typo, not typing from scratch.
+            const d = distinctFor(fid);
+            n[fid] = (d.length === 1 && d[0][0] !== "(empty)") ? d[0][0] : "";
+          }
+          return n;
         });
-        const distinct = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
-        const mixed = distinct.length > 1;
-        const canApply = bulkEditValue.trim() !== "" || bulkEditField !== "power";
+
         return (
           <div onClick={()=>!bulkEditing&&setBulkEditOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",zIndex:14000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-            <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2a2a2a",borderRadius:14,padding:22,maxWidth:520,width:"100%",maxHeight:"85vh",overflowY:"auto"}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2a2a2a",borderRadius:14,padding:22,maxWidth:560,width:"100%",maxHeight:"85vh",overflowY:"auto"}}>
               <div style={{fontSize:16,fontWeight:900,color:"#7B9CFF",marginBottom:6}}>
                 {"\u270F\uFE0F"} Edit {sel.length} card{sel.length===1?"":"s"}
               </div>
-              <div style={{fontSize:12,color:"var(--bz-ink-3)",lineHeight:1.6,marginBottom:14}}>
-                Sets one field on every selected card. Changes the shared database, so it applies for everyone.
+              <div style={{fontSize:12,color:"var(--bz-ink-3)",lineHeight:1.6,marginBottom:16}}>
+                Tick any fields you want to change. They're all written together in one pass, and it
+                changes the shared database {"\u2014"} so it applies for everyone.
               </div>
 
-              <div style={{fontSize:11,fontWeight:800,color:"var(--bz-ink-2)",marginBottom:6,letterSpacing:0.5}}>FIELD</div>
-              <select value={bulkEditField} onChange={e=>{setBulkEditField(e.target.value); setBulkEditValue("");}}
-                style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"9px 12px",fontSize:13,color:"#fff",fontFamily:"inherit",marginBottom:14,cursor:"pointer"}}>
-                {BULK_FIELDS.map(f=><option key={f.id} value={f.id}>{f.label}</option>)}
-              </select>
-
-              {/* Current values. This is the guard against a mixed selection. */}
-              <div style={{background:"#0b0b0b",border:`1px solid ${mixed?"rgba(251,191,36,0.35)":"#2a2a2a"}`,borderRadius:9,padding:"11px 13px",marginBottom:14}}>
-                <div style={{fontSize:10.5,fontWeight:800,color:mixed?"#FBBF24":"var(--bz-ink-3)",letterSpacing:0.5,marginBottom:7}}>
-                  {mixed ? `\u26A0\uFE0F ${distinct.length} DIFFERENT VALUES SELECTED` : "CURRENT VALUE"}
-                </div>
-                {distinct.slice(0,6).map(([v,n])=>(
-                  <div key={v} style={{display:"flex",justifyContent:"space-between",gap:10,fontSize:12,padding:"2px 0",fontFamily:"monospace"}}>
-                    <span style={{color:v==="(empty)"?"#555":"#ccc"}}>{v}</span>
-                    <span style={{color:"var(--bz-ink-3)"}}>{n} card{n===1?"":"s"}</span>
-                  </div>
-                ))}
-                {distinct.length>6 && <div style={{fontSize:11,color:"var(--bz-ink-3)",marginTop:4}}>{"\u2026and "}{distinct.length-6} more</div>}
-                {mixed && (
-                  <div style={{fontSize:11,color:"#FBBF24",lineHeight:1.55,marginTop:8,paddingTop:8,borderTop:"1px solid rgba(251,191,36,0.2)"}}>
-                    These will all be flattened into the one value below. If that's not what you meant, narrow the selection first.
-                  </div>
-                )}
+              <div style={{border:"1px solid #2a2a2a",borderRadius:10,overflow:"hidden",marginBottom:16}}>
+                {BULK_FIELDS.map(f => {
+                  const on = f.id in bulkEdits;
+                  const d = distinctFor(f.id);
+                  const mixed = d.length > 1;
+                  return (
+                    <div key={f.id} style={{borderBottom:"1px solid #1c1c1c",background:on?"rgba(123,156,255,0.05)":"transparent"}}>
+                      <label style={{display:"flex",alignItems:"center",gap:9,padding:"10px 12px",cursor:"pointer"}}>
+                        <input type="checkbox" checked={on} onChange={()=>toggle(f.id)} disabled={bulkEditing} style={{accentColor:"#7B9CFF",cursor:"pointer"}}/>
+                        <span style={{fontSize:12.5,fontWeight:on?800:600,color:on?"#7B9CFF":"#bbb",minWidth:86}}>{f.label}</span>
+                        <span style={{flex:1,fontSize:11,color:mixed?"#FBBF24":"var(--bz-ink-3)",fontFamily:"monospace",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                          {mixed
+                            ? `\u26A0\uFE0F ${d.length} different values`
+                            : d.length===1 ? d[0][0] : "\u2014"}
+                        </span>
+                      </label>
+                      {on && (
+                        <div style={{padding:"0 12px 11px 42px"}}>
+                          <input
+                            value={bulkEdits[f.id]}
+                            onChange={e=>setBulkEdits(prev=>({...prev,[f.id]:e.target.value}))}
+                            disabled={bulkEditing}
+                            type={f.id==="power" ? "number" : "text"}
+                            placeholder={f.id==="power" ? "e.g. 150 \u2014 blank to clear" : `New ${f.label.toLowerCase()}\u2026`}
+                            style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:7,padding:"8px 11px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
+                          {mixed && (
+                            <div style={{fontSize:10.5,color:"#FBBF24",lineHeight:1.5,marginTop:6}}>
+                              {d.slice(0,4).map(([v,n])=>`${v} (${n})`).join("  \u00B7  ")}
+                              {d.length>4 ? `  \u00B7  +${d.length-4} more` : ""}
+                              <div style={{marginTop:3}}>All of these become the value above. Narrow the selection if that's not what you meant.</div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-
-              <div style={{fontSize:11,fontWeight:800,color:"var(--bz-ink-2)",marginBottom:6,letterSpacing:0.5}}>NEW {fieldLabel.toUpperCase()}</div>
-              <input value={bulkEditValue} onChange={e=>setBulkEditValue(e.target.value)} autoFocus disabled={bulkEditing}
-                placeholder={bulkEditField==="power" ? "e.g. 150 \u2014 leave blank to clear" : `New ${fieldLabel.toLowerCase()}\u2026`}
-                type={bulkEditField==="power" ? "number" : "text"}
-                style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"11px 12px",fontSize:14,color:"#fff",fontFamily:"inherit",marginBottom:14}}/>
 
               <div style={{display:"flex",gap:8}}>
-                <button disabled={!canApply||bulkEditing} onClick={bulkEditCards}
-                  style={{flex:1,background:canApply?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#222",color:canApply?"#fff":"#666",border:"none",borderRadius:9,padding:"11px",fontSize:13,fontWeight:800,cursor:(canApply&&!bulkEditing)?"pointer":"not-allowed",fontFamily:"inherit"}}>
-                  {bulkEditing ? "Saving\u2026" : `Set ${fieldLabel.toLowerCase()} on ${sel.length} card${sel.length===1?"":"s"}`}
+                <button disabled={enabled.length===0||bulkEditing} onClick={bulkEditCards}
+                  style={{flex:1,background:enabled.length?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#222",color:enabled.length?"#fff":"#666",border:"none",borderRadius:9,padding:"11px",fontSize:13,fontWeight:800,cursor:(enabled.length&&!bulkEditing)?"pointer":"not-allowed",fontFamily:"inherit"}}>
+                  {bulkEditing ? "Saving\u2026"
+                    : enabled.length===0 ? "Pick a field to change"
+                    : `Update ${enabled.length} field${enabled.length===1?"":"s"} on ${sel.length} card${sel.length===1?"":"s"}`}
                 </button>
-                <button disabled={bulkEditing} onClick={()=>setBulkEditOpen(false)}
+                <button disabled={bulkEditing} onClick={()=>{setBulkEditOpen(false);setBulkEdits({});}}
                   style={{flex:1,background:"transparent",border:"1px solid #333",color:"#999",borderRadius:9,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
               </div>
             </div>
