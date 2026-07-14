@@ -25057,9 +25057,192 @@ function MessagesTab({ user, activeThread, setActiveThread, threads, threadMsgs,
   );
 }
 
-function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, allMyOffers, marketSales, trackingInputs, setTrackingInputs, setListModal, setOfferModal, setOfferAmt, setOfferNote, setOfferSent, setCounterModal, setCounterAmt, buyNow, respondOffer, unsellListing, saveTracking, setSigningIn, setActiveTab, inp , listType, cards, owned, search, removeListing}) {
+// ── TRADE VIEW ───────────────────────────────────────────────────────────────
+// Who has cards you want? Everyone here explicitly opted in and explicitly flagged these cards —
+// nothing is surfaced that its owner didn't choose to surface.
+//
+// Matches (cards on YOUR want list) lead, because that's the question people actually came to answer.
+// Everything else they'd trade sits underneath, since you might want something you never got round to
+// adding to your want list.
+function TradeView({ user, traders, matchCount, wantList, onViewProfile, setActiveTab, setSigningIn, WEAPON_COLORS }) {
+  const [expanded, setExpanded] = useState(null);
+
+  if (!user) {
+    return (
+      <div style={{textAlign:"center",padding:"70px 20px"}}>
+        <div style={{fontSize:44,marginBottom:14}}>{"\uD83D\uDD01"}</div>
+        <div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:8}}>Sign in to find trades</div>
+        <div style={{fontSize:13,color:"rgba(255,255,255,0.45)",maxWidth:380,margin:"0 auto 18px",lineHeight:1.6}}>
+          Add cards to your want list and we'll show you who has them.
+        </div>
+        <button onClick={()=>setSigningIn(true)} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"11px 22px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Sign in</button>
+      </div>
+    );
+  }
+
+  const wantCount = Object.keys(wantList||{}).length;
+
+  if (traders.length === 0) {
+    return (
+      <div style={{textAlign:"center",padding:"70px 20px"}}>
+        <div style={{fontSize:44,marginBottom:14}}>{"\uD83D\uDD01"}</div>
+        <div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:8}}>Nobody's listed for trade yet</div>
+        <div style={{fontSize:13,color:"rgba(255,255,255,0.45)",maxWidth:400,margin:"0 auto",lineHeight:1.6}}>
+          Collectors who flag cards as trade bait and switch on trade matching will show up here.
+          {" "}Be the first {"\u2014"} flag a few of your duplicates and list yourself.
+        </div>
+        <button onClick={()=>setActiveTab("tradebait")} style={{marginTop:18,background:"transparent",border:"1px solid rgba(255,255,255,0.2)",color:"rgba(255,255,255,0.6)",borderRadius:10,padding:"10px 20px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+          Go to Trade Bait
+        </button>
+      </div>
+    );
+  }
+
+  const CardChip = ({ c, isMatch }) => (
+    <div title={`${c.hero||c.playName||""} \u00b7 ${c.treatment||""} \u00b7 ${c.cardNum||""}`}
+      style={{display:"flex",alignItems:"center",gap:7,background:isMatch?"rgba(74,222,128,0.1)":"rgba(255,255,255,0.03)",border:`1px solid ${isMatch?"rgba(74,222,128,0.35)":"rgba(255,255,255,0.07)"}`,borderRadius:8,padding:"5px 9px 5px 5px"}}>
+      {c.imageUrl
+        ? <img src={c.imageUrl} alt="" style={{width:26,height:35,objectFit:"cover",borderRadius:4,flexShrink:0}}/>
+        : <div style={{width:26,height:35,borderRadius:4,background:"rgba(255,255,255,0.05)",flexShrink:0}}/>}
+      <div style={{minWidth:0}}>
+        <div style={{fontSize:11.5,fontWeight:800,color:isMatch?"#4ade80":"#ddd",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:140}}>
+          {c.hero || c.playName || "\u2014"}
+        </div>
+        <div style={{fontSize:9.5,color:"rgba(255,255,255,0.35)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:140}}>
+          {[c.treatment, c.weapon, c.cardNum].filter(Boolean).join(" \u00b7 ")}
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      {/* The headline number. If you have no want list, say so — the feature is useless without one
+          and silently showing zero matches would just look broken. */}
+      <div style={{background:matchCount>0?"rgba(74,222,128,0.07)":"rgba(255,255,255,0.03)",border:`1px solid ${matchCount>0?"rgba(74,222,128,0.28)":"rgba(255,255,255,0.08)"}`,borderRadius:12,padding:"13px 15px",marginBottom:16}}>
+        {wantCount === 0 ? (
+          <div style={{fontSize:12.5,color:"rgba(255,255,255,0.55)",lineHeight:1.6}}>
+            <strong style={{color:"#fff"}}>Your want list is empty.</strong> Add the cards you're chasing and
+            we'll highlight anyone here who has them.
+            <button onClick={()=>setActiveTab("wants")} style={{marginLeft:8,background:"transparent",border:"none",color:"#E8317A",fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit",padding:0,textDecoration:"underline"}}>Add wants</button>
+          </div>
+        ) : matchCount > 0 ? (
+          <div style={{fontSize:13,fontWeight:800,color:"#4ade80"}}>
+            {"\u2713"} {matchCount} card{matchCount===1?"":"s"} from your want list {matchCount===1?"is":"are"} available to trade
+          </div>
+        ) : (
+          <div style={{fontSize:12.5,color:"rgba(255,255,255,0.5)",lineHeight:1.6}}>
+            Nobody has your want-list cards right now {"\u2014"} but {traders.length} collector{traders.length===1?" is":"s are"} open
+            to trades. Have a look through what they're offering.
+          </div>
+        )}
+      </div>
+
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {traders.map(t => {
+          const open = expanded === t.uid;
+          const others = t.theirCards.filter(c => !wantList[c.id]);
+          return (
+            <div key={t.uid} style={{background:t.matches.length>0?"rgba(74,222,128,0.04)":"rgba(255,255,255,0.02)",border:`1px solid ${t.matches.length>0?"rgba(74,222,128,0.25)":"rgba(255,255,255,0.07)"}`,borderRadius:12,padding:"14px 16px"}}>
+              <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:t.matches.length>0?12:0}}>
+                <div style={{flex:1,minWidth:180}}>
+                  <div style={{fontSize:14,fontWeight:800,color:"#fff"}}>{t.name || "Collector"}</div>
+                  <div style={{fontSize:11.5,color:"rgba(255,255,255,0.4)"}}>
+                    {t.matches.length > 0
+                      ? <span style={{color:"#4ade80",fontWeight:700}}>{t.matches.length} card{t.matches.length===1?"":"s"} you want</span>
+                      : <>{t.theirCards.length} card{t.theirCards.length===1?"":"s"} for trade</>}
+                    {t.matches.length > 0 && <> {"\u00b7"} {t.theirCards.length} for trade</>}
+                  </div>
+                </div>
+                <button onClick={()=>onViewProfile(t.uid)}
+                  style={{background:"rgba(232,49,122,0.12)",border:"1px solid rgba(232,49,122,0.4)",color:"#E8317A",borderRadius:9,padding:"8px 14px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                  View profile
+                </button>
+              </div>
+
+              {/* Matches first — this is what you came for. */}
+              {t.matches.length > 0 && (
+                <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:others.length>0?10:0}}>
+                  {t.matches.map(c => <CardChip key={c.id} c={c} isMatch/>)}
+                </div>
+              )}
+
+              {/* Everything else they'd trade, folded away by default. */}
+              {others.length > 0 && (
+                <>
+                  <button onClick={()=>setExpanded(open ? null : t.uid)}
+                    style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.4)",fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",padding:0}}>
+                    {open ? "\u25BE" : "\u25B8"} {others.length} other card{others.length===1?"":"s"} they'd trade
+                  </button>
+                  {open && (
+                    <div style={{display:"flex",gap:7,flexWrap:"wrap",marginTop:9}}>
+                      {others.map(c => <CardChip key={c.id} c={c}/>)}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, allMyOffers, marketSales, trackingInputs, setTrackingInputs, setListModal, setOfferModal, setOfferAmt, setOfferNote, setOfferSent, setCounterModal, setCounterAmt, buyNow, respondOffer, unsellListing, saveTracking, setSigningIn, setActiveTab, inp , listType, cards, owned, search, removeListing, tradeIndex=[], wantList={}, tradeBait={}}) {
+  // Sale and trade are the same idea in different currencies, so they sit side by side.
+  const [mktView, setMktView] = useState("sale");   // "sale" | "trade"
+
+  // ── Trade matching ──────────────────────────────────────────────────────────────────────────
+  // For each person who opted in, which of their flagged cards are on MY want list? That intersection
+  // IS the feature — not "here is a stranger's card list", but "this person has what you need".
+  //
+  // Traders with no overlap still show, below the matches: you might spot something you want but never
+  // got round to adding to your want list.
+  const cardById = useMemo(() => {
+    const m = new Map();
+    for (const c of cards) m.set(c.id, c);
+    return m;
+  }, [cards]);
+
+  const traders = useMemo(() => {
+    const q = (search||"").toLowerCase();
+    return tradeIndex
+      .filter(t => t.uid !== user?.uid)                      // your own entry is not a match
+      .map(t => {
+        const theirCards = (t.cardIds||[]).map(id => cardById.get(id)).filter(Boolean);
+        const matches = theirCards.filter(c => wantList[c.id]);
+        return { ...t, theirCards, matches };
+      })
+      .filter(t => t.theirCards.length > 0)
+      .filter(t => !q
+        || (t.name||"").toLowerCase().includes(q)
+        || t.theirCards.some(c => `${c.hero||""} ${c.playName||""} ${c.cardNum||""} ${c.treatment||""} ${c.weapon||""}`.toLowerCase().includes(q)))
+      .sort((a,b) => (b.matches.length - a.matches.length) || (b.theirCards.length - a.theirCards.length));
+  }, [tradeIndex, cardById, wantList, user, search]);
+
+  const matchCount = traders.reduce((n,t) => n + t.matches.length, 0);
+
   return (
           <div>
+            {/* Sale / trade switch */}
+            <div style={{display:"flex",gap:8,marginBottom:18}}>
+              {[["sale","\uD83D\uDCB0 For Sale", listings.length],
+                ["trade","\uD83D\uDD01 For Trade", matchCount || traders.length]].map(([v,label,n])=>(
+                <button key={v} onClick={()=>setMktView(v)}
+                  style={{flex:1,background:mktView===v?"rgba(232,49,122,0.12)":"transparent",border:`1px solid ${mktView===v?"#E8317A":"rgba(255,255,255,0.1)"}`,color:mktView===v?"#E8317A":"rgba(255,255,255,0.45)",borderRadius:10,padding:"10px 14px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
+                  {label}
+                  {n>0 && <span style={{fontSize:11,background:mktView===v?"#E8317A":"rgba(255,255,255,0.1)",color:mktView===v?"#fff":"rgba(255,255,255,0.5)",borderRadius:20,padding:"1px 7px",fontWeight:800}}>{n}</span>}
+                </button>
+              ))}
+            </div>
+
+            {mktView==="trade" ? (
+              <TradeView user={user} traders={traders} matchCount={matchCount}
+                wantList={wantList} onViewProfile={onViewProfile}
+                setActiveTab={setActiveTab} setSigningIn={setSigningIn} WEAPON_COLORS={WEAPON_COLORS}/>
+            ) : (
+            <>
             {/* My listings */}
             {user&&myListings.length>0&&(
               <div style={{marginBottom:24}}>
@@ -25322,6 +25505,8 @@ function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, a
                   })}
                 </div>
               )}
+            </>
+            )}
             </div>
           </div>
   );
@@ -30961,6 +31146,15 @@ See you in there!
   // The index carries only what a match needs: who you are, and which cards you'd trade. Not your
   // collection, not quantities, not what you paid.
   const [tradePublic,  setTradePublic]  = useState(false);
+  // Everyone who opted in to trade matching. Public read by design \u2014 the doc holds only a name
+  // and the card ids they explicitly flagged, never their collection.
+  const [tradeIndex,   setTradeIndex]   = useState([]);
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db,"trade_index"),
+      snap => setTradeIndex(snap.docs.map(d => ({ id:d.id, ...d.data() }))),
+      e => console.error("trade index listen failed:", e));
+    return () => { try{unsub();}catch(e){} };
+  }, []);
   const [tradePubBusy, setTradePubBusy] = useState(false);
 
   async function publishTradeIndex(bait, on) {
@@ -37223,6 +37417,7 @@ See you in there!
             setSigningIn={setSigningIn} setActiveTab={setActiveTab}
             inp={inp} listType={listType} cards={cards} owned={owned} search={search}
           removeListing={removeListing}
+            tradeIndex={tradeIndex} wantList={wantList} tradeBait={tradeBait}
           />
         )}
 
