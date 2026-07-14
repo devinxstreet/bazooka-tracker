@@ -16559,26 +16559,59 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
 
   // Build a dense field of iridescent angular shards once (cached), matching the cracked-ice look.
   // Cracked-ice foil: layered angular facet gradients (no SVG dependency) + icy sheen.
-  function _iceBase(x, y) {
-    const hx = (x*100).toFixed(0), hy = (y*100).toFixed(0);
+  // How the foil looks when nobody's hovering. Without this the card would be flat until you mouse
+  // over it, and most cards in a grid are never hovered at all.
+  function _iceRest() {
     return [
-      // Shatter facets — overlapping angled slivers of pale iridescence
-      `repeating-linear-gradient(63deg, rgba(205,243,255,0.10) 0px, rgba(205,243,255,0.10) 2px, transparent 2px, transparent 13px)`,
-      `repeating-linear-gradient(112deg, rgba(255,217,246,0.09) 0px, rgba(255,217,246,0.09) 2px, transparent 2px, transparent 17px)`,
-      `repeating-linear-gradient(158deg, rgba(217,255,233,0.08) 0px, rgba(217,255,233,0.08) 2px, transparent 2px, transparent 21px)`,
-      `repeating-linear-gradient(9deg, rgba(230,220,255,0.08) 0px, rgba(230,220,255,0.08) 1.5px, transparent 1.5px, transparent 15px)`,
-      // Frosty crackle grain
-      `radial-gradient(circle at ${hx}% ${hy}%, rgba(255,255,255,0.18), transparent 45%)`,
+      `linear-gradient(115deg,
+         transparent 30%,
+         hsla(190, 90%, 92%, 0.16) 43%,
+         hsla(280, 95%, 95%, 0.34) 50%,
+         hsla(45, 90%, 92%, 0.16) 57%,
+         transparent 70%)`,
+      `linear-gradient(95deg,
+         hsla(200, 85%, 70%, 0.10),
+         hsla(280, 90%, 78%, 0.13) 35%,
+         hsla(20, 90%, 78%, 0.13) 65%,
+         hsla(120, 85%, 70%, 0.10))`,
     ].join(", ");
   }
+  // Prismatic sheen for Alpha Blast cards.
+  //
+  // The previous effect stacked four repeating-linear-gradients at 63/112/158/9 degrees to fake
+  // "cracked ice". Repeating gradients are inherently REGULAR, though, and real shattered glass is
+  // irregular — so what it actually produced was a fine cross-hatch that read as moiré on a small
+  // card tile, not as ice. CSS can't really do irregular facets; that wants an SVG or a texture.
+  //
+  // So instead: a clean prismatic sweep that tracks the cursor. Fewer layers, no texture, and it's
+  // the look people already read as "premium card" — refractor, prizm, that family.
   function drawIceFoil(x, y) {
     if (!iceRef.current) return;
     const el = iceRef.current;
-    const hue = (x*220 + y*80) % 360;
+
+    // Hue rotates as the cursor moves across the card, so tilting it walks the rainbow.
+    const hue = (x * 300 + y * 60) % 360;
+    // The sheen band travels with the cursor; the angle leans slightly so it doesn't feel static.
+    const band  = 20 + (x * 0.65 + y * 0.35) * 60;   // 20% .. 80%
+    const angle = 100 + x * 40;
+
     el.style.backgroundImage = [
-      // Moving prismatic sheen band
-      `linear-gradient(${105+x*50}deg, transparent 32%, hsla(${hue},95%,90%,0.32) ${44+y*14}%, hsla(${(hue+180)%360},90%,88%,0.26) ${56+y*14}%, transparent 70%)`,
-      _iceBase(x, y),
+      // The bright specular band — the thing your eye actually follows.
+      `linear-gradient(${angle}deg,
+         transparent ${band - 26}%,
+         hsla(${(hue + 300) % 360}, 90%, 88%, 0.20) ${band - 12}%,
+         hsla(${hue}, 100%, 96%, 0.60) ${band}%,
+         hsla(${(hue + 60) % 360}, 90%, 88%, 0.20) ${band + 12}%,
+         transparent ${band + 26}%)`,
+      // A wide, soft rainbow wash underneath so the whole card shifts colour, not just the band.
+      `linear-gradient(${angle - 20}deg,
+         hsla(${(hue + 200) % 360}, 85%, 70%, 0.13),
+         hsla(${(hue + 280) % 360}, 90%, 78%, 0.16) 35%,
+         hsla(${(hue + 20) % 360}, 90%, 78%, 0.16) 65%,
+         hsla(${(hue + 120) % 360}, 85%, 70%, 0.13))`,
+      // A gentle bloom under the cursor, so the card feels lit from where you're pointing.
+      `radial-gradient(circle at ${(x*100).toFixed(0)}% ${(y*100).toFixed(0)}%,
+         rgba(255,255,255,0.22), transparent 55%)`,
     ].join(", ");
     el.style.opacity = "1";
   }
@@ -16684,7 +16717,7 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
     if (foilRef.current) foilRef.current.style.opacity = "0";
     if (glareRef.current) glareRef.current.style.opacity = "0";
     if (isPixelFoil) stopPixelAnim();
-    else if (isIceFoil && iceRef.current) { iceRef.current.style.backgroundImage = _iceBase(0.5, 0.4); iceRef.current.style.opacity = "0.7"; }
+    else if (isIceFoil && iceRef.current) { iceRef.current.style.backgroundImage = _iceRest(); iceRef.current.style.opacity = "0.75"; }
     else if (isMetallicFoil && metallicRef.current) metallicRef.current.style.opacity = "0";
     else if (pixelRef.current) pixelRef.current.style.opacity = "0";
     startAnimation();
@@ -16730,7 +16763,7 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
             <img src={_displayImg} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
             {_isScanImg && <div style={{ position:"absolute", top:6, left:6, zIndex:4, background:"rgba(0,0,0,0.7)", border:"1px solid rgba(74,222,128,0.5)", color:"#4ade80", borderRadius:6, padding:"2px 7px", fontSize:9, fontWeight:800, letterSpacing:0.5, backdropFilter:"blur(3px)" }}>📸 Your scan</div>}
             {!_isScanImg && isFoilTreatment && !isIceFoil && <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", backgroundPosition:"var(--foilpos,50% 50%)", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>}
-            {!_isScanImg && isIceFoil && <div ref={iceRef} style={{ position:"absolute", inset:0, borderRadius:10, backgroundImage:_iceBase(0.5,0.4), mixBlendMode:"screen", opacity:0.7, transition:"opacity 0.2s ease", pointerEvents:"none", zIndex:3 }}/>}
+            {!_isScanImg && isIceFoil && <div ref={iceRef} style={{ position:"absolute", inset:0, borderRadius:10, backgroundImage:_iceRest(), mixBlendMode:"screen", opacity:0.75, transition:"opacity 0.2s ease", pointerEvents:"none", zIndex:3 }}/>}
             <div ref={glareRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.22) 0%, transparent 60%)", mixBlendMode:"overlay", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>
             {!_isScanImg && isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
             {isMetallicFoil && <div ref={metallicRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.08s ease", pointerEvents:"none", zIndex:3 }}/>}
@@ -29292,7 +29325,15 @@ See you in there!
   // Even capped, ~1,500 cards was still ~850ms per render — that much DOM (and that many images)
   // is simply heavy no matter how well memoized. 600 keeps interactions snappy, and nobody finds a
   // card by scrolling past 600 anyway; they filter. The cap notice tells them so.
-  const MAX_PAGES = 6;
+  // A CEILING, not a wall. Mounting all 35k cards at once took render from 15ms to 5,808ms, so
+  // the default stops at 600. But "you may not see more" is a hostile answer — so the Load More
+  // button below raises this, and the user decides whether the slowdown is worth it. Their call.
+  const [maxPages, setMaxPages] = useState(6);
+  const MAX_PAGES = maxPages;
+  // Drop the ceiling back to its default whenever the result set changes. Otherwise "Show all"
+  // on a 40-card filter would silently stay in force when you clear that filter — and the app
+  // would then try to paint all 35k, which is the exact thing the cap exists to prevent.
+  useEffect(() => { setMaxPages(6); }, [search, filterSet, filterWeapon, filterTreat, filterPower, filterOwned, filterSubSet, sortBy]);
 
   // -- Rainbow Tracker --
   const [rainbowFilter,    setRainbowFilter]    = useState("all");
@@ -36269,16 +36310,33 @@ See you in there!
             )}
             {/* Display cap — we deliberately stop painting past MAX_PAGES. Mounting all 35k cards
                 is what made a render take ~6 SECONDS. Say so plainly rather than silently stopping. */}
-            {page >= MAX_PAGES && sorted.length > visibleCards.length && (
-              <div style={{marginTop:18,padding:"14px 16px",background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.25)",borderRadius:10,textAlign:"center"}}>
-                <div style={{fontSize:12.5,fontWeight:800,color:"#FBBF24",marginBottom:3}}>
-                  Showing the first {visibleCards.length.toLocaleString()} of {sorted.length.toLocaleString()} cards
+            {page >= MAX_PAGES && sorted.length > visibleCards.length && (() => {
+              const remaining = sorted.length - visibleCards.length;
+              const nextChunk = Math.min(remaining, 6 * PAGE_SIZE);
+              return (
+                <div style={{marginTop:18,padding:"16px",background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.22)",borderRadius:12,textAlign:"center"}}>
+                  <div style={{fontSize:12.5,fontWeight:800,color:"#FBBF24",marginBottom:4}}>
+                    Showing the first {visibleCards.length.toLocaleString()} of {sorted.length.toLocaleString()} cards
+                  </div>
+                  <div style={{fontSize:11.5,color:"rgba(255,255,255,0.45)",lineHeight:1.6,marginBottom:12,maxWidth:400,margin:"0 auto 12px"}}>
+                    Filtering is faster, but you can keep going {"\u2014"} the page just gets heavier the more it paints.
+                  </div>
+                  <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
+                    <button onClick={()=>{ setMaxPages(m => m + 6); setPage(p => p + 6); }}
+                      style={{background:"rgba(251,191,36,0.15)",border:"1px solid #FBBF24",color:"#FBBF24",borderRadius:9,padding:"9px 16px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                      Load {nextChunk.toLocaleString()} more
+                    </button>
+                    {remaining > 6 * PAGE_SIZE && (
+                      <button onClick={()=>{ const all = Math.ceil(sorted.length / PAGE_SIZE); setMaxPages(all); setPage(all); }}
+                        title="This will be slow with a lot of cards"
+                        style={{background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.5)",borderRadius:9,padding:"9px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                        Show all {sorted.length.toLocaleString()}
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div style={{fontSize:11.5,color:"rgba(255,255,255,0.45)",lineHeight:1.6}}>
-                  Use the search or filters above to narrow things down \u2014 painting the whole database at once grinds the page to a halt.
-                </div>
-              </div>
-            )}
+              );
+            })()}
             {/* First run. A new user has to pull the full ~12MB card list once, which can take a
                 while on a phone. With no feedback at all a blank screen just reads as broken — so
                 say what's happening, and say it only happens once. */}
