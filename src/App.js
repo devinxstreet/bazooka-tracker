@@ -39830,8 +39830,93 @@ function BugAdmin({ user }) {
   );
 }
 
+// ── HELP ─────────────────────────────────────────────────────────────────────
+// Every question here is one the app CAN answer but currently doesn't, so people have to ask a
+// human — or, more likely, quietly assume the app is broken and stop using it.
+//
+// Most of these came straight out of real confusion: family sharing that looked one-sided, a first
+// load that seemed frozen, trade bait that appeared to do nothing. If a question keeps reaching a
+// person, that's a gap in the product, not a gap in the support team.
+function HelpPanel({ onClose }) {
+  const [openQ, setOpenQ] = useState(null);
+
+  const QA = [
+    {
+      q: "Why is the app slow the first time I open it?",
+      a: "The first visit downloads the entire card database \u2014 all 35,000 BoBA cards \u2014 so it can work fast afterwards. That's a one-off. Every visit after this loads instantly from your device."
+    },
+    {
+      q: "How does family sharing work?",
+      a: "It's mutual. Marking someone as family shares YOUR cards with THEM \u2014 it doesn't take theirs. You'll see their cards once they share back with you. Until then the button shows \u201CWaiting\u201D, which means they haven't reciprocated yet. Nobody can see your collection without your say-so."
+    },
+    {
+      q: "I flagged cards as trade bait. Why isn't anything happening?",
+      a: "Flagging a card is private on its own. To be found for trades you also have to switch on \u201CList me\u201D at the top of the Trade Bait tab. Once you do, the cards you've flagged show up in the marketplace under For Trade, and anyone with one of them on their want list gets notified. Switch it off and your list goes private again immediately."
+    },
+    {
+      q: "What's the difference between a duplicate and trade bait?",
+      a: "Any card you own more than one of shows up in your Trade Bait tab automatically \u2014 but that's just for your own reference. Nothing is offered to anyone until you explicitly flag it AND list yourself. Owning a spare isn't the same as wanting to trade it."
+    },
+    {
+      q: "Why can't I see all 35,000 cards at once?",
+      a: "The grid paints 600 at a time, because rendering all of them at once locks up the page for several seconds. Use the filters or search to narrow things down \u2014 or hit \u201CLoad more\u201D / \u201CShow all\u201D at the bottom if you really want the lot."
+    },
+    {
+      q: "Why won't a card go into my deck?",
+      a: "Hover the card and it'll tell you \u2014 usually it's already in the deck, the deck is full, or the format's rules don't allow a second copy of that hero. Different formats have different limits."
+    },
+    {
+      q: "Who can see my collection?",
+      a: "Only you, unless you choose otherwise. Cards you mark public show on your profile. Family sharing is mutual and consented. Trade bait is private until you list yourself. Your want list is visible so collectors can be notified when someone has a card you're chasing."
+    },
+    {
+      q: "I found a bug. What do I do?",
+      a: "Hit \uD83D\uDC1B Report Bug \u2014 it's next to this button. Tick \u201Cattach screenshot\u201D and it captures the page automatically, which makes it far easier to fix. It genuinely helps."
+    },
+  ];
+
+  return (
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",zIndex:14500,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2a2a2a",borderRadius:16,padding:24,maxWidth:580,width:"100%",maxHeight:"85vh",overflowY:"auto"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div style={{fontSize:18,fontWeight:900,color:"#fff"}}>{"\u2753"} Help</div>
+          <button onClick={onClose} style={{background:"none",border:"none",color:"#666",fontSize:22,cursor:"pointer",lineHeight:1,fontFamily:"inherit"}}>{"\u00D7"}</button>
+        </div>
+
+        <div style={{display:"flex",flexDirection:"column",gap:7}}>
+          {QA.map((item,i)=>{
+            const open = openQ === i;
+            return (
+              <div key={i} style={{border:`1px solid ${open?"#333":"#242424"}`,borderRadius:10,overflow:"hidden",background:open?"rgba(255,255,255,0.02)":"transparent"}}>
+                <button onClick={()=>setOpenQ(open?null:i)}
+                  style={{width:"100%",textAlign:"left",background:"none",border:"none",padding:"12px 14px",cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:10}}>
+                  <span style={{fontSize:11,color:"#666",flexShrink:0}}>{open?"\u25BE":"\u25B8"}</span>
+                  <span style={{fontSize:13,fontWeight:700,color:open?"#fff":"#ccc",lineHeight:1.4}}>{item.q}</span>
+                </button>
+                {open && (
+                  <div style={{padding:"0 14px 14px 34px",fontSize:12.5,color:"rgba(255,255,255,0.55)",lineHeight:1.7}}>
+                    {item.a}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{marginTop:18,paddingTop:14,borderTop:"1px solid #242424",fontSize:11.5,color:"rgba(255,255,255,0.35)",lineHeight:1.6,textAlign:"center"}}>
+          Still stuck? Hit {"\uD83D\uDC1B"} Report Bug and tell us what happened {"\u2014"} we read every one.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BugReporter({ user }) {
   const [open, setOpen] = useState(false);
+  // Help sits next to Report Bug on purpose: someone who is confused reaches for the same corner
+  // as someone who thinks something is broken \u2014 and most of the time they are the same person.
+  // Answering the question first means they never file the bug at all.
+  const [helpOpen, setHelpOpen] = useState(false);
   const [desc, setDesc] = useState("");
   const [severity, setSeverity] = useState("annoying");
   const [sending, setSending] = useState(false);
@@ -39902,6 +39987,18 @@ function BugReporter({ user }) {
         cursor:"pointer", fontFamily:"inherit", boxShadow:"0 6px 24px rgba(232,49,122,0.45)",
         display:"flex", alignItems:"center", gap:6
       }}>🐛 Report Bug</button>
+
+      <button onClick={()=>setHelpOpen(true)} title="Help" style={{
+        position:"fixed", bottom:18, left:150, zIndex:11500,
+        background:"rgba(20,20,20,0.9)", color:"rgba(255,255,255,0.65)",
+        border:"1px solid rgba(255,255,255,0.15)", borderRadius:30,
+        padding:"11px 16px", fontSize:13, fontWeight:800,
+        cursor:"pointer", fontFamily:"inherit", backdropFilter:"blur(8px)",
+        boxShadow:"0 6px 24px rgba(0,0,0,0.4)",
+        display:"flex", alignItems:"center", gap:6
+      }}>\u2753 Help</button>
+
+      {helpOpen && <HelpPanel onClose={()=>setHelpOpen(false)}/>}
 
       {open && (
         <div onClick={()=>!sending&&setOpen(false)} style={{position:"fixed",inset:0,zIndex:12500,background:"rgba(0,0,0,0.8)",backdropFilter:"blur(6px)",display:"flex",alignItems:"flex-end",justifyContent:"center",padding:0}}>
