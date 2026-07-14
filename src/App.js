@@ -25192,9 +25192,21 @@ function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onRec
       <Section title="IN PROGRESS" list={active}>
         {t => { const v = view(t); const draft = trackDraft[t.id] ?? v.myTracking ?? ""; return (
           <div key={t.id} style={{background:"rgba(74,222,128,0.04)",border:"1px solid rgba(74,222,128,0.28)",borderRadius:12,padding:14}}>
-            <div style={{fontSize:13.5,fontWeight:800,color:"#4ade80",marginBottom:10}}>
-              Trading with {v.them}
-            </div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
+                <div style={{fontSize:13.5,fontWeight:800,color:"#4ade80"}}>
+                  Trading with {v.them}
+                </div>
+                {/* Say what's actually needed from YOU. A trade sitting in "accepted" with nothing
+                    posted is the state where people quietly stall — so name the next action rather
+                    than leaving them to infer it. */}
+                <span style={{fontSize:10.5,fontWeight:800,letterSpacing:0.3,padding:"3px 9px",borderRadius:20,whiteSpace:"nowrap",
+                  background: v.iReceived ? "rgba(74,222,128,0.15)" : !v.myTracking ? "rgba(251,191,36,0.15)" : "rgba(255,255,255,0.07)",
+                  color:      v.iReceived ? "#4ade80"               : !v.myTracking ? "#FBBF24"               : "rgba(255,255,255,0.5)"}}>
+                  {v.iReceived        ? (v.theyReceived ? "COMPLETE" : "WAITING ON THEM")
+                   : !v.myTracking    ? "SEND YOUR CARDS"
+                   : "WAITING ON YOUR PACKAGE"}
+                </span>
+              </div>
             <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:14}}>
               <CardRow list={v.iGet}  label="INCOMING" color="#4ade80"/>
               <div style={{display:"flex",alignItems:"center",color:"rgba(255,255,255,0.2)",fontSize:16,fontWeight:800,alignSelf:"stretch"}}>\u21C4</div>
@@ -36139,7 +36151,13 @@ See you in there!
               {id:"playbook",label:"📖 Playbook",badge:0},
               ...(user?[{id:"team",label:"🏆 Team",badge:0}]:[]),
             ])}
-            {navItem("market","Marketplace",wantNotifs.length)}
+            {/* The badge used to count ONLY unread notifications, so once you dismissed the
+                "they accepted" toast there was nothing left telling you a trade needed you.
+                A notification is transient; owing someone a package is a STATE. Count that. */}
+            {navItem("market","Marketplace", wantNotifs.length + tradeOffers.filter(t =>
+              (t.status==="pending"  && t.toUid===user?.uid) ||                       // waiting on you to decide
+              (t.status==="accepted" && !(t.fromUid===user?.uid ? t.fromReceived : t.toReceived)) // still owe / awaiting
+            ).length)}
             {navItem("leaderboard","Leaderboard",0)}
             </>)}
           </div>
