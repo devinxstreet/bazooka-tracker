@@ -25065,7 +25065,276 @@ function MessagesTab({ user, activeThread, setActiveThread, threads, threadMsgs,
 // Matches (cards on YOUR want list) lead, because that's the question people actually came to answer.
 // Everything else they'd trade sits underneath, since you might want something you never got round to
 // adding to your want list.
-function TradeView({ user, traders, matchCount, wantList, onViewProfile, setActiveTab, setSigningIn, WEAPON_COLORS, onZoom = ()=>{} }) {
+// ── TRADE OFFER BUILDER ──────────────────────────────────────────────────────
+// Pick what you want from them, pick what you're offering from your own trade bait, send.
+//
+// Deliberately restricted to YOUR trade bait rather than your whole collection: offering a card you
+// never marked as tradeable is how people accidentally give away the thing they were chasing.
+// ── TRADES PANEL ─────────────────────────────────────────────────────────────
+// Offers you've sent, offers you've received, and trades in flight.
+//
+// The in-flight state is the important one: once both sides accept, each person owes the other a
+// package. Cards don't move until each person confirms THEIR package arrived — because the cards move
+// in the post, not in the database, and a collection that lies about what you physically hold is
+// worse than no tracking at all.
+function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onReceived }) {
+  const [trackDraft, setTrackDraft] = useState({});
+
+  const mine = tradeOffers.filter(t => t.fromUid === user?.uid || t.toUid === user?.uid);
+  const incoming = mine.filter(t => t.status === "pending" && t.toUid === user?.uid);
+  const outgoing = mine.filter(t => t.status === "pending" && t.fromUid === user?.uid);
+  const active   = mine.filter(t => t.status === "accepted");
+  const done     = mine.filter(t => t.status === "complete").slice(0, 10);
+
+  if (mine.length === 0) {
+    return (
+      <div style={{textAlign:"center",padding:"60px 20px"}}>
+        <div style={{fontSize:40,marginBottom:12}}>{"\uD83D\uDD01"}</div>
+        <div style={{fontSize:16,fontWeight:900,color:"#fff",marginBottom:6}}>No trades yet</div>
+        <div style={{fontSize:12.5,color:"rgba(255,255,255,0.4)",lineHeight:1.6,maxWidth:340,margin:"0 auto"}}>
+          Find someone in For Trade who has a card you want, and send them an offer.
+        </div>
+      </div>
+    );
+  }
+
+  const CardRow = ({ list, label, color }) => (
+    <div style={{flex:1,minWidth:150}}>
+      <div style={{fontSize:9.5,fontWeight:800,color,letterSpacing:0.5,marginBottom:5}}>{label}</div>
+      <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+        {list.map(c => (
+          <div key={c.id} title={c.name} style={{display:"flex",alignItems:"center",gap:5,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:6,padding:"3px 7px 3px 3px"}}>
+            {c.image
+              ? <img src={c.image} alt="" style={{width:20,height:27,objectFit:"cover",borderRadius:3}}/>
+              : <div style={{width:20,height:27,borderRadius:3,background:"rgba(255,255,255,0.05)"}}/>}
+            <span style={{fontSize:10.5,fontWeight:700,color:"#ccc",whiteSpace:"nowrap",maxWidth:100,overflow:"hidden",textOverflow:"ellipsis"}}>{c.name}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // Everything below is written from the VIEWER's perspective, which means flipping give/get when
+  // you're the recipient. Getting this backwards would show someone the wrong half of their own trade.
+  const view = (t) => {
+    const iAmSender = t.fromUid === user?.uid;
+    return {
+      them:      iAmSender ? t.toName : t.fromName,
+      iGet:      iAmSender ? t.getting : t.giving,
+      iGive:     iAmSender ? t.giving  : t.getting,
+      iReceived: iAmSender ? t.fromReceived : t.toReceived,
+      theyReceived: iAmSender ? t.toReceived : t.fromReceived,
+      myTracking:  iAmSender ? t.fromTracking : t.toTracking,
+      theirTracking: iAmSender ? t.toTracking : t.fromTracking,
+    };
+  };
+
+  const Section = ({ title, list, children }) => list.length === 0 ? null : (
+    <div style={{marginBottom:22}}>
+      <div style={{fontSize:11,fontWeight:800,color:"var(--bz-ink-2)",letterSpacing:0.5,marginBottom:9}}>
+        {title} ({list.length})
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:9}}>{list.map(children)}</div>
+    </div>
+  );
+
+  return (
+    <div>
+      <Section title="INCOMING OFFERS" list={incoming}>
+        {t => { const v = view(t); return (
+          <div key={t.id} style={{background:"rgba(232,49,122,0.05)",border:"1px solid rgba(232,49,122,0.3)",borderRadius:12,padding:14}}>
+            <div style={{fontSize:13.5,fontWeight:800,color:"#fff",marginBottom:10}}>
+              {v.them} wants to trade
+            </div>
+            <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:12}}>
+              <CardRow list={v.iGet}  label="YOU GET"  color="#4ade80"/>
+              <CardRow list={v.iGive} label="YOU GIVE" color="#FBBF24"/>
+            </div>
+            {t.note && <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",fontStyle:"italic",marginBottom:12,paddingLeft:10,borderLeft:"2px solid #333"}}>{t.note}</div>}
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>onRespond(t,true)} style={{flex:1,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:8,padding:"9px",fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Accept</button>
+              <button onClick={()=>onRespond(t,false)} style={{flex:1,background:"transparent",border:"1px solid #333",color:"#999",borderRadius:8,padding:"9px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
+            </div>
+          </div>
+        );}}
+      </Section>
+
+      <Section title="SENT OFFERS" list={outgoing}>
+        {t => { const v = view(t); return (
+          <div key={t.id} style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,gap:10}}>
+              <div style={{fontSize:13.5,fontWeight:800,color:"#fff"}}>Offer to {v.them}</div>
+              <span style={{fontSize:10.5,color:"var(--bz-ink-3)",fontWeight:700}}>Waiting for a reply</span>
+            </div>
+            <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:12}}>
+              <CardRow list={v.iGet}  label="YOU GET"  color="#4ade80"/>
+              <CardRow list={v.iGive} label="YOU GIVE" color="#FBBF24"/>
+            </div>
+            <button onClick={()=>onCancel(t)} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:8,padding:"7px 14px",fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Withdraw offer</button>
+          </div>
+        );}}
+      </Section>
+
+      <Section title="IN PROGRESS" list={active}>
+        {t => { const v = view(t); const draft = trackDraft[t.id] ?? v.myTracking ?? ""; return (
+          <div key={t.id} style={{background:"rgba(74,222,128,0.04)",border:"1px solid rgba(74,222,128,0.28)",borderRadius:12,padding:14}}>
+            <div style={{fontSize:13.5,fontWeight:800,color:"#4ade80",marginBottom:10}}>
+              Trading with {v.them}
+            </div>
+            <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:14}}>
+              <CardRow list={v.iGet}  label="INCOMING" color="#4ade80"/>
+              <CardRow list={v.iGive} label="OUTGOING" color="#FBBF24"/>
+            </div>
+
+            {/* Your tracking, so they know it's on the way. */}
+            <div style={{display:"flex",gap:7,marginBottom:10,flexWrap:"wrap"}}>
+              <input value={draft} onChange={e=>setTrackDraft(d=>({...d,[t.id]:e.target.value}))}
+                placeholder="Your tracking number\u2026"
+                style={{flex:1,minWidth:170,background:"#0b0b0b",border:"1px solid #333",borderRadius:7,padding:"8px 11px",fontSize:12,color:"#fff",fontFamily:"inherit"}}/>
+              <button onClick={()=>onTracking(t, draft)} disabled={!draft.trim()}
+                style={{background:draft.trim()?"rgba(255,255,255,0.08)":"transparent",border:"1px solid #333",color:draft.trim()?"#ccc":"#555",borderRadius:7,padding:"8px 14px",fontSize:11.5,fontWeight:700,cursor:draft.trim()?"pointer":"not-allowed",fontFamily:"inherit"}}>Save</button>
+            </div>
+            {v.theirTracking && (
+              <div style={{fontSize:11.5,color:"rgba(255,255,255,0.5)",marginBottom:10}}>
+                Their tracking: <strong style={{color:"#ccc",fontFamily:"monospace"}}>{v.theirTracking}</strong>
+              </div>
+            )}
+
+            {/* THE moment cards actually change hands. */}
+            {v.iReceived ? (
+              <div style={{fontSize:12,color:"#4ade80",fontWeight:700,lineHeight:1.6}}>
+                {"\u2713"} You've confirmed yours arrived.
+                {v.theyReceived ? " Trade complete." : ` Waiting on ${v.them} to confirm theirs.`}
+              </div>
+            ) : (
+              <button onClick={()=>onReceived(t)}
+                style={{width:"100%",background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:8,padding:"10px",fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                {"\uD83D\uDCE6"} I received my cards
+              </button>
+            )}
+            <div style={{fontSize:10.5,color:"rgba(255,255,255,0.3)",marginTop:8,lineHeight:1.55}}>
+              Your collection updates when you confirm {"\u2014"} the cards you receive are added, the ones you sent are removed.
+            </div>
+          </div>
+        );}}
+      </Section>
+
+      <Section title="COMPLETED" list={done}>
+        {t => { const v = view(t); return (
+          <div key={t.id} style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:10,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+            <span style={{fontSize:12.5,color:"rgba(255,255,255,0.55)"}}>
+              Traded {v.iGive.length} for {v.iGet.length} with <strong style={{color:"#ccc"}}>{v.them}</strong>
+            </span>
+            <span style={{fontSize:11,color:"#4ade80",fontWeight:700,whiteSpace:"nowrap"}}>{"\u2713"} Complete</span>
+          </div>
+        );}}
+      </Section>
+    </div>
+  );
+}
+
+function TradeOfferModal({ trader, cards, owned, tradeBait, onSend, onClose }) {
+  const [want, setWant] = useState(new Set());
+  const [give, setGive] = useState(new Set());
+  const [note, setNote] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const theirCards = trader.theirCards || [];
+  // What I could offer: cards I own AND flagged as trade bait.
+  const myOfferable = useMemo(
+    () => cards.filter(c => owned[c.id] && tradeBait[c.id]),
+    [cards, owned, tradeBait]
+  );
+
+  const toggle = (set, setter, id) => setter(prev => {
+    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
+  });
+
+  const canSend = want.size > 0 && give.size > 0 && !sending;
+
+  async function send() {
+    setSending(true);
+    await onSend({
+      toUid: trader.uid, toName: trader.name,
+      theirCards: theirCards.filter(c => want.has(c.id)),
+      myCards: myOfferable.filter(c => give.has(c.id)),
+      note,
+    });
+    setSending(false);
+    onClose();
+  }
+
+  const Picker = ({ list, sel, setter, empty, accent }) => (
+    <div style={{border:"1px solid #2a2a2a",borderRadius:10,maxHeight:220,overflowY:"auto",padding:6}}>
+      {list.length === 0
+        ? <div style={{padding:"18px 10px",textAlign:"center",fontSize:11.5,color:"var(--bz-ink-3)",lineHeight:1.6}}>{empty}</div>
+        : list.map(c => {
+            const on = sel.has(c.id);
+            return (
+              <label key={c.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 7px",borderRadius:7,cursor:"pointer",background:on?`${accent}1a`:"transparent"}}>
+                <input type="checkbox" checked={on} onChange={()=>toggle(sel,setter,c.id)} style={{accentColor:accent,cursor:"pointer"}}/>
+                {c.imageUrl
+                  ? <img src={c.imageUrl} alt="" style={{width:26,height:35,objectFit:"cover",borderRadius:4}}/>
+                  : <div style={{width:26,height:35,borderRadius:4,background:"rgba(255,255,255,0.05)"}}/>}
+                <div style={{minWidth:0,flex:1}}>
+                  <div style={{fontSize:12,fontWeight:800,color:on?accent:"#ddd",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.hero||c.playName||"\u2014"}</div>
+                  <div style={{fontSize:10,color:"var(--bz-ink-3)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{[c.treatment,c.weapon].filter(Boolean).join(" \u00b7 ")}</div>
+                </div>
+              </label>
+            );
+          })}
+    </div>
+  );
+
+  return (
+    <div onClick={()=>!sending&&onClose()} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:14600,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2a2a2a",borderRadius:16,padding:22,maxWidth:640,width:"100%",maxHeight:"88vh",overflowY:"auto"}}>
+        <div style={{fontSize:17,fontWeight:900,color:"#fff",marginBottom:4}}>
+          {"\uD83D\uDD01"} Offer a trade to {trader.name}
+        </div>
+        <div style={{fontSize:12,color:"var(--bz-ink-3)",lineHeight:1.6,marginBottom:18}}>
+          Cards only change hands once you've each confirmed the package arrived {"\u2014"} nothing moves
+          the moment they accept.
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:800,color:"#4ade80",marginBottom:6,letterSpacing:0.4}}>
+              YOU GET {want.size > 0 && `(${want.size})`}
+            </div>
+            <Picker list={theirCards} sel={want} setter={setWant} accent="#4ade80"
+              empty="They have nothing listed."/>
+          </div>
+          <div>
+            <div style={{fontSize:11,fontWeight:800,color:"#FBBF24",marginBottom:6,letterSpacing:0.4}}>
+              YOU GIVE {give.size > 0 && `(${give.size})`}
+            </div>
+            <Picker list={myOfferable} sel={give} setter={setGive} accent="#FBBF24"
+              empty={"You haven't flagged any cards as trade bait yet. Flag some first \u2014 only cards you've marked as tradeable can be offered."}/>
+          </div>
+        </div>
+
+        <textarea value={note} onChange={e=>setNote(e.target.value)} rows={2}
+          placeholder="Add a note (optional)\u2026"
+          style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:12.5,color:"#fff",fontFamily:"inherit",resize:"vertical",marginBottom:14}}/>
+
+        <div style={{display:"flex",gap:8}}>
+          <button disabled={!canSend} onClick={send}
+            style={{flex:1,background:canSend?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#222",color:canSend?"#fff":"#666",border:"none",borderRadius:9,padding:"12px",fontSize:13,fontWeight:800,cursor:canSend?"pointer":"not-allowed",fontFamily:"inherit"}}>
+            {sending ? "Sending\u2026"
+              : want.size===0 ? "Pick what you want"
+              : give.size===0 ? "Pick what you'll give"
+              : `Offer ${give.size} for ${want.size}`}
+          </button>
+          <button disabled={sending} onClick={onClose}
+            style={{flex:1,background:"transparent",border:"1px solid #333",color:"#999",borderRadius:9,padding:"12px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TradeView({ user, traders, matchCount, wantList, onViewProfile, setActiveTab, setSigningIn, WEAPON_COLORS, onZoom = ()=>{}, onOffer = ()=>{} }) {
   const [expanded, setExpanded] = useState(null);
 
   if (!user) {
@@ -25156,10 +25425,16 @@ function TradeView({ user, traders, matchCount, wantList, onViewProfile, setActi
                     {t.matches.length > 0 && <> {"\u00b7"} {t.theirCards.length} for trade</>}
                   </div>
                 </div>
-                <button onClick={()=>onViewProfile(t.uid)}
-                  style={{background:"rgba(232,49,122,0.12)",border:"1px solid rgba(232,49,122,0.4)",color:"#E8317A",borderRadius:9,padding:"8px 14px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                  View profile
-                </button>
+                <div style={{display:"flex",gap:7}}>
+                  <button onClick={()=>onOffer(t)}
+                    style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",border:"none",color:"#fff",borderRadius:9,padding:"8px 14px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                    {"\uD83D\uDD01"} Offer trade
+                  </button>
+                  <button onClick={()=>onViewProfile(t.uid)}
+                    style={{background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.55)",borderRadius:9,padding:"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                    Profile
+                  </button>
+                </div>
               </div>
 
               {/* Matches first — this is what you came for. */}
@@ -25191,13 +25466,14 @@ function TradeView({ user, traders, matchCount, wantList, onViewProfile, setActi
   );
 }
 
-function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, allMyOffers, marketSales, trackingInputs, setTrackingInputs, setListModal, setOfferModal, setOfferAmt, setOfferNote, setOfferSent, setCounterModal, setCounterAmt, buyNow, respondOffer, unsellListing, saveTracking, setSigningIn, setActiveTab, inp , listType, cards, owned, search, removeListing, tradeIndex=[], wantList={}, tradeBait={}}) {
+function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, allMyOffers, marketSales, trackingInputs, setTrackingInputs, setListModal, setOfferModal, setOfferAmt, setOfferNote, setOfferSent, setCounterModal, setCounterAmt, buyNow, respondOffer, unsellListing, saveTracking, setSigningIn, setActiveTab, inp , listType, cards, owned, search, removeListing, tradeIndex=[], wantList={}, tradeBait={}, tradeOffers=[], onSendTrade, onRespondTrade, onCancelTrade, onTradeTracking, onTradeReceived}) {
   // Sale and trade are the same idea in different currencies, so they sit side by side.
   const [mktView, setMktView] = useState("sale");   // "sale" | "trade"
   // Card thumbnails in listings are 54x72 \u2014 you cannot judge a foil, a print line or a corner at
   // that size, which is a real problem when you're being asked to hand over money for it. Click any
   // card to see it properly.
   const [zoomCard, setZoomCard] = useState(null);   // {image, name, sub}
+  const [offerTo,  setOfferTo]  = useState(null);   // trader we are building an offer for
 
   // ── Trade matching ──────────────────────────────────────────────────────────────────────────
   // For each person who opted in, which of their flagged cards are on MY want list? That intersection
@@ -25234,7 +25510,8 @@ function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, a
             {/* Sale / trade switch */}
             <div style={{display:"flex",gap:8,marginBottom:18}}>
               {[["sale","\uD83D\uDCB0 For Sale", listings.length],
-                ["trade","\uD83D\uDD01 For Trade", matchCount || traders.length]].map(([v,label,n])=>(
+                ["trade","\uD83D\uDD01 For Trade", matchCount || traders.length],
+                ["trades","\uD83D\uDCE6 My Trades", tradeOffers.filter(t=>(t.status==="pending"&&t.toUid===user?.uid)||t.status==="accepted").length]].map(([v,label,n])=>(
                 <button key={v} onClick={()=>setMktView(v)}
                   style={{flex:1,background:mktView===v?"rgba(232,49,122,0.12)":"transparent",border:`1px solid ${mktView===v?"#E8317A":"rgba(255,255,255,0.1)"}`,color:mktView===v?"#E8317A":"rgba(255,255,255,0.45)",borderRadius:10,padding:"10px 14px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
                   {label}
@@ -25243,9 +25520,13 @@ function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, a
               ))}
             </div>
 
-            {mktView==="trade" ? (
+            {mktView==="trades" ? (
+              <TradesPanel user={user} tradeOffers={tradeOffers}
+                onRespond={onRespondTrade} onCancel={onCancelTrade}
+                onTracking={onTradeTracking} onReceived={onTradeReceived}/>
+            ) : mktView==="trade" ? (
               <TradeView user={user} traders={traders} matchCount={matchCount}
-                wantList={wantList} onViewProfile={onViewProfile} onZoom={setZoomCard}
+                wantList={wantList} onViewProfile={onViewProfile} onZoom={setZoomCard} onOffer={setOfferTo}
                 setActiveTab={setActiveTab} setSigningIn={setSigningIn} WEAPON_COLORS={WEAPON_COLORS}/>
             ) : (
             <>
@@ -25514,6 +25795,12 @@ function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, a
             </div>
             </>
             )}
+      {/* Offer builder — opened from a trader row in For Trade. */}
+      {offerTo && (
+        <TradeOfferModal trader={offerTo} cards={cards} owned={owned} tradeBait={tradeBait}
+          onSend={onSendTrade} onClose={()=>setOfferTo(null)}/>
+      )}
+
 
       {/* Card lightbox. A 54x72 thumbnail can't tell you whether a foil is clean or a corner is
           dinged — and that's exactly what you need to know before spending money. */}
@@ -29817,6 +30104,19 @@ See you in there!
   const [unreadThreads, setUnreadThreads] = useState(0);
   // -- Market sales --
   const [marketSales,   setMarketSales]   = useState([]);
+  // ── TRADES ───────────────────────────────────────────────────────────────────────────────────
+  // A trade is a two-sided sale, and it has one constraint a sale doesn't: Firestore rules only let
+  // you write your OWN boba_owned. I cannot remove a card from your collection, and you cannot remove
+  // one from mine \u2014 correctly so. That rules out an automatic swap on acceptance.
+  //
+  // So settlement is TWO-SIDED. When you mark a package received, YOUR client applies YOUR half: adds
+  // what you got, removes what you gave. The other person does the same when theirs arrives. That's
+  // also just honest \u2014 the cards move in the post, not in the database, and pretending ownership
+  // changes the instant someone clicks Accept would leave collections lying about reality.
+  //
+  // status: pending \u2192 accepted \u2192 (each side ships + confirms) \u2192 complete
+  //         declined / cancelled are terminal.
+  const [tradeOffers,   setTradeOffers]   = useState([]);
   // -- Comp modal --
   const [compCard,      setCompCard]      = useState(null); // card being comped
   const [viewProfileUid, setViewProfileUid] = useState(null); // uid of profile being viewed
@@ -30408,6 +30708,19 @@ See you in there!
       // Recent market sales (last 200)
       onSnapshot(query(collection(db,"market_sales"), orderBy("soldAt","desc")),
         snap => setMarketSales(snap.docs.map(d=>({...d.data(),id:d.id})).slice(0,200))
+      ),
+      // Trades where I'm either side. Two listeners because Firestore can't OR across fields.
+      onSnapshot(query(collection(db,"trade_offers"), where("fromUid","==",uid2)),
+        snap => setTradeOffers(prev => {
+          const mine = snap.docs.map(d=>({...d.data(),id:d.id}));
+          return [...mine, ...prev.filter(t => t.toUid === uid2)];
+        })
+      ),
+      onSnapshot(query(collection(db,"trade_offers"), where("toUid","==",uid2)),
+        snap => setTradeOffers(prev => {
+          const theirs = snap.docs.map(d=>({...d.data(),id:d.id}));
+          return [...prev.filter(t => t.fromUid === uid2), ...theirs];
+        })
       ),
     ];
     return () => unsubs.forEach(u=>u());
@@ -32615,6 +32928,114 @@ See you in there!
     // Increment offer count
     await setDoc(doc(db,"marketplace",offerModal.id),{offerCount:(offerModal.offerCount||0)+1},{merge:true});
     setOfferSent(true);
+  }
+
+  // ── Trade actions ────────────────────────────────────────────────────────────────────────────
+  async function sendTradeOffer({ toUid, toName, theirCards, myCards, note }) {
+    if (!user || !toUid || theirCards.length === 0 || myCards.length === 0) return;
+    const id = uid();
+    const now = new Date().toISOString();
+    const slim = c => ({ id:c.id, name:c.hero||c.playName||"", image:c.imageUrl||null,
+                         treatment:c.treatment||"", weapon:c.weapon||"", setName:c.setName||"" });
+    try {
+      await setDoc(doc(db,"trade_offers",id), {
+        id,
+        fromUid: user.uid, fromName: user.displayName || user.email || "Collector",
+        toUid, toName: toName || "Collector",
+        // "give" and "get" are always from the SENDER's point of view. Naming them relative to the
+        // viewer would mean flipping them everywhere and getting it wrong somewhere.
+        giving: myCards.map(slim),      // what the SENDER hands over
+        getting: theirCards.map(slim),  // what the SENDER receives
+        note: (note||"").trim(),
+        status: "pending",
+        // Settlement is per-side: each person confirms when THEIR package arrives, and only then
+        // does their own collection change. Neither can write the other's.
+        fromReceived: false, toReceived: false,
+        fromTracking: "", toTracking: "",
+        participantUids: [user.uid, toUid],
+        createdAt: now,
+      });
+      await setDoc(doc(db,"market_notifs",uid()), {
+        toUid, type:"trade_offer", tradeId:id,
+        fromName: user.displayName || user.email,
+        read:false, createdAt:now,
+      });
+      showToast("Trade offer sent");
+    } catch(e) { alert("Couldn't send offer: " + e.message); }
+  }
+
+  async function respondTradeOffer(t, accept) {
+    if (!user || t.toUid !== user.uid) return;   // only the recipient decides
+    try {
+      await setDoc(doc(db,"trade_offers",t.id),
+        { status: accept ? "accepted" : "declined", respondedAt: new Date().toISOString() },
+        { merge:true });
+      await setDoc(doc(db,"market_notifs",uid()), {
+        toUid: t.fromUid, type: accept ? "trade_accepted" : "trade_declined", tradeId: t.id,
+        fromName: user.displayName || user.email, read:false, createdAt:new Date().toISOString(),
+      });
+      showToast(accept ? "Trade accepted \u2014 send your cards" : "Offer declined");
+    } catch(e) { alert("Couldn't respond: " + e.message); }
+  }
+
+  async function cancelTradeOffer(t) {
+    if (!user || (t.fromUid !== user.uid && t.toUid !== user.uid)) return;
+    if (!window.confirm("Cancel this trade?")) return;
+    try {
+      await setDoc(doc(db,"trade_offers",t.id),
+        { status:"cancelled", cancelledBy:user.uid, cancelledAt:new Date().toISOString() },
+        { merge:true });
+    } catch(e) { alert("Couldn't cancel: " + e.message); }
+  }
+
+  async function saveTradeTracking(t, tracking) {
+    if (!user) return;
+    const iAmSender = t.fromUid === user.uid;
+    try {
+      await setDoc(doc(db,"trade_offers",t.id),
+        { [iAmSender ? "fromTracking" : "toTracking"]: tracking.trim() }, { merge:true });
+      showToast("Tracking saved");
+    } catch(e) { alert("Couldn't save tracking: " + e.message); }
+  }
+
+  // Confirm YOUR package arrived. This is the only point at which cards actually change hands.
+  //
+  // Each side settles its OWN collection, because Firestore rules (rightly) forbid writing anyone
+  // else's. So: add what I received, remove what I sent. The other person does the mirror when their
+  // package lands. If they never do, my collection is still correct — I have what I have.
+  async function confirmTradeReceived(t) {
+    if (!user) return;
+    const iAmSender = t.fromUid === user.uid;
+    const iReceive  = iAmSender ? t.getting : t.giving;   // what's coming TO me
+    const iGaveAway = iAmSender ? t.giving  : t.getting;  // what I posted OFF
+
+    if (!window.confirm(
+      `Confirm you received ${iReceive.length} card${iReceive.length===1?"":"s"}?\n\n` +
+      `This adds them to your collection and removes the ${iGaveAway.length} card${iGaveAway.length===1?"":"s"} you sent.`
+    )) return;
+
+    try {
+      const snap = await getDoc(doc(db,"boba_owned", user.uid));
+      const next = snap.exists() ? {...snap.data()} : {};
+      iReceive.forEach(c => { next[c.id] = (next[c.id] || 0) + 1; });
+      iGaveAway.forEach(c => {
+        const have = next[c.id] || 0;
+        if (have > 1) next[c.id] = have - 1;
+        else delete next[c.id];
+      });
+      await setDoc(doc(db,"boba_owned", user.uid), next);
+      setOwned(next);
+
+      // Flag my side done. When both sides are in, the trade is complete.
+      const field = iAmSender ? "fromReceived" : "toReceived";
+      const bothDone = iAmSender ? t.toReceived : t.fromReceived;
+      await setDoc(doc(db,"trade_offers",t.id), {
+        [field]: true,
+        ...(bothDone ? { status:"complete", completedAt:new Date().toISOString() } : {}),
+      }, { merge:true });
+
+      showToast(bothDone ? "Trade complete!" : "Received \u2014 waiting on them to confirm theirs");
+    } catch(e) { alert("Couldn't complete: " + e.message); }
   }
 
   async function buyNow(listing) {
@@ -37441,6 +37862,8 @@ See you in there!
             inp={inp} listType={listType} cards={cards} owned={owned} search={search}
           removeListing={removeListing}
             tradeIndex={tradeIndex} wantList={wantList} tradeBait={tradeBait}
+            tradeOffers={tradeOffers} onSendTrade={sendTradeOffer} onRespondTrade={respondTradeOffer}
+            onCancelTrade={cancelTradeOffer} onTradeTracking={saveTradeTracking} onTradeReceived={confirmTradeReceived}
           />
         )}
 
