@@ -103,6 +103,14 @@ const LOADING_CARD_IMAGES = { urls: [], loaded: false };
         return;
       }
     }
+    // Don't fetch these on a cold first load. On a first visit the app is already pulling the ~12MB
+    // card list, and this query — plus the 60 card images it points at — competes for the same
+    // bandwidth. The flying-card animation is a nicety; the card list is the product. So fetch it
+    // only once the checklist is cached: a returning user gets the animation, a new user gets all
+    // the bandwidth for the thing they're actually waiting for.
+    let _hasCards = false;
+    try { _hasCards = !!localStorage.getItem("boba_checklist_cache_v3"); } catch(e) {}
+    if (!_hasCards) return;
     const snap = await getDocs(query(collection(db,"boba_checklist"), where("hero","==","BoJax")));
     const urls = snap.docs.map(d=>d.data().imageUrl).filter(Boolean).slice(0,60);
     if (urls.length > 0) {
@@ -31098,6 +31106,34 @@ See you in there!
   }
 
   const _cardAdmin = (user?.email||"").toLowerCase().endsWith("@bazookabreaks.com");
+
+  // Permanently delete selected cards from the SHARED checklist. Admin only, and deliberately
+  // heavier than the other bulk actions: everything else here changes the current user's own data,
+  // but this destroys cards for every collector on the platform. Hence the typed confirmation —
+  // a misclick on 400 selected cards is not something a yes/no dialog should be able to do.
+  const [bulkDelOpen, setBulkDelOpen] = useState(false);
+  const [bulkDelText, setBulkDelText] = useState("");
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  async function bulkDeleteCards() {
+    if (!_cardAdmin || selectedIds.size===0) return;
+    setBulkDeleting(true);
+    try {
+      const ids = [...selectedIds];
+      for (let i=0; i<ids.length; i+=300) {
+        const batch = writeBatch(db);
+        ids.slice(i, i+300).forEach(id => batch.delete(doc(db,"boba_checklist",id)));
+        await batch.commit();
+      }
+      // Drop them from the local list too, so the grid reflects it without a reload.
+      setCards(prev => prev.filter(c => !selectedIds.has(c.id)));
+      setToast(`\u2713 ${ids.length} card${ids.length===1?"":"s"} deleted from the database`);
+      clearSelection();
+      setBulkDelOpen(false); setBulkDelText("");
+    } catch(e) {
+      alert("Delete failed: " + e.message);
+    }
+    setBulkDeleting(false);
+  }
   const [bulkImg, setBulkImg] = useState(null); // {files, setName} | null
   const [bulkProg, setBulkProg] = useState(null); // {done,total,matched,skipped,status}
   const [showBetaWelcome, setShowBetaWelcome] = useState(false);
@@ -33083,11 +33119,25 @@ See you in there!
           } catch(e) {}
           return [];
         })();
-    // Multiply the pool so the screen fills with flying cards (target ~55), then shuffle
-    const TARGET_CARDS = 55;
-    const floatUrls = baseUrls.length > 0
+    // How many flying cards to show.
+    //
+    // A FIRST-TIME user is downloading the ~12MB card list on this very screen. Every card image the
+    // loading animation pulls is bandwidth stolen from the thing they are waiting for, and 55 animated
+    // elements is real CPU on a phone on top of that — the loading screen was actively competing with
+    // the load it exists to cover, which is why it felt endless for exactly the people it should have
+    // been reassuring.
+    //
+    // So: no cached checklist means no cached images either, means a genuinely cold first load. Show
+    // the animation only when the images are ALREADY cached (a returning user, where it costs nothing
+    // and the wait is short anyway). New users get the clean spinner instead, and all the bandwidth.
+    const hasCachedCards = (() => {
+      try { return !!localStorage.getItem("boba_checklist_cache_v3"); } catch(e) { return false; }
+    })();
+    const TARGET_CARDS = hasCachedCards ? 55 : 0;
+    const floatUrls = (baseUrls.length > 0 && TARGET_CARDS > 0)
       ? Array.from({length:TARGET_CARDS},(_,i)=>baseUrls[i % baseUrls.length]).sort(()=>Math.random()-0.5)
       : [];
+    const firstRun = !hasCachedCards;
     return (
       <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#000",fontFamily:"'Trebuchet MS',sans-serif",overflow:"hidden",position:"relative"}}>
         <style>{`
@@ -33170,6 +33220,18 @@ See you in there!
               <div key={i} style={{width:6,height:6,borderRadius:"50%",background:"#E8317A",animation:`dot 1.4s ease-in-out ${delay}s infinite`}}/>
             ))}
           </div>
+            {/* Tell a first-time user WHY they're waiting. Bouncing dots alone, for 20+ seconds, on a
+                cold 12MB download, reads as broken. Saying it happens once reads as setup. */}
+            {firstRun && (
+              <div style={{marginTop:18,maxWidth:320,textAlign:"center"}}>
+                <div style={{fontSize:13.5,fontWeight:800,color:"rgba(255,255,255,0.75)",marginBottom:6}}>
+                  Setting up your card database{"\u2026"}
+                </div>
+                <div style={{fontSize:11.5,color:"rgba(255,255,255,0.35)",lineHeight:1.6}}>
+                  Downloading all 35,000 BoBA cards. This only happens once {"\u2014"} after this it opens instantly.
+                </div>
+              </div>
+            )}
         </div>
       </div>
     );
@@ -34048,6 +34110,18 @@ See you in there!
           <button disabled={selectedIds.size===0} onClick={()=>bulkSetPublic(false)} style={{background:selectedIds.size?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.04)",border:"1px solid #333",color:selectedIds.size?"#ccc":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>🔒 Make Private</button>
           <button disabled={selectedIds.size===0} onClick={()=>setBulkListModal(true)} style={{background:selectedIds.size?"linear-gradient(135deg,#E8317A,#7B2FF7)":"rgba(255,255,255,0.04)",border:"none",color:selectedIds.size?"#fff":"#555",borderRadius:8,padding:"7px 14px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>💰 List for Sale</button>
 
+          {/* Admin-only: remove cards from the shared database entirely. Sits apart from the other
+              actions (and after a divider) because it is the only one that affects every user. */}
+          {_cardAdmin && (
+            <>
+              <div style={{width:1,height:24,background:"rgba(255,255,255,0.12)"}}/>
+              <button disabled={selectedIds.size===0} onClick={()=>{setBulkDelText("");setBulkDelOpen(true);}}
+                style={{background:selectedIds.size?"rgba(239,68,68,0.12)":"rgba(255,255,255,0.04)",border:`1px solid ${selectedIds.size?"#EF4444":"#333"}`,color:selectedIds.size?"#EF4444":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                {"\uD83D\uDDD1"} Delete from DB
+              </button>
+            </>
+          )}
+
           {/* Bulk-tag to a kid's collection — much faster than tagging card by card. */}
           {kidGroups.length>0 && (
             <>
@@ -34083,6 +34157,53 @@ See you in there!
       )}
 
       {/* ── BULK LIST MODAL ── */}
+      {/* Typed confirmation. This deletes cards for EVERY user, so a yes/no dialog isn't enough —
+          typing the count forces you to actually look at how many are selected before it happens. */}
+      {bulkDelOpen && (()=>{
+        const n = selectedIds.size;
+        const sample = cards.filter(c => selectedIds.has(c.id)).slice(0, 8);
+        const confirmed = bulkDelText.trim() === String(n);
+        return (
+          <div onClick={()=>!bulkDeleting&&setBulkDelOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",zIndex:14000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #7f1d1d",borderRadius:14,padding:22,maxWidth:540,width:"100%",maxHeight:"85vh",overflowY:"auto"}}>
+              <div style={{fontSize:17,fontWeight:900,color:"#EF4444",marginBottom:8}}>
+                {"\u26A0\uFE0F"} Delete {n} card{n===1?"":"s"} from the database?
+              </div>
+              <div style={{fontSize:12.5,color:"#ccc",lineHeight:1.7,marginBottom:12}}>
+                This removes {n===1?"this card":"these cards"} from the <strong>shared checklist</strong> {"\u2014"} for every
+                collector, not just you. Anyone who owns {n===1?"it":"them"} will lose {n===1?"it":"them"} from their collection.
+                <strong style={{color:"#EF4444"}}> This cannot be undone.</strong>
+              </div>
+              <div style={{background:"#0b0b0b",border:"1px solid #2a2a2a",borderRadius:9,padding:"10px 12px",marginBottom:14,maxHeight:180,overflowY:"auto"}}>
+                {sample.map(c=>(
+                  <div key={c.id} style={{fontSize:11,fontFamily:"monospace",color:"var(--bz-ink-2)",padding:"3px 0",display:"flex",gap:8}}>
+                    <span style={{minWidth:110,color:"var(--bz-ink-3)"}}>{c.setName}</span>
+                    <span style={{minWidth:52}}>{c.cardNum}</span>
+                    <span style={{color:"#ccc"}}>{c.playName||c.hero}</span>
+                    {c.treatment && <span style={{color:"var(--bz-ink-3)"}}>{"\u00B7"} {c.treatment}</span>}
+                  </div>
+                ))}
+                {n>8 && <div style={{fontSize:11,color:"var(--bz-ink-3)",marginTop:5}}>{"\u2026and "}{n-8} more</div>}
+              </div>
+              <div style={{fontSize:11.5,color:"#999",marginBottom:6}}>
+                Type <strong style={{color:"#EF4444"}}>{n}</strong> to confirm:
+              </div>
+              <input value={bulkDelText} onChange={e=>setBulkDelText(e.target.value)} autoFocus disabled={bulkDeleting}
+                style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:14,color:"#fff",fontFamily:"monospace",marginBottom:12}}/>
+              <div style={{display:"flex",gap:8}}>
+                <button disabled={!confirmed||bulkDeleting} onClick={bulkDeleteCards}
+                  style={{flex:1,background:confirmed?"#EF4444":"#2a1515",color:confirmed?"#fff":"#666",border:"none",borderRadius:9,padding:"11px",fontSize:13,fontWeight:800,cursor:(confirmed&&!bulkDeleting)?"pointer":"not-allowed",fontFamily:"inherit"}}>
+                  {bulkDeleting ? "Deleting\u2026" : `Delete ${n} card${n===1?"":"s"}`}
+                </button>
+                <button disabled={bulkDeleting} onClick={()=>setBulkDelOpen(false)}
+                  style={{flex:1,background:"transparent",border:"1px solid #333",color:"#999",borderRadius:9,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+
       {bulkListModal && (()=>{
         const eligibleCount = [...selectedIds].filter(id=>owned[id]&&scanPhotoByCard[id]&&!myListings.find(l=>l.cardId===id)).length;
         return (
