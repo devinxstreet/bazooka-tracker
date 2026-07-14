@@ -302,6 +302,33 @@ function channelOf(s){
 }
 
 // Canonical weapon names — collapse case/punctuation dupes (ALT==Alt, FIRE==Fire, etc.)
+// Search synonyms. Collectors say "auto", the checklist says "Inspired Ink" — and expecting someone
+// to type the exact printed treatment name to find their card is a bad search box.
+//
+// These are folded into the search INDEX (one string per card, built once), not applied per keystroke,
+// so matching stays a plain substring test and costs nothing at type time. Keys are matched as
+// substrings of the treatment, so "inspired ink" catches "Magic Gum Inspired Ink" too.
+const SEARCH_SYNONYMS = {
+  "inspired ink": ["auto", "autograph", "signed", "signature"],
+  "linoleum":     ["lino"],
+  "battlefoil":   ["foil", "bf"],
+  "refractor":    ["refract"],
+  "prismatic":    ["prizm", "prism"],
+  "home team discount": ["htd", "discount"],
+  "plays":        ["play"],
+  "secret 1/1":   ["1of1", "1 of 1", "one of one", "oneofone"],
+  "super":        ["superfoil", "super foil"],
+};
+// Any synonym that applies to a card, as a flat string to append to its search text.
+function synonymsFor(c) {
+  const hay = [c.treatment, c.notation, c.variation].filter(Boolean).join(" ").toLowerCase();
+  let out = "";
+  for (const key in SEARCH_SYNONYMS) {
+    if (hay.includes(key)) out += " " + SEARCH_SYNONYMS[key].join(" ");
+  }
+  return out;
+}
+
 const WEAPON_CANON = { alt:"Alt", fire:"Fire", glow:"Glow", gum:"Gum", hex:"Hex", ice:"Ice", steel:"Steel", super:"Super", brawl:"Brawl", cyber:"Cyber", medal:"Medal", metallic:"Metallic" };
 function canonWeapon(w) {
   if (!w) return w;
@@ -32549,7 +32576,7 @@ See you in there!
   const searchIndex = useMemo(() => {
     const m = new Map();
     for (const c of cards) {
-      m.set(c.id, [c.hero,c.cardNum,c.athlete,c.weapon,c.treatment,c.setName,c.variation,c.notation,c.power]
+      m.set(c.id, [c.hero,c.playName,c.cardNum,c.athlete,c.weapon,c.treatment,c.setName,c.variation,c.notation,c.power,synonymsFor(c)]
         .filter(Boolean).join(" ").toLowerCase());
     }
     return m;
