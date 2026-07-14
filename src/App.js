@@ -33103,6 +33103,75 @@ See you in there!
   );
 
 
+  // Rainbow stats. This USED TO RUN INLINE inside {activeTab==="rainbow" && (()=>{...})()},
+  // meaning it re-ran on EVERY render of the whole component — every keystroke, every hover,
+  // every unrelated state change. It filters 35k cards, allocates a fresh object for each one
+  // (`{...c, treatment}`), buckets them all, then walks every bucket again. Tens of thousands of
+  // allocations per render. That is what made the app feel unusable on a phone.
+  //
+  // Now it only recomputes when something it actually depends on changes. Note `search` is NOT a
+  // dependency: the search filter is applied to the RESULT further down, where it is cheap.
+  const rainbowStats = useMemo(() => {
+    if (activeTab !== "rainbow" || cards.length === 0) return null;
+    const normalizeTreatment = c => {
+      const t = (c.treatment||"").toLowerCase();
+      const num = String(c.cardNum||"").trim().toUpperCase();
+      // Any "plays" treatment OR a PL/BPL cardNum prefix collapses into one of two rainbows
+      const isPlays = t.includes("plays") || /^B?PL[\s\-]?\d/.test(num) || num.startsWith("BPL") || num.startsWith("PL");
+      if(isPlays) {
+        if(num.startsWith("BPL") || t.includes("bonus")) return "Bonus Plays";
+        return "Plays";
+      }
+      // Hotdogs collapse into one rainbow
+      if(t.includes("hotdog") || t.includes("hot dog")) return "Hotdogs";
+      return c.treatment;
+    };
+    const rainbowCards = (rainbowSetFilter ? cards.filter(c => c.setName === rainbowSetFilter) : cards)
+      .filter(c => { const t=(c.treatment||"").toLowerCase(); return t!=="home team discount"; })
+      .map(c => ({ ...c, treatment: normalizeTreatment(c) }));
+    const availableSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
+
+    // -- Build group stats (shared logic for hero / treatment / treatment+weapon) --
+    const groupKeyOf = c => {
+      // Plays, Bonus Plays & Hotdogs always collapse into a single rainbow each, in every mode
+      if(c.treatment === "Plays" || c.treatment === "Bonus Plays" || c.treatment === "Hotdogs") return c.treatment;
+      if(rainbowGroupBy === "hero") return c.hero;
+      if(rainbowGroupBy === "treatmentWeapon") {
+        const tr = c.treatment || "", wp = c.weapon || "";
+        return (tr || wp) ? `${tr}${tr&&wp?" ":""}${wp}`.trim() : "";
+      }
+      return c.treatment;
+    };
+    const groupMap = {};
+    rainbowCards.forEach(c => {
+      const key = groupKeyOf(c);
+      if(!key) return;
+      if(!groupMap[key]) groupMap[key] = [];
+      groupMap[key].push(c);
+    });
+    const allGroups = Object.keys(groupMap).sort();
+    const groupStats = allGroups.map(key => {
+      const gcards = groupMap[key];
+      const total = gcards.length;
+      const ownedCount = gcards.filter(c => owned[c.id]).length;
+      const complete = total > 0 && ownedCount === total;
+      // secondary breakdown tags
+      const bySecondary = {};
+      gcards.forEach(c => {
+        const s = c.setName || "Unknown";
+        if(!bySecondary[s]) bySecondary[s] = { total:0, owned:0 };
+        bySecondary[s].total++;
+        if(owned[c.id]) bySecondary[s].owned++;
+      });
+      return { key, total, ownedCount, complete, bySecondary };
+    });
+    const completedRainbows = groupStats.filter(g => g.complete).length;
+    const partialRainbows   = groupStats.filter(g => g.ownedCount > 0 && !g.complete).length;
+    // rainbowCards and groupKeyOf are needed by the expanded-group card list further down, and
+    // allGroups by the KPI row — so hand them out rather than recomputing them per render.
+    return { groupStats, completedRainbows, partialRainbows, availableSets, allGroups, rainbowCards, groupKeyOf };
+  }, [activeTab, cards, owned, rainbowSetFilter, rainbowGroupBy]);
+
   const totalNotifs = friendReqs.length+teamInvites.length+marketNotifs.length+wantNotifs.length+unreadThreads;
 
   if(loading) {
@@ -36210,60 +36279,8 @@ See you in there!
 
         {/* RAINBOW TRACKER TAB */}
         {activeTab==="rainbow" && !loading && cards.length > 0 && (() => {
-          const normalizeTreatment = c => {
-            const t = (c.treatment||"").toLowerCase();
-            const num = String(c.cardNum||"").trim().toUpperCase();
-            // Any "plays" treatment OR a PL/BPL cardNum prefix collapses into one of two rainbows
-            const isPlays = t.includes("plays") || /^B?PL[\s\-]?\d/.test(num) || num.startsWith("BPL") || num.startsWith("PL");
-            if(isPlays) {
-              if(num.startsWith("BPL") || t.includes("bonus")) return "Bonus Plays";
-              return "Plays";
-            }
-            // Hotdogs collapse into one rainbow
-            if(t.includes("hotdog") || t.includes("hot dog")) return "Hotdogs";
-            return c.treatment;
-          };
-          const rainbowCards = (rainbowSetFilter ? cards.filter(c => c.setName === rainbowSetFilter) : cards)
-            .filter(c => { const t=(c.treatment||"").toLowerCase(); return t!=="home team discount"; })
-            .map(c => ({ ...c, treatment: normalizeTreatment(c) }));
-          const availableSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
-
-          // -- Build group stats (shared logic for hero / treatment / treatment+weapon) --
-          const groupKeyOf = c => {
-            // Plays, Bonus Plays & Hotdogs always collapse into a single rainbow each, in every mode
-            if(c.treatment === "Plays" || c.treatment === "Bonus Plays" || c.treatment === "Hotdogs") return c.treatment;
-            if(rainbowGroupBy === "hero") return c.hero;
-            if(rainbowGroupBy === "treatmentWeapon") {
-              const tr = c.treatment || "", wp = c.weapon || "";
-              return (tr || wp) ? `${tr}${tr&&wp?" ":""}${wp}`.trim() : "";
-            }
-            return c.treatment;
-          };
-          const groupMap = {};
-          rainbowCards.forEach(c => {
-            const key = groupKeyOf(c);
-            if(!key) return;
-            if(!groupMap[key]) groupMap[key] = [];
-            groupMap[key].push(c);
-          });
-          const allGroups = Object.keys(groupMap).sort();
-          const groupStats = allGroups.map(key => {
-            const gcards = groupMap[key];
-            const total = gcards.length;
-            const ownedCount = gcards.filter(c => owned[c.id]).length;
-            const complete = total > 0 && ownedCount === total;
-            // secondary breakdown tags
-            const bySecondary = {};
-            gcards.forEach(c => {
-              const s = c.setName || "Unknown";
-              if(!bySecondary[s]) bySecondary[s] = { total:0, owned:0 };
-              bySecondary[s].total++;
-              if(owned[c.id]) bySecondary[s].owned++;
-            });
-            return { key, total, ownedCount, complete, bySecondary };
-          });
-          const completedRainbows = groupStats.filter(g => g.complete).length;
-          const partialRainbows   = groupStats.filter(g => g.ownedCount > 0 && !g.complete).length;
+          // Heavy work is memoized above; only the cheap per-keystroke filtering happens here.
+          const { groupStats, completedRainbows, partialRainbows, availableSets, allGroups, rainbowCards, groupKeyOf } = rainbowStats || { groupStats:[], completedRainbows:0, partialRainbows:0, availableSets:[], allGroups:[], rainbowCards:[], groupKeyOf:()=>"" };
           const searchPlaceholder = rainbowGroupBy === "hero" ? "Search hero..." : rainbowGroupBy === "treatmentWeapon" ? "Search treatment + weapon..." : rainbowGroupBy === "custom" ? "🔍 Search hero..." : "Search treatment...";
           const filteredGroups = groupStats.filter(g => !search || g.key.toLowerCase().includes(search.toLowerCase()));
           const visibleGroups = filteredGroups.filter(g => {
