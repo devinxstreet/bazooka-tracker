@@ -31213,6 +31213,58 @@ See you in there!
   // heavier than the other bulk actions: everything else here changes the current user's own data,
   // but this destroys cards for every collector on the platform. Hence the typed confirmation —
   // a misclick on 400 selected cards is not something a yes/no dialog should be able to do.
+  // ── Bulk edit ────────────────────────────────────────────────────────────────────────────────
+  // A typo in a hero name ("King Truck" for "King Tuck") is wrong on every card that hero appears
+  // on. Fixing that one card at a time is absurd. Select them, set the field once, done.
+  //
+  // Deliberately a REPLACE, not a blind overwrite: you see exactly which distinct values are about
+  // to change and what they become, before anything is written. Selecting a mixed batch and setting
+  // hero="King Tuck" would otherwise silently flatten several different heroes into one.
+  const [bulkEditOpen,  setBulkEditOpen]  = useState(false);
+  const [bulkEditField, setBulkEditField] = useState("hero");
+  const [bulkEditValue, setBulkEditValue] = useState("");
+  const [bulkEditing,   setBulkEditing]   = useState(false);
+
+  const BULK_FIELDS = [
+    { id:"hero",       label:"Hero" },
+    { id:"treatment",  label:"Treatment" },
+    { id:"weapon",     label:"Weapon" },
+    { id:"setName",    label:"Set" },
+    { id:"notation",   label:"Notation" },
+    { id:"variation",  label:"Variation" },
+    { id:"inspiredBy", label:"Inspired By" },
+    { id:"playName",   label:"Play Name" },
+    { id:"power",      label:"Power" },
+  ];
+
+  async function bulkEditCards() {
+    if (!_cardAdmin || selectedIds.size===0 || !bulkEditField) return;
+    setBulkEditing(true);
+    try {
+      const ids = [...selectedIds];
+      // Power is numeric everywhere else in the app; keep it that way or sorting and deck legality
+      // start comparing strings to numbers.
+      const raw = bulkEditValue.trim();
+      const val = bulkEditField === "power"
+        ? (raw === "" ? null : Number(raw))
+        : raw;
+      for (let i=0; i<ids.length; i+=300) {
+        const batch = writeBatch(db);
+        ids.slice(i, i+300).forEach(id =>
+          batch.set(doc(db,"boba_checklist",id), { [bulkEditField]: val }, { merge:true })
+        );
+        await batch.commit();
+      }
+      // Reflect it locally so the grid updates without a reload.
+      setCards(prev => prev.map(c => selectedIds.has(c.id) ? { ...c, [bulkEditField]: val } : c));
+      setToast(`\u2713 Updated ${bulkEditField} on ${ids.length} card${ids.length===1?"":"s"}`);
+      setBulkEditOpen(false); setBulkEditValue(""); clearSelection();
+    } catch(e) {
+      alert("Bulk edit failed: " + e.message);
+    }
+    setBulkEditing(false);
+  }
+
   const [bulkDelOpen, setBulkDelOpen] = useState(false);
   const [bulkDelText, setBulkDelText] = useState("");
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -34335,6 +34387,10 @@ See you in there!
           {_cardAdmin && (
             <>
               <div style={{width:1,height:24,background:"rgba(255,255,255,0.12)"}}/>
+              <button disabled={selectedIds.size===0} onClick={()=>{setBulkEditValue("");setBulkEditOpen(true);}}
+                style={{background:selectedIds.size?"rgba(123,156,255,0.12)":"rgba(255,255,255,0.04)",border:`1px solid ${selectedIds.size?"#7B9CFF":"#333"}`,color:selectedIds.size?"#7B9CFF":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                {"\u270F\uFE0F"} Bulk Edit
+              </button>
               <button disabled={selectedIds.size===0} onClick={()=>{setBulkDelText("");setBulkDelOpen(true);}}
                 style={{background:selectedIds.size?"rgba(239,68,68,0.12)":"rgba(255,255,255,0.04)",border:`1px solid ${selectedIds.size?"#EF4444":"#333"}`,color:selectedIds.size?"#EF4444":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
                 {"\uD83D\uDDD1"} Delete from DB
@@ -34377,6 +34433,76 @@ See you in there!
       )}
 
       {/* ── BULK LIST MODAL ── */}
+      {/* Bulk edit. Shows the DISTINCT current values across the selection, so if you've accidentally
+          grabbed three different heroes you can see that before you flatten them into one. */}
+      {bulkEditOpen && (()=>{
+        const sel = cards.filter(c => selectedIds.has(c.id));
+        const fieldLabel = (BULK_FIELDS.find(f=>f.id===bulkEditField)||{}).label || bulkEditField;
+        // What's actually in this field right now, across everything selected.
+        const counts = {};
+        sel.forEach(c => {
+          const v = c[bulkEditField];
+          const k = (v===undefined||v===null||v==="") ? "(empty)" : String(v);
+          counts[k] = (counts[k]||0) + 1;
+        });
+        const distinct = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+        const mixed = distinct.length > 1;
+        const canApply = bulkEditValue.trim() !== "" || bulkEditField !== "power";
+        return (
+          <div onClick={()=>!bulkEditing&&setBulkEditOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",zIndex:14000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2a2a2a",borderRadius:14,padding:22,maxWidth:520,width:"100%",maxHeight:"85vh",overflowY:"auto"}}>
+              <div style={{fontSize:16,fontWeight:900,color:"#7B9CFF",marginBottom:6}}>
+                {"\u270F\uFE0F"} Edit {sel.length} card{sel.length===1?"":"s"}
+              </div>
+              <div style={{fontSize:12,color:"var(--bz-ink-3)",lineHeight:1.6,marginBottom:14}}>
+                Sets one field on every selected card. Changes the shared database, so it applies for everyone.
+              </div>
+
+              <div style={{fontSize:11,fontWeight:800,color:"var(--bz-ink-2)",marginBottom:6,letterSpacing:0.5}}>FIELD</div>
+              <select value={bulkEditField} onChange={e=>{setBulkEditField(e.target.value); setBulkEditValue("");}}
+                style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"9px 12px",fontSize:13,color:"#fff",fontFamily:"inherit",marginBottom:14,cursor:"pointer"}}>
+                {BULK_FIELDS.map(f=><option key={f.id} value={f.id}>{f.label}</option>)}
+              </select>
+
+              {/* Current values. This is the guard against a mixed selection. */}
+              <div style={{background:"#0b0b0b",border:`1px solid ${mixed?"rgba(251,191,36,0.35)":"#2a2a2a"}`,borderRadius:9,padding:"11px 13px",marginBottom:14}}>
+                <div style={{fontSize:10.5,fontWeight:800,color:mixed?"#FBBF24":"var(--bz-ink-3)",letterSpacing:0.5,marginBottom:7}}>
+                  {mixed ? `\u26A0\uFE0F ${distinct.length} DIFFERENT VALUES SELECTED` : "CURRENT VALUE"}
+                </div>
+                {distinct.slice(0,6).map(([v,n])=>(
+                  <div key={v} style={{display:"flex",justifyContent:"space-between",gap:10,fontSize:12,padding:"2px 0",fontFamily:"monospace"}}>
+                    <span style={{color:v==="(empty)"?"#555":"#ccc"}}>{v}</span>
+                    <span style={{color:"var(--bz-ink-3)"}}>{n} card{n===1?"":"s"}</span>
+                  </div>
+                ))}
+                {distinct.length>6 && <div style={{fontSize:11,color:"var(--bz-ink-3)",marginTop:4}}>{"\u2026and "}{distinct.length-6} more</div>}
+                {mixed && (
+                  <div style={{fontSize:11,color:"#FBBF24",lineHeight:1.55,marginTop:8,paddingTop:8,borderTop:"1px solid rgba(251,191,36,0.2)"}}>
+                    These will all be flattened into the one value below. If that's not what you meant, narrow the selection first.
+                  </div>
+                )}
+              </div>
+
+              <div style={{fontSize:11,fontWeight:800,color:"var(--bz-ink-2)",marginBottom:6,letterSpacing:0.5}}>NEW {fieldLabel.toUpperCase()}</div>
+              <input value={bulkEditValue} onChange={e=>setBulkEditValue(e.target.value)} autoFocus disabled={bulkEditing}
+                placeholder={bulkEditField==="power" ? "e.g. 150 \u2014 leave blank to clear" : `New ${fieldLabel.toLowerCase()}\u2026`}
+                type={bulkEditField==="power" ? "number" : "text"}
+                style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"11px 12px",fontSize:14,color:"#fff",fontFamily:"inherit",marginBottom:14}}/>
+
+              <div style={{display:"flex",gap:8}}>
+                <button disabled={!canApply||bulkEditing} onClick={bulkEditCards}
+                  style={{flex:1,background:canApply?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#222",color:canApply?"#fff":"#666",border:"none",borderRadius:9,padding:"11px",fontSize:13,fontWeight:800,cursor:(canApply&&!bulkEditing)?"pointer":"not-allowed",fontFamily:"inherit"}}>
+                  {bulkEditing ? "Saving\u2026" : `Set ${fieldLabel.toLowerCase()} on ${sel.length} card${sel.length===1?"":"s"}`}
+                </button>
+                <button disabled={bulkEditing} onClick={()=>setBulkEditOpen(false)}
+                  style={{flex:1,background:"transparent",border:"1px solid #333",color:"#999",borderRadius:9,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+
       {/* Typed confirmation. This deletes cards for EVERY user, so a yes/no dialog isn't enough —
           typing the count forces you to actually look at how many are selected before it happens. */}
       {bulkDelOpen && (()=>{
