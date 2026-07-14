@@ -30108,6 +30108,10 @@ See you in there!
           try { const trSnap = await getDoc(doc(db,"boba_intransit",u.uid)); setInTransit(trSnap.exists() ? trSnap.data() : {}); } catch(e){}
           setPublicCards(_ok(prvSnap) ? prvSnap.data() : {});
           try { const tbSnap = await getDoc(doc(db,"boba_tradebait",u.uid)); setTradeBait(tbSnap.exists() ? tbSnap.data() : {}); } catch(e){}
+          // Are they listed as a trade partner? Read the index doc itself rather than a flag on the
+          // profile \u2014 the doc IS the truth, and a stale flag saying "public" when no index exists
+          // (or vice versa) would be worse than no flag at all.
+          try { const tiSnap = await getDoc(doc(db,"trade_index",u.uid)); setTradePublic(tiSnap.exists()); } catch(e){ setTradePublic(false); }
           setLots(_ok(lotSnap) && Array.isArray(lotSnap.data().lots) ? lotSnap.data().lots : []);
           try { const umSnap = await getDoc(doc(db,"user_missing",u.uid)); setUserMissing(umSnap.exists() && Array.isArray(umSnap.data().cards) ? umSnap.data().cards : []); } catch(e){}
           try {
@@ -30900,7 +30904,58 @@ See you in there!
     const next = {...tradeBait};
     if (next[cardId]) delete next[cardId]; else next[cardId]=true;
     setTradeBait(next);
-    try { await setDoc(doc(db,"boba_tradebait",user.uid), next); } catch(e){ console.error("save tradebait failed:", e); }
+    try {
+      await setDoc(doc(db,"boba_tradebait",user.uid), next);
+      // Keep the public index in step \u2014 but ONLY if they've opted in. See publishTradeIndex.
+      if (tradePublic) await publishTradeIndex(next, true);
+    } catch(e){ console.error("save tradebait failed:", e); }
+  }
+
+  // ── Public trade index ───────────────────────────────────────────────────────────────────────
+  // boba_tradebait is PRIVATE to its owner, and it stays that way. People flagged cards as trade
+  // bait long before this feature existed, under the reasonable assumption nobody else could see
+  // them \u2014 silently republishing that would be a betrayal of exactly the kind we just fixed in
+  // family sharing.
+  //
+  // So the public side is a SEPARATE, opt-in doc. Toggling "list me as a trade partner" copies the
+  // card ids into trade_index/{uid}; toggling it off deletes that doc outright. Opting out means the
+  // record is GONE, not merely flagged hidden \u2014 there is no lingering copy of your list on a server
+  // you thought you had left.
+  //
+  // The index carries only what a match needs: who you are, and which cards you'd trade. Not your
+  // collection, not quantities, not what you paid.
+  const [tradePublic,  setTradePublic]  = useState(false);
+  const [tradePubBusy, setTradePubBusy] = useState(false);
+
+  async function publishTradeIndex(bait, on) {
+    if (!user) return;
+    const ref = doc(db,"trade_index",user.uid);
+    if (!on) { try { await deleteDoc(ref); } catch(e){ console.error("trade index delete failed:", e); } return; }
+    const ids = Object.keys(bait||{}).filter(k => bait[k]);
+    await setDoc(ref, {
+      uid: user.uid,
+      name: user.displayName || (user.email||"").split("@")[0],
+      cardIds: ids,
+      count: ids.length,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  async function toggleTradePublic() {
+    if (!user || tradePubBusy) return;
+    setTradePubBusy(true);
+    const on = !tradePublic;
+    try {
+      await publishTradeIndex(tradeBait, on);
+      setTradePublic(on);
+      await setDoc(doc(db,"boba_profiles",user.uid), { tradePublic: on }, { merge:true });
+      setToast(on
+        ? `\u2713 You're listed as a trade partner \u2014 ${Object.keys(tradeBait).length} card${Object.keys(tradeBait).length===1?"":"s"} visible`
+        : "\u2713 Removed from trade matching \u2014 your list is private again");
+    } catch(e) {
+      alert("Couldn't update: " + e.message);
+    }
+    setTradePubBusy(false);
   }
   // -- Lot (per-copy cost/value) tracking --
   // -- Collection CSV import --
@@ -36989,6 +37044,30 @@ See you in there!
               </div>
               <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search…" style={{ background:"#241820", border:"1px solid rgba(255,255,255,0.18)", borderRadius:10, color:"#f6eef2", padding:"8px 12px", fontSize:13, fontFamily:"inherit", outline:"none" }}/>
             </div>
+              {/* Opt-in. The tab shows duplicates AND manual flags, but only the MANUAL flags are ever
+                  published — owning two of something isn't the same as offering to trade it away. */}
+              {(() => {
+                const flagged = Object.keys(tradeBait).filter(k => tradeBait[k]).length;
+                return (
+                  <div style={{background:tradePublic?"rgba(74,222,128,0.07)":"rgba(255,255,255,0.03)",border:`1px solid ${tradePublic?"rgba(74,222,128,0.3)":"rgba(255,255,255,0.08)"}`,borderRadius:12,padding:"13px 15px",marginBottom:14,display:"flex",alignItems:"center",gap:13,flexWrap:"wrap"}}>
+                    <div style={{flex:1,minWidth:220}}>
+                      <div style={{fontSize:13,fontWeight:800,color:tradePublic?"#4ade80":"#fff",marginBottom:3}}>
+                        {tradePublic ? "\u2713 Listed as a trade partner" : "Get found for trades"}
+                      </div>
+                      <div style={{fontSize:11.5,color:"rgba(255,255,255,0.45)",lineHeight:1.6}}>
+                        {tradePublic
+                          ? <>Collectors looking for one of your <strong style={{color:"#4ade80"}}>{flagged}</strong> flagged card{flagged===1?"":"s"} can find you. Only the cards you flagged are shown {"\u2014"} never your collection.</>
+                          : <>Flag cards as trade bait, then switch this on and collectors who need them will see you. <strong>Only the cards you flag</strong> are ever public {"\u2014"} not your collection, not your quantities.</>}
+                      </div>
+                    </div>
+                    <button onClick={toggleTradePublic} disabled={tradePubBusy || (!tradePublic && flagged===0)}
+                      title={!tradePublic && flagged===0 ? "Flag at least one card as trade bait first" : ""}
+                      style={{background:tradePublic?"transparent":(flagged===0?"#222":"linear-gradient(135deg,#E8317A,#7B2FF7)"),border:tradePublic?"1px solid rgba(255,255,255,0.2)":"none",color:tradePublic?"rgba(255,255,255,0.6)":(flagged===0?"#666":"#fff"),borderRadius:9,padding:"9px 16px",fontSize:12,fontWeight:800,cursor:(tradePubBusy||(!tradePublic&&flagged===0))?"not-allowed":"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                      {tradePubBusy ? "\u2026" : tradePublic ? "Stop listing" : "List me"}
+                    </button>
+                  </div>
+                );
+              })()}
             {baitCards.length===0 ? (
               <div style={{ textAlign:"center", padding:"60px 20px" }}>
                 <div style={{ fontSize:44, marginBottom:14 }}>🔁</div>
