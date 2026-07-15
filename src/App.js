@@ -38525,21 +38525,20 @@ See you in there!
                 const active = customTrackers.find(t => t.id === activeTrackerId);
                 const renderTracker = (tracker) => {
                   const treatSet = new Set(tracker.treatments);
+                  // Match treatments LOOSELY: ignore case, spacing and punctuation so a rename like
+                  // "Gold Coinflip*" vs "Gold Coin Flip Battlefoil" still counts your owned cards.
+                  const _normT = s => String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+                  const treatSetN = new Set([...treatSet].map(_normT));
+                  const treatMatch = c => treatSet.has(c.treatment) || treatSetN.has(_normT(c.treatment));
                   const heroes = [...new Set(cards.filter(c=>c.hero).map(c=>c.hero))].sort();
                   const rows = heroes.map(hero => {
                     const cardNumVal = c => { const m = String(c.cardNum||"").match(/\d+/); return m ? parseInt(m[0],10) : Number.MAX_SAFE_INTEGER; };
-                    const hc = cards.filter(c => c.hero===hero && treatSet.has(c.treatment))
+                    const hc = cards.filter(c => c.hero===hero && treatMatch(c))
                       .sort((a,b)=>{ const d = cardNumVal(a)-cardNumVal(b); return d!==0 ? d : String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true}); });
                     const ownedMatch = hc.filter(c => owned[c.id]);
                     const transitMatch = hc.filter(c => !owned[c.id] && inTransit[c.id]);
                     return { hero, need: hc.length, complete: ownedMatch.length>0, ownedCards: ownedMatch, transitCards: transitMatch, hasTransit: transitMatch.length>0, allCards: hc, exists: hc.length>0 };
                   });
-                  // TEMP DIAG: what treatments do my owned cards actually carry vs what the tracker wants?
-                  const _wantTreat = [...treatSet];
-                  const _myTreats = {};
-                  cards.forEach(c => { if ((owned[c.id]||inTransit[c.id]) && (c.treatment||"").toLowerCase().includes("coin")) { _myTreats[c.treatment]=(_myTreats[c.treatment]||0)+1; } });
-                  if (typeof window!=="undefined") window.__trackerDiag = { wants:_wantTreat, myCoinTreatments:_myTreats };
-                  console.log("TRACKER DIAG — tracker wants:", _wantTreat, "| my coin-card treatments:", _myTreats);
                   const inSet = rows.filter(r=>r.exists);
                   const done = inSet.filter(r=>r.complete).length;
                   const transitCount = inSet.filter(r=>!r.complete && r.hasTransit).length;
@@ -38566,7 +38565,7 @@ See you in there!
       cards.forEach(c => {
         if (!owned[c.id] && !inTransit[c.id]) return;             // only YOUR cards
         const t = c.treatment || "";
-        if (treatSet.has(t)) return;                              // already matching — fine
+        if (treatMatch(c)) return;                              // already matching — fine
         const lc = t.toLowerCase().replace(/\s+/g," ").trim();
         // Near-miss = the SAME treatment differing only by case / spacing / punctuation. We do NOT
         // treat a substring as a match ("Battlefoil" is NOT "Gold Coin Flip Battlefoil"), which was
@@ -38613,7 +38612,6 @@ See you in there!
                         <div>
                           <div style={{ fontSize:16, fontWeight:900 }}>{tracker.name}</div>
                           <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)" }}>{tracker.treatments.join(" · ")} · one per hero · tap a hero to see every card</div>
-                          {(user?.email||"").includes("@bazookabreaks.com") && <div style={{fontSize:9,color:"#FBBF24",fontFamily:"monospace",marginTop:2}}>DIAG my coin treatments: {JSON.stringify(window.__trackerDiag?.myCoinTreatments||{})}</div>}
                           {transitCount>0 && <div style={{ fontSize:11, color:"#FBBF24", fontWeight:700, marginTop:3 }}>🚚 {transitCount} on the way <span style={{ color:"rgba(255,255,255,0.35)", fontWeight:400 }}>(not counted as owned until received)</span></div>}
                         </div>
                         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
