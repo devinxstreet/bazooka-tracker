@@ -714,10 +714,28 @@ function GlobalStyles() {
       .bz-fin-card:hover{border-color:var(--bz-line-2)!important;transform:translateY(-2px);box-shadow:var(--bz-shadow);}
       .bz-mobile-menu{display:none;}
       @media print {
+        /* Print only the pick-list sheet. The sheet lives inside a position:fixed, overflow:auto
+           flex overlay — if we leave that context intact the browser clips to one screen and
+           repeats page 1. So we neutralize the overlay AND the sheet: static flow, no height cap,
+           no overflow, so the full table paginates naturally across pages. */
         body * { visibility: hidden !important; }
         .pick-list-sheet, .pick-list-sheet * { visibility: visible !important; }
-        .pick-list-sheet { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important; max-width: none !important; box-shadow: none !important; border-radius: 0 !important; padding: 12px 8px !important; margin: 0 !important; }
+        .pick-list-overlay {
+          position: static !important; overflow: visible !important; display: block !important;
+          padding: 0 !important; background: #fff !important; backdrop-filter: none !important;
+          height: auto !important; inset: auto !important;
+        }
+        .pick-list-sheet {
+          position: static !important; box-shadow: none !important; border-radius: 0 !important;
+          max-width: 100% !important; width: 100% !important; margin: 0 !important;
+          max-height: none !important; height: auto !important; overflow: visible !important;
+          padding: 0 !important;
+        }
+        .pick-list-sheet table { page-break-inside: auto; }
+        .pick-list-sheet tr { page-break-inside: avoid; page-break-after: auto; }
+        .pick-list-sheet thead { display: table-header-group; }
         .pick-list-controls { display: none !important; }
+        @page { margin: 14mm; }
       }
       @media (max-width:900px){
         .bz-side{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform .25s ease;box-shadow:0 0 40px rgba(0,0,0,0.6);background:#140d11!important;z-index:60;}
@@ -28297,7 +28315,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               return 0;
             });
             return (
-            <div onClick={()=>setShowPickList(false)} style={{position:"fixed",inset:0,zIndex:13000,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:24,overflowY:"auto"}}>
+            <div onClick={()=>setShowPickList(false)} className="pick-list-overlay" style={{position:"fixed",inset:0,zIndex:13000,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:24,overflowY:"auto"}}>
               <div onClick={e=>e.stopPropagation()} className="pick-list-sheet" style={{width:"100%",maxWidth:720,background:"#fff",color:"#111",borderRadius:12,padding:"28px 30px",boxShadow:"0 24px 80px rgba(0,0,0,0.6)",position:"relative",margin:"auto"}}>
                 {/* Screen-only controls (hidden when printing) */}
                 <div className="pick-list-controls" style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:18,borderBottom:"2px solid #eee",paddingBottom:14}}>
@@ -28328,6 +28346,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       <th style={{padding:"7px 6px"}}>Weapon</th>
                       <th style={{padding:"7px 6px"}}>Treatment</th>
                       <th style={{padding:"7px 6px"}}>Set</th>
+                          <th style={{padding:"7px 6px"}}>In Collection</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -28340,6 +28359,12 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         <td style={{padding:"6px"}}>{c.weapon||"—"}</td>
                         <td style={{padding:"6px",color:"#555"}}>{c.treatment||"—"}</td>
                         <td style={{padding:"6px",color:"#888",fontSize:12}}>{c.setName||"—"}</td>
+                        <td style={{padding:"6px",fontSize:12,fontWeight:700}}>{(() => {
+                          if (owned && owned[c.id]) return <span style={{color:"#1a7a3a"}}>You</span>;
+                          const fam = familyOwnerByCard && familyOwnerByCard[c.id];
+                          if (fam) return <span style={{color:"#7B2FF7"}}>{fam.name || "Family"}</span>;
+                          return <span style={{color:"#c0392b"}}>Not owned</span>;
+                        })()}</td>
                       </tr>
                     ))}
                   </tbody>
