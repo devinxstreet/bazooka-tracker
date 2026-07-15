@@ -38423,6 +38423,34 @@ See you in there!
 
                   return (
                     <div>
+                        {orphans.length > 0 && (
+                        <div style={{background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.35)",borderRadius:12,padding:"12px 15px",marginBottom:14}}>
+                        <div style={{fontSize:13,fontWeight:800,color:"#FBBF24",marginBottom:5}}>
+                        {"\u26A0\uFE0F"} {orphans.length} of your card{orphans.length===1?"":"s"} {orphans.length===1?"is":"are"} marked but not matching this tracker
+                        </div>
+                        <div style={{fontSize:11.5,color:"rgba(255,255,255,0.6)",lineHeight:1.6,marginBottom:8}}>
+                        These are cards you own or have in transit whose treatment name drifted (likely a database
+                        change), so the tracker stopped counting them. Your marks are safe {"\u2014"} they just need the
+                        treatment re-matched.
+                        </div>
+                        <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                        {[...new Set(orphans.map(o=>o.treatment))].map(t => (
+                        <span key={t} style={{fontSize:10.5,fontWeight:700,color:"#FBBF24",background:"rgba(251,191,36,0.12)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:6,padding:"2px 8px"}}>
+                        {t} ({orphans.filter(o=>o.treatment===t).length})
+                        </span>
+                        ))}
+                        </div>
+                        <button onClick={()=>{
+                        // Add every drifted treatment to this tracker so the cards match again. This edits the
+                        // tracker's treatment list only — it does NOT touch your owned or in-transit marks.
+                        const add = [...new Set(orphans.map(o=>o.treatment))];
+                        const merged = [...new Set([...(tracker.treatments||[]), ...add])];
+                        saveTrackerTreatments(tracker.id, merged);
+                        }} style={{marginTop:10,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                        Re-match {orphans.length} card{orphans.length===1?"":"s"} to this tracker
+                        </button>
+                        </div>
+                        )}
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, flexWrap:"wrap", gap:8 }}>
                         <div>
                           <div style={{ fontSize:16, fontWeight:900 }}>{tracker.name}</div>
@@ -38503,34 +38531,6 @@ See you in there!
                 };
                 return (
                   <div>
-        {orphans.length > 0 && (
-          <div style={{background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.35)",borderRadius:12,padding:"12px 15px",marginBottom:14}}>
-            <div style={{fontSize:13,fontWeight:800,color:"#FBBF24",marginBottom:5}}>
-              {"\u26A0\uFE0F"} {orphans.length} of your card{orphans.length===1?"":"s"} {orphans.length===1?"is":"are"} marked but not matching this tracker
-            </div>
-            <div style={{fontSize:11.5,color:"rgba(255,255,255,0.6)",lineHeight:1.6,marginBottom:8}}>
-              These are cards you own or have in transit whose treatment name drifted (likely a database
-              change), so the tracker stopped counting them. Your marks are safe {"\u2014"} they just need the
-              treatment re-matched.
-            </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-              {[...new Set(orphans.map(o=>o.treatment))].map(t => (
-                <span key={t} style={{fontSize:10.5,fontWeight:700,color:"#FBBF24",background:"rgba(251,191,36,0.12)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:6,padding:"2px 8px"}}>
-                  {t} ({orphans.filter(o=>o.treatment===t).length})
-                </span>
-              ))}
-            </div>
-            <button onClick={()=>{
-              // Add every drifted treatment to this tracker so the cards match again. This edits the
-              // tracker's treatment list only — it does NOT touch your owned or in-transit marks.
-              const add = [...new Set(orphans.map(o=>o.treatment))];
-              const merged = [...new Set([...(tracker.treatments||[]), ...add])];
-              saveTrackerTreatments(tracker.id, merged);
-            }} style={{marginTop:10,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
-              Re-match {orphans.length} card{orphans.length===1?"":"s"} to this tracker
-            </button>
-          </div>
-        )}
                     {showTrackerBuilder ? (
                       <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(232,49,122,0.3)", borderRadius:12, padding:"18px 20px", marginBottom:16 }}>
                         <div style={{ fontSize:14, fontWeight:800, marginBottom:12 }}>{showTrackerBuilder==="edit"?"Edit Tracker":"New Custom Tracker"}</div>
