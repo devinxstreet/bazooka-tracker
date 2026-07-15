@@ -30679,6 +30679,18 @@ See you in there!
   const flushingRef     = useRef(false);  // a write is in flight right now
   const [inTransit,     setInTransit]     = useState({}); // {cardId: {qty, note, date}} cards bought & on the way
 
+  // Live listener for on-the-way cards. The initial load uses a one-time getDoc (batched with the
+  // rest of the collection), which means a later write \u2014 e.g. the integrity heal re-pointing drifted
+  // transit ids \u2014 wouldn't show until a full reload. This keeps inTransit in sync with the doc.
+  useEffect(() => {
+    if (!user) { setInTransit({}); return; }
+    const unsub = onSnapshot(doc(db,"boba_intransit",user.uid),
+      snap => setInTransit(snap.exists() ? snap.data() : {}),
+      e => console.error("intransit listen failed:", e));
+    return () => { try{unsub();}catch(e){} };
+  }, [user]);
+
+
   // -- Card FX (hunt / caught animations) --
   const [cardFx,        setCardFx]        = useState(null); // { type:"hunt"|"caught", card }
   const [milestone,     setMilestone]     = useState(null); // { label, sub }
@@ -38550,8 +38562,12 @@ See you in there!
         const t = c.treatment || "";
         if (treatSet.has(t)) return;                              // already matching — fine
         const lc = t.toLowerCase().replace(/\s+/g," ").trim();
-        // Near-miss: same after case/space normalization, or one contains the other.
-        const near = wantedLc.some(w => w===lc || (w && lc && (w.includes(lc)||lc.includes(w))));
+        // Near-miss = the SAME treatment differing only by case / spacing / punctuation. We do NOT
+        // treat a substring as a match ("Battlefoil" is NOT "Gold Coin Flip Battlefoil"), which was
+        // pulling in unrelated cards. Compare with every separator stripped.
+        const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g,"");
+        const lcN = norm(lc);
+        const near = wantedLc.some(w => norm(w) === lcN);
         if (near) out.push({ hero:c.hero, treatment:t, owned:!!owned[c.id], transit:!!inTransit[c.id] });
       });
       return out;
