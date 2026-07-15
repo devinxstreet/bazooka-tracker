@@ -26400,7 +26400,17 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
       const copies = Object.values(data).reduce((sum, v) => {
         const n = parseInt(v); return sum + (isNaN(n) ? 1 : Math.max(1, n));
       }, 0);
-      setState({ raw: ids.length, matched: matched.length, orphans, copies });
+      // Same check for cards ON THE WAY (boba_intransit). Drifted ids show as wrong "on the way"
+      // counts even though the marks are intact.
+      let transitRaw = 0, transitOrphans = [];
+      try {
+        const tSnap = await getDoc(doc(db, "boba_intransit", uid));
+        const tData = tSnap.exists() ? tSnap.data() : {};
+        const tIds = Object.keys(tData);
+        transitRaw = tIds.length;
+        transitOrphans = tIds.filter(id => !cardById.has(id));
+      } catch(e) {}
+      setState({ raw: ids.length, matched: matched.length, orphans, copies, transitRaw, transitOrphans });
     } catch(e) {
       setState({ error: e.message });
     }
@@ -26467,6 +26477,63 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
     } catch(e) { alert("Heal failed: " + e.message); }
     setApplying(false);
   }
+
+  // ── ON-THE-WAY HEAL ──────────────────────────────────────────────────────────────────────────
+  // Same drift, for boba_intransit. Re-points "on the way" marks whose card id changed. Preview
+  // first (proposeTransit), write on approve (applyTransit). Never deletes a mark.
+  const [transitProps, setTransitProps] = useState(null);
+  const [transitApplying, setTransitApplying] = useState(false);
+  const [transitDone, setTransitDone] = useState(0);
+
+  async function proposeTransit() {
+    setBusy(true);
+    try {
+      const snap = await getDoc(doc(db, "boba_intransit", uid));
+      const data = snap.exists() ? snap.data() : {};
+      const cardById = new Set(cards.map(c => c.id));
+      const dead = Object.keys(data).filter(id => !cardById.has(id));
+      const byStable = {};
+      cards.forEach(c => { const k = stableKey(c).slice(0,20); (byStable[k] = byStable[k] || []).push(c); });
+      const byCardNum = buildByCardNum();
+      const props = dead.map(oldId => {
+        const cands = matchOldId(oldId, byStable, byCardNum);
+        return { oldId, mark: data[oldId], candidates: cands, chosen: cands.length ? cands[0].id : "" };
+      });
+      setTransitProps(props);
+    } catch(e) { alert("Couldn't build on-the-way preview: " + e.message); }
+    setBusy(false);
+  }
+
+  async function applyTransit() {
+    if (!transitProps) return;
+    const toApply = transitProps.filter(p => p.chosen);
+    if (!toApply.length) { alert("Nothing selected."); return; }
+    if (!window.confirm(`Re-point ${toApply.length} on-the-way mark${toApply.length===1?"":"s"}? This only moves the marks onto the matching cards \u2014 it deletes nothing.`)) return;
+    setTransitApplying(true);
+    try {
+      const snap = await getDoc(doc(db, "boba_intransit", uid));
+      const data = snap.exists() ? { ...snap.data() } : {};
+      let n = 0;
+      toApply.forEach(p => {
+        if (!(p.oldId in data)) return;
+        // Move the transit mark to the new id. If one already exists there, keep the larger qty.
+        const prev = data[p.chosen];
+        const cur = data[p.oldId];
+        if (prev && typeof prev === "object" && typeof cur === "object") {
+          data[p.chosen] = { ...cur, qty: Math.max(parseInt(prev.qty)||1, parseInt(cur.qty)||1) };
+        } else {
+          data[p.chosen] = cur;
+        }
+        delete data[p.oldId];
+        n++;
+      });
+      await setDoc(doc(db, "boba_intransit", uid), data);
+      setTransitDone(n); setTransitProps(null);
+      await run();
+    } catch(e) { alert("On-the-way heal failed: " + e.message); }
+    setTransitApplying(false);
+  }
+
 
   // ── DECK HEAL ────────────────────────────────────────────────────────────────────────────────
   // Same drift, different place: a saved deck stores cardIds. After the snapshot regen those ids
@@ -26650,6 +26717,50 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
               {applied > 0 && <div style={{marginTop:8,fontSize:11.5,color:"#4ade80",fontWeight:700}}>{"\u2713"} Re-pointed {applied} card{applied===1?"":"s"}. Counts refreshed above.</div>}
         </div>
       )}
+      {/* On-the-way (in-transit) references. Separate from owned; drifts the same way. */}
+      <div style={{marginTop:12,paddingTop:11,borderTop:"1px solid rgba(255,255,255,0.08)"}}>
+        <div style={{fontSize:11.5,fontWeight:800,color:"#60A5FA",marginBottom:7}}>{"\uD83D\uDE9A"} On-the-way references{state && typeof state.transitRaw==="number" ? ` (${state.transitRaw} marked, ${state.transitOrphans?.length||0} drifted)` : ""}</div>
+        {!transitProps ? (
+          <button onClick={proposeTransit} disabled={busy} style={{background:"rgba(96,165,250,0.15)",border:"1px solid rgba(96,165,250,0.4)",color:"#60A5FA",borderRadius:7,padding:"6px 13px",fontSize:11.5,fontWeight:700,cursor:busy?"wait":"pointer",fontFamily:"inherit"}}>
+            {busy ? "Checking\u2026" : "Check on-the-way cards for drift"}
+          </button>
+        ) : transitProps.length === 0 ? (
+          <div style={{fontSize:11.5,color:"#4ade80"}}>{"\u2713"} Every on-the-way mark matches a card. Nothing to fix.</div>
+        ) : (
+          <div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.55)",marginBottom:8,lineHeight:1.5}}>
+              These "on the way" marks reference cards whose id drifted. Re-pointing restores the count.
+              Nothing is written until you press Apply.
+            </div>
+            <div style={{maxHeight:240,overflowY:"auto",display:"flex",flexDirection:"column",gap:6}}>
+              {transitProps.map((pr,pi) => (
+                <div key={pr.oldId} style={{background:"rgba(0,0,0,0.25)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"7px 9px"}}>
+                  <div style={{fontSize:9.5,color:"rgba(255,255,255,0.3)",fontFamily:"monospace",marginBottom:4,wordBreak:"break-all"}}>{pr.oldId}</div>
+                  {pr.candidates.length===0 ? (
+                    <div style={{fontSize:11,color:"#E8317A"}}>No confident match \u2014 left untouched.</div>
+                  ) : (
+                    <select value={pr.chosen} onChange={e=>{ const v=e.target.value; setTransitProps(ps=>ps.map((x,xi)=>xi===pi?{...x,chosen:v}:x)); }}
+                      style={{width:"100%",background:"#14141a",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,padding:"4px 7px",fontSize:11,fontFamily:"inherit"}}>
+                      <option value="">\u2014 leave as-is \u2014</option>
+                      {pr.candidates.map(c => (
+                        <option key={c.id} value={c.id}>{[c.hero,c.treatment,c.cardNum?("#"+c.cardNum):"",c.setName].filter(Boolean).join(" \u00b7 ")}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:10}}>
+              <button onClick={applyTransit} disabled={transitApplying} style={{background:"#60A5FA",color:"#06203f",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:800,cursor:transitApplying?"wait":"pointer",fontFamily:"inherit"}}>
+                {transitApplying ? "Applying\u2026" : `Apply ${transitProps.filter(p=>p.chosen).length} fix${transitProps.filter(p=>p.chosen).length===1?"":"es"}`}
+              </button>
+              <button onClick={()=>setTransitProps(null)} disabled={transitApplying} style={{background:"transparent",color:"rgba(255,255,255,0.5)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+            </div>
+          </div>
+        )}
+        {transitDone > 0 && <div style={{marginTop:8,fontSize:11.5,color:"#4ade80",fontWeight:700}}>{"\u2713"} Re-pointed {transitDone} on-the-way mark{transitDone===1?"":"s"}.</div>}
+      </div>
+
       {/* Deck references — separate from owned marks. Available whenever the panel is open, because a
           deck can be broken even when the owned count looks fine. */}
       <div style={{marginTop:12,paddingTop:11,borderTop:"1px solid rgba(255,255,255,0.08)"}}>
