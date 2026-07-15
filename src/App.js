@@ -25656,6 +25656,22 @@ function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, a
   // My trade packages (shareable links) — loaded here so they live in the marketplace too.
   const [mktPkgs, setMktPkgs] = useState(null);
   const [mktPkgsBusy, setMktPkgsBusy] = useState(false);
+  const [mktEditId,   setMktEditId]   = useState(null);   // package id being edited
+  const [mktEditVals, setMktEditVals] = useState({title:"",note:"",contact:""});
+  const [mktEditBusy, setMktEditBusy] = useState(false);
+  function mktStartEdit(pk) {
+    setMktEditId(pk.id);
+    setMktEditVals({ title: pk.title||"", note: pk.note||"", contact: pk.contact||"" });
+  }
+  async function mktSaveEdit(pid) {
+    setMktEditBusy(true);
+    try {
+      await setDoc(doc(db,"boba_trade_packages",pid), { title: mktEditVals.title.trim()||"Trade package", note: mktEditVals.note.trim(), contact: mktEditVals.contact.trim() }, { merge:true });
+      setMktPkgs(list => (list||[]).map(p => p.id===pid ? { ...p, title: mktEditVals.title.trim()||"Trade package", note: mktEditVals.note.trim(), contact: mktEditVals.contact.trim() } : p));
+      setMktEditId(null);
+    } catch(e){ alert("Couldn't save: "+(e?.message||e)); }
+    setMktEditBusy(false);
+  }
   useEffect(() => {
     if (mktView !== "packages" || !user || mktPkgs !== null) return;
     setMktPkgsBusy(true);
@@ -25785,8 +25801,31 @@ function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, a
                               <div style={{fontSize:15,fontWeight:800,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{pk.title||"Trade package"}</div>
                               <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginTop:2}}>{count} card{count===1?"":"s"}{pk.createdAt?` \u00b7 ${new Date(pk.createdAt).toLocaleDateString()}`:""}</div>
                             </div>
+                            <div style={{display:"flex",gap:6,flexShrink:0}}>
+                              <button onClick={()=>mktStartEdit(pk)} style={{background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.4)",color:"#7B9CFF",borderRadius:7,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Edit</button>
                             <button onClick={()=>mktDeletePkg(pk.id)} style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.4)",color:"#f87171",borderRadius:7,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>Delete</button>
+                            </div>
                           </div>
+                          {mktEditId===pk.id && (
+                            <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid rgba(255,255,255,0.08)",display:"flex",flexDirection:"column",gap:9}}>
+                              <div>
+                                <label style={{fontSize:10.5,fontWeight:800,color:"#7B9CFF",display:"block",marginBottom:4}}>Title</label>
+                                <input value={mktEditVals.title} onChange={e=>setMktEditVals(v=>({...v,title:e.target.value}))} style={{width:"100%",background:"#0e0e13",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",borderRadius:7,padding:"7px 10px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+                              </div>
+                              <div>
+                                <label style={{fontSize:10.5,fontWeight:800,color:"#7B9CFF",display:"block",marginBottom:4}}>Note</label>
+                                <textarea value={mktEditVals.note} onChange={e=>setMktEditVals(v=>({...v,note:e.target.value}))} rows={2} style={{width:"100%",background:"#0e0e13",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",borderRadius:7,padding:"7px 10px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box",resize:"vertical"}}/>
+                              </div>
+                              <div>
+                                <label style={{fontSize:10.5,fontWeight:800,color:"#7B9CFF",display:"block",marginBottom:4}}>Contact</label>
+                                <input value={mktEditVals.contact} onChange={e=>setMktEditVals(v=>({...v,contact:e.target.value}))} style={{width:"100%",background:"#0e0e13",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",borderRadius:7,padding:"7px 10px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+                              </div>
+                              <div style={{display:"flex",gap:8}}>
+                                <button onClick={()=>mktSaveEdit(pk.id)} disabled={mktEditBusy} style={{background:"#4ade80",color:"#06240f",border:"none",borderRadius:7,padding:"8px 16px",fontSize:12,fontWeight:800,cursor:mktEditBusy?"wait":"pointer",fontFamily:"inherit"}}>{mktEditBusy?"Saving\u2026":"Save changes"}</button>
+                                <button onClick={()=>setMktEditId(null)} disabled={mktEditBusy} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:7,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                              </div>
+                            </div>
+                          )}
                           {thumbs.length>0 && (
                             <div style={{display:"flex",gap:5,marginTop:10}}>
                               {thumbs.map((it,ti)=>(<img key={ti} src={it.imageUrl} alt="" style={{width:38,height:51,objectFit:"cover",borderRadius:5,border:"1px solid rgba(255,255,255,0.1)"}}/>))}
