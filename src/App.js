@@ -15640,7 +15640,7 @@ function SharedTradePackage({ packageId }) {
         <div style={{padding:"30px 0 18px",borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
           <div style={{display:"inline-block",fontSize:11,fontWeight:800,letterSpacing:1,color:"#4ade80",background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:20,padding:"4px 12px",marginBottom:12}}>{"\uD83E\uDD1D"} TRADE PACKAGE</div>
           <div style={{fontSize:26,fontWeight:900,color:"#fff",marginBottom:6}}>{pkg.title || "Trade package"}</div>
-          <div style={{fontSize:13,color:"rgba(255,255,255,0.5)"}}>From {pkg.ownerName || "a collector"} \u00b7 {totalCards} card{totalCards===1?"":"s"}</div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,0.5)"}}>From {pkg.ownerName || "a collector"} {"\u00b7"} {totalCards} card{totalCards===1?"":"s"}</div>
           {pkg.note && <div style={{marginTop:14,fontSize:14,lineHeight:1.6,color:"rgba(255,255,255,0.8)",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"12px 15px"}}>{pkg.note}</div>}
           {pkg.contact && (
             <div style={{marginTop:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
@@ -15660,7 +15660,7 @@ function SharedTradePackage({ packageId }) {
                 <div style={{fontSize:13,fontWeight:800,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.hero||"\u2014"}</div>
                 {it.playName && <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.playName}</div>}
                 <div style={{fontSize:10.5,color:"rgba(255,255,255,0.4)",marginTop:3}}>{[it.treatment, it.cardNum?("#"+it.cardNum):""].filter(Boolean).join(" \u00b7 ")}</div>
-                {(parseInt(it.qty)||1) > 1 && <div style={{fontSize:10.5,fontWeight:800,color:"#4ade80",marginTop:3}}>\u00d7{it.qty} available</div>}
+                {(parseInt(it.qty)||1) > 1 && <div style={{fontSize:10.5,fontWeight:800,color:"#4ade80",marginTop:3}}>{"\u00d7"}{it.qty} available</div>}
               </div>
             </div>
           ))}
