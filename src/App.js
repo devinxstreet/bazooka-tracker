@@ -32370,7 +32370,7 @@ See you in there!
       await setDoc(doc(db, "boba_trade_packages", pid), {
         id: pid,
         ownerUid: user.uid,
-        ownerName: (profile?.displayName || user.displayName || "A Bazooka collector"),
+        ownerName: (user.displayName || (myUsername ? "@"+myUsername : "") || (user.email||"").split("@")[0] || "A Bazooka collector"),
         title: tpTitle.trim() || "Trade package",
         note: tpNote.trim(),
         contact: tpContact.trim(),
@@ -36319,7 +36319,7 @@ See you in there!
           <button disabled={selectedIds.size===0} onClick={()=>bulkSetPublic(true)} style={{background:selectedIds.size?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)",border:`1px solid ${selectedIds.size?"#4ade80":"#333"}`,color:selectedIds.size?"#4ade80":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>👁 Make Public</button>
           <button disabled={selectedIds.size===0} onClick={()=>bulkSetPublic(false)} style={{background:selectedIds.size?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.04)",border:"1px solid #333",color:selectedIds.size?"#ccc":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>🔒 Make Private</button>
           <button disabled={selectedIds.size===0} onClick={()=>setBulkListModal(true)} style={{background:selectedIds.size?"linear-gradient(135deg,#E8317A,#7B2FF7)":"rgba(255,255,255,0.04)",border:"none",color:selectedIds.size?"#fff":"#555",borderRadius:8,padding:"7px 14px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>💰 List for Sale</button>
-                    <button disabled={selectedIds.size===0} onClick={()=>{ setTpTitle(""); setTpNote(""); setTpContact(profile?.tradeContact||""); setTpLink(""); setTpModal(true); }}
+                    <button disabled={selectedIds.size===0} onClick={()=>{ setTpTitle(""); setTpNote(""); setTpContact(""); setTpLink(""); setTpModal(true); }}
                       style={{background:selectedIds.size?"rgba(74,222,128,0.14)":"rgba(255,255,255,0.04)",border:"1px solid "+(selectedIds.size?"rgba(74,222,128,0.5)":"#333"),color:selectedIds.size?"#4ade80":"#555",borderRadius:8,padding:"7px 13px",fontSize:12,fontWeight:700,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
                       {"\uD83E\uDD1D"} Trade Package
                     </button>
