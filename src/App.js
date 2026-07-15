@@ -30678,6 +30678,7 @@ See you in there!
   const pendingOwnedRef = useRef(null);   // the map waiting to be written
   const flushingRef     = useRef(false);  // a write is in flight right now
   const [inTransit,     setInTransit]     = useState({}); // {cardId: {qty, note, date}} cards bought & on the way
+  const transitLoadedRef = useRef(false);   // true once boba_intransit has loaded at least once; blocks writes until then so a write can't overwrite the doc with an empty/stale map
 
   // Live listener for on-the-way cards. The initial load uses a one-time getDoc (batched with the
   // rest of the collection), which means a later write \u2014 e.g. the integrity heal re-pointing drifted
@@ -30685,7 +30686,7 @@ See you in there!
   useEffect(() => {
     if (!user) { setInTransit({}); return; }
     const unsub = onSnapshot(doc(db,"boba_intransit",user.uid),
-      snap => setInTransit(snap.exists() ? snap.data() : {}),
+      snap => { transitLoadedRef.current = true; setInTransit(snap.exists() ? snap.data() : {}); },
       e => console.error("intransit listen failed:", e));
     return () => { try{unsub();}catch(e){} };
   }, [user]);
@@ -31392,7 +31393,7 @@ See you in there!
             try { localStorage.setItem("customTrackers_v1", JSON.stringify(list)); } catch {}
           } catch(e){}
           setWantList(_ok(wSnap) ? wSnap.data() : {});
-          try { const trSnap = await getDoc(doc(db,"boba_intransit",u.uid)); setInTransit(trSnap.exists() ? trSnap.data() : {}); } catch(e){}
+          try { const trSnap = await getDoc(doc(db,"boba_intransit",u.uid)); setInTransit(trSnap.exists() ? trSnap.data() : {}); transitLoadedRef.current = true; } catch(e){}
           setPublicCards(_ok(prvSnap) ? prvSnap.data() : {});
           try { const tbSnap = await getDoc(doc(db,"boba_tradebait",u.uid)); setTradeBait(tbSnap.exists() ? tbSnap.data() : {}); } catch(e){}
           // Are they listed as a trade partner? Read the index doc itself rather than a flag on the
@@ -32078,11 +32079,27 @@ See you in there!
   }
   async function setTransit(cardId, data) {
     if (!user) { setSigningIn(true); return; }
-    const next = {...inTransit};
-    if (data === null) { delete next[cardId]; }
-    else { next[cardId] = { qty: data.qty||1, note: data.note||"", date: data.date||new Date().toISOString().split("T")[0] }; }
-    setInTransit(next);
-    try { await setDoc(doc(db,"boba_intransit",user.uid), next); } catch(e){ console.error("save transit failed:", e); }
+    // Guard: never write until the doc has loaded at least once. Writing before load could push a
+    // near-empty in-memory map over a full doc and wipe every mark (this is what ate cards before).
+    if (!transitLoadedRef.current) {
+      console.warn("setTransit blocked: in-transit not loaded yet");
+      alert("Still loading your on-the-way cards \u2014 give it a second and try again.");
+      return;
+    }
+    // Optimistic local update.
+    const nextLocal = { ...inTransit };
+    if (data === null) { delete nextLocal[cardId]; }
+    else { nextLocal[cardId] = { qty: data.qty||1, note: data.note||"", date: data.date||new Date().toISOString().slice(0,10) }; }
+    setInTransit(nextLocal);
+    // Durable write: re-read the live doc and merge onto THAT, so a stale local map can't clobber
+    // marks made elsewhere/recently. Only the single card we touched is changed.
+    try {
+      const snap = await getDoc(doc(db,"boba_intransit",user.uid));
+      const remote = snap.exists() ? { ...snap.data() } : {};
+      if (data === null) { delete remote[cardId]; }
+      else { remote[cardId] = { qty: data.qty||1, note: data.note||"", date: data.date||new Date().toISOString().slice(0,10) }; }
+      await setDoc(doc(db,"boba_intransit",user.uid), remote);
+    } catch(e){ console.error("save transit failed:", e); alert("Couldn't save that on-the-way mark \u2014 check your connection and try again."); }
   }
   // Mark an in-transit card as arrived: bump owned qty and clear the transit flag
   async function markTransitArrived(cardId) {
