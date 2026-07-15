@@ -38709,6 +38709,11 @@ See you in there!
                           <button key={t.id} onClick={()=>setActiveTrackerId(t.id)} style={{ background:activeTrackerId===t.id?"rgba(232,49,122,0.15)":"rgba(255,255,255,0.03)", color:activeTrackerId===t.id?"#E8317A":"rgba(255,255,255,0.5)", border:`1.5px solid ${activeTrackerId===t.id?"#E8317A":"rgba(255,255,255,0.1)"}`, borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{t.name}</button>
                         ))}
                         <button onClick={()=>{ setShowTrackerBuilder("new"); setBuilderName(""); setBuilderTreatments([]); setActiveTrackerId(null); }} style={{ background:"transparent", border:"1.5px dashed #E8317A", color:"#E8317A", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>+ New Tracker</button>
+                    {(user?.email||"").includes("@bazookabreaks.com") && user && (
+                      <div style={{width:"100%",marginBottom:16}}>
+                        <OwnedIntegrityCheck uid={user.uid} label="my collection" cards={cards}/>
+                      </div>
+                    )}
                       </div>
                     )}
                     {!showTrackerBuilder && (
