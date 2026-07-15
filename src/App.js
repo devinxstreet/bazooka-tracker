@@ -25286,7 +25286,7 @@ function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onRec
   );
 }
 
-function TradeOfferModal({ trader, cards, owned, tradeBait, myTrades = [], myUid, onSend, onClose }) {
+function TradeOfferModal({ trader, cards, owned, tradeBait, myTrades = [], myUid, deckLocked = {}, onSend, onClose }) {
   const [want, setWant] = useState(new Set());
   const [give, setGive] = useState(new Set());
   const [note, setNote] = useState("");
@@ -25311,9 +25311,12 @@ function TradeOfferModal({ trader, cards, owned, tradeBait, myTrades = [], myUid
   //
   // Without this you can promise the same physical card to two people, and the second trade is one
   // you have already made yourself unable to honour.
+  // A copy locked in a deck (mine or family's) is just as unavailable as one already promised in
+  // another trade. Both count against what's free to offer.
   const myOfferable = useMemo(
-    () => cards.filter(c => tradeBait[c.id] && (owned[c.id]||0) > (committed[c.id]||0)),
-    [cards, owned, tradeBait, committed]
+    () => cards.filter(c => tradeBait[c.id]
+      && (owned[c.id]||0) > ((committed[c.id]||0) + (deckLocked[c.id]||0))),
+    [cards, owned, tradeBait, committed, deckLocked]
   );
 
   const toggle = (set, setter, id) => setter(prev => {
@@ -25380,8 +25383,8 @@ function TradeOfferModal({ trader, cards, owned, tradeBait, myTrades = [], myUid
               YOU GIVE {give.size > 0 && `(${give.size})`}
             </div>
             <Picker list={myOfferable} sel={give} setter={setGive} accent="#FBBF24"
-              empty={Object.keys(committed).length > 0
-                ? "Nothing left to offer \u2014 every card you've flagged is already committed to another trade. They free up when those trades complete or fall through."
+              empty={(Object.keys(committed).length > 0 || Object.keys(deckLocked).length > 0)
+                ? "Nothing left to offer \u2014 the cards you've flagged are all either committed to another trade or locked into a deck (yours or a family member's). They free up when the trade settles or the card comes out of the deck."
                 : "You haven't flagged any cards as trade bait yet. Flag some first \u2014 only cards you've marked as tradeable can be offered."}/>
           </div>
         </div>
@@ -25908,7 +25911,7 @@ function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, a
       {/* Offer builder — opened from a trader row in For Trade. */}
       {offerTo && (
         <TradeOfferModal trader={offerTo} cards={cards} owned={owned} tradeBait={tradeBait}
-          myTrades={tradeOffers} myUid={user?.uid}
+          myTrades={tradeOffers} myUid={user?.uid} deckLocked={deckLockedForTrade}
           onSend={onSendTrade} onClose={()=>setOfferTo(null)}/>
       )}
 
@@ -31040,6 +31043,49 @@ See you in there!
 
     return () => { unsubs.forEach(u => { try{u();}catch(e){} }); };
   }, [friends.filter(f=>f.isFamily).map(f=>f.friendUid).sort().join(",")]);// eslint-disable-line react-hooks/exhaustive-deps
+  // ── Cards of MINE that are locked into a deck ────────────────────────────────────────────────
+  // A card committed to a deck — yours OR a family member's — shouldn't be tradeable out from under
+  // that deck. Trading it away silently breaks the deck; if it's in a FAMILY deck, you've pulled a
+  // card out from under someone else who was counting on it.
+  //
+  // deckLockedForTrade: cardId -> how many of my copies are spoken for by decks. It counts each
+  // deck as using one copy, and dedupes a card appearing twice in the same list. Family decks are
+  // readable (boba_decks is public-read), so we just watch all of theirs plus all of mine.
+  const [deckLockedForTrade, setDeckLockedForTrade] = useState({});
+  useEffect(() => {
+    if (!user) { setDeckLockedForTrade({}); return; }
+    const famUids = friends.filter(f => f.isFamily).map(f => f.friendUid);
+    const owners = [user.uid, ...famUids];
+    const perOwner = {};   // ownerUid -> { cardId: usedCount }
+    const recount = () => {
+      const total = {};
+      // My own cards, whoever's deck they sit in. Only MY cards can be locked FOR ME — a family
+      // member's own cards in their own deck aren't mine to trade anyway.
+      Object.values(perOwner).forEach(map => {
+        Object.entries(map).forEach(([cid, n]) => {
+          if (owned[cid]) total[cid] = (total[cid] || 0) + n;   // only count cards I actually own
+        });
+      });
+      setDeckLockedForTrade(total);
+    };
+    const unsubs = owners.map(ouid =>
+      onSnapshot(query(collection(db,"boba_decks"), where("userId","==",ouid)), snap => {
+        const map = {};
+        snap.forEach(d => {
+          const seen = new Set();
+          (d.data().cardIds || []).forEach(cid => {
+            if (seen.has(cid)) return;   // a deck uses at most one copy of a card
+            seen.add(cid);
+            map[cid] = (map[cid] || 0) + 1;
+          });
+        });
+        perOwner[ouid] = map;
+        recount();
+      }, e => console.error("deck-lock listen failed:", e))
+    );
+    return () => unsubs.forEach(u => { try{u();}catch(e){} });
+  }, [user, friends.filter(f=>f.isFamily).map(f=>f.friendUid).sort().join(","), owned]);
+
 
   // Borrow ledger: card loans between me and family (as borrower or owner).
   useEffect(() => {
@@ -33225,6 +33271,13 @@ See you in there!
                || myCards.find(c => theirsLocked.has(`${user.uid}:${c.id}`));
     if (clash) {
       alert(`"${clash.hero || clash.playName || "That card"}" is already committed to another trade. Refresh and try again.`);
+      return;
+    }
+    // Also block cards of mine that are locked into a deck (mine or family's). The offer builder
+    // already hides these, but re-check at send time in case a deck changed under me.
+    const deckClash = myCards.find(c => (owned[c.id]||0) <= (deckLockedForTrade[c.id]||0));
+    if (deckClash) {
+      alert(`"${deckClash.hero || deckClash.playName || "That card"}" is in a deck (yours or a family member's). Remove it from the deck before trading it away.`);
       return;
     }
     const id = uid();
