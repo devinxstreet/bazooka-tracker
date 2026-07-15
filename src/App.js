@@ -25653,6 +25653,26 @@ function TradeView({ user, traders, matchCount, wantList, onViewProfile, setActi
 function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, allMyOffers, marketSales, trackingInputs, setTrackingInputs, setListModal, setOfferModal, setOfferAmt, setOfferNote, setOfferSent, setCounterModal, setCounterAmt, buyNow, respondOffer, unsellListing, saveTracking, setSigningIn, setActiveTab, inp , listType, cards, owned, search, removeListing, tradeIndex=[], wantList={}, tradeBait={}, tradeOffers=[], onSendTrade, onRespondTrade, onCancelTrade, onTradeTracking, onTradeReceived, initialView}) {
   // Sale and trade are the same idea in different currencies, so they sit side by side.
   const [mktView, setMktView] = useState(initialView || "sale");   // "sale" | "trade" | "trades"
+  // My trade packages (shareable links) — loaded here so they live in the marketplace too.
+  const [mktPkgs, setMktPkgs] = useState(null);
+  const [mktPkgsBusy, setMktPkgsBusy] = useState(false);
+  useEffect(() => {
+    if (mktView !== "packages" || !user || mktPkgs !== null) return;
+    setMktPkgsBusy(true);
+    (async () => {
+      try {
+        const snap = await getDocs(query(collection(db,"boba_trade_packages"), where("ownerUid","==",user.uid)));
+        const rows = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
+        setMktPkgs(rows);
+      } catch(e){ console.error("load packages (market) failed:", e); setMktPkgs([]); }
+      setMktPkgsBusy(false);
+    })();
+  }, [mktView, user, mktPkgs]);
+  async function mktDeletePkg(pid) {
+    if (!window.confirm("Delete this trade package? The share link will stop working.")) return;
+    try { await deleteDoc(doc(db,"boba_trade_packages",pid)); setMktPkgs(l=>(l||[]).filter(p=>p.id!==pid)); }
+    catch(e){ alert("Couldn't delete: "+(e?.message||e)); }
+  }
   // A trade notification has to be able to DROP you on the trades view. Without this the View
   // button just opened the marketplace on For Sale, and the offer \u2014 sitting in My Trades \u2014 was
   // nowhere to be seen. Which is exactly the "it worked until I tried to accept" failure.
@@ -25733,7 +25753,8 @@ function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, a
             <div style={{display:"flex",gap:8,marginBottom:18}}>
               {[["sale","\uD83D\uDCB0 For Sale", listings.length],
                 ["trade","\uD83D\uDD01 For Trade", matchCount || traders.length],
-                ["trades","\uD83D\uDCE6 My Trades", tradeOffers.filter(t=>(t.status==="pending"&&t.toUid===user?.uid)||t.status==="accepted").length]].map(([v,label,n])=>(
+                ["trades","\uD83D\uDCE6 My Trades", tradeOffers.filter(t=>(t.status==="pending"&&t.toUid===user?.uid)||t.status==="accepted").length],
+                ["packages","\uD83E\uDD1D My Packages", 0]].map(([v,label,n])=>(
                 <button key={v} onClick={()=>setMktView(v)}
                   style={{flex:1,background:mktView===v?"rgba(232,49,122,0.12)":"transparent",border:`1px solid ${mktView===v?"#E8317A":"rgba(255,255,255,0.1)"}`,color:mktView===v?"#E8317A":"rgba(255,255,255,0.45)",borderRadius:10,padding:"10px 14px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center",gap:7}}>
                   {label}
@@ -25742,7 +25763,49 @@ function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, a
               ))}
             </div>
 
-            {mktView==="trades" ? (
+            {mktView==="packages" ? (
+              <div>
+                <div style={{fontSize:12.5,color:"rgba(255,255,255,0.5)",marginBottom:14,lineHeight:1.5}}>
+                  Shareable trade offers you can send to anyone \u2014 they don't need a Bazooka account. Build one from your collection with select mode {"\u2192"} {"\uD83E\uDD1D"} Trade Package.
+                </div>
+                {mktPkgsBusy ? (
+                  <div style={{fontSize:13,color:"rgba(255,255,255,0.4)",padding:"24px 0",textAlign:"center"}}>Loading{"\u2026"}</div>
+                ) : !mktPkgs || mktPkgs.length===0 ? (
+                  <div style={{fontSize:13,color:"rgba(255,255,255,0.4)",padding:"30px 0",textAlign:"center"}}>No trade packages yet.</div>
+                ) : (
+                  <div style={{display:"flex",flexDirection:"column",gap:11}}>
+                    {mktPkgs.map(pk => {
+                      const url = `${window.location.origin}/trade/${pk.id}`;
+                      const count = (pk.items||[]).reduce((s,it)=>s+(parseInt(it.qty)||1),0);
+                      const thumbs = (pk.items||[]).filter(it=>it.imageUrl).slice(0,5);
+                      return (
+                        <div key={pk.id} style={{background:"rgba(0,0,0,0.25)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:11,padding:"13px 15px"}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
+                            <div style={{minWidth:0}}>
+                              <div style={{fontSize:15,fontWeight:800,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{pk.title||"Trade package"}</div>
+                              <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginTop:2}}>{count} card{count===1?"":"s"}{pk.createdAt?` \u00b7 ${new Date(pk.createdAt).toLocaleDateString()}`:""}</div>
+                            </div>
+                            <button onClick={()=>mktDeletePkg(pk.id)} style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.4)",color:"#f87171",borderRadius:7,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>Delete</button>
+                          </div>
+                          {thumbs.length>0 && (
+                            <div style={{display:"flex",gap:5,marginTop:10}}>
+                              {thumbs.map((it,ti)=>(<img key={ti} src={it.imageUrl} alt="" style={{width:38,height:51,objectFit:"cover",borderRadius:5,border:"1px solid rgba(255,255,255,0.1)"}}/>))}
+                              {count>thumbs.length && <div style={{width:38,height:51,borderRadius:5,background:"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.5)"}}>+{count-thumbs.length}</div>}
+                            </div>
+                          )}
+                          <div style={{display:"flex",gap:7,marginTop:11}}>
+                            <input readOnly value={url} onClick={e=>e.target.select()} style={{flex:1,background:"#0e0e13",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.25)",borderRadius:7,padding:"6px 9px",fontSize:11,fontFamily:"monospace",minWidth:0}}/>
+                            <button onClick={async()=>{ try{ await navigator.clipboard.writeText(url);}catch(e){} }} style={{background:"rgba(74,222,128,0.15)",color:"#4ade80",border:"1px solid rgba(74,222,128,0.4)",borderRadius:7,padding:"0 12px",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Copy</button>
+                            <a href={url} target="_blank" rel="noreferrer" style={{background:"rgba(123,156,255,0.12)",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.3)",borderRadius:7,padding:"6px 12px",fontSize:11,fontWeight:800,textDecoration:"none",fontFamily:"inherit",whiteSpace:"nowrap"}}>Open</a>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : mktView==="trades" ? (
+            
               <TradesPanel user={user} tradeOffers={tradeOffers}
                 onRespond={onRespondTrade} onCancel={onCancelTrade}
                 onTracking={onTradeTracking} onReceived={onTradeReceived}/>
