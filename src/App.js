@@ -26343,6 +26343,29 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
 }
 
 function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail, addStatus, setAddStatus, friendOwned, viewingFriend, setViewingFriend, respondFriendReq, cards, owned, publicCards, WEAPON_COLORS, setSigningIn , inp, teamInvites, sendFriendRequest, respondTeamInvite, toggleFamily, borrowLedger=[]}) {
+  // A family member's saved decks. boba_decks is already public-read (for share links), so this is
+  // just a scoped query — no new permissions. Family means you're pooling cards; seeing the decks
+  // built from that pool is the natural other half.
+  //
+  // Fetched on demand for whoever's expanded, and only if they're actually family — a plain friend
+  // sharing cards hasn't opted into sharing their deck LIST.
+  const [famDecks, setFamDecks] = useState([]);
+  const [famDecksLoading, setFamDecksLoading] = useState(false);
+  useEffect(() => {
+    const f = friends.find(fr => fr.friendUid === viewingFriend);
+    if (!viewingFriend || !f?.isFamily) { setFamDecks([]); return; }
+    setFamDecksLoading(true);
+    const unsub = onSnapshot(
+      query(collection(db,"boba_decks"), where("userId","==",viewingFriend)),
+      snap => {
+        setFamDecks(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")));
+        setFamDecksLoading(false);
+      },
+      e => { console.error("family decks load failed:", e); setFamDecksLoading(false); }
+    );
+    return () => { try{unsub();}catch(e){} };
+  }, [viewingFriend, friends]);
+
   return (
           <div style={{maxWidth:700,margin:"0 auto"}}>
             {!user?(
@@ -26482,6 +26505,37 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
                           );
                         })}
                       </div>
+                      {/* Their saved decks — family only. Read-only: you can see what they built and
+                          copy the idea, but it's their list to edit. */}
+                      {f?.isFamily && (
+                        <div style={{marginTop:16,paddingTop:14,borderTop:"1px solid rgba(255,255,255,0.08)"}}>
+                          <div style={{fontSize:12,fontWeight:800,color:"#4ade80",marginBottom:10}}>
+                            {"\uD83D\uDCD8"} {f.friendName?.split(" ")[0] || "Their"}'s decks {famDecks.length>0 && `(${famDecks.length})`}
+                          </div>
+                          {famDecksLoading ? (
+                            <div style={{fontSize:11.5,color:"rgba(255,255,255,0.3)"}}>Loading{"\u2026"}</div>
+                          ) : famDecks.length === 0 ? (
+                            <div style={{fontSize:11.5,color:"rgba(255,255,255,0.3)"}}>No saved decks yet.</div>
+                          ) : (
+                            <div style={{display:"flex",flexDirection:"column",gap:7}}>
+                              {famDecks.map(d => (
+                                <div key={d.id} style={{display:"flex",alignItems:"center",gap:10,background:"rgba(0,0,0,0.3)",border:"1px solid rgba(255,255,255,0.07)",borderRadius:9,padding:"9px 12px"}}>
+                                  <div style={{flex:1,minWidth:0}}>
+                                    <div style={{fontSize:12.5,fontWeight:700,color:"#eee",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{d.name||"Untitled deck"}</div>
+                                    <div style={{fontSize:10.5,color:"rgba(255,255,255,0.35)"}}>
+                                      {(d.cardCount ?? (d.cardIds||[]).length)} cards{d.deckType && d.deckType!=="none" ? ` \u00b7 ${d.deckType}` : ""}
+                                    </div>
+                                  </div>
+                                  <a href={`/deck/${d.id}`} target="_blank" rel="noreferrer"
+                                    style={{background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.35)",color:"#7B9CFF",borderRadius:7,padding:"5px 12px",fontSize:11,fontWeight:700,textDecoration:"none",whiteSpace:"nowrap"}}>
+                                    View
+                                  </a>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
