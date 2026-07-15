@@ -15612,7 +15612,24 @@ function SharedTradePackage({ packageId }) {
     })();
   }, [packageId]);
 
-  if (loading) return <div style={{minHeight:"100vh",background:"#0a0a0f",color:"#888",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"system-ui,sans-serif"}}>Loading trade package\u2026</div>;
+  if (loading) return (
+    <div style={{minHeight:"100vh",background:"radial-gradient(ellipse at top,#16101d 0%,#0a0a0f 60%)",color:"#eee",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",fontFamily:"system-ui,sans-serif",gap:22}}>
+      <style>{`
+        @keyframes bzcardflip { 0%,100%{ transform:rotateY(0deg) translateY(0);} 50%{ transform:rotateY(180deg) translateY(-8px);} }
+        @keyframes bzglow { 0%,100%{ opacity:.35; transform:scale(1);} 50%{ opacity:.7; transform:scale(1.15);} }
+        @keyframes bzdots { 0%,80%,100%{ opacity:.2;} 40%{ opacity:1;} }
+        @keyframes bzshimmer { 0%{ background-position:-200% 0;} 100%{ background-position:200% 0;} }
+      `}</style>
+      <div style={{position:"relative",width:96,height:128}}>
+        <div style={{position:"absolute",inset:-18,borderRadius:"50%",background:"radial-gradient(circle,#E8317A55,transparent 70%)",animation:"bzglow 1.8s ease-in-out infinite"}}/>
+        <div style={{width:96,height:128,borderRadius:12,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",boxShadow:"0 12px 40px rgba(232,49,122,0.4)",animation:"bzcardflip 1.8s ease-in-out infinite",transformStyle:"preserve-3d",display:"flex",alignItems:"center",justifyContent:"center",fontSize:34}}>{"\uD83E\uDD1D"}</div>
+      </div>
+      <div style={{fontSize:22,fontWeight:900,letterSpacing:0.5,background:"linear-gradient(90deg,#E8317A,#fff,#7B2FF7,#E8317A)",backgroundSize:"200% auto",WebkitBackgroundClip:"text",backgroundClip:"text",color:"transparent",animation:"bzshimmer 2.5s linear infinite"}}>BAZOOKA</div>
+      <div style={{fontSize:13,color:"rgba(255,255,255,0.45)",fontWeight:600}}>
+        Loading trade package<span style={{animation:"bzdots 1.4s infinite"}}>.</span><span style={{animation:"bzdots 1.4s infinite .2s"}}>.</span><span style={{animation:"bzdots 1.4s infinite .4s"}}>.</span>
+      </div>
+    </div>
+  );
   if (err) return <div style={{minHeight:"100vh",background:"#0a0a0f",color:"#E8317A",display:"flex",alignItems:"center",justifyContent:"center",padding:24,textAlign:"center",fontFamily:"system-ui,sans-serif"}}>{err}</div>;
 
   const items = pkg.items || [];
