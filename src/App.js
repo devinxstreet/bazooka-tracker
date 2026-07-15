@@ -26397,7 +26397,6 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
   // 6-char hash differ. We match each orphan to the current card whose stable-field prefix overlaps
   // most. NOTHING is written until you approve. This never deletes a card or a mark; it re-points.
   const [proposals, setProposals] = useState(null);
-  const [healDebug, setHealDebug] = useState(null);
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(0);
   const stableKey = c => `${c.setName||""}${c.cardNum||""}${c.hero||""}`.toLowerCase().replace(/[^a-z0-9]/g,"");
@@ -26413,16 +26412,6 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
       cards.forEach(c => { const k = stableKey(c).slice(0,20); (byStable[k] = byStable[k] || []).push(c); });
       const byCardNum = buildByCardNum();
       // DEBUG: capture what current cards actually look like so we can see why nothing matches.
-      const importPrefixes = {};
-      orphanIds.forEach(o => { const mm=String(o).match(/^(.+?)_/); if(mm) importPrefixes[mm[1]]=(importPrefixes[mm[1]]||0)+1; });
-      const sampleCardNums = cards.slice(0,8).map(c=>`${c.setName}|${c.cardNum}`);
-      const allSetNames = [...new Set(cards.map(c=>c.setName))].slice(0,40);
-      const cardNumsWithBPL = cards.filter(c=>String(c.cardNum||"").toLowerCase().includes("bpl")||String(c.cardNum||"").toLowerCase().includes("25")).slice(0,10).map(c=>`${c.setName}|${c.cardNum}`);
-      const _norm = s => String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
-      const _curByNorm = {}; cards.forEach(c=>{ const n=_norm(c.cardNum); (_curByNorm[n]=_curByNorm[n]||[]).push(c.setName+"|"+c.cardNum); });
-      const _probe = orphanIds.slice(0,6).map(o=>{ const tail=o.split("_").slice(1).join("_"); const n=_norm(tail); return { orphan:o, norm:n, exact:(_curByNorm[n]||[]).slice(0,3) }; });
-      const _dbg = { orphanCount: orphanIds.length, importPrefixes, sampleCardNums, allSetNames, cardNumsWithBPL, totalCards: cards.length, probe: _probe };
-      setHealDebug(_dbg); console.log("HEAL DEBUG:", _dbg);
       const props = orphanIds.map(oldId => {
         const candidates = matchOldId(oldId, byStable, byCardNum);
         // How many are ALREADY marked on each candidate’s current id. If >0, healing ADDS to it —
@@ -26479,21 +26468,29 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
   //      the card from, so we fall back to the stable-field prefix method.
   // byCardNum: normalized "SETNAME|CARDNUM" -> [cards]; byStable: prefix -> [cards] (fallback).
   function matchOldId(oldId, byStable, byCardNum) {
-    const m = String(oldId).match(/^(.+?)_(.+)$/);   // split importId _ cardNum
-    if (m && byCardNum) {
-      const cardNumPart = m[2].replace(/_/g," ").trim().toLowerCase();   // "BPL_25" -> "bpl 25"
-      // Gather every current card whose cardNum matches, regardless of set (set names can differ
-      // slightly across re-imports). If more than one set has it, the person picks.
-      const hits = [];
-      Object.entries(byCardNum).forEach(([key, list]) => {
-        const cn = key.split("|")[1];
-        if (cn === cardNumPart) hits.push(...list);
-      });
-      const seen=new Set();
-      const uniq = hits.filter(c=>!seen.has(c.id)&&seen.add(c.id));
-      if (uniq.length) return uniq;
+    // Structured id: importId_cardNum (e.g. "mnc6g7h40t4qhqfb3xg_BPL_20"). Strip the importId
+    // (everything up to the first underscore), then fully normalize the cardNum tail so "BPL_20"
+    // matches a current "BPL20" / "BPL-20". The number+letter code is stable across re-imports even
+    // though the id changed.
+    const us = String(oldId).indexOf("_");
+    if (us > 0 && byCardNum) {
+      const tail = String(oldId).slice(us+1);
+      const cn = tail.toLowerCase().replace(/[^a-z0-9]/g,"");
+      let hits = (byCardNum[cn] || []).slice();
+      if (hits.length) {
+        // Most Tecmo-era cards live in one set; if several sets share the cardNum, prefer the biggest
+        // set (the main checklist) so we don't re-point into a tiny promo set by accident \u2014 but keep
+        // the others as pickable alternatives.
+        hits.sort((a,b)=>{
+          const as=(a.setName||"").toLowerCase(), bs=(b.setName||"").toLowerCase();
+          const at=as.includes("tecmo")?1:0, bt=bs.includes("tecmo")?1:0;
+          return bt-at;
+        });
+        const seen=new Set();
+        return hits.filter(c=>!seen.has(c.id)&&seen.add(c.id));
+      }
     }
-    // Fallback: bare-hash old ids \u2014 prefix overlap on stable fields.
+    // Fallback for bare-hash old ids (no recoverable cardNum): stable-field prefix overlap.
     const prefix = String(oldId).replace(/_[0-9a-f]{1,6}$/,"");
     let best = [], bestLen = 0;
     Object.entries(byStable).forEach(([k, list]) => {
@@ -26507,13 +26504,14 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
   }
 
   // Index current cards by normalized SETNAME|CARDNUM.
+  // Index current cards by FULLY-normalized cardNum (all non-alphanumerics stripped, lowercased).
+  // "BPL-20", "BPL_20", "bpl20" all collapse to "bpl20". Keyed cardNum -> [cards].
   function buildByCardNum() {
     const idx = {};
     cards.forEach(c => {
-      const cn = String(c.cardNum||"").replace(/_/g," ").trim().toLowerCase();
+      const cn = String(c.cardNum||"").toLowerCase().replace(/[^a-z0-9]/g,"");
       if (!cn) return;
-      const key = `${(c.setName||"").toLowerCase().trim()}|${cn}`;
-      (idx[key] = idx[key] || []).push(c);
+      (idx[cn] = idx[cn] || []).push(c);
     });
     return idx;
   }
@@ -26594,18 +26592,6 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
                     </button>
                   ) : (
                     <div style={{marginTop:4}}>
-                      {healDebug && (
-                        <div style={{background:"#0a0a12",border:"1px solid rgba(123,156,255,0.3)",borderRadius:8,padding:"9px 11px",marginBottom:10,fontSize:10,fontFamily:"monospace",color:"#9ab",lineHeight:1.6,wordBreak:"break-all"}}>
-                          <div style={{color:"#7B9CFF",fontWeight:800,marginBottom:4}}>DEBUG (screenshot this)</div>
-                          <div>total cards in db: {healDebug.totalCards}</div>
-                          <div>orphans: {healDebug.orphanCount}</div>
-                          <div>orphan import prefixes: {JSON.stringify(healDebug.importPrefixes)}</div>
-                          <div>sample current cardNums: {JSON.stringify(healDebug.sampleCardNums)}</div>
-                          <div>cards matching bpl/25: {JSON.stringify(healDebug.cardNumsWithBPL)}</div>
-                          <div>set names in db: {JSON.stringify(healDebug.allSetNames)}</div>
-                          <div>PROBE: {JSON.stringify(healDebug.probe)}</div>
-                        </div>
-                      )}
                       <div style={{fontSize:11,color:"rgba(255,255,255,0.55)",marginBottom:8,lineHeight:1.5}}>
                         Proposed matches below. Nothing is written until you press Apply. Each row moves an
                         orphaned mark onto the current card with the same set / number / hero. Rows with more
