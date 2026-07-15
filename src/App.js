@@ -27667,14 +27667,22 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                   </div>
                 );
               })()}
-              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                {[...new Set(cards.map(c=>c.power!=null&&c.power!==""?String(c.power):null).filter(Boolean))].sort((a,b)=>parseFloat(b)-parseFloat(a)).map(p=>{
-                  const sel=deckFilterP.has(p),over=(isSpec||isAM)&&parseFloat(p)>160;
-                  return <button key={p} onClick={()=>setDeckFilterP(prev=>{const n=new Set(prev);n.has(p)?n.delete(p):n.add(p);return n;})}
-                    style={{background:sel?(over?"rgba(232,49,122,0.3)":"rgba(251,191,36,0.15)"):"rgba(255,255,255,0.03)",border:`1px solid ${sel?(over?"#E8317A":"#FBBF24"):"rgba(255,255,255,0.08)"}`,color:sel?(over?"#E8317A":"#FBBF24"):"rgba(255,255,255,0.3)",borderRadius:20,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>{p}{over?" \u26A0":""}</button>;
-                })}
-                {deckFilterP.size>0&&<button onClick={()=>setDeckFilterP(new Set())} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.1)",color:"rgba(255,255,255,0.3)",borderRadius:20,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{"\u2715"}</button>}
-              </div>
+              {/* Power as a dropdown, matching the Set/Weapon/Treatment controls beside it. The
+                  filter model stays a Set so nothing downstream changes — the dropdown just writes a
+                  one-value Set (or clears it for "All"). */}
+              {(() => {
+                const powers = [...new Set(cards.map(c=>c.power!=null&&c.power!==""?String(c.power):null).filter(Boolean))]
+                  .sort((a,b)=>parseFloat(b)-parseFloat(a));
+                const current = deckFilterP.size ? [...deckFilterP][0] : "";
+                return (
+                  <select value={current}
+                    onChange={e=>setDeckFilterP(e.target.value ? new Set([e.target.value]) : new Set())}
+                    style={{...inp,width:"auto",cursor:"pointer"}}>
+                    <option value="">All Power</option>
+                    {powers.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                );
+              })()}
               <div className="deck-pb-cardlist" style={{paddingRight:4}}>
                 {deckAvail.length===0?<div style={{padding:40,textAlign:"center",color:"rgba(255,255,255,0.2)"}}>No cards match filters</div>:
                   <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(auto-fill,minmax(95px,1fr))":"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
@@ -30199,8 +30207,16 @@ See you in there!
   useEffect(() => {
     if (!user) { setSavedDecks([]); return; }
     const unsub = onSnapshot(collection(db, "boba_decks"), snap => {
-      setSavedDecks(snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.userId===user.uid).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")));
-    }, e=>console.error("load decks failed:", e));
+      const mine = snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.userId===user.uid).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||""));
+      setSavedDecks(mine);
+    }, e => {
+      // A denied read used to fail silently, leaving savedDecks empty \u2014 indistinguishable from
+      // "you have no decks". Surface it, because it's the difference between "empty" and "broken".
+      console.error("load decks failed:", e);
+      if (String(e?.code||"").includes("permission")) {
+        setToast("Couldn't load your decks \u2014 permission denied. The boba_decks rule may need publishing.");
+      }
+    });
     return unsub;
   }, [user]);
   async function saveDeckTab() {
@@ -30221,8 +30237,27 @@ See you in there!
     const id = deckLoadId || `deck_${Date.now()}`;
     try {
       await setDoc(doc(db,"boba_decks",id), { id, userId: user.uid, name: deckName.trim(), cardIds: deckCards, cardCount: deckCards.length, deckType, savedAt: new Date().toISOString() }, { merge:true });
+      // Confirm the write actually reached the SERVER, not just the local offline cache. A cached
+      // write makes the deck appear saved on this machine while never syncing — which looks exactly
+      // like "my decks don't follow me between computers". getDocFromServer throws if it can't reach
+      // Firestore, so a silent local-only save becomes a visible error instead.
+      try {
+        const check = await getDocFromServer(doc(db,"boba_decks",id));
+        if (!check.exists()) throw new Error("The deck didn't reach the server.");
+      } catch(verr) {
+        console.error("deck save did not sync:", verr);
+        alert("Your deck saved on THIS device but may not have synced to your account.\n\n"
+            + "Check your connection and save again. If it keeps happening, the boba_decks "
+            + "Firestore rule may need publishing.");
+      }
       setDeckLoadId(id); setDeckSaved(true); setTimeout(()=>setDeckSaved(false), 1800);
-    } catch(e) { console.error("save deck failed:", e); alert("Couldn't save your deck: " + (e?.message || e)); }
+    } catch(e) {
+      console.error("save deck failed:", e);
+      const msg = String(e?.code||e?.message||e);
+      alert(msg.includes("permission")
+        ? "Couldn't save: your account doesn't have permission to write decks. The boba_decks Firestore rule needs to be published."
+        : "Couldn't save your deck: " + (e?.message || e));
+    }
     finally { setDeckSaving(false); }
   }
   async function deleteDeckTab(id) {
