@@ -31084,34 +31084,50 @@ See you in there!
   // deck as using one copy, and dedupes a card appearing twice in the same list. Family decks are
   // readable (boba_decks is public-read), so we just watch all of theirs plus all of mine.
   const [deckLockedForTrade, setDeckLockedForTrade] = useState({});
+  // Same lock, but WHICH decks. cardId -> [{name, owner, mine}] so we can tell you the deck by name
+  // instead of just "it's in a deck somewhere, go find it".
+  const [deckLockNames, setDeckLockNames] = useState({});
   useEffect(() => {
-    if (!user) { setDeckLockedForTrade({}); return; }
+    if (!user) { setDeckLockedForTrade({}); setDeckLockNames({}); return; }
     const famUids = friends.filter(f => f.isFamily).map(f => f.friendUid);
     const owners = [user.uid, ...famUids];
+    const famName = uid => (friends.find(f=>f.friendUid===uid)?.friendName) || "Family";
     const perOwner = {};   // ownerUid -> { cardId: usedCount }
+    const perOwnerDecks = {};   // ownerUid -> { cardId: [deckName,...] }
     const recount = () => {
       const total = {};
+      const names = {};
       // My own cards, whoever's deck they sit in. Only MY cards can be locked FOR ME — a family
       // member's own cards in their own deck aren't mine to trade anyway.
-      Object.values(perOwner).forEach(map => {
+      Object.entries(perOwner).forEach(([ouid, map]) => {
         Object.entries(map).forEach(([cid, n]) => {
-          if (owned[cid]) total[cid] = (total[cid] || 0) + n;   // only count cards I actually own
+          if (!owned[cid]) return;   // only count cards I actually own
+          total[cid] = (total[cid] || 0) + n;
+          const mine = ouid === user.uid;
+          (perOwnerDecks[ouid]?.[cid] || []).forEach(dn => {
+            (names[cid] = names[cid] || []).push({ name: dn, owner: mine ? null : famName(ouid), mine });
+          });
         });
       });
       setDeckLockedForTrade(total);
+      setDeckLockNames(names);
     };
     const unsubs = owners.map(ouid =>
       onSnapshot(query(collection(db,"boba_decks"), where("userId","==",ouid)), snap => {
         const map = {};
+        const decks = {};
         snap.forEach(d => {
+          const dn = d.data().name || "Untitled deck";
           const seen = new Set();
           (d.data().cardIds || []).forEach(cid => {
             if (seen.has(cid)) return;   // a deck uses at most one copy of a card
             seen.add(cid);
             map[cid] = (map[cid] || 0) + 1;
+            (decks[cid] = decks[cid] || []).push(dn);
           });
         });
         perOwner[ouid] = map;
+        perOwnerDecks[ouid] = decks;
         recount();
       }, e => console.error("deck-lock listen failed:", e))
     );
@@ -31338,6 +31354,16 @@ See you in there!
     if (user) { try { await setDoc(doc(db,"boba_trackers",user.uid), { trackers: next }); } catch(e) {} }
     setShowTrackerBuilder(false); setBuilderName(""); setBuilderTreatments([]);
     setActiveTrackerId(tracker.id);
+  }
+  // Update ONLY a tracker's treatment list (used by the orphan re-match). Never touches boba_owned
+  // or boba_intransit — it just teaches the tracker which treatments to gather, so cards whose
+  // treatment text drifted (e.g. a snapshot rename) come back into the count. The marks were safe
+  // the whole time; they were attached to cards that stopped matching, not deleted.
+  async function saveTrackerTreatments(id, treatments) {
+    const next = customTrackers.map(t => t.id===id ? { ...t, treatments } : t);
+    setCustomTrackers(next);
+    try { localStorage.setItem("customTrackers_v1", JSON.stringify(next)); } catch {}
+    if (user) { try { await setDoc(doc(db,"boba_trackers",user.uid), { trackers: next }); } catch(e){ console.error("save tracker treatments failed:", e); } }
   }
   async function toggleTrackerPublic(id) {
     const next = customTrackers.map(t => t.id===id ? { ...t, public: !t.public } : t);
@@ -33328,7 +33354,9 @@ See you in there!
     // already hides these, but re-check at send time in case a deck changed under me.
     const deckClash = myCards.find(c => (owned[c.id]||0) <= (deckLockedForTrade[c.id]||0));
     if (deckClash) {
-      alert(`"${deckClash.hero || deckClash.playName || "That card"}" is in a deck (yours or a family member's). Remove it from the deck before trading it away.`);
+      const dn = (deckLockNames[deckClash.id] || []).map(d => d.owner ? `${d.name} (${d.owner})` : d.name);
+      const where = dn.length ? `\n\nIt's in: ${dn.join(", ")}` : "";
+      alert(`"${deckClash.hero || deckClash.playName || "That card"}" is in a deck. Remove it from the deck before trading it away.${where}`);
       return;
     }
     const id = uid();
@@ -34337,6 +34365,24 @@ See you in there!
       usable.push(c);
     };
 
+    // ── SUPERS FIRST ─────────────────────────────────────────────────────────────────────────
+    // A Super is a Superfoil 1/1 — the rarest card there is. If you've picked Super among your
+    // weapons (e.g. "Super + Fire"), any deck that CAN include your Supers should, so we seat every
+    // eligible Super before the normal power-tier fill runs. They still have to be legal for the
+    // format (per-power caps, dup rules, budget) — canTake enforces that — but among legal cards
+    // they jump the queue. The rest of the deck then fills around them exactly as before.
+    if (wSet.has("Super")) {
+      const supers = ownedCards
+        .filter(c => canonWeapon(c.weapon) === "Super")
+        .sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
+      for (const c of supers) {
+        if (usable.length >= DECK_SIZE) break;
+        if (!canTake(c)) continue;
+        take(c);
+      }
+    }
+
+
     // GG HILO — each group has a REQUIRED minimum, so satisfy those quotas first. Taking the
     // strongest cards blindly would happily fill 60 slots from one group and leave the deck
     // illegal, so the quotas come before raw power.
@@ -34497,13 +34543,13 @@ See you in there!
   //
   // Now it only recomputes when something it actually depends on changes. Note `search` is NOT a
   // dependency: the search filter is applied to the RESULT further down, where it is cheap.
-  const rainbowStats = useMemo(() => {
+    const rainbowBase = useMemo(() => {
     if (activeTab !== "rainbow" || cards.length === 0) return null;
     const normalizeTreatment = c => {
       const t = (c.treatment||"").toLowerCase();
       const num = String(c.cardNum||"").trim().toUpperCase();
       // Any "plays" treatment OR a PL/BPL cardNum prefix collapses into one of two rainbows
-      const isPlays = t.includes("plays") || /^B?PL[\s\-]?\d/.test(num) || num.startsWith("BPL") || num.startsWith("PL");
+      const isPlays = t.includes("plays") || /^B?PL[\s\-]?\d/.test(num) || num.startsWith("BPL");
       if(isPlays) {
         if(num.startsWith("BPL") || t.includes("bonus")) return "Bonus Plays";
         return "Plays";
@@ -34536,6 +34582,16 @@ See you in there!
       groupMap[key].push(c);
     });
     const allGroups = Object.keys(groupMap).sort();
+    // Everything above is independent of what you OWN — it only depends on the card set and the
+    // grouping mode. Splitting it out means toggling a card no longer re-spreads 35k objects and
+    // re-buckets every group; only the ownership tally below re-runs. That was the lag that made it
+    // look like your cards had vanished.
+    return { rainbowCards, availableSets, groupKeyOf, groupMap, allGroups };
+  }, [activeTab, cards, rainbowSetFilter, rainbowGroupBy]);
+
+  const rainbowStats = useMemo(() => {
+    if (!rainbowBase) return null;
+    const { rainbowCards, availableSets, groupKeyOf, groupMap, allGroups } = rainbowBase;
     const groupStats = allGroups.map(key => {
       const gcards = groupMap[key];
       const total = gcards.length;
@@ -34553,10 +34609,8 @@ See you in there!
     });
     const completedRainbows = groupStats.filter(g => g.complete).length;
     const partialRainbows   = groupStats.filter(g => g.ownedCount > 0 && !g.complete).length;
-    // rainbowCards and groupKeyOf are needed by the expanded-group card list further down, and
-    // allGroups by the KPI row — so hand them out rather than recomputing them per render.
     return { groupStats, completedRainbows, partialRainbows, availableSets, allGroups, rainbowCards, groupKeyOf };
-  }, [activeTab, cards, owned, rainbowSetFilter, rainbowGroupBy]);
+  }, [rainbowBase, owned]);
 
   const totalNotifs = friendReqs.length+teamInvites.length+marketNotifs.length+wantNotifs.length+unreadThreads;
 
@@ -35329,6 +35383,7 @@ See you in there!
                         if (!inDecks) return null;
                         const qty = parseInt(owned[c.id]) || 1;
                         const free = Math.max(0, qty - inDecks);
+                        const decks = deckLockNames[c.id] || [];
                         return (
                           <div style={{marginBottom:10,background:"rgba(123,156,255,0.06)",border:"1px solid rgba(123,156,255,0.25)",borderRadius:9,padding:"9px 11px",display:"flex",alignItems:"center",gap:8}}>
                             <span style={{fontSize:15}}>{"\uD83D\uDCD8"}</span>
@@ -35336,6 +35391,15 @@ See you in there!
                               {inDecks >= qty
                                 ? <><strong style={{color:"#7B9CFF"}}>In a deck.</strong> {qty>1?`All ${qty} copies are`:"This is"} committed to a deck (yours or family) {"\u2014"} not available to trade until freed.</>
                                 : <><strong style={{color:"#7B9CFF"}}>{inDecks} of {qty} in a deck.</strong> {free} still free to trade or list.</>}
+                            {decks.length > 0 && (
+                              <div style={{marginTop:6,display:"flex",flexWrap:"wrap",gap:5}}>
+                                {decks.map((d,di) => (
+                                  <span key={di} style={{fontSize:10,fontWeight:700,color:"#7B9CFF",background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.28)",borderRadius:6,padding:"2px 7px"}}>
+                                    {"\uD83D\uDCD8"} {d.name}{d.owner ? ` \u00b7 ${d.owner}` : ""}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                             </div>
                           </div>
                         );
@@ -37965,6 +38029,28 @@ See you in there!
                     return true;
                   });
                   const missingCount = inSet.filter(r=>!r.complete && !r.hasTransit).length;
+    // ── Orphan check ─────────────────────────────────────────────────────────────────────────
+    // A tracker matches cards by EXACT treatment string. If a snapshot regeneration renamed a
+    // treatment, cards you own quietly stop matching — they leave the tracker and take their
+    // have/in-transit status with them. Nothing is deleted; the marks still exist on cards that no
+    // longer match. This finds them: cards you own or have in transit, whose treatment is CLOSE to
+    // one the tracker wants but not exact.
+    const orphans = (() => {
+      const wanted = tracker.treatments || [];
+      const wantedLc = wanted.map(t => (t||"").toLowerCase().replace(/\s+/g," ").trim());
+      const out = [];
+      cards.forEach(c => {
+        if (!owned[c.id] && !inTransit[c.id]) return;             // only YOUR cards
+        const t = c.treatment || "";
+        if (treatSet.has(t)) return;                              // already matching — fine
+        const lc = t.toLowerCase().replace(/\s+/g," ").trim();
+        // Near-miss: same after case/space normalization, or one contains the other.
+        const near = wantedLc.some(w => w===lc || (w && lc && (w.includes(lc)||lc.includes(w))));
+        if (near) out.push({ hero:c.hero, treatment:t, owned:!!owned[c.id], transit:!!inTransit[c.id] });
+      });
+      return out;
+    })();
+
                   return (
                     <div>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, flexWrap:"wrap", gap:8 }}>
@@ -38047,6 +38133,34 @@ See you in there!
                 };
                 return (
                   <div>
+        {orphans.length > 0 && (
+          <div style={{background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.35)",borderRadius:12,padding:"12px 15px",marginBottom:14}}>
+            <div style={{fontSize:13,fontWeight:800,color:"#FBBF24",marginBottom:5}}>
+              {"\u26A0\uFE0F"} {orphans.length} of your card{orphans.length===1?"":"s"} {orphans.length===1?"is":"are"} marked but not matching this tracker
+            </div>
+            <div style={{fontSize:11.5,color:"rgba(255,255,255,0.6)",lineHeight:1.6,marginBottom:8}}>
+              These are cards you own or have in transit whose treatment name drifted (likely a database
+              change), so the tracker stopped counting them. Your marks are safe {"\u2014"} they just need the
+              treatment re-matched.
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+              {[...new Set(orphans.map(o=>o.treatment))].map(t => (
+                <span key={t} style={{fontSize:10.5,fontWeight:700,color:"#FBBF24",background:"rgba(251,191,36,0.12)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:6,padding:"2px 8px"}}>
+                  {t} ({orphans.filter(o=>o.treatment===t).length})
+                </span>
+              ))}
+            </div>
+            <button onClick={()=>{
+              // Add every drifted treatment to this tracker so the cards match again. This edits the
+              // tracker's treatment list only — it does NOT touch your owned or in-transit marks.
+              const add = [...new Set(orphans.map(o=>o.treatment))];
+              const merged = [...new Set([...(tracker.treatments||[]), ...add])];
+              saveTrackerTreatments(tracker.id, merged);
+            }} style={{marginTop:10,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+              Re-match {orphans.length} card{orphans.length===1?"":"s"} to this tracker
+            </button>
+          </div>
+        )}
                     {showTrackerBuilder ? (
                       <div style={{ background:"rgba(255,255,255,0.03)", border:"1px solid rgba(232,49,122,0.3)", borderRadius:12, padding:"18px 20px", marginBottom:16 }}>
                         <div style={{ fontSize:14, fontWeight:800, marginBottom:12 }}>{showTrackerBuilder==="edit"?"Edit Tracker":"New Custom Tracker"}</div>
