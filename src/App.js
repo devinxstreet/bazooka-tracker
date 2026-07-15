@@ -23904,6 +23904,18 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                     {availSets.map(s=><option key={s} value={s}>{s}</option>)}
                   </select>
                 )}
+                            {pr.chosen && (() => {
+                              const ex = (pr.existingQty && pr.existingQty[pr.chosen]) || 0;
+                              const add = parseInt(pr.qty) || 1;
+                              const total = ex + add;
+                              return (
+                                <div style={{fontSize:10.5,marginTop:5,color: ex>0 ? "#FBBF24" : "#4ade80"}}>
+                                  {ex>0
+                                    ? `\u26A0\uFE0F Already have \u00d7${ex} on this card \u2014 healing makes it \u00d7${total} (${ex}+${add}). Uncheck if that would double-count.`
+                                    : `\u2713 Restores \u00d7${add} on this card.`}
+                                </div>
+                              );
+                            })()}
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:8 }} className="boba-card-grid">
                 {weaponStatsFiltered.map(({w,total,owned:o,pct:p})=>{
@@ -26363,12 +26375,87 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
       const cardById = new Set(cards.map(c => c.id));
       const matched = ids.filter(id => cardById.has(id));
       const orphans = ids.filter(id => !cardById.has(id));
-      setState({ raw: ids.length, matched: matched.length, orphans });
+      // Total COPIES, not unique cards. "owned" stores a quantity per card (a card owned x3 counts
+      // once in the key list but 3 in copies). The number people usually quote as their collection
+      // size is the copies total, which runs higher than the unique-card count. If the remembered
+      // number matches this, nothing was lost — it's just two different counts of the same data.
+      const copies = Object.values(data).reduce((sum, v) => {
+        const n = parseInt(v); return sum + (isNaN(n) ? 1 : Math.max(1, n));
+      }, 0);
+      setState({ raw: ids.length, matched: matched.length, orphans, copies });
     } catch(e) {
       setState({ error: e.message });
     }
     setBusy(false);
   }
+
+  // ── HEAL ORPHANS ─────────────────────────────────────────────────────────────────────────────
+  // An orphaned owned-ID is hash(set+cardNum+hero+OLD treatment). The same card today lives under
+  // hash(set+cardNum+hero+NEW treatment). We can't reverse the hash, but the ID begins with the
+  // pre-hash "key" (first 20 chars of set+cardNum+hero+treatment, lowercased, non-alnum stripped).
+  // Cards sharing set+cardNum+hero share a long ID prefix; only trailing treatment chars + the
+  // 6-char hash differ. We match each orphan to the current card whose stable-field prefix overlaps
+  // most. NOTHING is written until you approve. This never deletes a card or a mark; it re-points.
+  const [proposals, setProposals] = useState(null);
+  const [applying, setApplying] = useState(false);
+  const [applied, setApplied] = useState(0);
+  const stableKey = c => `${c.setName||""}${c.cardNum||""}${c.hero||""}`.toLowerCase().replace(/[^a-z0-9]/g,"");
+
+  async function proposeHeal() {
+    setBusy(true);
+    try {
+      const snap = await getDoc(doc(db, "boba_owned", uid));
+      const data = snap.exists() ? snap.data() : {};
+      const cardById = new Set(cards.map(c => c.id));
+      const orphanIds = Object.keys(data).filter(id => !cardById.has(id));
+      const byStable = {};
+      cards.forEach(c => { const k = stableKey(c).slice(0,20); (byStable[k] = byStable[k] || []).push(c); });
+      const props = orphanIds.map(oldId => {
+        const prefix = oldId.replace(/_[0-9a-f]{1,6}$/,"");
+        let best = [], bestLen = 0;
+        Object.entries(byStable).forEach(([k, list]) => {
+          let n=0; const m=Math.min(k.length, prefix.length);
+          while(n<m && k[n]===prefix[n]) n++;
+          if (n >= Math.min(10, prefix.length) && n > bestLen) { bestLen=n; best=list.slice(); }
+          else if (n === bestLen && bestLen>0) { best = best.concat(list); }
+        });
+        const seen=new Set(); const candidates = best.filter(c=>!seen.has(c.id)&&seen.add(c.id));
+        // How many are ALREADY marked on each candidate’s current id. If >0, healing ADDS to it —
+        // surface it so a re-marked card isn’t silently double-counted.
+        const existingQty = {};
+        candidates.forEach(c => { existingQty[c.id] = parseInt(data[c.id]) || 0; });
+        return { oldId, qty: data[oldId], candidates, existingQty, chosen: candidates.length===1 ? candidates[0].id : "" };
+      });
+      setProposals(props);
+    } catch(e) { alert("Couldn't build heal preview: " + e.message); }
+    setBusy(false);
+  }
+
+  async function applyHeal() {
+    if (!proposals) return;
+    const toApply = proposals.filter(p => p.chosen);
+    if (!toApply.length) { alert("Nothing selected to heal."); return; }
+    if (!window.confirm(`Re-point ${toApply.length} owned card${toApply.length===1?"":"s"} to their current IDs? This only moves the marks onto the matching cards \u2014 it deletes nothing.`)) return;
+    setApplying(true);
+    try {
+      const snap = await getDoc(doc(db, "boba_owned", uid));
+      const data = snap.exists() ? { ...snap.data() } : {};
+      let n = 0;
+      toApply.forEach(p => {
+        if (!(p.oldId in data)) return;
+        const prev = parseInt(data[p.chosen]) || 0;
+        const add  = parseInt(data[p.oldId]) || 1;
+        data[p.chosen] = prev + add;
+        delete data[p.oldId];
+        n++;
+      });
+      await setDoc(doc(db, "boba_owned", uid), data);
+      setApplied(n); setProposals(null);
+      await run();
+    } catch(e) { alert("Heal failed: " + e.message); }
+    setApplying(false);
+  }
+
 
   return (
     <div style={{background:"rgba(123,156,255,0.05)",border:"1px solid rgba(123,156,255,0.25)",borderRadius:10,padding:"11px 13px",marginBottom:12}}>
@@ -26378,7 +26465,8 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
       </div>
       {state && !state.error && (
         <div style={{marginTop:9,fontSize:11.5,lineHeight:1.7,color:"rgba(255,255,255,0.7)"}}>
-          <div><strong style={{color:"#fff"}}>{state.raw}</strong> records actually in the collection (the real data).</div>
+          <div><strong style={{color:"#fff"}}>{state.raw}</strong> unique cards actually in the collection (the real data).</div>
+          <div><strong style={{color:"#fff"}}>{state.copies}</strong> total copies (a card owned more than once counts each copy \u2014 this is usually the bigger "collection size" number).</div>
           <div><strong style={{color:"#4ade80"}}>{state.matched}</strong> currently match a card in the database (what the counter shows).</div>
           {state.orphans.length > 0 ? (
             <div style={{marginTop:7,padding:"8px 10px",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:8,color:"#FBBF24"}}>
@@ -26387,6 +26475,48 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
           ) : (
             <div style={{marginTop:7,color:"#4ade80"}}>{"\u2713"} Every owned record matches a card. Nothing orphaned.</div>
           )}
+              {state.orphans.length > 0 && (
+                <div style={{marginTop:9}}>
+                  {!proposals ? (
+                    <button onClick={proposeHeal} disabled={busy} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:8,padding:"8px 15px",fontSize:12,fontWeight:800,cursor:busy?"wait":"pointer",fontFamily:"inherit"}}>
+                      {busy ? "Finding matches\u2026" : `Preview fix for ${state.orphans.length} card${state.orphans.length===1?"":"s"}`}
+                    </button>
+                  ) : (
+                    <div style={{marginTop:4}}>
+                      <div style={{fontSize:11,color:"rgba(255,255,255,0.55)",marginBottom:8,lineHeight:1.5}}>
+                        Proposed matches below. Nothing is written until you press Apply. Each row moves an
+                        orphaned mark onto the current card with the same set / number / hero. Rows with more
+                        than one candidate need you to pick; leave unsure ones unset and they stay untouched.
+                      </div>
+                      <div style={{maxHeight:280,overflowY:"auto",display:"flex",flexDirection:"column",gap:6}}>
+                        {proposals.map((pr,pi) => (
+                          <div key={pr.oldId} style={{background:"rgba(0,0,0,0.25)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"7px 9px"}}>
+                            <div style={{fontSize:9.5,color:"rgba(255,255,255,0.3)",fontFamily:"monospace",marginBottom:4,wordBreak:"break-all"}}>{pr.oldId}{pr.qty>1?`  (\u00d7${pr.qty})`:""}</div>
+                            {pr.candidates.length===0 ? (
+                              <div style={{fontSize:11,color:"#E8317A"}}>No confident match found \u2014 left untouched.</div>
+                            ) : (
+                              <select value={pr.chosen} onChange={e=>{ const v=e.target.value; setProposals(ps=>ps.map((x,xi)=>xi===pi?{...x,chosen:v}:x)); }}
+                                style={{width:"100%",background:"#14141a",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,padding:"5px 7px",fontSize:11.5,fontFamily:"inherit"}}>
+                                <option value="">\u2014 don't heal this one \u2014</option>
+                                {pr.candidates.map(c => (
+                                  <option key={c.id} value={c.id}>{[c.hero,c.treatment,c.cardNum?("#"+c.cardNum):"",c.setName].filter(Boolean).join(" \u00b7 ")}</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{display:"flex",gap:8,marginTop:10}}>
+                        <button onClick={applyHeal} disabled={applying} style={{background:"#4ade80",color:"#06240f",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:800,cursor:applying?"wait":"pointer",fontFamily:"inherit"}}>
+                          {applying ? "Applying\u2026" : `Apply ${proposals.filter(p=>p.chosen).length} fix${proposals.filter(p=>p.chosen).length===1?"":"es"}`}
+                        </button>
+                        <button onClick={()=>setProposals(null)} disabled={applying} style={{background:"transparent",color:"rgba(255,255,255,0.5)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {applied > 0 && <div style={{marginTop:8,fontSize:11.5,color:"#4ade80",fontWeight:700}}>{"\u2713"} Re-pointed {applied} card{applied===1?"":"s"}. Counts refreshed above.</div>}
         </div>
       )}
       {state?.error && <div style={{marginTop:8,fontSize:11,color:"#E8317A"}}>Couldn't read: {state.error}</div>}
