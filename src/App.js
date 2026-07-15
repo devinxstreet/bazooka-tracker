@@ -26345,6 +26345,55 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
   );
 }
 
+// ── COLLECTION INTEGRITY CHECK (admin) ───────────────────────────────────────
+// Reads a user's RAW boba_owned doc and compares it to how many of those cards still match the
+// current database. If the two differ, cards aren't gone — their IDs stopped matching after a
+// database change (a snapshot rename/merge), so the counter can't find them. This is a READ. It
+// writes nothing. It exists to tell "the count dropped" apart from "records were deleted".
+function OwnedIntegrityCheck({ uid, label, cards }) {
+  const [state, setState] = useState(null);   // { raw, matched, orphans:[...] }
+  const [busy, setBusy] = useState(false);
+
+  async function run() {
+    setBusy(true);
+    try {
+      const snap = await getDoc(doc(db, "boba_owned", uid));
+      const data = snap.exists() ? snap.data() : {};
+      const ids = Object.keys(data);
+      const cardById = new Set(cards.map(c => c.id));
+      const matched = ids.filter(id => cardById.has(id));
+      const orphans = ids.filter(id => !cardById.has(id));
+      setState({ raw: ids.length, matched: matched.length, orphans });
+    } catch(e) {
+      setState({ error: e.message });
+    }
+    setBusy(false);
+  }
+
+  return (
+    <div style={{background:"rgba(123,156,255,0.05)",border:"1px solid rgba(123,156,255,0.25)",borderRadius:10,padding:"11px 13px",marginBottom:12}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+        <div style={{fontSize:11.5,fontWeight:800,color:"#7B9CFF"}}>{"\uD83D\uDD0D"} Collection integrity {label ? `\u2014 ${label}` : ""}</div>
+        <button onClick={run} disabled={busy} style={{background:"rgba(123,156,255,0.15)",border:"1px solid rgba(123,156,255,0.35)",color:"#7B9CFF",borderRadius:7,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:busy?"wait":"pointer",fontFamily:"inherit"}}>{busy?"Checking\u2026":"Check"}</button>
+      </div>
+      {state && !state.error && (
+        <div style={{marginTop:9,fontSize:11.5,lineHeight:1.7,color:"rgba(255,255,255,0.7)"}}>
+          <div><strong style={{color:"#fff"}}>{state.raw}</strong> records actually in the collection (the real data).</div>
+          <div><strong style={{color:"#4ade80"}}>{state.matched}</strong> currently match a card in the database (what the counter shows).</div>
+          {state.orphans.length > 0 ? (
+            <div style={{marginTop:7,padding:"8px 10px",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:8,color:"#FBBF24"}}>
+              {"\u26A0\uFE0F"} <strong>{state.orphans.length} owned cards aren't matching the current database.</strong> They are NOT deleted {"\u2014"} their IDs changed when the card data was regenerated, so the counter can't find them. The records are still here (see the {state.raw} above).
+            </div>
+          ) : (
+            <div style={{marginTop:7,color:"#4ade80"}}>{"\u2713"} Every owned record matches a card. Nothing orphaned.</div>
+          )}
+        </div>
+      )}
+      {state?.error && <div style={{marginTop:8,fontSize:11,color:"#E8317A"}}>Couldn't read: {state.error}</div>}
+    </div>
+  );
+}
+
 function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail, addStatus, setAddStatus, friendOwned, viewingFriend, setViewingFriend, respondFriendReq, cards, owned, publicCards, WEAPON_COLORS, setSigningIn , inp, teamInvites, sendFriendRequest, respondTeamInvite, toggleFamily, borrowLedger=[]}) {
   // A family member's saved decks. boba_decks is already public-read (for share links), so this is
   // just a scoped query — no new permissions. Family means you're pooling cards; seeing the decks
@@ -26493,6 +26542,9 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
                   return (
                     <div style={{marginTop:12,background:"rgba(123,156,255,0.03)",border:"1px solid rgba(123,156,255,0.15)",borderRadius:16,padding:20,backdropFilter:"blur(10px)",animation:"floatUp 0.3s ease"}}>
                       <div style={{fontSize:14,fontWeight:800,color:"#7B9CFF",marginBottom:12}}>{f?.friendName}'s Collection ({friendCards.length} cards)</div>
+                    {(user?.email||"").includes("@bazookabreaks.com") && (
+                      <OwnedIntegrityCheck uid={viewingFriend} label={f?.friendName} cards={cards}/>
+                    )}
                       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(160px,1fr))",gap:8,maxHeight:500,overflowY:"auto"}}>
                         {friendCards.map(c=>{
                           const wc=WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";
