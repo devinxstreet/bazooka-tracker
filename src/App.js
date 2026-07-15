@@ -26410,16 +26410,9 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
       const orphanIds = Object.keys(data).filter(id => !cardById.has(id));
       const byStable = {};
       cards.forEach(c => { const k = stableKey(c).slice(0,20); (byStable[k] = byStable[k] || []).push(c); });
+      const byCardNum = buildByCardNum();
       const props = orphanIds.map(oldId => {
-        const prefix = oldId.replace(/_[0-9a-f]{1,6}$/,"");
-        let best = [], bestLen = 0;
-        Object.entries(byStable).forEach(([k, list]) => {
-          let n=0; const m=Math.min(k.length, prefix.length);
-          while(n<m && k[n]===prefix[n]) n++;
-          if (n >= Math.min(10, prefix.length) && n > bestLen) { bestLen=n; best=list.slice(); }
-          else if (n === bestLen && bestLen>0) { best = best.concat(list); }
-        });
-        const seen=new Set(); const candidates = best.filter(c=>!seen.has(c.id)&&seen.add(c.id));
+        const candidates = matchOldId(oldId, byStable, byCardNum);
         // How many are ALREADY marked on each candidate’s current id. If >0, healing ADDS to it —
         // surface it so a re-marked card isn’t silently double-counted.
         const existingQty = {};
@@ -26455,6 +26448,112 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
     } catch(e) { alert("Heal failed: " + e.message); }
     setApplying(false);
   }
+
+  // ── DECK HEAL ────────────────────────────────────────────────────────────────────────────────
+  // Same drift, different place: a saved deck stores cardIds. After the snapshot regen those ids
+  // point at cards that no longer exist under that id, so the deck-lock and the "exclude cards
+  // already in a deck" logic silently stop working. We re-point each dead cardId to the current
+  // card sharing set+cardNum+hero. Preview-first; writes only on approve; never removes a card from
+  // a deck (an unmatched id is left as-is so nothing is silently dropped).
+  const [deckProps, setDeckProps] = useState(null);
+  const [deckApplying, setDeckApplying] = useState(false);
+  const [deckDone, setDeckDone] = useState(0);
+
+  // Match a drifted id to current cards. Two id schemes exist:
+  //   1. importId_cardNum  (e.g. "mnc6g7h40t4qhqfb3xg_BPL_25")  \u2014 from the DBS set import.
+  //      When a set is deleted + re-imported it gets a NEW importId, so every card's id changes but
+  //      the cardNum suffix (BPL_25) and setName stay the same. Match by cardNum, scoped to set.
+  //   2. bare hash (e.g. "bc791a9ca2bac06ee294")  \u2014 the old importer. No structure to recover
+  //      the card from, so we fall back to the stable-field prefix method.
+  // byCardNum: normalized "SETNAME|CARDNUM" -> [cards]; byStable: prefix -> [cards] (fallback).
+  function matchOldId(oldId, byStable, byCardNum) {
+    const m = String(oldId).match(/^(.+?)_(.+)$/);   // split importId _ cardNum
+    if (m && byCardNum) {
+      const cardNumPart = m[2].replace(/_/g," ").trim().toLowerCase();   // "BPL_25" -> "bpl 25"
+      // Gather every current card whose cardNum matches, regardless of set (set names can differ
+      // slightly across re-imports). If more than one set has it, the person picks.
+      const hits = [];
+      Object.entries(byCardNum).forEach(([key, list]) => {
+        const cn = key.split("|")[1];
+        if (cn === cardNumPart) hits.push(...list);
+      });
+      const seen=new Set();
+      const uniq = hits.filter(c=>!seen.has(c.id)&&seen.add(c.id));
+      if (uniq.length) return uniq;
+    }
+    // Fallback: bare-hash old ids \u2014 prefix overlap on stable fields.
+    const prefix = String(oldId).replace(/_[0-9a-f]{1,6}$/,"");
+    let best = [], bestLen = 0;
+    Object.entries(byStable).forEach(([k, list]) => {
+      let n=0; const mm=Math.min(k.length, prefix.length);
+      while(n<mm && k[n]===prefix[n]) n++;
+      if (n >= Math.min(10, prefix.length) && n > bestLen) { bestLen=n; best=list.slice(); }
+      else if (n === bestLen && bestLen>0) { best = best.concat(list); }
+    });
+    const seen2=new Set();
+    return best.filter(c=>!seen2.has(c.id)&&seen2.add(c.id));
+  }
+
+  // Index current cards by normalized SETNAME|CARDNUM.
+  function buildByCardNum() {
+    const idx = {};
+    cards.forEach(c => {
+      const cn = String(c.cardNum||"").replace(/_/g," ").trim().toLowerCase();
+      if (!cn) return;
+      const key = `${(c.setName||"").toLowerCase().trim()}|${cn}`;
+      (idx[key] = idx[key] || []).push(c);
+    });
+    return idx;
+  }
+
+  async function proposeDeckHeal() {
+    setBusy(true);
+    try {
+      const snap = await getDocs(query(collection(db,"boba_decks"), where("userId","==",uid)));
+      const cardById = new Set(cards.map(c => c.id));
+      const byStable = {};
+      cards.forEach(c => { const k = stableKey(c).slice(0,20); (byStable[k] = byStable[k] || []).push(c); });
+      const out = [];
+      snap.forEach(d => {
+        const data = d.data();
+        const ids = data.cardIds || [];
+        const dead = ids.filter(id => !cardById.has(id));
+        if (!dead.length) return;
+        const fixes = dead.map(oldId => {
+          const cands = matchOldId(oldId, byStable);
+          return { oldId, candidates: cands, chosen: cands.length===1 ? cands[0].id : "" };
+        });
+        out.push({ deckId: d.id, name: data.name || "Untitled deck", total: ids.length, dead: dead.length, fixes });
+      });
+      setDeckProps(out);
+    } catch(e) { alert("Couldn't build deck preview: " + e.message); }
+    setBusy(false);
+  }
+
+  async function applyDeckHeal() {
+    if (!deckProps) return;
+    const chosenCount = deckProps.reduce((s,d)=>s + d.fixes.filter(f=>f.chosen).length, 0);
+    if (!chosenCount) { alert("Nothing selected to heal."); return; }
+    if (!window.confirm(`Re-point ${chosenCount} card reference${chosenCount===1?"":"s"} across ${deckProps.length} deck${deckProps.length===1?"":"s"}? Unmatched cards are left in place \u2014 nothing is removed from a deck.`)) return;
+    setDeckApplying(true);
+    try {
+      let fixed = 0;
+      for (const d of deckProps) {
+        const map = {};
+        d.fixes.forEach(f => { if (f.chosen) map[f.oldId] = f.chosen; });
+        if (!Object.keys(map).length) continue;
+        const ref = doc(db,"boba_decks",d.deckId);
+        const cur = await getDoc(ref);
+        if (!cur.exists()) continue;
+        const ids = (cur.data().cardIds || []).map(id => map[id] || id);
+        await setDoc(ref, { cardIds: ids }, { merge:true });
+        fixed += Object.keys(map).length;
+      }
+      setDeckDone(fixed); setDeckProps(null);
+    } catch(e) { alert("Deck heal failed: " + e.message); }
+    setDeckApplying(false);
+  }
+
 
 
   return (
@@ -26519,6 +26618,57 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
               {applied > 0 && <div style={{marginTop:8,fontSize:11.5,color:"#4ade80",fontWeight:700}}>{"\u2713"} Re-pointed {applied} card{applied===1?"":"s"}. Counts refreshed above.</div>}
         </div>
       )}
+      {/* Deck references — separate from owned marks. Available whenever the panel is open, because a
+          deck can be broken even when the owned count looks fine. */}
+      <div style={{marginTop:12,paddingTop:11,borderTop:"1px solid rgba(255,255,255,0.08)"}}>
+        <div style={{fontSize:11.5,fontWeight:800,color:"#7B9CFF",marginBottom:7}}>{"\uD83D\uDCD8"} Deck references</div>
+        {!deckProps ? (
+          <button onClick={proposeDeckHeal} disabled={busy} style={{background:"rgba(123,156,255,0.15)",border:"1px solid rgba(123,156,255,0.35)",color:"#7B9CFF",borderRadius:7,padding:"6px 13px",fontSize:11.5,fontWeight:700,cursor:busy?"wait":"pointer",fontFamily:"inherit"}}>
+            {busy ? "Scanning decks\u2026" : "Check saved decks for drifted cards"}
+          </button>
+        ) : deckProps.length === 0 ? (
+          <div style={{fontSize:11.5,color:"#4ade80"}}>{"\u2713"} Every card in every saved deck matches. Nothing to fix.</div>
+        ) : (
+          <div>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.55)",marginBottom:8,lineHeight:1.5}}>
+              These decks reference cards whose ids drifted. Re-pointing restores the deck-lock and the
+              "exclude cards already in a deck" behavior. Nothing is written until you press Apply, and an
+              unmatched card is left in the deck untouched.
+            </div>
+            <div style={{maxHeight:300,overflowY:"auto",display:"flex",flexDirection:"column",gap:10}}>
+              {deckProps.map((d,di) => (
+                <div key={d.deckId} style={{background:"rgba(0,0,0,0.25)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"8px 10px"}}>
+                  <div style={{fontSize:12,fontWeight:800,color:"#eee",marginBottom:6}}>{d.name} <span style={{color:"rgba(255,255,255,0.35)",fontWeight:600}}>\u2014 {d.dead} of {d.total} drifted</span></div>
+                  <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                    {d.fixes.map((f,fi) => (
+                      <div key={f.oldId}>
+                        {f.candidates.length===0 ? (
+                          <div style={{fontSize:10.5,color:"#E8317A"}}>No confident match \u2014 left in the deck as-is.</div>
+                        ) : (
+                          <select value={f.chosen} onChange={e=>{ const v=e.target.value; setDeckProps(ps=>ps.map((x,xi)=>xi===di?{...x,fixes:x.fixes.map((y,yi)=>yi===fi?{...y,chosen:v}:y)}:x)); }}
+                            style={{width:"100%",background:"#14141a",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,padding:"4px 7px",fontSize:11,fontFamily:"inherit"}}>
+                            <option value="">\u2014 leave this card as-is \u2014</option>
+                            {f.candidates.map(c => (
+                              <option key={c.id} value={c.id}>{[c.hero,c.treatment,c.cardNum?("#"+c.cardNum):"",c.setName].filter(Boolean).join(" \u00b7 ")}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:10}}>
+              <button onClick={applyDeckHeal} disabled={deckApplying} style={{background:"#4ade80",color:"#06240f",border:"none",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:800,cursor:deckApplying?"wait":"pointer",fontFamily:"inherit"}}>
+                {deckApplying ? "Applying\u2026" : `Apply ${deckProps.reduce((s,d)=>s+d.fixes.filter(f=>f.chosen).length,0)} fix${deckProps.reduce((s,d)=>s+d.fixes.filter(f=>f.chosen).length,0)===1?"":"es"}`}
+              </button>
+              <button onClick={()=>setDeckProps(null)} disabled={deckApplying} style={{background:"transparent",color:"rgba(255,255,255,0.5)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+            </div>
+          </div>
+        )}
+        {deckDone > 0 && <div style={{marginTop:8,fontSize:11.5,color:"#4ade80",fontWeight:700}}>{"\u2713"} Re-pointed {deckDone} card reference{deckDone===1?"":"s"}. Reload the deck builder to see the lock working again.</div>}
+      </div>
       {state?.error && <div style={{marginTop:8,fontSize:11,color:"#E8317A"}}>Couldn't read: {state.error}</div>}
     </div>
   );
