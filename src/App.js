@@ -37762,18 +37762,6 @@ See you in there!
                       <div title={`${inTransit[c.id].qty||1} on the way — don't double-buy`} style={{background:"rgba(96,165,250,0.92)",borderRadius:6,padding:"3px 6px",fontSize:11,color:"#fff",fontWeight:800,backdropFilter:"blur(4px)"}}>🚚{inTransit[c.id].qty>1?inTransit[c.id].qty:""}</div>
                     </div>
                   )}
-                        {/* Deck-lock badge. Committed to a deck (mine or family) → mark it, so you
-                            spot it while scrolling instead of when the trade builder hides it. */}
-                        {owned[c.id] && (deckLockedForTrade[c.id]||0) > 0 && (
-                          <div style={{position:"absolute",top:6,right:6,zIndex:10}}>
-                            <div title={(deckLockedForTrade[c.id] >= (parseInt(owned[c.id])||1))
-                                ? "In a deck \u2014 not free to trade"
-                                : `${deckLockedForTrade[c.id]} of ${owned[c.id]} in a deck`}
-                              style={{background:"rgba(123,156,255,0.9)",color:"#fff",fontSize:10,fontWeight:800,borderRadius:5,padding:"2px 5px",backdropFilter:"blur(4px)",boxShadow:"0 1px 4px rgba(0,0,0,0.4)"}}>
-                              {"\uD83D\uDCD8"}{(parseInt(owned[c.id])||1) > 1 ? ` ${deckLockedForTrade[c.id]}` : ""}
-                            </div>
-                          </div>
-                        )}
                 </div>
               ))}
             </div>
