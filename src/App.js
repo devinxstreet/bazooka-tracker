@@ -15593,6 +15593,67 @@ function SharedDeck({ deckId }) {
   );
 }
 
+
+// Public view of a TRADE PACKAGE. No login needed. Reads boba_trade_packages/{id}, which carries a
+// self-contained snapshot of the cards (so it renders instantly and survives later card re-imports),
+// plus the owner's contact line so the recipient can reply.
+function SharedTradePackage({ packageId }) {
+  const [pkg, setPkg] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db, "boba_trade_packages", packageId));
+        if (!snap.exists()) { setErr("This trade package doesn't exist, or it's been deleted."); setLoading(false); return; }
+        setPkg({ id: snap.id, ...snap.data() });
+      } catch(e) { setErr("Couldn't load this trade package."); }
+      setLoading(false);
+    })();
+  }, [packageId]);
+
+  if (loading) return <div style={{minHeight:"100vh",background:"#0a0a0f",color:"#888",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"system-ui,sans-serif"}}>Loading trade package\u2026</div>;
+  if (err) return <div style={{minHeight:"100vh",background:"#0a0a0f",color:"#E8317A",display:"flex",alignItems:"center",justifyContent:"center",padding:24,textAlign:"center",fontFamily:"system-ui,sans-serif"}}>{err}</div>;
+
+  const items = pkg.items || [];
+  const totalCards = items.reduce((s,it)=>s+(parseInt(it.qty)||1), 0);
+  return (
+    <div style={{minHeight:"100vh",background:"#0a0a0f",color:"#eee",fontFamily:"system-ui,sans-serif",padding:"0 0 60px"}}>
+      <div style={{maxWidth:900,margin:"0 auto",padding:"0 18px"}}>
+        <div style={{padding:"30px 0 18px",borderBottom:"1px solid rgba(255,255,255,0.08)"}}>
+          <div style={{display:"inline-block",fontSize:11,fontWeight:800,letterSpacing:1,color:"#4ade80",background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:20,padding:"4px 12px",marginBottom:12}}>{"\uD83E\uDD1D"} TRADE PACKAGE</div>
+          <div style={{fontSize:26,fontWeight:900,color:"#fff",marginBottom:6}}>{pkg.title || "Trade package"}</div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,0.5)"}}>From {pkg.ownerName || "a collector"} \u00b7 {totalCards} card{totalCards===1?"":"s"}</div>
+          {pkg.note && <div style={{marginTop:14,fontSize:14,lineHeight:1.6,color:"rgba(255,255,255,0.8)",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"12px 15px"}}>{pkg.note}</div>}
+          {pkg.contact && (
+            <div style={{marginTop:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+              <span style={{fontSize:12,fontWeight:800,color:"#4ade80"}}>Reply to:</span>
+              <span style={{fontSize:14,fontWeight:700,color:"#fff",background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:8,padding:"6px 12px"}}>{pkg.contact}</span>
+            </div>
+          )}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:12,paddingTop:22}}>
+          {items.map((it,idx) => (
+            <div key={it.id||idx} style={{background:"#14141c",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,overflow:"hidden"}}>
+              <div style={{aspectRatio:"3/4",background:"#0a0a0f",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
+                {it.imageUrl ? <img src={it.imageUrl} alt={it.hero} style={{width:"100%",height:"100%",objectFit:"cover"}}/> : <span style={{color:"#333",fontSize:11}}>No image</span>}
+              </div>
+              <div style={{padding:"9px 10px"}}>
+                <div style={{fontSize:13,fontWeight:800,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.hero||"\u2014"}</div>
+                {it.playName && <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.playName}</div>}
+                <div style={{fontSize:10.5,color:"rgba(255,255,255,0.4)",marginTop:3}}>{[it.treatment, it.cardNum?("#"+it.cardNum):""].filter(Boolean).join(" \u00b7 ")}</div>
+                {(parseInt(it.qty)||1) > 1 && <div style={{fontSize:10.5,fontWeight:800,color:"#4ade80",marginTop:3}}>\u00d7{it.qty} available</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{marginTop:30,textAlign:"center",fontSize:11,color:"rgba(255,255,255,0.25)"}}>Shared via Bazooka Dash</div>
+      </div>
+    </div>
+  );
+}
+
+
 function PublicDeckBuilder() {
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21130,7 +21191,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
   const [pbFilterSet,    setPbFilterSet]    = useState("");
   const [pbTreatFilter,  setPbTreatFilter]  = useState(""); // name | dbs_asc | dbs_desc
   const PLAY_LIMIT = 30;
-  const DECK_SIZE = 60;
+  const DECK_SIZE = (DECK_FORMATS[deckType]||DECK_FORMATS.none).size || 60;   // capacity follows the format — Apex Madness is 70, most others 60
   const PAGE_SIZE = 100;
   const isAdmin = ["Admin"].includes(userRole?.role);
   // Super Foil Tracker
@@ -27654,7 +27715,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
-  const DECK_SIZE = 60;
+  const DECK_SIZE = (DECK_FORMATS[deckType]||DECK_FORMATS.none).size || 60;   // capacity follows format (Apex Madness = 70)
   const [deckOwnedOnly, setDeckOwnedOnly] = useState(false);
   const [deckFamilyOnly, setDeckFamilyOnly] = useState(false);
   // When "My collection" is picked (as opposed to "Mine + family"), exclude borrowable family cards.
@@ -27705,8 +27766,8 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
       const topW=dbWeaponBreak[0]; if(topW && topW[1]/inDeck.length>0.7 && dbWeaponBreak.length>1) tips.push({t:"info",m:`${Math.round(topW[1]/inDeck.length*100)}% of your deck is ${topW[0]} — fairly weapon-heavy.`});
     }
     // size
-    if(inDeck.length===DECK_SIZE) tips.push({t:"good",m:"Deck is full at 60 cards. 🎉"});
-    else if(remaining<=10) tips.push({t:"info",m:`${remaining} slots left to reach 60.`});
+    if(inDeck.length===DECK_SIZE) tips.push({t:"good",m:`Deck is full at ${DECK_SIZE} cards. 🎉`});
+    else if(remaining<=10) tips.push({t:"info",m:`${remaining} slots left to reach ${DECK_SIZE}.`});
     // collection-aware availability
     if(owned && inDeck.length<DECK_SIZE){
       const ownedAvail = cards.filter(c=>!deckSet.has(c.id)&&owned[c.id]&&(()=>{const t=(c.treatment||"").toLowerCase();return t!=="plays"&&t!=="bonus plays"&&t!=="home team discount";})()).length;
@@ -27892,7 +27953,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     )}
                     {deckProgress.maxMode && deckProgress.maxShort>0 && (
                       <div style={{marginTop:10,background:"rgba(232,49,122,0.08)",border:"1px solid rgba(232,49,122,0.3)",borderRadius:10,padding:"9px 12px",fontSize:11,color:"#ffb3d0",lineHeight:1.5}}>
-                        ⚠️ <strong>{deckProgress.have}/60</strong> — max mode only draws from the {deckProgress.maxWindowLabel} power window, and you own just {deckProgress.have} eligible cards there. <strong>60 is required</strong>, so this deck can't be played as it stands. <strong>Turn off max mode</strong> to fill the remaining {deckProgress.maxShort} from outside the window — you'll get a legal 60 at slightly lower average power.
+                        ⚠️ <strong>{deckProgress.have}/{DECK_SIZE}</strong> — max mode only draws from the {deckProgress.maxWindowLabel} power window, and you own just {deckProgress.have} eligible cards there. <strong>60 is required</strong>, so this deck can't be played as it stands. <strong>Turn off max mode</strong> to fill the remaining {deckProgress.maxShort} from outside the window — you'll get a legal 60 at slightly lower average power.
                       </div>
                     )}
 
@@ -30876,6 +30937,14 @@ See you in there!
   const [bulkListNote,  setBulkListNote]  = useState("");
   const [bulkListType,  setBulkListType]  = useState("sale");
   const [bulkBusy,      setBulkBusy]      = useState(false);
+  // -- Trade package (shareable link to a set of owned cards, for non-Bazooka users) --
+  const [tpModal,    setTpModal]    = useState(false);   // create-package modal open
+  const [tpTitle,    setTpTitle]    = useState("");
+  const [tpNote,     setTpNote]     = useState("");
+  const [tpContact,  setTpContact]  = useState("");
+  const [tpBusy,     setTpBusy]     = useState(false);
+  const [tpLink,     setTpLink]     = useState("");        // resulting share URL after create
+  const [tpCopied,   setTpCopied]   = useState(false);
   // -- Messages --
   const [threads,       setThreads]       = useState([]);
   const [activeThread,  setActiveThread]  = useState(null);
@@ -30973,7 +31042,7 @@ See you in there!
 
   const WEAPON_COLORS = { Fire:"#F97316", Ice:"#60A5FA", Steel:"#C0C0C0", Brawl:"#EF4444",
     Glow:"#4ade80", Hex:"#A855F7", Gum:"#F472B6", Metallic:"var(--bz-line)", Alt:"#FFFFFF", Super:"#F59E0B" };
-  const DECK_SIZE = 60;
+  const DECK_SIZE = (DECK_FORMATS[deckType]||DECK_FORMATS.none).size || 60;   // capacity follows format (Apex Madness = 70)
 
   const inp = { background:"#241820", border:"1px solid rgba(255,255,255,0.18)", borderRadius:10,
     color:"#f6eef2", padding:"9px 14px", fontSize:13, fontFamily:"'Trebuchet MS',sans-serif", outline:"none" };
@@ -32280,6 +32349,45 @@ See you in there!
     } catch(e){ console.error("bulk list failed:",e); }
     setBulkBusy(false);
   }
+
+  // Create a shareable TRADE PACKAGE from the selected owned cards. Writes a public-read doc to
+  // boba_trade_packages; anyone with the /trade/{id} link can view it (no login), see the cards, and
+  // get your contact line to reply. We snapshot a little card detail into the doc so the public page
+  // renders fast and still works even if a card is later re-imported (id drift) \u2014 the snapshot holds.
+  async function createTradePackage() {
+    if (!user) { setSigningIn(true); return; }
+    const ids = [...selectedIds].filter(id => owned[id]);   // only cards you actually own
+    if (!ids.length) { alert("Select some cards you own first."); return; }
+    setTpBusy(true);
+    try {
+      const pick = new Set(ids);
+      const items = cards.filter(c => pick.has(c.id)).map(c => ({
+        id: c.id, hero: c.hero||"", playName: c.playName||"", cardNum: c.cardNum||"",
+        treatment: c.treatment||"", setName: c.setName||"", weapon: c.weapon||"",
+        power: c.power||"", imageUrl: c.imageUrl||"", qty: parseInt(owned[c.id])||1
+      }));
+      const pid = uid();
+      await setDoc(doc(db, "boba_trade_packages", pid), {
+        id: pid,
+        ownerUid: user.uid,
+        ownerName: (profile?.displayName || user.displayName || "A Bazooka collector"),
+        title: tpTitle.trim() || "Trade package",
+        note: tpNote.trim(),
+        contact: tpContact.trim(),
+        items,
+        cardIds: ids,
+        createdAt: new Date().toISOString()
+      });
+      const url = `${window.location.origin}/trade/${pid}`;
+      setTpLink(url);
+      try { await navigator.clipboard.writeText(url); setTpCopied(true); setTimeout(()=>setTpCopied(false), 2500); } catch(e){}
+    } catch(e) {
+      console.error("create trade package failed:", e);
+      alert("Couldn't create the trade package: " + (e?.message||e));
+    }
+    setTpBusy(false);
+  }
+
   // Keep public cards in sync with public trackers: any owned card whose treatment is covered
   // by a PUBLIC tracker stays public automatically (e.g. after scanning a new one in).
   const trackerSyncRef = useRef("");
@@ -36211,6 +36319,10 @@ See you in there!
           <button disabled={selectedIds.size===0} onClick={()=>bulkSetPublic(true)} style={{background:selectedIds.size?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)",border:`1px solid ${selectedIds.size?"#4ade80":"#333"}`,color:selectedIds.size?"#4ade80":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>👁 Make Public</button>
           <button disabled={selectedIds.size===0} onClick={()=>bulkSetPublic(false)} style={{background:selectedIds.size?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.04)",border:"1px solid #333",color:selectedIds.size?"#ccc":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>🔒 Make Private</button>
           <button disabled={selectedIds.size===0} onClick={()=>setBulkListModal(true)} style={{background:selectedIds.size?"linear-gradient(135deg,#E8317A,#7B2FF7)":"rgba(255,255,255,0.04)",border:"none",color:selectedIds.size?"#fff":"#555",borderRadius:8,padding:"7px 14px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>💰 List for Sale</button>
+                    <button disabled={selectedIds.size===0} onClick={()=>{ setTpTitle(""); setTpNote(""); setTpContact(profile?.tradeContact||""); setTpLink(""); setTpModal(true); }}
+                      style={{background:selectedIds.size?"rgba(74,222,128,0.14)":"rgba(255,255,255,0.04)",border:"1px solid "+(selectedIds.size?"rgba(74,222,128,0.5)":"#333"),color:selectedIds.size?"#4ade80":"#555",borderRadius:8,padding:"7px 13px",fontSize:12,fontWeight:700,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                      {"\uD83E\uDD1D"} Trade Package
+                    </button>
           {/* Want list. Both directions — you'll want to clear a chunk once you've pulled them. */}
           <button disabled={selectedIds.size===0} onClick={()=>bulkWant(true)}
             style={{background:selectedIds.size?"rgba(232,49,122,0.12)":"rgba(255,255,255,0.04)",border:`1px solid ${selectedIds.size?"rgba(232,49,122,0.4)":"#333"}`,color:selectedIds.size?"#E8317A":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
@@ -36271,6 +36383,47 @@ See you in there!
           </button>
         </div>
       )}
+
+      {/* ── TRADE PACKAGE MODAL ── build a shareable link from selected owned cards. */}
+      {tpModal && (()=>{
+        const ids = [...selectedIds].filter(id => owned[id]);
+        const n = ids.length;
+        return (
+          <div onClick={()=>!tpBusy&&setTpModal(false)} style={{position:"fixed",inset:0,zIndex:13500,background:"rgba(0,0,0,0.8)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+            <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:440,background:"#15151c",border:"1px solid rgba(74,222,128,0.25)",borderRadius:16,padding:"24px 26px",maxHeight:"88vh",overflowY:"auto"}}>
+              <div style={{fontSize:19,fontWeight:900,color:"#fff",marginBottom:3}}>{"\uD83E\uDD1D"} Trade Package</div>
+              <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginBottom:18}}>{n} card{n===1?"":"s"} you own \u2014 shareable with anyone, no login needed.</div>
+              {!tpLink ? (
+                <>
+                  <label style={{fontSize:11,fontWeight:800,color:"#4ade80",display:"block",marginBottom:5}}>Title</label>
+                  <input value={tpTitle} onChange={e=>setTpTitle(e.target.value)} placeholder="e.g. Gold Coin doubles for trade" style={{width:"100%",background:"#0e0e13",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"9px 11px",fontSize:13,fontFamily:"inherit",marginBottom:14,boxSizing:"border-box"}}/>
+                  <label style={{fontSize:11,fontWeight:800,color:"#4ade80",display:"block",marginBottom:5}}>Note to the other person <span style={{color:"rgba(255,255,255,0.3)",fontWeight:400}}>(optional)</span></label>
+                  <textarea value={tpNote} onChange={e=>setTpNote(e.target.value)} placeholder="What you're looking for in return, condition notes, etc." rows={3} style={{width:"100%",background:"#0e0e13",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"9px 11px",fontSize:13,fontFamily:"inherit",marginBottom:14,boxSizing:"border-box",resize:"vertical"}}/>
+                  <label style={{fontSize:11,fontWeight:800,color:"#4ade80",display:"block",marginBottom:5}}>How they reach you</label>
+                  <input value={tpContact} onChange={e=>setTpContact(e.target.value)} placeholder="Whatnot @, phone, email, Discord\u2026" style={{width:"100%",background:"#0e0e13",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"9px 11px",fontSize:13,fontFamily:"inherit",marginBottom:6,boxSizing:"border-box"}}/>
+                  <div style={{fontSize:10.5,color:"rgba(255,255,255,0.35)",marginBottom:18}}>Shown on the shared page so they can reply. Leave blank to hide.</div>
+                  <div style={{display:"flex",gap:9}}>
+                    <button onClick={createTradePackage} disabled={tpBusy||n===0} style={{flex:1,background:n?"linear-gradient(135deg,#4ade80,#22c55e)":"#222",color:n?"#06240f":"#666",border:"none",borderRadius:9,padding:"11px",fontSize:13.5,fontWeight:800,cursor:tpBusy?"wait":(n?"pointer":"not-allowed"),fontFamily:"inherit"}}>
+                      {tpBusy ? "Creating\u2026" : `Create link for ${n} card${n===1?"":"s"}`}
+                    </button>
+                    <button onClick={()=>setTpModal(false)} disabled={tpBusy} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:9,padding:"11px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{fontSize:13,fontWeight:800,color:"#4ade80",marginBottom:8}}>{"\u2713"} Your trade package is live</div>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,0.55)",marginBottom:10}}>Send this link to anyone \u2014 they don't need an account.</div>
+                  <div style={{display:"flex",gap:8,marginBottom:16}}>
+                    <input readOnly value={tpLink} onClick={e=>e.target.select()} style={{flex:1,background:"#0e0e13",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.3)",borderRadius:8,padding:"9px 11px",fontSize:12,fontFamily:"monospace"}}/>
+                    <button onClick={async()=>{ try{ await navigator.clipboard.writeText(tpLink); setTpCopied(true); setTimeout(()=>setTpCopied(false),2000);}catch(e){} }} style={{background:tpCopied?"#22c55e":"rgba(74,222,128,0.15)",color:tpCopied?"#06240f":"#4ade80",border:"1px solid rgba(74,222,128,0.4)",borderRadius:8,padding:"0 14px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{tpCopied?"Copied!":"Copy"}</button>
+                  </div>
+                  <button onClick={()=>{ setTpModal(false); setTpLink(""); }} style={{width:"100%",background:"transparent",border:"1px solid #333",color:"#888",borderRadius:9,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── BULK LIST MODAL ── */}
       {/* Bulk edit. Switch on any number of fields and set them all in ONE write \u2014 a typo like
@@ -42561,6 +42714,8 @@ function AppInner() {
   // it's built to and whether it's legal. This is what you send someone who isn't in the app.
   const sharedDeck = window.location.pathname.match(/^\/deck\/([A-Za-z0-9_-]+)$/);
   if (sharedDeck) return <SharedDeck deckId={sharedDeck[1]} />;
+  const sharedTrade = window.location.pathname.match(/^\/trade\/([A-Za-z0-9_-]+)$/);
+  if (sharedTrade) return <SharedTradePackage packageId={sharedTrade[1]} />;
 
   if (window.location.pathname === "/deck")     return <PublicDeckBuilder />;
   if (window.location.pathname === "/bugs")     return <BugAdmin user={user} />;
