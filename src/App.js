@@ -26418,7 +26418,7 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
         // surface it so a re-marked card isn’t silently double-counted.
         const existingQty = {};
         candidates.forEach(c => { existingQty[c.id] = parseInt(data[c.id]) || 0; });
-        return { oldId, qty: data[oldId], candidates, existingQty, chosen: candidates.length===1 ? candidates[0].id : "" };
+        return { oldId, qty: data[oldId], candidates, existingQty, chosen: candidates.length ? candidates[0].id : "" };
       });
       setProposals(props);
     } catch(e) { alert("Couldn't build heal preview: " + e.message); }
@@ -26531,7 +26531,7 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
         if (!dead.length) return;
         const fixes = dead.map(oldId => {
           const cands = matchOldId(oldId, byStable);
-          return { oldId, candidates: cands, chosen: cands.length===1 ? cands[0].id : "" };
+          return { oldId, candidates: cands, chosen: cands.length ? cands[0].id : "" };
         });
         out.push({ deckId: d.id, name: data.name || "Untitled deck", total: ids.length, dead: dead.length, fixes });
       });
@@ -26604,6 +26604,8 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
                             {pr.candidates.length===0 ? (
                               <div style={{fontSize:11,color:"#E8317A"}}>No confident match found \u2014 left untouched.</div>
                             ) : (
+                              <>
+                              {pr.candidates.length>1 && <div style={{fontSize:9.5,color:"#FBBF24",marginBottom:3}}>{pr.candidates.length} sets share this number — defaulted to Tecmo Bowl, change if wrong</div>}
                               <select value={pr.chosen} onChange={e=>{ const v=e.target.value; setProposals(ps=>ps.map((x,xi)=>xi===pi?{...x,chosen:v}:x)); }}
                                 style={{width:"100%",background:"#14141a",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,padding:"5px 7px",fontSize:11.5,fontFamily:"inherit"}}>
                                 <option value="">\u2014 don't heal this one \u2014</option>
@@ -26611,6 +26613,8 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
                                   <option key={c.id} value={c.id}>{[c.hero,c.treatment,c.cardNum?("#"+c.cardNum):"",c.setName].filter(Boolean).join(" \u00b7 ")}</option>
                                 ))}
                               </select>
+                              {pr.chosen && (() => { const cc = pr.candidates.find(c=>c.id===pr.chosen); return cc && cc.imageUrl ? <img src={cc.imageUrl} alt={cc.hero} style={{width:54,height:72,objectFit:"cover",borderRadius:5,marginTop:6,border:"1px solid rgba(255,255,255,0.15)"}}/> : null; })()}
+                            </>
                             )}
                           </div>
                         ))}
