@@ -15635,8 +15635,9 @@ function SharedTradePackage({ packageId }) {
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:12,paddingTop:22}}>
           {items.map((it,idx) => (
             <div key={it.id||idx} style={{background:"#14141c",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,overflow:"hidden"}}>
-              <div style={{aspectRatio:"3/4",background:"#0a0a0f",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
+              <div style={{position:"relative",aspectRatio:"3/4",background:"#0a0a0f",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
                 {it.imageUrl ? <img src={it.imageUrl} alt={it.hero} style={{width:"100%",height:"100%",objectFit:"cover"}}/> : <span style={{color:"#333",fontSize:11}}>No image</span>}
+                {it.isMyPhoto && it.imageUrl && <div style={{position:"absolute",bottom:5,left:5,background:"rgba(74,222,128,0.9)",color:"#06240f",fontSize:9,fontWeight:800,borderRadius:4,padding:"2px 5px"}}>Actual photo</div>}
               </div>
               <div style={{padding:"9px 10px"}}>
                 <div style={{fontSize:13,fontWeight:800,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.hero||"\u2014"}</div>
@@ -30945,6 +30946,31 @@ See you in there!
   const [tpBusy,     setTpBusy]     = useState(false);
   const [tpLink,     setTpLink]     = useState("");        // resulting share URL after create
   const [tpCopied,   setTpCopied]   = useState(false);
+  const [tpListOpen, setTpListOpen] = useState(false);   // "my trade packages" manager
+  const [tpList,     setTpList]     = useState(null);    // loaded packages | null=not loaded
+  const [tpListBusy, setTpListBusy] = useState(false);
+
+  // Load this user's trade packages on demand (when they open the manager).
+  async function loadMyTradePackages() {
+    if (!user) return;
+    setTpListBusy(true);
+    try {
+      const q = query(collection(db, "boba_trade_packages"), where("ownerUid", "==", user.uid));
+      const snap = await getDocs(q);
+      const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a,b) => String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
+      setTpList(rows);
+    } catch(e) { console.error("load trade packages failed:", e); alert("Couldn't load your trade packages: " + (e?.message||e)); setTpList([]); }
+    setTpListBusy(false);
+  }
+
+  async function deleteTradePackage(pid) {
+    if (!window.confirm("Delete this trade package? The share link will stop working.")) return;
+    try {
+      await deleteDoc(doc(db, "boba_trade_packages", pid));
+      setTpList(list => (list||[]).filter(p => p.id !== pid));
+    } catch(e) { alert("Couldn't delete: " + (e?.message||e)); }
+  }
   // -- Messages --
   const [threads,       setThreads]       = useState([]);
   const [activeThread,  setActiveThread]  = useState(null);
@@ -32364,7 +32390,7 @@ See you in there!
       const items = cards.filter(c => pick.has(c.id)).map(c => ({
         id: c.id, hero: c.hero||"", playName: c.playName||"", cardNum: c.cardNum||"",
         treatment: c.treatment||"", setName: c.setName||"", weapon: c.weapon||"",
-        power: c.power||"", imageUrl: c.imageUrl||"", qty: parseInt(owned[c.id])||1
+        power: c.power||"", imageUrl: c.imageUrl || scanPhotoByCard[c.id] || "", isMyPhoto: !c.imageUrl && !!scanPhotoByCard[c.id], qty: parseInt(owned[c.id])||1
       }));
       const pid = uid();
       await setDoc(doc(db, "boba_trade_packages", pid), {
@@ -36323,6 +36349,10 @@ See you in there!
                       style={{background:selectedIds.size?"rgba(74,222,128,0.14)":"rgba(255,255,255,0.04)",border:"1px solid "+(selectedIds.size?"rgba(74,222,128,0.5)":"#333"),color:selectedIds.size?"#4ade80":"#555",borderRadius:8,padding:"7px 13px",fontSize:12,fontWeight:700,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
                       {"\uD83E\uDD1D"} Trade Package
                     </button>
+                    <button onClick={()=>{ setTpListOpen(true); loadMyTradePackages(); }}
+                      style={{background:"rgba(123,156,255,0.1)",border:"1px solid rgba(123,156,255,0.3)",color:"#7B9CFF",borderRadius:8,padding:"7px 13px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                      My Packages
+                    </button>
           {/* Want list. Both directions — you'll want to clear a chunk once you've pulled them. */}
           <button disabled={selectedIds.size===0} onClick={()=>bulkWant(true)}
             style={{background:selectedIds.size?"rgba(232,49,122,0.12)":"rgba(255,255,255,0.04)",border:`1px solid ${selectedIds.size?"rgba(232,49,122,0.4)":"#333"}`,color:selectedIds.size?"#E8317A":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
@@ -36417,6 +36447,7 @@ See you in there!
                     <input readOnly value={tpLink} onClick={e=>e.target.select()} style={{flex:1,background:"#0e0e13",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.3)",borderRadius:8,padding:"9px 11px",fontSize:12,fontFamily:"monospace"}}/>
                     <button onClick={async()=>{ try{ await navigator.clipboard.writeText(tpLink); setTpCopied(true); setTimeout(()=>setTpCopied(false),2000);}catch(e){} }} style={{background:tpCopied?"#22c55e":"rgba(74,222,128,0.15)",color:tpCopied?"#06240f":"#4ade80",border:"1px solid rgba(74,222,128,0.4)",borderRadius:8,padding:"0 14px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{tpCopied?"Copied!":"Copy"}</button>
                   </div>
+                  <button onClick={()=>{ setTpModal(false); setTpLink(""); setTpListOpen(true); loadMyTradePackages(); }} style={{width:"100%",background:"transparent",border:"none",color:"#7B9CFF",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginBottom:8,textDecoration:"underline"}}>See all my trade packages</button>
                   <button onClick={()=>{ setTpModal(false); setTpLink(""); }} style={{width:"100%",background:"transparent",border:"1px solid #333",color:"#888",borderRadius:9,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
                 </>
               )}
@@ -36424,6 +36455,47 @@ See you in there!
           </div>
         );
       })()}
+
+      {/* ── MY TRADE PACKAGES MANAGER ── list / copy / delete your active share links. */}
+      {tpListOpen && (
+        <div onClick={()=>setTpListOpen(false)} style={{position:"fixed",inset:0,zIndex:13500,background:"rgba(0,0,0,0.8)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:520,background:"#15151c",border:"1px solid rgba(123,156,255,0.25)",borderRadius:16,padding:"24px 26px",maxHeight:"88vh",overflowY:"auto"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <div style={{fontSize:19,fontWeight:900,color:"#fff"}}>{"\uD83E\uDD1D"} My Trade Packages</div>
+              <button onClick={()=>setTpListOpen(false)} style={{background:"transparent",border:"none",color:"#888",fontSize:22,cursor:"pointer",lineHeight:1}}>{"\u00d7"}</button>
+            </div>
+            {tpListBusy ? (
+              <div style={{fontSize:13,color:"rgba(255,255,255,0.4)",padding:"20px 0",textAlign:"center"}}>Loading{"\u2026"}</div>
+            ) : !tpList || tpList.length===0 ? (
+              <div style={{fontSize:13,color:"rgba(255,255,255,0.4)",padding:"24px 0",textAlign:"center"}}>No trade packages yet. Select some owned cards and hit {"\uD83E\uDD1D"} Trade Package to make one.</div>
+            ) : (
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {tpList.map(pk => {
+                  const url = `${window.location.origin}/trade/${pk.id}`;
+                  const count = (pk.items||[]).reduce((s,it)=>s+(parseInt(it.qty)||1),0);
+                  return (
+                    <div key={pk.id} style={{background:"rgba(0,0,0,0.25)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"12px 14px"}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10}}>
+                        <div style={{minWidth:0}}>
+                          <div style={{fontSize:14,fontWeight:800,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{pk.title||"Trade package"}</div>
+                          <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginTop:2}}>{count} card{count===1?"":"s"}{pk.createdAt?` \u00b7 ${new Date(pk.createdAt).toLocaleDateString()}`:""}</div>
+                        </div>
+                        <button onClick={()=>deleteTradePackage(pk.id)} style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.4)",color:"#f87171",borderRadius:7,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>Delete</button>
+                      </div>
+                      <div style={{display:"flex",gap:7,marginTop:10}}>
+                        <input readOnly value={url} onClick={e=>e.target.select()} style={{flex:1,background:"#0e0e13",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.25)",borderRadius:7,padding:"6px 9px",fontSize:11,fontFamily:"monospace",minWidth:0}}/>
+                        <button onClick={async()=>{ try{ await navigator.clipboard.writeText(url);}catch(e){} }} style={{background:"rgba(74,222,128,0.15)",color:"#4ade80",border:"1px solid rgba(74,222,128,0.4)",borderRadius:7,padding:"0 12px",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Copy</button>
+                        <a href={url} target="_blank" rel="noreferrer" style={{background:"rgba(123,156,255,0.12)",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.3)",borderRadius:7,padding:"6px 12px",fontSize:11,fontWeight:800,textDecoration:"none",fontFamily:"inherit",whiteSpace:"nowrap"}}>Open</a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
 
       {/* ── BULK LIST MODAL ── */}
       {/* Bulk edit. Switch on any number of fields and set them all in ONE write \u2014 a typo like
