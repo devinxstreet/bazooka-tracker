@@ -35258,6 +35258,25 @@ See you in there!
                 {/* Trade Bait flag + per-copy breakdown */}
                 {owned[c.id] && (
                   <div style={{ marginTop:12 }}>
+                      {/* Deck lock. If copies of this card are committed to decks — yours or a family
+                          member's — say so here, where you'd be deciding to list or trade it. Better to
+                          know before you flag it than to find out when the offer builder hides it. */}
+                      {(() => {
+                        const inDecks = deckLockedForTrade[c.id] || 0;
+                        if (!inDecks) return null;
+                        const qty = parseInt(owned[c.id]) || 1;
+                        const free = Math.max(0, qty - inDecks);
+                        return (
+                          <div style={{marginBottom:10,background:"rgba(123,156,255,0.06)",border:"1px solid rgba(123,156,255,0.25)",borderRadius:9,padding:"9px 11px",display:"flex",alignItems:"center",gap:8}}>
+                            <span style={{fontSize:15}}>{"\uD83D\uDCD8"}</span>
+                            <div style={{fontSize:11.5,color:"rgba(255,255,255,0.7)",lineHeight:1.5}}>
+                              {inDecks >= qty
+                                ? <><strong style={{color:"#7B9CFF"}}>In a deck.</strong> {qty>1?`All ${qty} copies are`:"This is"} committed to a deck (yours or family) {"\u2014"} not available to trade until freed.</>
+                                : <><strong style={{color:"#7B9CFF"}}>{inDecks} of {qty} in a deck.</strong> {free} still free to trade or list.</>}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     {/* Whose card is it? With one copy this is a single choice. With several, each
                         copy is tagged on its own — you can own 2 and have one be a kid's. */}
                     {kidGroups.length>0 && (()=>{
@@ -37731,6 +37750,18 @@ See you in there!
                       <div title={`${inTransit[c.id].qty||1} on the way — don't double-buy`} style={{background:"rgba(96,165,250,0.92)",borderRadius:6,padding:"3px 6px",fontSize:11,color:"#fff",fontWeight:800,backdropFilter:"blur(4px)"}}>🚚{inTransit[c.id].qty>1?inTransit[c.id].qty:""}</div>
                     </div>
                   )}
+                        {/* Deck-lock badge. Committed to a deck (mine or family) → mark it, so you
+                            spot it while scrolling instead of when the trade builder hides it. */}
+                        {owned[c.id] && (deckLockedForTrade[c.id]||0) > 0 && (
+                          <div style={{position:"absolute",top:6,right:6,zIndex:10}}>
+                            <div title={(deckLockedForTrade[c.id] >= (parseInt(owned[c.id])||1))
+                                ? "In a deck \u2014 not free to trade"
+                                : `${deckLockedForTrade[c.id]} of ${owned[c.id]} in a deck`}
+                              style={{background:"rgba(123,156,255,0.9)",color:"#fff",fontSize:10,fontWeight:800,borderRadius:5,padding:"2px 5px",backdropFilter:"blur(4px)",boxShadow:"0 1px 4px rgba(0,0,0,0.4)"}}>
+                              {"\uD83D\uDCD8"}{(parseInt(owned[c.id])||1) > 1 ? ` ${deckLockedForTrade[c.id]}` : ""}
+                            </div>
+                          </div>
+                        )}
                 </div>
               ))}
             </div>
