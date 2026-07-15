@@ -32303,7 +32303,7 @@ See you in there!
     // Optimistic local update.
     const nextLocal = { ...inTransit };
     if (data === null) { delete nextLocal[cardId]; }
-    else { nextLocal[cardId] = { qty: data.qty||1, note: data.note||"", date: data.date||new Date().toISOString().slice(0,10) }; }
+    else { nextLocal[cardId] = { qty: data.qty||1, from: data.from||"", note: data.note||"", date: data.date||new Date().toISOString().slice(0,10) }; }
     setInTransit(nextLocal);
     // Durable write: re-read the live doc and merge onto THAT, so a stale local map can't clobber
     // marks made elsewhere/recently. Only the single card we touched is changed.
@@ -32311,7 +32311,7 @@ See you in there!
       const snap = await getDoc(doc(db,"boba_intransit",user.uid));
       const remote = snap.exists() ? { ...snap.data() } : {};
       if (data === null) { delete remote[cardId]; }
-      else { remote[cardId] = { qty: data.qty||1, note: data.note||"", date: data.date||new Date().toISOString().slice(0,10) }; }
+      else { remote[cardId] = { qty: data.qty||1, from: data.from||"", note: data.note||"", date: data.date||new Date().toISOString().slice(0,10) }; }
       await setDoc(doc(db,"boba_intransit",user.uid), remote);
     } catch(e){ console.error("save transit failed:", e); alert("Couldn't save that on-the-way mark \u2014 check your connection and try again."); }
   }
@@ -36144,7 +36144,7 @@ See you in there!
                   </div>
                 ) : (
                   <>
-                  <button onClick={()=>{ const note=window.prompt("Optional note (seller, ETA, tracking…). Leave blank to skip:","")||""; const qtyStr=window.prompt("How many are on the way?","1"); const qty=Math.max(1,parseInt(qtyStr)||1); setTransit(c.id,{qty,note}); }} style={{ width:"100%", marginTop:12, background:"rgba(96,165,250,0.1)", border:"1.5px solid rgba(96,165,250,0.4)", color:"#60A5FA", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>🚚 Mark as On the Way (bought, incoming)</button>
+                  <button onClick={()=>{ const from=window.prompt("Who is it coming from? (seller / @handle) — leave blank to skip:","")||""; const note=window.prompt("Optional note (ETA, tracking…). Leave blank to skip:","")||""; const qtyStr=window.prompt("How many are on the way?","1"); const qty=Math.max(1,parseInt(qtyStr)||1); setTransit(c.id,{qty,from,note}); }} style={{ width:"100%", marginTop:12, background:"rgba(96,165,250,0.1)", border:"1.5px solid rgba(96,165,250,0.4)", color:"#60A5FA", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>🚚 Mark as On the Way (bought, incoming)</button>
                   <button onClick={()=>setCompCard(c)} style={{ width:"100%", marginTop:10, background:"rgba(123,156,255,0.12)", border:"1.5px solid rgba(123,156,255,0.45)", color:"#7B9CFF", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>📊 View Sold Comps (eBay + in-app)</button>
                   {owned[c.id] && (<>
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginTop:10 }}>
@@ -39214,12 +39214,15 @@ See you in there!
                       <div style={{ fontSize:13, fontWeight:800, color:"#fff" }}>{c.hero}</div>
                       <div style={{ fontSize:10, color:"rgba(255,255,255,0.4)" }}>{[c.treatment, c.weapon, c.cardNum?`#${c.cardNum}`:""].filter(Boolean).join(" · ")} · since {info.date||"?"}</div>
                     </div>
-                    <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
                       <label style={{ fontSize:10, color:"rgba(255,255,255,0.5)" }}>Qty</label>
                       <input type="number" min="1" value={info.qty||1} onWheel={e=>e.currentTarget.blur()}
                         onChange={e=>setTransit(c.id,{ ...info, qty: Math.max(1,parseInt(e.target.value)||1) })}
                         style={{ width:50, background:"#241820", border:"1px solid rgba(255,255,255,0.18)", color:"#f6eef2", borderRadius:6, padding:"5px 6px", fontSize:12, fontFamily:"inherit", textAlign:"center" }}/>
                     </div>
+                    <input value={info.from||""} placeholder="From (seller / @handle)"
+                      onChange={e=>setTransit(c.id,{ ...info, from: e.target.value })}
+                      style={{ width:150, background:"#241820", border:"1px solid rgba(255,255,255,0.18)", color:"#f6eef2", borderRadius:6, padding:"5px 8px", fontSize:12, fontFamily:"inherit" }}/>
                     <input value={info.note||""} placeholder="tracking / seller / ETA…"
                       onChange={e=>setTransit(c.id,{ ...info, note: e.target.value })}
                       style={{ flex:1, minWidth:140, background:"#241820", border:"1px solid rgba(255,255,255,0.18)", color:"#f6eef2", borderRadius:6, padding:"6px 10px", fontSize:12, fontFamily:"inherit" }}/>
