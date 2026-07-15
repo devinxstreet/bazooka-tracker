@@ -33726,6 +33726,17 @@ See you in there!
       if(!match) return false;
     }
     if(filterOwned==="missing" &&  owned[c.id])  return false;
+      // "Free to trade" vs "In a deck" — the availability question, answered against the same lock
+      // the trade builder uses. Free = you own a copy that ISN'T committed to any deck (yours or
+      // family). In a deck = you own it and every copy is spoken for.
+      if(filterOwned==="free"){
+        if(!owned[c.id]) return false;
+        if((owned[c.id]||0) <= (deckLockedForTrade[c.id]||0)) return false;   // all copies locked
+      }
+      if(filterOwned==="indeck"){
+        if(!owned[c.id]) return false;
+        if((deckLockedForTrade[c.id]||0) === 0) return false;                 // none in a deck
+      }
     if(filterNoImg && c.imageUrl && String(c.imageUrl).startsWith("http")) return false;
     if(filterPower.size>0 && !filterPower.has(Number(c.power||0))) return false;
     // Multi-word search: every word must match SOMEWHERE on the card, in any order and across
@@ -33741,7 +33752,8 @@ See you in there!
   // otherwise every tap while adding cards re-filters the entire 31k checklist.
   }), [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchTerms, searchIndex,
        kidFilter, kidAssign,
-       (filterOwned === "owned" || filterOwned === "missing" || kidFilter !== "all") ? owned : null]);
+       (filterOwned === "owned" || filterOwned === "missing" || filterOwned === "free" || filterOwned === "indeck" || kidFilter !== "all") ? owned : null,
+       (filterOwned === "free" || filterOwned === "indeck") ? deckLockedForTrade : null]);
 
   // PERF: THIS SORT WAS THE BOTTLENECK. It ran on every keystroke over the whole result set and
   // called localeCompare() inside the comparator — full Unicode collation, ~500k+ times on a big
@@ -37628,7 +37640,7 @@ See you in there!
               </div>}
               {user&&(
                 <div style={{display:"flex",gap:4}}>
-                  {[["all","All"],["owned","\u2705 Owned"],["missing","\u274C Missing"]].map(([v,l])=>(
+                  {[["all","All"],["owned","\u2705 Owned"],["missing","\u274C Missing"],["free","\uD83D\uDD13 Free to trade"],["indeck","\uD83D\uDCD8 In a deck"]].map(([v,l])=>(
                     <button key={v} onClick={()=>{setFilterOwned(v);setPage(1);}} style={{background:filterOwned===v?"rgba(232,49,122,0.15)":"transparent",color:filterOwned===v?"#E8317A":"rgba(255,255,255,0.4)",border:`1.5px solid ${filterOwned===v?"#E8317A":"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>{l}</button>
                   ))}
                 </div>
