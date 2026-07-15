@@ -26397,6 +26397,7 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
   // 6-char hash differ. We match each orphan to the current card whose stable-field prefix overlaps
   // most. NOTHING is written until you approve. This never deletes a card or a mark; it re-points.
   const [proposals, setProposals] = useState(null);
+  const [healDebug, setHealDebug] = useState(null);
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(0);
   const stableKey = c => `${c.setName||""}${c.cardNum||""}${c.hero||""}`.toLowerCase().replace(/[^a-z0-9]/g,"");
@@ -26411,6 +26412,14 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
       const byStable = {};
       cards.forEach(c => { const k = stableKey(c).slice(0,20); (byStable[k] = byStable[k] || []).push(c); });
       const byCardNum = buildByCardNum();
+      // DEBUG: capture what current cards actually look like so we can see why nothing matches.
+      const importPrefixes = {};
+      orphanIds.forEach(o => { const mm=String(o).match(/^(.+?)_/); if(mm) importPrefixes[mm[1]]=(importPrefixes[mm[1]]||0)+1; });
+      const sampleCardNums = cards.slice(0,8).map(c=>`${c.setName}|${c.cardNum}`);
+      const allSetNames = [...new Set(cards.map(c=>c.setName))].slice(0,40);
+      const cardNumsWithBPL = cards.filter(c=>String(c.cardNum||"").toLowerCase().includes("bpl")||String(c.cardNum||"").toLowerCase().includes("25")).slice(0,10).map(c=>`${c.setName}|${c.cardNum}`);
+      const _dbg = { orphanCount: orphanIds.length, importPrefixes, sampleCardNums, allSetNames, cardNumsWithBPL, totalCards: cards.length };
+      setHealDebug(_dbg); console.log("HEAL DEBUG:", _dbg);
       const props = orphanIds.map(oldId => {
         const candidates = matchOldId(oldId, byStable, byCardNum);
         // How many are ALREADY marked on each candidate’s current id. If >0, healing ADDS to it —
@@ -26582,6 +26591,17 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
                     </button>
                   ) : (
                     <div style={{marginTop:4}}>
+                      {healDebug && (
+                        <div style={{background:"#0a0a12",border:"1px solid rgba(123,156,255,0.3)",borderRadius:8,padding:"9px 11px",marginBottom:10,fontSize:10,fontFamily:"monospace",color:"#9ab",lineHeight:1.6,wordBreak:"break-all"}}>
+                          <div style={{color:"#7B9CFF",fontWeight:800,marginBottom:4}}>DEBUG (screenshot this)</div>
+                          <div>total cards in db: {healDebug.totalCards}</div>
+                          <div>orphans: {healDebug.orphanCount}</div>
+                          <div>orphan import prefixes: {JSON.stringify(healDebug.importPrefixes)}</div>
+                          <div>sample current cardNums: {JSON.stringify(healDebug.sampleCardNums)}</div>
+                          <div>cards matching bpl/25: {JSON.stringify(healDebug.cardNumsWithBPL)}</div>
+                          <div>set names in db: {JSON.stringify(healDebug.allSetNames)}</div>
+                        </div>
+                      )}
                       <div style={{fontSize:11,color:"rgba(255,255,255,0.55)",marginBottom:8,lineHeight:1.5}}>
                         Proposed matches below. Nothing is written until you press Apply. Each row moves an
                         orphaned mark onto the current card with the same set / number / hero. Rows with more
