@@ -38405,7 +38405,7 @@ See you in there!
     // have/in-transit status with them. Nothing is deleted; the marks still exist on cards that no
     // longer match. This finds them: cards you own or have in transit, whose treatment is CLOSE to
     // one the tracker wants but not exact.
-    const orphans = (() => {
+    const orphans = (() => { try {
       const wanted = tracker.treatments || [];
       const wantedLc = wanted.map(t => (t||"").toLowerCase().replace(/\s+/g," ").trim());
       const out = [];
@@ -38419,7 +38419,7 @@ See you in there!
         if (near) out.push({ hero:c.hero, treatment:t, owned:!!owned[c.id], transit:!!inTransit[c.id] });
       });
       return out;
-    })();
+    } catch(e){ console.error("orphan check failed:", e); return []; } })();
 
                   return (
                     <div>
