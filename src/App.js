@@ -34570,7 +34570,7 @@ See you in there!
       const mine = (_srcMine && owned && owned[c.id]) ? (parseInt(owned[c.id])||1) : 0;
       const fam = famOwner(c) ? (famOwner(c).copies||1) : 0;
       const copies = mine + fam;
-      const usedElsewhere = allDeckUse[c.id] || 0;
+        const usedElsewhere = (allDeckUse[c.id] || 0) + (familyDeckUse[c.id] || 0);
       return copies > usedElsewhere;
     };
     // Tiebreak sorter: same-priority cards ordered YOURS first, then family.
