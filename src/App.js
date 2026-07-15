@@ -28091,7 +28091,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 {deckAvail.length===0?<div style={{padding:40,textAlign:"center",color:"rgba(255,255,255,0.2)"}}>No cards match filters</div>:
                   <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(auto-fill,minmax(95px,1fr))":"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
                   {deckVisible.map((c)=>{
-                    const {ok,reason}=canAddToDeck(c),wc=WEAPON_COLORS[canonWeapon(c.weapon)]||"#444",isOwned=owned&&owned[c.id];
+                    const {ok,reason,free,committed}=canAddToDeck(c),wc=WEAPON_COLORS[canonWeapon(c.weapon)]||"#444",isOwned=owned&&owned[c.id];
                     const _fam = familyOwnerByCard[c.id];
                     return (
                       <div key={c.id} onClick={()=>{if(ok)setDeckCards(p=>[...p,c.id]);}} title={!ok?reason:(_fam?`Borrow ${c.hero} from ${_fam.name}`:`Add ${c.hero}`)}
@@ -28099,6 +28099,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         onMouseEnter={e=>{if(ok){e.currentTarget.style.transform="translateY(-4px)";e.currentTarget.style.borderColor=wc;}}}
                         onMouseLeave={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.borderColor=ok?(isOwned?"#4ade8055":_fam?"#C084FC66":"rgba(255,255,255,0.08)"):"rgba(232,49,122,0.3)";}}>
                         {_fam && <div style={{position:"absolute",top:5,left:5,zIndex:5,background:"rgba(192,132,252,0.92)",color:"#fff",borderRadius:6,padding:"2px 6px",fontSize:8,fontWeight:800,backdropFilter:"blur(4px)"}}>👪 {(_fam.name||"").split(" ")[0]}</div>}
+                        {ok && committed>0 && free>0 && <div style={{position:"absolute",top:5,right:5,zIndex:5,background:"rgba(74,222,128,0.9)",color:"#06240f",fontSize:9,fontWeight:800,borderRadius:5,padding:"2px 5px"}}>{free} free</div>}
                         {c.imageUrl
                           ? <img src={c.imageUrl} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
                           : <div style={{width:"100%",height:"100%",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:6,textAlign:"center"}}><div style={{fontSize:11,fontWeight:800,color:wc}}>{c.hero}</div><div style={{fontSize:8,color:"rgba(255,255,255,0.3)",marginTop:3}}>{c.treatment}</div></div>}
@@ -34353,6 +34354,26 @@ See you in there!
     return m;
   }, [savedDecks, deckLoadId]);
 
+  // Cards of MINE that a FAMILY member has committed to one of THEIR decks. otherDeckUse only sees
+  // my own decks, so without this, a card your father-in-law slotted into his deck still shows as
+  // free in your builder. familyDecks holds each member's decks; we count my owned cards appearing
+  // in them (one copy per deck, same rule as my own decks).
+  const familyDeckUse = useMemo(() => {
+    const m = {};
+    (familyDecks||[]).forEach(group => {
+      (group.decks||[]).forEach(d => {
+        const seen = new Set();
+        (d.cardIds||[]).forEach(cid => {
+          if (seen.has(cid)) return;
+          seen.add(cid);
+          if (owned[cid]) m[cid] = (m[cid]||0) + 1;   // only MY cards can be locked for me
+        });
+      });
+    });
+    return m;
+  }, [familyDecks, owned]);
+
+
   // Same as otherDeckUse but counting EVERY saved deck, including the one open in the editor.
   // The quick builder is proposing a brand-new deck, so a card sitting in the currently-loaded
   // deck is just as unavailable as one in any other deck. (otherDeckUse deliberately excludes the
@@ -34405,9 +34426,11 @@ See you in there!
     // Cross-deck copy lock: counts YOUR copies plus any family copies you can borrow.
     // Every copy already committed to another deck is unavailable here.
     const _copies = (deckOwnedMerged && deckOwnedMerged[c.id]) ? deckOwnedMerged[c.id] : 0;
-    const _usedElsewhere = otherDeckUse[c.id] || 0;
+    // Copies committed to OTHER decks \u2014 mine (otherDeckUse, excludes the open deck) plus any family
+    // member's deck (familyDeckUse). A card your father-in-law put in his deck counts here too.
+    const _usedElsewhere = (otherDeckUse[c.id] || 0) + (familyDeckUse[c.id] || 0);
     if(_copies > 0 && _usedElsewhere >= _copies){
-      return {ok:false, reason: _copies===1 ? "In another deck" : `All ${_copies} copies are in other decks`};
+      return {ok:false, reason: (familyDeckUse[c.id]||0) > 0 ? "In a deck (yours or family)" : _copies===1 ? "In another deck" : `All ${_copies} copies are in other decks`};
     }
 
     // ── Format restrictions ──────────────────────────────────────────────────────────────────
@@ -34467,7 +34490,8 @@ See you in there!
           : `All ${slots} Apex slots used (${insertUnlocks} from Inserts + ${Math.min(4,foilHotDogs)} from Foil Hot Dogs)`};
       }
     }
-    return{ok:true};
+    const _free = Math.max(0, _copies - _usedElsewhere);
+    return{ok:true, free:_free, copies:_copies, committed:_usedElsewhere};
   }
   // PERF: filters AND sorts the full 36k checklist — was running on every render of the whole
   // collector app, including while you type in the card database.
