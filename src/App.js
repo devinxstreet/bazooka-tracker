@@ -26418,7 +26418,10 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
       const sampleCardNums = cards.slice(0,8).map(c=>`${c.setName}|${c.cardNum}`);
       const allSetNames = [...new Set(cards.map(c=>c.setName))].slice(0,40);
       const cardNumsWithBPL = cards.filter(c=>String(c.cardNum||"").toLowerCase().includes("bpl")||String(c.cardNum||"").toLowerCase().includes("25")).slice(0,10).map(c=>`${c.setName}|${c.cardNum}`);
-      const _dbg = { orphanCount: orphanIds.length, importPrefixes, sampleCardNums, allSetNames, cardNumsWithBPL, totalCards: cards.length };
+      const _norm = s => String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+      const _curByNorm = {}; cards.forEach(c=>{ const n=_norm(c.cardNum); (_curByNorm[n]=_curByNorm[n]||[]).push(c.setName+"|"+c.cardNum); });
+      const _probe = orphanIds.slice(0,6).map(o=>{ const tail=o.split("_").slice(1).join("_"); const n=_norm(tail); return { orphan:o, norm:n, exact:(_curByNorm[n]||[]).slice(0,3) }; });
+      const _dbg = { orphanCount: orphanIds.length, importPrefixes, sampleCardNums, allSetNames, cardNumsWithBPL, totalCards: cards.length, probe: _probe };
       setHealDebug(_dbg); console.log("HEAL DEBUG:", _dbg);
       const props = orphanIds.map(oldId => {
         const candidates = matchOldId(oldId, byStable, byCardNum);
@@ -26600,6 +26603,7 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
                           <div>sample current cardNums: {JSON.stringify(healDebug.sampleCardNums)}</div>
                           <div>cards matching bpl/25: {JSON.stringify(healDebug.cardNumsWithBPL)}</div>
                           <div>set names in db: {JSON.stringify(healDebug.allSetNames)}</div>
+                          <div>PROBE: {JSON.stringify(healDebug.probe)}</div>
                         </div>
                       )}
                       <div style={{fontSize:11,color:"rgba(255,255,255,0.55)",marginBottom:8,lineHeight:1.5}}>
