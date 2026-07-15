@@ -27175,7 +27175,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, familyOwnerByCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, familyOwnerByCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -27198,6 +27198,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const deckSet = useMemo(()=>new Set(deckCards), [deckCards]);
   const inDeck = useMemo(()=>cards.filter(c=>deckSet.has(c.id)), [cards, deckSet]);
   const isSpec = deckType==="spec"||deckType==="vegasbaby", isAM = deckType==="apexmadness";
+  const [deckListView, setDeckListView] = useState("mine");   // "mine" | "family"
   const dupKey = c=>`${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
   const inDeckDupKeys = new Set(inDeck.map(dupKey));
   const powerCount = {}; inDeck.forEach(c=>{const p=c.power||"0"; powerCount[p]=(powerCount[p]||0)+1;});
@@ -27799,7 +27800,36 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                   {inDeck.length>0 && (
                     <button onClick={()=>{ setPickChecked({}); setShowPickList(true); }} style={{width:"100%",marginTop:8,background:"rgba(123,156,255,0.1)",border:"1px solid rgba(123,156,255,0.4)",color:"#7B9CFF",borderRadius:8,padding:"8px 0",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>📋 Pick List ({inDeck.length})</button>
                   )}
-                  {savedDecks.length>0 && (
+                  {(savedDecks.length>0 || familyDecks.length>0) && (
+                    <>
+                      {familyDecks.length>0 && (
+                        <div style={{display:"flex",gap:6,marginTop:10,marginBottom:2}}>
+                          {[["mine","My decks"],["family","\uD83D\uDC6A Family"]].map(([v,l])=>(
+                            <button key={v} onClick={()=>setDeckListView(v)}
+                              style={{background:deckListView===v?"rgba(232,49,122,0.15)":"transparent",border:`1px solid ${deckListView===v?"#E8317A":"rgba(255,255,255,0.1)"}`,color:deckListView===v?"#E8317A":"rgba(255,255,255,0.45)",borderRadius:8,padding:"5px 12px",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+                          ))}
+                        </div>
+                      )}
+                      {deckListView==="family" && familyDecks.length>0 ? (
+                        <div style={{display:"flex",flexDirection:"column",gap:12,marginTop:8}}>
+                          {familyDecks.map(g => (
+                            <div key={g.friendUid}>
+                              <div style={{fontSize:10.5,fontWeight:800,color:"#4ade80",marginBottom:6}}>{g.friendName}</div>
+                              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                                {g.decks.map(d => (
+                                  <a key={d.id} href={`/deck/${d.id}`} target="_blank" rel="noreferrer"
+                                    title={`${(d.cardCount ?? (d.cardIds||[]).length)} cards \u2014 opens read-only`}
+                                    style={{display:"flex",alignItems:"center",gap:5,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"4px 9px",textDecoration:"none"}}>
+                                    <span style={{color:"#ccc",fontSize:11.5,fontWeight:700,maxWidth:130,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.name||"Untitled"}</span>
+                                    <span style={{fontSize:9.5,color:"rgba(255,255,255,0.3)"}}>{(d.cardCount ?? (d.cardIds||[]).length)}</span>
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                          <div style={{fontSize:10,color:"rgba(255,255,255,0.3)"}}>Family decks open read-only in a new tab.</div>
+                        </div>
+                      ) : (
                     <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:8}}>
                       {savedDecks.map(d=>(
                         <div key={d.id} style={{display:"flex",alignItems:"center",gap:3,background:deckLoadId===d.id?"#1A1A2E":"#1a1a1a",border:`1px solid ${deckLoadId===d.id?"#7B9CFF":"#2a2a2a"}`,borderRadius:7,padding:"3px 8px"}}>
@@ -27821,6 +27851,8 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         </div>
                       ))}
                     </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -31085,6 +31117,25 @@ See you in there!
     );
     return () => unsubs.forEach(u => { try{u();}catch(e){} });
   }, [user, friends.filter(f=>f.isFamily).map(f=>f.friendUid).sort().join(","), owned]);
+
+  // Family members' saved decks, grouped by member, for the "Family" toggle in the deck builder.
+  // boba_decks is public-read, so this is a scoped watch per family member. Read-only for us.
+  const [familyDecks, setFamilyDecks] = useState([]);
+  useEffect(() => {
+    if (!user) { setFamilyDecks([]); return; }
+    const fam = friends.filter(f => f.isFamily);
+    if (!fam.length) { setFamilyDecks([]); return; }
+    const byUid = {};
+    const unsubs = fam.map(f =>
+      onSnapshot(query(collection(db,"boba_decks"), where("userId","==",f.friendUid)), snap => {
+        byUid[f.friendUid] = { friendUid:f.friendUid, friendName:f.friendName||"Family",
+          decks: snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")) };
+        setFamilyDecks(Object.values(byUid).filter(g => g.decks.length > 0));
+      }, e => console.error("family decks listen failed:", e))
+    );
+    return () => unsubs.forEach(u => { try{u();}catch(e){} });
+  }, [user, friends.filter(f=>f.isFamily).map(f=>f.friendUid).sort().join(",")]);
+
 
 
   // Borrow ledger: card loans between me and family (as borrower or owner).
@@ -38283,7 +38334,7 @@ See you in there!
             cards={cards} owned={owned} inp={inp}
             familyOwnerByCard={familyOwnerByCard} deckOwnedMerged={deckOwnedMerged}
             canAddToDeck={canAddToDeck} isMobile={isMobile}
-            savedDecks={savedDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
+            savedDecks={savedDecks} familyDecks={familyDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
             saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} setFanDeck={setFanDeck} setFanMode={setFanMode}
             deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} deckSource={deckSource} setDeckSource={setDeckSource} computeDeckProgress={computeDeckProgress} listings={listings} setActiveTab={setActiveTab} deckLegality={deckLegality}
           />
