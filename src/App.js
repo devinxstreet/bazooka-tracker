@@ -31079,6 +31079,9 @@ See you in there!
   const [pageScan, setPageScan] = useState(null);   // { status:"scanning"|"review"|"error", rows:[...], message }
   const [pageSel,  setPageSel]  = useState(new Set());  // matched-card ids currently checked to add
   const [pageBusy, setPageBusy] = useState(false);
+  // Voice-to-add: speak a card, confirm the match, add it.
+  const [voiceState, setVoiceState] = useState(null);  // { status:"listening"|"result"|"nomatch"|"error", transcript, matches, picked, message }
+  const voiceRecRef = useRef(null);
   const scanInFlight = useRef(false);
   const [scanSession,   setScanSession]   = useState([]);
   const [scanQty,       setScanQty]       = useState(1);
@@ -33924,6 +33927,62 @@ See you in there!
     return { match, candidates };
   }
 
+  // ── VOICE MATCHER ──────────────────────────────────────────────────────────────────────────
+  // Take a spoken phrase like "alpha update bojax green battlefoil" and rank cards by how well
+  // the card's own words (set, hero, weapon, treatment) appear in what was said. Speech mangles
+  // unusual hero names ("bojax" -> "bo jacks"), so matching is word-overlap + fuzzy, not exact.
+  function voiceMatchCards(transcript) {
+    const said = String(transcript||"").toLowerCase().replace(/[^a-z0-9\s]/g," ").replace(/\s+/g," ").trim();
+    if (!said) return [];
+    const saidWords = said.split(" ").filter(w => w.length > 1);
+    const saidSet = new Set(saidWords);
+    const saidJoined = saidWords.join("");
+
+    // Levenshtein for fuzzy single-word compare (handles a misheard syllable).
+    const lev = (a,b) => {
+      if (!a||!b) return Math.max((a||"").length,(b||"").length);
+      const m=[]; for(let i=0;i<=b.length;i++) m[i]=[i];
+      for(let j=0;j<=a.length;j++) m[0][j]=j;
+      for(let i=1;i<=b.length;i++) for(let j=1;j<=a.length;j++)
+        m[i][j] = b[i-1]===a[j-1] ? m[i-1][j-1] : Math.min(m[i-1][j-1],m[i][j-1],m[i-1][j])+1;
+      return m[b.length][a.length];
+    };
+    // Does any spoken word (fuzzily) match this target word?
+    const wordHit = (target) => {
+      const t = String(target||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+      if (!t || t.length < 2) return false;
+      if (saidSet.has(t)) return true;
+      if (saidJoined.includes(t) && t.length >= 4) return true;   // ran-together speech
+      const tol = Math.max(1, Math.floor(t.length * 0.25));
+      return saidWords.some(w => { const ww=w.replace(/[^a-z0-9]/g,""); return ww.length>2 && lev(ww,t) <= tol; });
+    };
+    // Score every phrase field: fraction of its words that were heard, weighted.
+    const fieldScore = (val, weight) => {
+      const words = String(val||"").toLowerCase().replace(/[^a-z0-9\s]/g," ").split(/\s+/).filter(w=>w.length>1);
+      if (!words.length) return 0;
+      const hits = words.filter(wordHit).length;
+      return (hits / words.length) * weight;
+    };
+
+    const scored = cards.map(c => {
+      let s = 0;
+      s += fieldScore(c.hero,      60);   // hero is the anchor
+      s += fieldScore(c.weapon,    28);
+      s += fieldScore(c.treatment, 26);
+      s += fieldScore(c.setName,   22);
+      // Spoken bare number ("number forty seven" is rare; digits more likely) — light bonus.
+      if (c.cardNum && saidSet.has(String(c.cardNum).toLowerCase())) s += 20;
+      return { card:c, score:s };
+    }).filter(x => x.score > 20)          // require at least a solid hero-ish hit
+      .sort((a,b) => b.score - a.score);
+
+    // Dedup by card id, keep the top handful.
+    const seen = new Set();
+    return scored.filter(x => { if(seen.has(x.card.id)) return false; seen.add(x.card.id); return true; })
+                 .slice(0, 6).map(x => x.card);
+  }
+
+
   async function scanCardPhoto(file) {
     if (scanInFlight.current) return; // prevent overlapping scans when scanning back-to-back
     scanInFlight.current = true;
@@ -34139,6 +34198,72 @@ See you in there!
       alert("Couldn't add cards: " + (e?.message||e));
     } finally { setPageBusy(false); }
   }
+
+  // Start listening for a spoken card. Uses the browser's built-in speech recognition (on-device,
+  // no server). Not supported in every browser — we tell the user if it's unavailable.
+  function startVoiceAdd() {
+    if (!user) { setSigningIn(true); return; }
+    const SR = typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
+    if (!SR) {
+      setVoiceState({ status:"error", message:"Your browser doesn't support voice input. Chrome or Safari on your phone works best." });
+      return;
+    }
+    try {
+      // Stop any previous session.
+      if (voiceRecRef.current) { try { voiceRecRef.current.abort(); } catch(_){} }
+      const rec = new SR();
+      rec.lang = "en-US";
+      rec.interimResults = false;
+      rec.maxAlternatives = 3;
+      rec.continuous = false;
+      voiceRecRef.current = rec;
+      setVoiceState({ status:"listening" });
+      rec.onresult = (ev) => {
+        // Try each alternative transcript, keep the one that yields the best matches.
+        let best = [], bestT = "";
+        for (let i = 0; i < (ev.results[0]?.length || 0); i++) {
+          const t = ev.results[0][i].transcript;
+          const m = voiceMatchCards(t);
+          if (m.length && (!best.length || m.length > best.length)) { best = m; bestT = t; }
+          if (!bestT) bestT = t;
+        }
+        if (best.length) setVoiceState({ status:"result", transcript: bestT, matches: best, picked: best[0].id });
+        else setVoiceState({ status:"nomatch", transcript: bestT });
+      };
+      rec.onerror = (ev) => {
+        const msg = ev.error === "not-allowed" ? "Microphone access was blocked. Enable it for this site and try again."
+          : ev.error === "no-speech" ? "Didn't catch anything — tap the mic and try again."
+          : `Voice error: ${ev.error}`;
+        setVoiceState({ status:"error", message: msg });
+      };
+      rec.onend = () => { setVoiceState(s => (s && s.status === "listening") ? { status:"nomatch", transcript:"" } : s); };
+      rec.start();
+    } catch(e) {
+      setVoiceState({ status:"error", message: e?.message || "Couldn't start voice input." });
+    }
+  }
+
+  // Add the confirmed voice-matched card to the collection.
+  async function addVoiceCard() {
+    const st = voiceState;
+    if (!st || !st.picked) return;
+    const card = cards.find(c => c.id === st.picked);
+    if (!card) return;
+    try {
+      const next = { ...owned, [card.id]: (parseInt(owned[card.id])||0) + 1 };
+      setOwned(next);
+      await setDoc(doc(db,"boba_owned",user.uid), next);
+      const newLot = { id: uid(), cardId: card.id, cost:null, value:null, method:"voice", date:new Date().toISOString().split("T")[0], notes:"voice add", photoUrl:"" };
+      const mergedLots = [...lots, newLot];
+      setLots(mergedLots);
+      try { await setDoc(doc(db,"boba_lots",user.uid), { lots: mergedLots }); } catch(_){}
+      showToast(`Added ${card.hero}`);
+      setVoiceState(null);
+    } catch(e) {
+      alert("Couldn't add: " + (e?.message||e));
+    }
+  }
+
 
 
   async function confirmScan(card,qty,opts={}) {
@@ -37817,6 +37942,9 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   <input type="file" accept="image/*" capture="environment" style={{display:"none"}}
                     onChange={e=>{ const f=e.target.files?.[0]; if(f) scanPagePhoto(f); e.target.value=""; }}/>
                 </label>
+                <button onClick={startVoiceAdd} title="Say a card out loud to add it" style={{background:"linear-gradient(135deg,rgba(168,85,247,0.2),rgba(232,49,122,0.2))",color:"#C084FC",border:"1px solid rgba(168,85,247,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",whiteSpace:"nowrap"}}>
+                  {isMobile ? "\uD83C\uDFA4" : "\uD83C\uDFA4 Say a Card"}
+                </button>
                   <button onClick={async ()=>{ if(_cardAdmin){ try{ setToast("Regenerating fast snapshot…"); const snap2=await getDocs(collection(db,"boba_checklist")); const all=snap2.docs.map(d=>({id:d.id,...d.data()})); await writeCardSnapshot(all,300); const blob=new Blob([JSON.stringify(all)],{type:"application/json"}); await uploadBytes(ref(storage,"card_data/boba_checklist.json"),blob,{contentType:"application/json",cacheControl:"public,max-age=300"}); try{await setDoc(doc(db,"meta","cards_version"),{ts:Date.now(),count:all.length});}catch(e){} }catch(e){} } try{localStorage.removeItem("boba_checklist_cache_v3");}catch(e){} await idbClearCards(); window.location.reload(); }} title={_cardAdmin?"Regenerate fast snapshot & refresh":"Refresh"}
                     style={{background:"rgba(255,255,255,0.05)",color:"rgba(255,255,255,0.6)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:isMobile?"9px 13px":"8px 14px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",whiteSpace:"nowrap"}}>
                     {"\uD83D\uDD04"}</button>
@@ -37986,6 +38114,84 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       </div>
 
       {/* Messages slide-in panel */}
+
+      {/* ── VOICE-TO-ADD ── say a card, confirm the match, add it. */}
+      {voiceState && (
+        <div style={{position:"fixed",inset:0,zIndex:14300,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div style={{width:"100%",maxWidth:460,background:"#101016",border:"1px solid rgba(168,85,247,0.35)",borderRadius:16,padding:"22px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <div style={{fontSize:18,fontWeight:900,color:"#fff"}}>{"\uD83C\uDFA4"} Say a Card</div>
+              <button onClick={()=>{ try{voiceRecRef.current&&voiceRecRef.current.abort();}catch(_){} setVoiceState(null); }} style={{background:"transparent",border:"none",color:"#888",fontSize:24,cursor:"pointer",lineHeight:1}}>{"\u00d7"}</button>
+            </div>
+
+            {voiceState.status==="listening" && (
+              <div style={{padding:"30px 0",textAlign:"center"}}>
+                <div style={{width:76,height:76,borderRadius:"50%",background:"radial-gradient(circle,rgba(168,85,247,0.35),rgba(168,85,247,0.05))",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",animation:"bzPulse 1.2s ease-in-out infinite"}}>
+                  <span style={{fontSize:34}}>{"\uD83C\uDFA4"}</span>
+                </div>
+                <style>{`@keyframes bzPulse{0%,100%{box-shadow:0 0 0 0 rgba(168,85,247,0.4);}50%{box-shadow:0 0 0 16px rgba(168,85,247,0);}}`}</style>
+                <div style={{fontSize:15,fontWeight:800,color:"#fff",marginBottom:6}}>Listening\u2026</div>
+                <div style={{fontSize:12.5,color:"rgba(255,255,255,0.5)"}}>Say the set, hero, weapon and treatment \u2014 e.g. "Alpha Update BoJax Green Battlefoil"</div>
+              </div>
+            )}
+
+            {voiceState.status==="result" && (() => {
+              const picked = cards.find(c => c.id === voiceState.picked) || voiceState.matches[0];
+              return (
+                <div>
+                  <div style={{fontSize:11.5,color:"rgba(255,255,255,0.4)",marginBottom:10}}>Heard: "{voiceState.transcript}"</div>
+                  <div style={{display:"flex",gap:12,alignItems:"center",background:"rgba(168,85,247,0.08)",border:"1px solid rgba(168,85,247,0.3)",borderRadius:12,padding:12,marginBottom:12}}>
+                    <div style={{width:54,height:72,borderRadius:7,overflow:"hidden",background:"#0a0a0f",flexShrink:0}}>
+                      {picked.imageUrl ? <img src={picked.imageUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : <div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,color:"#555",textAlign:"center",padding:3}}>{picked.hero}</div>}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>{picked.hero}</div>
+                      <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>{[picked.treatment,picked.weapon,picked.cardNum?`#${picked.cardNum}`:""].filter(Boolean).join(" \u00b7 ")}</div>
+                      <div style={{fontSize:11,color:"rgba(255,255,255,0.35)"}}>{picked.setName}</div>
+                    </div>
+                  </div>
+                  {voiceState.matches.length > 1 && (
+                    <div style={{marginBottom:12}}>
+                      <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:6}}>Not right? Pick another:</div>
+                      <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                        {voiceState.matches.map(c => (
+                          <button key={c.id} onClick={()=>setVoiceState(s=>({...s,picked:c.id}))}
+                            style={{display:"flex",alignItems:"center",gap:8,textAlign:"left",background:c.id===voiceState.picked?"rgba(168,85,247,0.15)":"rgba(255,255,255,0.03)",border:"1px solid "+(c.id===voiceState.picked?"rgba(168,85,247,0.4)":"rgba(255,255,255,0.08)"),borderRadius:8,padding:"7px 10px",cursor:"pointer",fontFamily:"inherit"}}>
+                            <span style={{fontSize:12.5,fontWeight:700,color:"#fff"}}>{c.hero}</span>
+                            <span style={{fontSize:10.5,color:"rgba(255,255,255,0.45)"}}>{[c.treatment,c.weapon,c.cardNum?`#${c.cardNum}`:""].filter(Boolean).join(" \u00b7 ")}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div style={{display:"flex",gap:9}}>
+                    <button onClick={addVoiceCard} style={{flex:1,background:"linear-gradient(135deg,#4ade80,#22c55e)",color:"#06240f",border:"none",borderRadius:10,padding:"12px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{"\u2705"} Add this card</button>
+                    <button onClick={startVoiceAdd} title="Try again" style={{background:"rgba(168,85,247,0.15)",border:"1px solid rgba(168,85,247,0.35)",color:"#C084FC",borderRadius:10,padding:"12px 14px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\uD83C\uDFA4"}</button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {voiceState.status==="nomatch" && (
+              <div style={{padding:"20px 6px",textAlign:"center"}}>
+                <div style={{fontSize:28,marginBottom:10}}>{"\uD83E\uDD14"}</div>
+                <div style={{fontSize:14,fontWeight:800,color:"#fff",marginBottom:6}}>No match found</div>
+                {voiceState.transcript ? <div style={{fontSize:12,color:"rgba(255,255,255,0.45)",marginBottom:16}}>Heard: "{voiceState.transcript}"</div> : <div style={{fontSize:12,color:"rgba(255,255,255,0.45)",marginBottom:16}}>Didn't catch that.</div>}
+                <button onClick={startVoiceAdd} style={{background:"linear-gradient(135deg,#A855F7,#E8317A)",color:"#fff",border:"none",borderRadius:10,padding:"11px 22px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{"\uD83C\uDFA4"} Try again</button>
+              </div>
+            )}
+
+            {voiceState.status==="error" && (
+              <div style={{padding:"20px 6px",textAlign:"center"}}>
+                <div style={{fontSize:28,marginBottom:10}}>{"\u26a0\ufe0f"}</div>
+                <div style={{fontSize:12.5,color:"rgba(255,255,255,0.6)",marginBottom:16,lineHeight:1.5}}>{voiceState.message}</div>
+                <button onClick={()=>setVoiceState(null)} style={{background:"rgba(255,255,255,0.08)",border:"1px solid #333",color:"#fff",borderRadius:10,padding:"10px 20px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
 
       {/* ── MULTI-CARD PAGE SCAN: review + deselect grid ── */}
       {pageScan && (
