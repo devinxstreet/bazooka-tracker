@@ -33908,7 +33908,7 @@ See you in there!
       // Fallback: if hero wasn't read at all, exact number + (if present) hero agreement — never number-alone across heroes
       if(!match&&!iHero&&iNum){const cands=cards.filter(c=>normNum(c.cardNum)===iNum);if(cands.length===1)match=cands[0];}
 
-      if(match){ setPhotoScan({status:"matched",card:match,detected:data,scanPhoto:display}); setScanQty(1); return; }
+      if(match){ return { match, candidates: [] }; }   // pure: no UI side-effects
 
       // No single confident match -- suggest candidates. Prefer this hero's cards (weapon/treatment/power ranking).
       let pool = heroCards.length ? heroCards : cards;
