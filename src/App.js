@@ -160,12 +160,20 @@ const DECK_FORMATS = {
   //   2. Great Grandma Linoleum Battlefoil (treatment)
   //   3. ANY card with the Gum weapon      (weapon — so Inspired Ink Gum counts, not just Bubblegum)
   // Expressed as groups rather than treatments because #3 is a weapon match, not a treatment match.
-  gghilo:      { label:"GG HiLo",                 short:"GG HILO",     size:60, perPower:6,
+  gghilo:      { label:"GG HiLo (Captain)",       short:"GG CAPT",     size:60, perPower:6,
                  groups:[
                    { id:"grandma",      label:"Grandma's Linoleum",       min:10, match:c=>(c.treatment||"")==="Grandma's Linoleum Battlefoil" },
                    { id:"greatgrandma", label:"Great Grandma Linoleum",   min:10, match:c=>(c.treatment||"")==="Great Grandma Linoleum Battlefoil" },
                    { id:"gum",          label:"Gum weapon (any insert)",  min:10, match:c=>canonWeapon(c.weapon)==="Gum" },
                  ] },
+  // GG HiLo (Coach) — identical legal pool to Captain, but the auto-builder fills with your LOWEST
+  // power cards instead of your highest. The `lowPower` flag flips the power-preference sorts.
+  gghilo_coach:{ label:"GG HiLo (Coach)",         short:"GG COACH",    size:60, perPower:6, lowPower:true,
+    groups:[
+      { id:"grandma",      label:"Grandma's Linoleum",       min:10, match:c=>(c.treatment||"")==="Grandma's Linoleum Battlefoil" },
+      { id:"greatgrandma", label:"Great Grandma Linoleum",   min:10, match:c=>(c.treatment||"")==="Great Grandma Linoleum Battlefoil" },
+      { id:"gum",          label:"Gum weapon (any insert)",  min:10, match:c=>canonWeapon(c.weapon)==="Gum" },
+    ] },
   // Madness: start from a 60-card Spec deck. Every 10 matching Inserts (= treatments) unlocks one
   // Apex Hero (>160), max 6. Four different Foil Hot Dogs unlock four more. Optimised = 70.
   apexmadness: { label:"Apex Madness",            short:"MADNESS",     size:70, perPower:6,
@@ -15367,6 +15375,7 @@ const SHARED_DECK_RULES = {
   specplus:["Up to 70 Heroes","A complete 60-card \u2264160 core is REQUIRED","Then up to 10 higher: 165 \u00D72, 170 \u00D72, one each of 175\u2013200","Nothing above 200"],
   elite:["Up to 60 cards","8,250 TOTAL power across the whole deck","No Trainer cards","Max 6 at any power level"],
   brawl:["Up to 60 cards","Brawl weapon only","Max 6 at any power level"],
+  gghilo_coach:["Up to 60 cards (lowest-power build)","Grandma\u2019s Linoleum (min 10)","Great Grandma Linoleum (min 10)","Any Gum-weapon card (min 10)"],
   gghilo:["Up to 60 cards","Grandma\u2019s Linoleum (min 10)","Great Grandma Linoleum (min 10)","Any Gum-weapon card (min 10)"],
   powerglove:["60 cards","Power Glove treatment only","Every card must be unique"],
   blast:["30-card deck","2025 Alpha Blast cards only","Max 3 at any power level"],
@@ -28444,9 +28453,18 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     "Max 6 cards at any power level",
                   ]},
                   brawl:{c:"#EF4444",icon:"\uD83E\uDD4A",title:"Brawl",rules:["Up to 60 cards","Every card must have the Brawl weapon","Max 6 cards at any power level"]},
-                  gghilo:{c:"#C084FC",icon:"\uD83D\uDC75",title:"GG HiLo",rules:[
+                  gghilo:{c:"#C084FC",icon:"\uD83D\uDC75",title:"GG HiLo (Captain)",rules:[
                     "Up to 60 cards",
                     "No power cap",
+                    "ONLY these three groups are legal:",
+                    "\u2003\u2022 Grandma\u2019s Linoleum Battlefoil (min 10)",
+                    "\u2003\u2022 Great Grandma Linoleum Battlefoil (min 10)",
+                    "\u2003\u2022 Any card with the Gum weapon (min 10) \u2014 any insert, not just Bubblegum",
+                    "Max 6 cards at any power level",
+                  ]},
+                  gghilo_coach:{c:"#60A5FA",icon:"\uD83D\uDCCB",title:"GG HiLo (Coach)",rules:[
+                    "Up to 60 cards",
+                    "Same legal pool as Captain \u2014 auto-build picks your LOWEST power cards",
                     "ONLY these three groups are legal:",
                     "\u2003\u2022 Grandma\u2019s Linoleum Battlefoil (min 10)",
                     "\u2003\u2022 Great Grandma Linoleum Battlefoil (min 10)",
@@ -30712,29 +30730,6 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const [cardSize, setCardSize] = useState(200); // grid card min-width in px, adjustable via slider
   const showToast = (msg) => { try { setToast(msg); setTimeout(()=>{ try{setToast(null);}catch(e){} }, 3500); } catch(e){} };
 
-  // Watch for NEW notifications and pop a prominent, impossible-to-miss card. On first load we just
-  // record what's already there (no pop for a backlog); after that, any newly-arrived alert pops.
-  useEffect(() => {
-    const ids = new Set(wantNotifs.map(n=>n.id));
-    if (notifSeenRef.current === null) { notifSeenRef.current = ids; return; }   // prime, don't pop backlog
-    const fresh = wantNotifs.filter(n => !notifSeenRef.current.has(n.id));
-    notifSeenRef.current = ids;
-    if (!fresh.length) return;
-    const n = fresh[0];
-    const type = String(n.type||"");
-    const isTrade = type.startsWith("trade_");
-    const title = type==="trade_offer" ? `${n.fromName||"Someone"} sent you a trade`
-      : type==="trade_accepted" ? `${n.fromName||"Someone"} accepted your trade`
-      : type==="trade_agreed" ? `${n.fromName||"Someone"} agreed \u2014 your move`
-      : type==="trade_countered" ? `${n.fromName||"Someone"} added their side`
-      : type==="trade_declined" ? `${n.fromName||"Someone"} declined your trade`
-      : type==="want_tradeable" ? `A card you want is up for trade`
-      : `${n.cardName||"A card"} you want is on the marketplace`;
-    const sub = fresh.length>1 ? `+${fresh.length-1} more notification${fresh.length-1===1?"":"s"}` : (isTrade ? "Tap to open My Trades" : "Tap to view it");
-    setNotifPop({ title, sub, image: n.cardImage||null, view: isTrade?"trades":"sale" });
-    const t = setTimeout(()=>setNotifPop(null), 7000);
-    return () => clearTimeout(t);
-  }, [wantNotifs]);
 
   const [cards,         setCards]         = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return cc;} } catch(e){} return []; });
   const [foundInMap,    setFoundInMap]    = useState(()=>{ try { const r=localStorage.getItem("found_in_v1"); return r?JSON.parse(r):{}; } catch(e){ return {}; } }); // live {set|treatment: [packIds]}
@@ -31302,6 +31297,30 @@ See you in there!
   const [counterSent,   setCounterSent]   = useState(false);
   const [negHistory,    setNegHistory]    = useState([]);
   const [wantNotifs,    setWantNotifs]    = useState([]);
+
+  // Watch for NEW notifications and pop a prominent, impossible-to-miss card. On first load we just
+  // record what's already there (no pop for a backlog); after that, any newly-arrived alert pops.
+  useEffect(() => {
+    const ids = new Set(wantNotifs.map(n=>n.id));
+    if (notifSeenRef.current === null) { notifSeenRef.current = ids; return; }   // prime, don't pop backlog
+    const fresh = wantNotifs.filter(n => !notifSeenRef.current.has(n.id));
+    notifSeenRef.current = ids;
+    if (!fresh.length) return;
+    const n = fresh[0];
+    const type = String(n.type||"");
+    const isTrade = type.startsWith("trade_");
+    const title = type==="trade_offer" ? `${n.fromName||"Someone"} sent you a trade`
+      : type==="trade_accepted" ? `${n.fromName||"Someone"} accepted your trade`
+      : type==="trade_agreed" ? `${n.fromName||"Someone"} agreed \u2014 your move`
+      : type==="trade_countered" ? `${n.fromName||"Someone"} added their side`
+      : type==="trade_declined" ? `${n.fromName||"Someone"} declined your trade`
+      : type==="want_tradeable" ? `A card you want is up for trade`
+      : `${n.cardName||"A card"} you want is on the marketplace`;
+    const sub = fresh.length>1 ? `+${fresh.length-1} more notification${fresh.length-1===1?"":"s"}` : (isTrade ? "Tap to open My Trades" : "Tap to view it");
+    setNotifPop({ title, sub, image: n.cardImage||null, view: isTrade?"trades":"sale" });
+    const t = setTimeout(()=>setNotifPop(null), 7000);
+    return () => clearTimeout(t);
+  }, [wantNotifs]);
   const [trackingInputs, setTrackingInputs] = useState({}); // {saleId: {num,carrier}}
 
   // -- Super Foil Tracker --
@@ -35227,6 +35246,8 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     };
     // Tiebreak sorter: same-priority cards ordered YOURS first, then family.
     const mineFirst = (a,b) => (isMine(b)?1:0) - (isMine(a)?1:0);
+    // Power preference: Captain builds want the HIGHEST power first; Coach (lowPower) the LOWEST.
+    const powerCmp = (a,b) => F.lowPower ? (powerOf(a)-powerOf(b)) : (powerOf(b)-powerOf(a));
 
     // ── APEX MADNESS: SMART structured build ──
     // Work backwards from your best apex cards. For each apex (highest power first), check if you
@@ -35413,7 +35434,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
         if (!g.min) continue;
         const pool = ownedCards
           .filter(c => g.match(c))
-          .sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
+          .sort((a,b)=>powerCmp(a,b)||mineFirst(a,b));
         let got = 0;
         for (const c of pool) {
           if (got >= g.min || usable.length >= DECK_SIZE) break;
@@ -35454,7 +35475,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       // Everything else: bucket by power, walk tiers high → low.
       const tiers = {};
       ownedCards.forEach(c => { const p = powerOf(c); (tiers[p] = tiers[p]||[]).push(c); });
-      const tierPowers = Object.keys(tiers).map(Number).sort((a,b)=>b-a);
+      const tierPowers = Object.keys(tiers).map(Number).sort((a,b)=>F.lowPower?(a-b):(b-a));
 
       for (const p of tierPowers) {
         if (usable.length >= DECK_SIZE) break;
