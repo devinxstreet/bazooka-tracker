@@ -31924,6 +31924,7 @@ See you in there!
   // (updates boba_decks) instantly recomputes what's available to borrow — just like your own
   // collection updates live.
   const familyRawRef = useRef({}); // { famUid: { owned:{}, locked:{}, name } }
+  const familyRecomputeRef = useRef(null); // debounce the availability rebuild during the load burst
   useEffect(() => {
     const familyMembers = friends.filter(f => f.isFamily);
     if (!familyMembers.length) { familyRawRef.current = {}; setFamilyAvail({}); return; }
@@ -31945,6 +31946,11 @@ See you in there!
       });
       setFamilyAvail(next);
     };
+    // Coalesce the flurry of listener callbacks on first load into a single rebuild.
+    const scheduleRecompute = () => {
+      if (familyRecomputeRef.current) clearTimeout(familyRecomputeRef.current);
+      familyRecomputeRef.current = setTimeout(recompute, 60);
+    };
 
     // Seed raw entries and subscribe two live listeners per family member.
     const unsubs = [];
@@ -31956,23 +31962,23 @@ See you in there!
       // Live: their owned collection
       unsubs.push(onSnapshot(doc(db,"boba_owned",uid2), snap => {
         familyRawRef.current[uid2] = { ...(familyRawRef.current[uid2]||{name:f.friendName,locked:{}}), owned: snap.exists()?snap.data():{} };
-        recompute();
+        scheduleRecompute();
       }));
       // Live: their saved decks → which card copies are locked
       unsubs.push(onSnapshot(query(collection(db,"boba_decks"), where("userId","==",uid2)), snap => {
         const lockedCount = {};
         snap.forEach(d => { const seen=new Set(); (d.data().cardIds||[]).forEach(cid=>{ if(seen.has(cid))return; seen.add(cid); lockedCount[cid]=(lockedCount[cid]||0)+1; }); });
         familyRawRef.current[uid2] = { ...(familyRawRef.current[uid2]||{name:f.friendName,owned:{}}), locked: lockedCount };
-        recompute();
+        scheduleRecompute();
       }));
     });
 
     // Drop raw entries for anyone no longer family.
     const stillFamily = new Set(familyMembers.map(f=>f.friendUid));
     Object.keys(familyRawRef.current).forEach(uid2 => { if(!stillFamily.has(uid2)) delete familyRawRef.current[uid2]; });
-    recompute();
+    scheduleRecompute();
 
-    return () => { unsubs.forEach(u => { try{u();}catch(e){} }); };
+    return () => { unsubs.forEach(u => { try{u();}catch(e){} }); if(familyRecomputeRef.current) clearTimeout(familyRecomputeRef.current); };
   }, [friends.filter(f=>f.isFamily).map(f=>f.friendUid).sort().join(",")]);// eslint-disable-line react-hooks/exhaustive-deps
   // ── Cards of MINE that are locked into a deck ────────────────────────────────────────────────
   // A card committed to a deck — yours OR a family member's — shouldn't be tradeable out from under
@@ -35348,18 +35354,32 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
   // full family collections each time — that made the card grid janky. Memoized so they only
   // rebuild when their real inputs change.
   const otherDeckUse = useMemo(() => {
+    // Count each card across every saved deck (one copy per deck max), then reconcile the deck that's
+    // OPEN in the editor: swap its saved snapshot for the LIVE editor contents (deckCards). This is
+    // the correct source of truth — using a stale deckLoadId to fully exclude a deck let a just-saved
+    // deck's cards look free again, while ignoring the editor let a card removed on screen stay locked.
     const m = {};
+    const editing = deckLoadId ? (savedDecks||[]).find(d => d.id === deckLoadId) : null;
     (savedDecks||[]).forEach(d => {
-      if (d.id === deckLoadId) return; // skip the deck being edited
+      // For the open deck, skip its saved snapshot here; we re-add its LIVE contents below.
+      if (editing && d.id === deckLoadId) return;
       const seenInThisDeck = new Set();
       (d.cardIds||[]).forEach(cid => {
-        if (seenInThisDeck.has(cid)) return; // a deck uses at most one copy of a given card
+        if (seenInThisDeck.has(cid)) return;
         seenInThisDeck.add(cid);
         m[cid] = (m[cid]||0) + 1;
       });
     });
+    // Add the open editor's current cards as that deck's contribution (live, not saved).
+    if (editing) {
+      const seen = new Set();
+      (deckCards||[]).forEach(cid => {
+        if (seen.has(cid)) return; seen.add(cid);
+        m[cid] = (m[cid]||0) + 1;
+      });
+    }
     return m;
-  }, [savedDecks, deckLoadId]);
+  }, [savedDecks, deckLoadId, deckCards]);
 
   // Cards of MINE that a FAMILY member has committed to one of THEIR decks. otherDeckUse only sees
   // my own decks, so without this, a card your father-in-law slotted into his deck still shows as
