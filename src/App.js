@@ -37949,6 +37949,8 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                    : n.type==="trade_accepted" ? `${n.fromName||"Someone"} accepted your trade`
                    : n.type==="trade_declined" ? `${n.fromName||"Someone"} declined your trade`
                    : n.type==="trade_cancelled" ? `${n.fromName||"Someone"} cancelled a trade`
+                        : n.type==="trade_agreed"   ? `${n.fromName||"Someone"} agreed \u2014 your move`
+                        : n.type==="trade_countered" ? `${n.fromName||"Someone"} added their side`
                    : n.cardName}
                 </span>
                 {/* Every notification type gets its own line. This used to branch only on
@@ -37959,6 +37961,8 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                    : n.type==="trade_accepted" ? <>Send your cards and add tracking</>
                    : n.type==="trade_declined" ? <>No cards changed hands</>
                    : n.type==="trade_cancelled" ? <>Your cards are released back for trading</>
+                          : n.type==="trade_agreed"   ? <>They agreed to the terms — open My Trades to accept</>
+                          : n.type==="trade_countered" ? <>They added their side — review it in My Trades</>
                    : n.type==="want_tradeable" ? <>{n.traderName} will trade it</>
                    : <>by {n.sellerName||"Seller"} {"\u00b7"} ${(n.askingPrice||0).toFixed(2)}</>}
                 </span>
