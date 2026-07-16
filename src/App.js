@@ -37957,7 +37957,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   {quickAddOpen && (
                     <>
                       <div onClick={()=>setQuickAddOpen(false)} style={{position:"fixed",inset:0,zIndex:2147483600}}/>
-                      <div style={{position:"absolute",top:"110%",right:0,zIndex:2147483601,background:"#141018",border:"1px solid rgba(232,49,122,0.3)",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.5)",padding:6,minWidth:210}}>
+                      <div style={{position:"fixed",top:isMobile?92:116,right:isMobile?12:24,zIndex:2147483601,background:"#141018",border:"1px solid rgba(232,49,122,0.3)",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.5)",padding:6,minWidth:210}}>
                         <div style={{fontSize:10,fontWeight:800,color:"#71717a",textTransform:"uppercase",letterSpacing:1,padding:"6px 10px 4px"}}>Add to collection</div>
                         <button onClick={()=>{ setQuickAddOpen(false); setScanModal(true); }} style={{display:"flex",alignItems:"center",gap:10,width:"100%",background:"transparent",border:"none",color:"#eee",borderRadius:8,padding:"10px 10px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}
                           onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
