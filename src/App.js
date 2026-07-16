@@ -722,24 +722,33 @@ function GlobalStyles() {
       .bz-fin-card:hover{border-color:var(--bz-line-2)!important;transform:translateY(-2px);box-shadow:var(--bz-shadow);}
       .bz-mobile-menu{display:none;}
       @media print {
-        /* Print only the pick-list sheet. The sheet lives inside a position:fixed, overflow:auto
-           flex overlay — if we leave that context intact the browser clips to one screen and
-           repeats page 1. So we neutralize the overlay AND the sheet: static flow, no height cap,
-           no overflow, so the full table paginates naturally across pages. */
-        body * { visibility: hidden !important; }
-        .pick-list-sheet, .pick-list-sheet * { visibility: visible !important; }
+        /* Print ONLY the pick-list sheet. The sheet lives inside a position:fixed, display:flex,
+           overflow:auto overlay. Two things cause "page 1 repeats": (1) the fixed/flex/overflow
+           context clipping to one screen, and (2) using visibility:hidden, which keeps the giant
+           app's layout space and spills blank/duplicate pages. So we DISPLAY:NONE the whole app via
+           #root's direct children, then re-show the overlay chain as static block flow. */
+        html, body { height: auto !important; overflow: visible !important; background: #fff !important; }
+        /* Hide everything at the top level... */
+        body > * { display: none !important; }
+        /* ...but keep the React root visible so the overlay inside it can print. */
+        #root { display: block !important; }
+        /* Inside #root, hide the app but keep the ancestor chain of the pick list visible. */
+        #root * { visibility: hidden !important; }
+        .pick-list-overlay, .pick-list-overlay * { visibility: visible !important; }
         .pick-list-overlay {
-          position: static !important; overflow: visible !important; display: block !important;
-          padding: 0 !important; background: #fff !important; backdrop-filter: none !important;
-          height: auto !important; inset: auto !important;
+          position: absolute !important; left: 0 !important; top: 0 !important; right: auto !important; bottom: auto !important;
+          inset: auto !important; overflow: visible !important; display: block !important;
+          padding: 0 !important; margin: 0 !important; background: #fff !important; backdrop-filter: none !important;
+          height: auto !important; max-height: none !important; width: 100% !important; z-index: auto !important;
+          align-items: initial !important; justify-content: initial !important;
         }
         .pick-list-sheet {
-          position: static !important; box-shadow: none !important; border-radius: 0 !important;
+          position: static !important; display: block !important; box-shadow: none !important; border-radius: 0 !important;
           max-width: 100% !important; width: 100% !important; margin: 0 !important;
           max-height: none !important; height: auto !important; overflow: visible !important;
-          padding: 0 !important;
+          padding: 0 !important; transform: none !important;
         }
-        .pick-list-sheet table { page-break-inside: auto; }
+        .pick-list-sheet table { page-break-inside: auto; width: 100% !important; }
         .pick-list-sheet tr { page-break-inside: avoid; page-break-after: auto; }
         .pick-list-sheet thead { display: table-header-group; }
         .pick-list-controls { display: none !important; }
@@ -31008,6 +31017,7 @@ See you in there!
   const [kidsModal, setKidsModal] = useState(false);
   const [sellModal, setSellModal] = useState(null);   // the card being sold/traded
   const [soldView, setSoldView] = useState(false);    // the "formerly owned" list
+  const [soldSearch, setSoldSearch] = useState("");   // filter Formerly-owned by partner name / card
 
   // ── FORMERLY OWNED (sold / traded / gifted) ────────────────────────────────────────────────
   // Selling a card decrements the owned quantity (2 → 1) rather than deleting it, and writes a
@@ -37619,14 +37629,30 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
         <div onClick={()=>setSoldView(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(3px)",zIndex:13000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2f2f2f",borderRadius:16,padding:22,width:"100%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column",boxShadow:"0 24px 70px rgba(0,0,0,0.7)"}}>
             <div style={{fontSize:16,fontWeight:800,color:"#fff",marginBottom:2}}>📜 Formerly owned</div>
-            <div style={{fontSize:11.5,color:"#9a9a9a",marginBottom:14}}>
-              Cards you've sold, traded, or given away. These don't count toward your collection — the record is just here so nothing is ever really lost.
+            <div style={{fontSize:11.5,color:"#9a9a9a",marginBottom:12}}>
+              Cards you've sold, traded, or given away. These don't count toward your collection — the record is just here so nothing gets lost. Search a trade partner's name to see everything that went to them.
             </div>
+            {soldLog.length > 0 && (
+              <input value={soldSearch} onChange={e=>setSoldSearch(e.target.value)} placeholder="Search partner name or card (e.g. Avalogaming)"
+                style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",color:"#fff",borderRadius:8,padding:"9px 12px",fontSize:13,fontFamily:"inherit",marginBottom:12,boxSizing:"border-box"}}/>
+            )}
             {soldLog.length===0 ? (
               <div style={{fontSize:12.5,color:"#9a9a9a",textAlign:"center",padding:"30px 0"}}>Nothing here yet.</div>
-            ) : (
+            ) : (() => {
+              const q = soldSearch.trim().toLowerCase();
+              const rows = soldLog.filter(e => {
+                if (!q) return true;
+                const c = cards.find(x=>x.id===e.cardId) || {};
+                const hay = [e.note||"", c.hero||"", c.treatment||"", c.weapon||"", c.setName||"", c.cardNum||""].join(" ").toLowerCase();
+                return hay.includes(q);
+              });
+              // When searching, tally how many cards match — useful for "how many went to Avalogaming".
+              const matchCount = rows.reduce((s,e)=>s+(e.qty||1),0);
+              return (
               <div style={{overflowY:"auto",display:"flex",flexDirection:"column",gap:6}}>
-                {soldLog.map(e=>{
+                {q && <div style={{fontSize:11,color:"#4ade80",fontWeight:700,marginBottom:2}}>{matchCount} card{matchCount===1?"":"s"} match "{soldSearch.trim()}"</div>}
+                {rows.length===0 && <div style={{fontSize:12,color:"#9a9a9a",textAlign:"center",padding:"20px 0"}}>No matches. Note: only cards with a partner name typed in their trade note are searchable by partner.</div>}
+                {rows.map(e=>{
                   const c = cards.find(x=>x.id===e.cardId) || {};
                   const REASON = { sold:"Sold", traded:"Traded", gifted:"Gifted", lost:"Lost" };
                   return (
@@ -37650,8 +37676,8 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                     </div>
                   );
                 })}
-              </div>
-            )}
+                    </div>
+                    ); })()}
             <button onClick={()=>setSoldView(false)} style={{marginTop:14,width:"100%",background:"transparent",border:"1px solid #333",color:"#c9c9c9",borderRadius:8,padding:"9px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
           </div>
         </div>
@@ -42468,6 +42494,7 @@ function repColor(b) { return BC[b]?.text || "#E8317A"; }
 
 function Finance({ streams=[], userRole, quotes=[] }) {
   const [expenses,    setExpenses]    = useState([]);
+  const [lots,        setLots]        = useState([]);   // card-purchase lots (boba_lots/{uid})
   const [loading,     setLoading]     = useState(true);
   const [showAdd,     setShowAdd]     = useState(false);
   const [editId,      setEditId]      = useState(null);
@@ -42483,6 +42510,16 @@ function Finance({ streams=[], userRole, quotes=[] }) {
       setExpenses(snap.docs.map(d => ({...d.data(), id:d.id})).sort((a,b)=>b.date.localeCompare(a.date)));
       setLoading(false);
     });
+    return () => unsub();
+  }, []);
+  // Card-purchase lots live in boba_lots/{uid} for the signed-in admin. Every lot with a cost is a
+  // business purchase, so it feeds cash-out below (deduped against accepted quotes for the same buy).
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) { setLots([]); return; }
+    const unsub = onSnapshot(doc(db, "boba_lots", uid), snap => {
+      setLots(snap.exists() ? (snap.data().lots || []) : []);
+    }, e => { console.error("finance lots load failed:", e); setLots([]); });
     return () => unsub();
   }, []);
 
@@ -42516,7 +42553,29 @@ function Finance({ streams=[], userRole, quotes=[] }) {
   }));
   const totalLotPurchases = lotPurchases.reduce((s,l)=>s+l.amount,0);
 
-  const totalAutoOut = totalLotPurchases;
+  // Card lots imported WITH a cost are business purchases too. Sum this month's lot costs, but avoid
+  // double-counting a buy that was ALSO logged as an accepted quote above: we drop any lot cost whose
+  // amount matches an accepted-quote total on the same day (that's the same purchase entered twice).
+  const _quoteDayAmt = new Set(lotPurchases.map(q => `${q.date}|${Math.round(q.amount)}`));
+  const monthLots = (lots||[]).filter(l => {
+    const c = parseFloat(l.cost||0);
+    if (c <= 0) return false;
+    const d = (l.date||"").slice(0,7);
+    if (d && d !== selMonth) return false;      // no date -> still counted
+    return true;
+  });
+  // Group lot costs by day so a multi-card lot bought together dedupes as one purchase against a quote.
+  const _lotByDay = {};
+  monthLots.forEach(l => { const day=(l.date||"").slice(0,10)||"—"; _lotByDay[day]=(_lotByDay[day]||0)+parseFloat(l.cost||0); });
+  let totalLotCostOut = 0;
+  const lotCostRows = [];
+  Object.entries(_lotByDay).forEach(([day, amt]) => {
+    if (_quoteDayAmt.has(`${day}|${Math.round(amt)}`)) return; // same buy already counted as a quote
+    totalLotCostOut += amt;
+    lotCostRows.push({ key:`lot-${day}`, label:`Card lot purchase`, date:day, amount:amt });
+  });
+
+  const totalAutoOut = totalLotPurchases + totalLotCostOut;
   const totalManualOut = monthExp.reduce((s,e) => s + (parseFloat(e.amount)||0), 0);
   const totalOut    = totalAutoOut + totalManualOut;
   const cashFlow    = netRevIn - totalOut;
@@ -42708,13 +42767,13 @@ function Finance({ streams=[], userRole, quotes=[] }) {
       )}
 
       {/* Auto-deductions */}
-      {lotPurchases.length > 0 && (
+      {(lotPurchases.length > 0 || lotCostRows.length > 0) && (
         <div style={{background:"var(--bz-s1)",border:"1px solid var(--bz-line)",borderRadius:12,padding:"18px 20px"}}>
           <div style={{fontSize:13,fontWeight:800,color:"var(--bz-ink)",marginBottom:14}}>⚡ Auto-Calculated Expenses</div>
           <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {/* Lot purchases */}
+            {/* Lot purchases (accepted seller quotes) */}
             {lotPurchases.map(l=>(
-              <div key={l.key} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",background:"rgba(251,191,36,0.05)",border:"1px solid rgba(251,191,36,0.15)",borderRadius:8}}>
+              <div key={l.key} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",background:"var(--bz-s2)",borderRadius:8}}>
                 <div>
                   <div style={{fontSize:12,fontWeight:700,color:"var(--bz-ink)"}}>📦 {l.label}</div>
                   <div style={{fontSize:10,color:"var(--bz-ink-3)",marginTop:1}}>Accepted lot · {l.date}</div>
@@ -42722,9 +42781,19 @@ function Finance({ streams=[], userRole, quotes=[] }) {
                 <div style={{fontSize:14,fontWeight:900,color:"#FBBF24"}}>−{fmt(l.amount)}</div>
               </div>
             ))}
-            <div style={{display:"flex",justifyContent:"space-between",padding:"6px 12px",borderTop:"1px solid var(--bz-line)",marginTop:4}}>
-              <div style={{fontSize:11,color:"var(--bz-ink-3)",fontWeight:700}}>Lot Purchases Total</div>
-              <div style={{fontSize:13,fontWeight:900,color:"#FBBF24"}}>−{fmt(totalLotPurchases)}</div>
+            {/* Card lots imported with a cost (deduped against the accepted quotes above) */}
+            {lotCostRows.map(l=>(
+              <div key={l.key} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",background:"var(--bz-s2)",borderRadius:8}}>
+                <div>
+                  <div style={{fontSize:12,fontWeight:700,color:"var(--bz-ink)"}}>🃏 {l.label}</div>
+                  <div style={{fontSize:10,color:"var(--bz-ink-3)",marginTop:1}}>Imported lot cost · {l.date}</div>
+                </div>
+                <div style={{fontSize:14,fontWeight:900,color:"#FBBF24"}}>−{fmt(l.amount)}</div>
+              </div>
+            ))}
+            <div style={{display:"flex",justifyContent:"space-between",padding:"6px 12px",borderTop:"1px solid var(--bz-line)",marginTop:2}}>
+              <div style={{fontSize:11,color:"var(--bz-ink-3)",fontWeight:700}}>Auto Expenses Total</div>
+              <div style={{fontSize:13,fontWeight:900,color:"#FBBF24"}}>−{fmt(totalAutoOut)}</div>
             </div>
           </div>
         </div>
