@@ -39494,7 +39494,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   </button>
                 );
               })()}
-              <select value={sortBy} onChange={e=>{setSortBy(e.target.value);setPage(1);}} style={{...inp,width:150,cursor:"pointer"}}>
+              <select value={sortBy} onChange={e=>{setSortBy(e.target.value);setPage(1);}} style={{...inp,width:isMobile?"auto":150,minWidth:110,cursor:"pointer"}}>
                 <option value="cardNum">Card #</option>
                 <option value="hero">{"Hero A\u2192Z"}</option>
                 <option value="power">{"Power (High \u2192 Low)"}</option>
@@ -39507,13 +39507,13 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
               </div>
               <button onClick={()=>setAnimsOn(v=>!v)} title={animsOn?"Animations on — tap to turn off the add-card celebration & effects":"Animations off — tap to turn back on"} style={{background:animsOn?"rgba(232,49,122,0.12)":"transparent",color:animsOn?"#E8317A":"rgba(255,255,255,0.35)",border:`1.5px solid ${animsOn?"rgba(232,49,122,0.4)":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"6px 13px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{animsOn?"✨ Animations On":"✨ Animations Off"}</button>
               {user && <button onClick={()=>{ if(selectMode) exitSelectMode(); else setSelectMode(true); }} title="Select multiple cards for bulk actions" style={{background:selectMode?"rgba(123,156,255,0.2)":"transparent",color:selectMode?"#7B9CFF":"rgba(255,255,255,0.35)",border:`1.5px solid ${selectMode?"#7B9CFF":"rgba(255,255,255,0.1)"}`,borderRadius:20,padding:"6px 13px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{selectMode?"✕ Done":"☑️ Select"}</button>}
-              {cardView==="grid" && <div style={{display:"flex",alignItems:"center",gap:7,padding:"0 4px"}} title="Drag to resize cards">
+              {cardView==="grid" && !isMobile && <div style={{display:"flex",alignItems:"center",gap:7,padding:"0 4px"}} title="Drag to resize cards">
                 <span style={{fontSize:13,color:"rgba(255,255,255,0.3)"}}>🃏</span>
                 <input type="range" min="110" max="360" step="10" value={cardSize} onChange={e=>setCardSize(Number(e.target.value))} style={{width:90,accentColor:"#E8317A",cursor:"pointer"}}/>
                 <span style={{fontSize:18,color:"rgba(255,255,255,0.3)"}}>🃏</span>
               </div>}
               {user&&(
-                <div style={{display:"flex",gap:4}}>
+                <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
                   {[["all","All"],["owned","\u2705 Owned"],["missing","\u274C Missing"],["free","\uD83D\uDD13 Free to trade"],["indeck","\uD83D\uDCD8 In a deck"]].map(([v,l])=>(
                     <button key={v} onClick={()=>{setFilterOwned(v);setPage(1);}} style={{background:filterOwned===v?"rgba(232,49,122,0.15)":"transparent",color:filterOwned===v?"#E8317A":"rgba(255,255,255,0.4)",border:`1.5px solid ${filterOwned===v?"#E8317A":"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>{l}</button>
                   ))}
