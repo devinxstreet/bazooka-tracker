@@ -15641,6 +15641,7 @@ function SharedTradePackage({ packageId }) {
           <div style={{display:"inline-block",fontSize:11,fontWeight:800,letterSpacing:1,color:"#4ade80",background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:20,padding:"4px 12px",marginBottom:12}}>{"\uD83E\uDD1D"} TRADE PACKAGE</div>
           <div style={{fontSize:26,fontWeight:900,color:"#fff",marginBottom:6}}>{pkg.title || "Trade package"}</div>
           <div style={{fontSize:13,color:"rgba(255,255,255,0.5)"}}>From {pkg.ownerName || "a collector"} {"\u00b7"} {totalCards} card{totalCards===1?"":"s"}</div>
+          {pkg.totalValue > 0 && <div style={{marginTop:12,display:"inline-block",background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.35)",borderRadius:10,padding:"8px 16px"}}><span style={{fontSize:12,color:"rgba(255,255,255,0.55)",fontWeight:700}}>Total value{"  "}</span><span style={{fontSize:20,fontWeight:900,color:"#4ade80"}}>${Number(pkg.totalValue).toFixed(2)}</span></div>}
           {pkg.note && <div style={{marginTop:14,fontSize:14,lineHeight:1.6,color:"rgba(255,255,255,0.8)",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"12px 15px"}}>{pkg.note}</div>}
           {pkg.contact && (
             <div style={{marginTop:14,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
@@ -15661,6 +15662,7 @@ function SharedTradePackage({ packageId }) {
                 {it.playName && <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{it.playName}</div>}
                 <div style={{fontSize:10.5,color:"rgba(255,255,255,0.4)",marginTop:3}}>{[it.treatment, it.cardNum?("#"+it.cardNum):""].filter(Boolean).join(" \u00b7 ")}</div>
                 {(parseInt(it.qty)||1) > 1 && <div style={{fontSize:10.5,fontWeight:800,color:"#4ade80",marginTop:3}}>{"\u00d7"}{it.qty} available</div>}
+                {Number(it.value) > 0 && <div style={{fontSize:13,fontWeight:900,color:"#4ade80",marginTop:3}}>${Number(it.value).toFixed(2)}</div>}
               </div>
             </div>
           ))}
@@ -25650,7 +25652,7 @@ function TradeView({ user, traders, matchCount, wantList, onViewProfile, setActi
   );
 }
 
-function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, allMyOffers, marketSales, trackingInputs, setTrackingInputs, setListModal, setOfferModal, setOfferAmt, setOfferNote, setOfferSent, setCounterModal, setCounterAmt, buyNow, respondOffer, unsellListing, saveTracking, setSigningIn, setActiveTab, inp , listType, cards, owned, search, removeListing, tradeIndex=[], wantList={}, tradeBait={}, tradeOffers=[], onSendTrade, onRespondTrade, onCancelTrade, onTradeTracking, onTradeReceived, initialView}) {
+function MarketTab({ onMarkTraded, onEditPackage, user, myListings, listings, onViewProfile, WEAPON_COLORS, allMyOffers, marketSales, trackingInputs, setTrackingInputs, setListModal, setOfferModal, setOfferAmt, setOfferNote, setOfferSent, setCounterModal, setCounterAmt, buyNow, respondOffer, unsellListing, saveTracking, setSigningIn, setActiveTab, inp , listType, cards, owned, search, removeListing, tradeIndex=[], wantList={}, tradeBait={}, tradeOffers=[], onSendTrade, onRespondTrade, onCancelTrade, onTradeTracking, onTradeReceived, initialView}) {
   // Sale and trade are the same idea in different currencies, so they sit side by side.
   const [mktView, setMktView] = useState(initialView || "sale");   // "sale" | "trade" | "trades"
   // My trade packages (shareable links) — loaded here so they live in the marketplace too.
@@ -25689,6 +25691,20 @@ function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, a
     try { await deleteDoc(doc(db,"boba_trade_packages",pid)); setMktPkgs(l=>(l||[]).filter(p=>p.id!==pid)); }
     catch(e){ alert("Couldn't delete: "+(e?.message||e)); }
   }
+  const [mktTradingId, setMktTradingId] = useState(null);
+  async function mktMarkTraded(pk) {
+    const count = (pk.items||[]).reduce((s,it)=>s+(parseInt(it.qty)||1),0);
+    if (!window.confirm(`Mark this package as traded?\n\nThis removes ${count} card${count===1?"":"s"} from your collection and logs them to your Ledger as traded. This can't be undone in bulk.`)) return;
+    setMktTradingId(pk.id);
+    try {
+      await onMarkTraded(pk);
+      // Once traded, retire the package + its link so it's not re-sent by accident.
+      try { await deleteDoc(doc(db,"boba_trade_packages",pk.id)); } catch(e){}
+      setMktPkgs(l=>(l||[]).filter(p=>p.id!==pk.id));
+    } catch(e){ alert("Couldn't complete: "+(e?.message||e)); }
+    setMktTradingId(null);
+  }
+
   // A trade notification has to be able to DROP you on the trades view. Without this the View
   // button just opened the marketplace on For Sale, and the offer \u2014 sitting in My Trades \u2014 was
   // nowhere to be seen. Which is exactly the "it worked until I tried to accept" failure.
@@ -25802,7 +25818,7 @@ function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, a
                               <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginTop:2}}>{count} card{count===1?"":"s"}{pk.createdAt?` \u00b7 ${new Date(pk.createdAt).toLocaleDateString()}`:""}</div>
                             </div>
                             <div style={{display:"flex",gap:6,flexShrink:0}}>
-                              <button onClick={()=>mktStartEdit(pk)} style={{background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.4)",color:"#7B9CFF",borderRadius:7,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Edit</button>
+                              <button onClick={()=>{ onEditPackage(pk); setMktPkgs(null); }} style={{background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.4)",color:"#7B9CFF",borderRadius:7,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Edit</button>
                             <button onClick={()=>mktDeletePkg(pk.id)} style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.4)",color:"#f87171",borderRadius:7,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>Delete</button>
                             </div>
                           </div>
@@ -25837,6 +25853,10 @@ function MarketTab({ user, myListings, listings, onViewProfile, WEAPON_COLORS, a
                             <button onClick={async()=>{ try{ await navigator.clipboard.writeText(url);}catch(e){} }} style={{background:"rgba(74,222,128,0.15)",color:"#4ade80",border:"1px solid rgba(74,222,128,0.4)",borderRadius:7,padding:"0 12px",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Copy</button>
                             <a href={url} target="_blank" rel="noreferrer" style={{background:"rgba(123,156,255,0.12)",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.3)",borderRadius:7,padding:"6px 12px",fontSize:11,fontWeight:800,textDecoration:"none",fontFamily:"inherit",whiteSpace:"nowrap"}}>Open</a>
                           </div>
+                        <button onClick={()=>mktMarkTraded(pk)} disabled={mktTradingId===pk.id}
+                          style={{width:"100%",marginTop:8,background:mktTradingId===pk.id?"#333":"rgba(74,222,128,0.14)",border:"1px solid rgba(74,222,128,0.45)",color:mktTradingId===pk.id?"#888":"#4ade80",borderRadius:8,padding:"9px",fontSize:12.5,fontWeight:800,cursor:mktTradingId===pk.id?"wait":"pointer",fontFamily:"inherit"}}>
+                          {mktTradingId===pk.id ? "Marking traded\u2026" : "\u2705 Mark as Traded (remove from collection)"}
+                        </button>
                         </div>
                       );
                     })}
@@ -31062,6 +31082,19 @@ See you in there!
   const [tpTitle,    setTpTitle]    = useState("");
   const [tpNote,     setTpNote]     = useState("");
   const [tpContact,  setTpContact]  = useState("");
+  const [tpValues,   setTpValues]   = useState({});   // cardId -> dollar value for the package
+  const [tpEditId,   setTpEditId]   = useState(null);   // when set, the modal edits this package instead of creating
+  const [tpEditIds,  setTpEditIds]  = useState([]);     // card ids being edited (from the package, not selection)
+  const [tpRemoved,  setTpRemoved]  = useState(new Set());   // cards removed while editing a package
+  // Open the package editor: load its cards, values, and text into the create modal in "edit" mode.
+  function openTradeEditor(pk) {
+    setTpEditId(pk.id);
+    setTpEditIds((pk.items||[]).map(it=>it.id));
+    const vals = {}; (pk.items||[]).forEach(it=>{ if(Number(it.value)>0) vals[it.id]=String(it.value); });
+    setTpValues(vals);
+    setTpTitle(pk.title||""); setTpNote(pk.note||""); setTpContact(pk.contact||"");
+    setTpLink(""); setTpRemoved(new Set()); setTpModal(true);
+  }
   const [tpBusy,     setTpBusy]     = useState(false);
   const [tpLink,     setTpLink]     = useState("");        // resulting share URL after create
   const [tpCopied,   setTpCopied]   = useState(false);
@@ -32263,6 +32296,19 @@ See you in there!
     try { await setDoc(doc(db,"boba_sold",user.uid), { entries: nextLog }); }
     catch(e){ console.error("save sold log failed:", e); }
   }
+
+  // Mark an entire trade package as TRADED: run each card through sellCard(reason:"traded"), which
+  // logs it to the ledger and removes it from the active collection. Used from the package manager.
+  async function markPackageTraded(pkg) {
+    if (!pkg || !Array.isArray(pkg.items)) return;
+    const note = pkg.title ? `Traded: ${pkg.title}` : "Traded (package)";
+    for (const it of pkg.items) {
+      const per = (Number(it.value) || 0);
+      // sellCard handles qty>1 and removes the card when the last copy leaves.
+      await sellCard(it.id, { qty: parseInt(it.qty)||1, reason: "traded", note, price: per||null });
+    }
+  }
+
   // Undo — puts a card back in your collection and removes the ledger entry.
   async function undoSell(entryId) {
     const entry = soldLog.find(e=>e.id===entryId);
@@ -32501,7 +32547,9 @@ See you in there!
   // renders fast and still works even if a card is later re-imported (id drift) \u2014 the snapshot holds.
   async function createTradePackage() {
     if (!user) { setSigningIn(true); return; }
-    const ids = [...selectedIds].filter(id => owned[id]);   // only cards you actually own
+    const _base = tpEditId ? tpEditIds : [...selectedIds].filter(id => owned[id]);
+    const _extra = tpEditId ? [...selectedIds].filter(id => owned[id] && !tpEditIds.includes(id)) : [];
+    const ids = [...new Set([..._base, ..._extra])].filter(id => !tpRemoved.has(id) && owned[id]);   // only cards you own
     if (!ids.length) { alert("Select some cards you own first."); return; }
     setTpBusy(true);
     try {
@@ -32509,9 +32557,9 @@ See you in there!
       const items = cards.filter(c => pick.has(c.id)).map(c => ({
         id: c.id, hero: c.hero||"", playName: c.playName||"", cardNum: c.cardNum||"",
         treatment: c.treatment||"", setName: c.setName||"", weapon: c.weapon||"",
-        power: c.power||"", imageUrl: c.imageUrl || scanPhotoByCard[c.id] || "", isMyPhoto: !c.imageUrl && !!scanPhotoByCard[c.id], qty: parseInt(owned[c.id])||1
+        power: c.power||"", imageUrl: c.imageUrl || scanPhotoByCard[c.id] || "", isMyPhoto: !c.imageUrl && !!scanPhotoByCard[c.id], qty: parseInt(owned[c.id])||1, value: (parseFloat(tpValues[c.id])||0)
       }));
-      const pid = uid();
+      const pid = tpEditId || uid();
       await setDoc(doc(db, "boba_trade_packages", pid), {
         id: pid,
         ownerUid: user.uid,
@@ -32521,8 +32569,9 @@ See you in there!
         contact: tpContact.trim(),
         items,
         cardIds: ids,
-        createdAt: new Date().toISOString()
-      });
+        totalValue: ids.reduce((s,id)=>s+(parseFloat(tpValues[id])||0),0),
+        ...(tpEditId ? { updatedAt: new Date().toISOString() } : { createdAt: new Date().toISOString() })
+      }, { merge: true });
       const url = `${window.location.origin}/trade/${pid}`;
       setTpLink(url);
       try { await navigator.clipboard.writeText(url); setTpCopied(true); setTimeout(()=>setTpCopied(false), 2500); } catch(e){}
@@ -33774,7 +33823,7 @@ See you in there!
         const sref = ref(storage, `scan_photos/${user.uid}/${card.id}_${uid()}.jpg`);
         await uploadString(sref, opts.scanPhoto, "data_url");
         photoUrl = await getDownloadURL(sref);
-      } catch(e) { console.error("scan photo upload failed:", e); }
+      } catch(e) { console.error("scan photo upload failed:", e); alert("⚠️ Your card was added, but the PHOTO couldn't be saved: " + (e?.code || e?.message || e) + "\n\nThis is usually a storage-permissions issue. The card is safe; the photo just didn't upload."); }
     }
 
     // Log acquisition as a lot (one per copy), carrying cost/method/notes + the saved photo
@@ -36464,7 +36513,7 @@ See you in there!
           <button disabled={selectedIds.size===0} onClick={()=>bulkSetPublic(true)} style={{background:selectedIds.size?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)",border:`1px solid ${selectedIds.size?"#4ade80":"#333"}`,color:selectedIds.size?"#4ade80":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>👁 Make Public</button>
           <button disabled={selectedIds.size===0} onClick={()=>bulkSetPublic(false)} style={{background:selectedIds.size?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.04)",border:"1px solid #333",color:selectedIds.size?"#ccc":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>🔒 Make Private</button>
           <button disabled={selectedIds.size===0} onClick={()=>setBulkListModal(true)} style={{background:selectedIds.size?"linear-gradient(135deg,#E8317A,#7B2FF7)":"rgba(255,255,255,0.04)",border:"none",color:selectedIds.size?"#fff":"#555",borderRadius:8,padding:"7px 14px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>💰 List for Sale</button>
-                    <button disabled={selectedIds.size===0} onClick={()=>{ setTpTitle(""); setTpNote(""); setTpContact(""); setTpLink(""); setTpModal(true); }}
+                    <button disabled={selectedIds.size===0} onClick={()=>{ setTpTitle(""); setTpNote(""); setTpContact(""); setTpLink(""); setTpValues({}); setTpRemoved(new Set()); setTpEditId(null); setTpModal(true); }}
                       style={{background:selectedIds.size?"rgba(74,222,128,0.14)":"rgba(255,255,255,0.04)",border:"1px solid "+(selectedIds.size?"rgba(74,222,128,0.5)":"#333"),color:selectedIds.size?"#4ade80":"#555",borderRadius:8,padding:"7px 13px",fontSize:12,fontWeight:700,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
                       {"\uD83E\uDD1D"} Trade Package
                     </button>
@@ -36535,12 +36584,15 @@ See you in there!
 
       {/* ── TRADE PACKAGE MODAL ── build a shareable link from selected owned cards. */}
       {tpModal && (()=>{
-        const ids = [...selectedIds].filter(id => owned[id]);
+                const baseIds = tpEditId ? tpEditIds : [...selectedIds].filter(id => owned[id]);
+                // Let the user fold in any currently-selected cards while editing, too.
+                const extraIds = tpEditId ? [...selectedIds].filter(id => owned[id] && !tpEditIds.includes(id)) : [];
+                const ids = [...new Set([...baseIds, ...extraIds])].filter(id => !tpRemoved.has(id));
         const n = ids.length;
         return (
-          <div onClick={()=>!tpBusy&&setTpModal(false)} style={{position:"fixed",inset:0,zIndex:13500,background:"rgba(0,0,0,0.8)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div onClick={()=>!tpBusy&&(setTpModal(false),setTpEditId(null))} style={{position:"fixed",inset:0,zIndex:13500,background:"rgba(0,0,0,0.8)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
             <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:440,background:"#15151c",border:"1px solid rgba(74,222,128,0.25)",borderRadius:16,padding:"24px 26px",maxHeight:"88vh",overflowY:"auto"}}>
-              <div style={{fontSize:19,fontWeight:900,color:"#fff",marginBottom:3}}>{"\uD83E\uDD1D"} Trade Package</div>
+              <div style={{fontSize:19,fontWeight:900,color:"#fff",marginBottom:3}}>{"\uD83E\uDD1D"} {tpEditId ? "Edit Trade Package" : "Trade Package"}</div>
               <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginBottom:18}}>{n} card{n===1?"":"s"} you own \u2014 shareable with anyone, no login needed.</div>
               {!tpLink ? (
                 <>
@@ -36548,26 +36600,50 @@ See you in there!
                   <input value={tpTitle} onChange={e=>setTpTitle(e.target.value)} placeholder="e.g. Gold Coin doubles for trade" style={{width:"100%",background:"#0e0e13",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"9px 11px",fontSize:13,fontFamily:"inherit",marginBottom:14,boxSizing:"border-box"}}/>
                   <label style={{fontSize:11,fontWeight:800,color:"#4ade80",display:"block",marginBottom:5}}>Note to the other person <span style={{color:"rgba(255,255,255,0.3)",fontWeight:400}}>(optional)</span></label>
                   <textarea value={tpNote} onChange={e=>setTpNote(e.target.value)} placeholder="What you're looking for in return, condition notes, etc." rows={3} style={{width:"100%",background:"#0e0e13",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"9px 11px",fontSize:13,fontFamily:"inherit",marginBottom:14,boxSizing:"border-box",resize:"vertical"}}/>
+                  <label style={{fontSize:11,fontWeight:800,color:"#4ade80",display:"block",marginBottom:5}}>Card values <span style={{color:"rgba(255,255,255,0.3)",fontWeight:400}}>(optional \u2014 shows a total on the link)</span></label>
+                  <div style={{maxHeight:170,overflowY:"auto",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"6px 8px",marginBottom:8}}>
+                    {ids.map(cid => {
+                      const cc = cards.find(x=>x.id===cid);
+                      if (!cc) return null;
+                      return (
+                        <div key={cid} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0"}}>
+                          <div style={{flex:1,minWidth:0,fontSize:12,color:"#ddd",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{cc.hero} {cc.cardNum?`\u00b7 #${cc.cardNum}`:""}</div>
+                          <div style={{display:"flex",alignItems:"center",gap:3}}>
+                            <span style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>$</span>
+                            <input type="number" min="0" step="0.01" value={tpValues[cid]??""} onChange={e=>setTpValues(v=>({...v,[cid]:e.target.value}))} placeholder="0" style={{width:64,background:"#0e0e13",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,padding:"4px 7px",fontSize:12,fontFamily:"inherit"}}/>
+                          </div>
+                          <button onClick={()=>setTpRemoved(s=>{ const n=new Set(s); n.add(cid); return n; })} title="Remove from package" style={{background:"transparent",border:"none",color:"rgba(239,68,68,0.7)",fontSize:16,cursor:"pointer",lineHeight:1,padding:"0 2px"}}>{"\u00d7"}</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {(() => { const total = ids.reduce((s,cid)=>s+(parseFloat(tpValues[cid])||0),0); return total>0 ? (
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:"rgba(74,222,128,0.08)",border:"1px solid rgba(74,222,128,0.25)",borderRadius:8,padding:"8px 12px",marginBottom:14}}>
+                      <span style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.6)"}}>Package total</span>
+                      <span style={{fontSize:17,fontWeight:900,color:"#4ade80"}}>${total.toFixed(2)}</span>
+                    </div>
+                  ) : <div style={{marginBottom:6}}/>; })()}
+
                   <label style={{fontSize:11,fontWeight:800,color:"#4ade80",display:"block",marginBottom:5}}>How they reach you</label>
                   <input value={tpContact} onChange={e=>setTpContact(e.target.value)} placeholder="Whatnot @, phone, email, Discord\u2026" style={{width:"100%",background:"#0e0e13",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"9px 11px",fontSize:13,fontFamily:"inherit",marginBottom:6,boxSizing:"border-box"}}/>
                   <div style={{fontSize:10.5,color:"rgba(255,255,255,0.35)",marginBottom:18}}>Shown on the shared page so they can reply. Leave blank to hide.</div>
                   <div style={{display:"flex",gap:9}}>
                     <button onClick={createTradePackage} disabled={tpBusy||n===0} style={{flex:1,background:n?"linear-gradient(135deg,#4ade80,#22c55e)":"#222",color:n?"#06240f":"#666",border:"none",borderRadius:9,padding:"11px",fontSize:13.5,fontWeight:800,cursor:tpBusy?"wait":(n?"pointer":"not-allowed"),fontFamily:"inherit"}}>
-                      {tpBusy ? "Creating\u2026" : `Create link for ${n} card${n===1?"":"s"}`}
+                      {tpBusy ? "Creating\u2026" : (tpEditId ? `Save changes (${n} card${n===1?"":"s"})` : `Create link for ${n} card${n===1?"":"s"}`)}
                     </button>
-                    <button onClick={()=>setTpModal(false)} disabled={tpBusy} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:9,padding:"11px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                    <button onClick={()=>{ setTpModal(false); setTpEditId(null); }} disabled={tpBusy} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:9,padding:"11px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
                   </div>
                 </>
               ) : (
                 <>
-                  <div style={{fontSize:13,fontWeight:800,color:"#4ade80",marginBottom:8}}>{"\u2713"} Your trade package is live</div>
+                  <div style={{fontSize:13,fontWeight:800,color:"#4ade80",marginBottom:8}}>{"\u2713"} {tpEditId ? "Trade package updated" : "Your trade package is live"}</div>
                   <div style={{fontSize:12,color:"rgba(255,255,255,0.55)",marginBottom:10}}>Send this link to anyone \u2014 they don't need an account.</div>
                   <div style={{display:"flex",gap:8,marginBottom:16}}>
                     <input readOnly value={tpLink} onClick={e=>e.target.select()} style={{flex:1,background:"#0e0e13",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.3)",borderRadius:8,padding:"9px 11px",fontSize:12,fontFamily:"monospace"}}/>
                     <button onClick={async()=>{ try{ await navigator.clipboard.writeText(tpLink); setTpCopied(true); setTimeout(()=>setTpCopied(false),2000);}catch(e){} }} style={{background:tpCopied?"#22c55e":"rgba(74,222,128,0.15)",color:tpCopied?"#06240f":"#4ade80",border:"1px solid rgba(74,222,128,0.4)",borderRadius:8,padding:"0 14px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{tpCopied?"Copied!":"Copy"}</button>
                   </div>
-                  <button onClick={()=>{ setTpModal(false); setTpLink(""); setTpListOpen(true); loadMyTradePackages(); }} style={{width:"100%",background:"transparent",border:"none",color:"#7B9CFF",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginBottom:8,textDecoration:"underline"}}>See all my trade packages</button>
-                  <button onClick={()=>{ setTpModal(false); setTpLink(""); }} style={{width:"100%",background:"transparent",border:"1px solid #333",color:"#888",borderRadius:9,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
+                  <button onClick={()=>{ setTpModal(false); setTpEditId(null); setTpLink(""); setTpListOpen(true); loadMyTradePackages(); }} style={{width:"100%",background:"transparent",border:"none",color:"#7B9CFF",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginBottom:8,textDecoration:"underline"}}>See all my trade packages</button>
+                  <button onClick={()=>{ setTpModal(false); setTpEditId(null); setTpLink(""); }} style={{width:"100%",background:"transparent",border:"1px solid #333",color:"#888",borderRadius:9,padding:"10px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
                 </>
               )}
             </div>
@@ -39383,7 +39459,9 @@ See you in there!
             tradeOffers={tradeOffers} onSendTrade={sendTradeOffer} onRespondTrade={respondTradeOffer}
             onCancelTrade={cancelTradeOffer} onTradeTracking={saveTradeTracking} onTradeReceived={confirmTradeReceived}
             initialView={mktInitView}
-          />
+                onMarkTraded={markPackageTraded}
+                onEditPackage={openTradeEditor}
+              />
         )}
 
         {/* MESSAGES TAB */}
