@@ -31075,6 +31075,10 @@ See you in there!
   const [colMapConfirmed, setColMapConfirmed] = useState(false);
   const [importing,     setImporting]     = useState(false);
   const [photoScan,     setPhotoScan]     = useState(null);
+  // Multi-card (binder page) scan: one photo -> many detected cards, shown in a deselect grid.
+  const [pageScan, setPageScan] = useState(null);   // { status:"scanning"|"review"|"error", rows:[...], message }
+  const [pageSel,  setPageSel]  = useState(new Set());  // matched-card ids currently checked to add
+  const [pageBusy, setPageBusy] = useState(false);
   const scanInFlight = useRef(false);
   const [scanSession,   setScanSession]   = useState([]);
   const [scanQty,       setScanQty]       = useState(1);
@@ -33815,6 +33819,111 @@ See you in there!
   }, []);
 
   // -- Scan --
+  // Pure single-card matcher extracted from the scan flow: Vision result -> {match, candidates}.
+  // Used by both the single scan and the multi-card binder scan. No UI side-effects.
+  function matchOne(data) {
+    if(!data || (!data.cardNum && !data.hero)) return { match:null, candidates:[] };
+      const normNum=n=>String(n||"").replace(/[\s\-_.#]/g,"").toLowerCase();
+      const clean=s=>String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+      // Levenshtein distance for fuzzy text comparison
+      const lev=(a,b)=>{a=clean(a);b=clean(b);if(!a||!b)return Math.max(a.length,b.length);const m=[];for(let i=0;i<=b.length;i++)m[i]=[i];for(let j=0;j<=a.length;j++)m[0][j]=j;for(let i=1;i<=b.length;i++)for(let j=1;j<=a.length;j++)m[i][j]=b[i-1]===a[j-1]?m[i-1][j-1]:Math.min(m[i-1][j-1]+1,m[i][j-1]+1,m[i-1][j]+1);return m[b.length][a.length];};
+      // Fuzzy hero match: exact, contains, first-name, or close edit distance
+      const heroMatch=(cardHero,id)=>{
+        if(!cardHero||!id)return false;
+        const a=clean(cardHero),b=clean(id);
+        if(!a||!b)return false;
+        if(a===b)return true;
+        if(a.includes(b)||b.includes(a))return true;
+        const aF=cardHero.toLowerCase().split(/\s+/)[0],bF=id.toLowerCase().split(/\s+/)[0];
+        if(clean(aF)===clean(bF)&&aF.length>2)return true;
+        // tolerate OCR typos: allow ~20% character errors
+        const dist=lev(a,b),tol=Math.max(1,Math.floor(Math.max(a.length,b.length)*0.22));
+        return dist<=tol;
+      };
+
+      const iNum=normNum(data.cardNum),iHero=(data.hero||"").toLowerCase(),iWeap=(data.weapon||"").toLowerCase(),iTreat=(data.treatment||"").toLowerCase();
+      const iPow=String(data.power||"").replace(/[^0-9]/g,"");
+      let match=null;
+
+      // HERO-FIRST: hero name is the most reliable read. Find all cards for this hero, then pin the variant.
+      const heroCards = iHero ? cards.filter(c=>heroMatch(c.hero,iHero)) : [];
+
+      if(heroCards.length){
+        // 1. Hero + exact card number. If several cards share this number (same
+        //    set number across weapons/treatments), disambiguate by treatment
+        //    (strong signal) then weapon — only auto-pick a confident winner.
+        if(iNum){
+          const numCards=heroCards.filter(c=>normNum(c.cardNum)===iNum);
+          if(numCards.length===1){ match=numCards[0]; }
+          else if(numCards.length>1){
+            // Try each strong signal in order; take it if it resolves to exactly one card.
+            const byTreat = iTreat ? numCards.filter(c=>c.treatment?.toLowerCase()===iTreat) : [];
+            const byWeap  = iWeap  ? numCards.filter(c=>canonWeapon(c.weapon)===canonWeapon(iWeap)) : [];
+            const byPow   = iPow   ? numCards.filter(c=>String(c.power||"").replace(/[^0-9]/g,"")===iPow) : [];
+            if(byTreat.length===1) match=byTreat[0];
+            else if(byWeap.length===1) match=byWeap[0];
+            else if(byPow.length===1) match=byPow[0];
+            else {
+              // combine weapon+treatment to narrow, then weapon+power
+              const wt = numCards.filter(c=>(!iWeap||canonWeapon(c.weapon)===canonWeapon(iWeap))&&(!iTreat||c.treatment?.toLowerCase()===iTreat));
+              if(wt.length===1) match=wt[0];
+              // else leave null -> candidate suggester shows the shared-number cards
+            }
+          }
+        }
+        // 2. Hero + fuzzy card number (off by 1 char — handles a misread digit)
+        if(!match&&iNum){const cands=heroCards.filter(c=>lev(normNum(c.cardNum),iNum)<=1);if(cands.length===1)match=cands[0];}
+        // 3. Hero + treatment + weapon all agree (no number needed)
+        if(!match&&iTreat&&iWeap) match=heroCards.find(c=>c.treatment?.toLowerCase()===iTreat&&c.weapon?.toLowerCase()===iWeap);
+        // 4. Hero + treatment + power agree
+        if(!match&&iTreat&&iPow){const cands=heroCards.filter(c=>c.treatment?.toLowerCase()===iTreat&&String(c.power||"").replace(/[^0-9]/g,"")===iPow);if(cands.length===1)match=cands[0];}
+        // 5. Hero + treatment, single candidate
+        if(!match&&iTreat){const cands=heroCards.filter(c=>c.treatment?.toLowerCase()===iTreat);if(cands.length===1)match=cands[0];}
+        // 6. Hero + weapon + power, single candidate
+        if(!match&&iWeap&&iPow){const cands=heroCards.filter(c=>c.weapon?.toLowerCase()===iWeap&&String(c.power||"").replace(/[^0-9]/g,"")===iPow);if(cands.length===1)match=cands[0];}
+        // 7. Hero + weapon, single candidate
+        if(!match&&iWeap){const cands=heroCards.filter(c=>c.weapon?.toLowerCase()===iWeap);if(cands.length===1)match=cands[0];}
+        // Weapon->power correlation: when hero+weapon yields several candidates (card number unreadable),
+        // the weapon usually pins a power level. Narrow by power, then treatment, to resolve to one card.
+        if(!match&&iWeap){
+          const wCands=heroCards.filter(c=>c.weapon?.toLowerCase()===iWeap);
+          if(wCands.length>1){
+            let narrow = iPow ? wCands.filter(c=>String(c.power||"").replace(/[^0-9]/g,"")===iPow) : wCands;
+            if(narrow.length===0) narrow = wCands;
+            if(iTreat){ const t=narrow.filter(c=>c.treatment?.toLowerCase()===iTreat); if(t.length) narrow=t; }
+            if(narrow.length===1) match=narrow[0];
+            else if(narrow.length>1){
+              const sig=new Set(narrow.map(c=>`${(c.treatment||"").toLowerCase()}|${c.power}`));
+              if(sig.size===1) match=narrow[0];
+            }
+          }
+        }
+        // 8. Hero has only one card total
+        if(!match&&heroCards.length===1) match=heroCards[0];
+      }
+
+      // Fallback: if hero wasn't read at all, exact number + (if present) hero agreement — never number-alone across heroes
+      if(!match&&!iHero&&iNum){const cands=cards.filter(c=>normNum(c.cardNum)===iNum);if(cands.length===1)match=cands[0];}
+
+      if(match){ setPhotoScan({status:"matched",card:match,detected:data,scanPhoto:display}); setScanQty(1); return; }
+
+      // No single confident match -- suggest candidates. Prefer this hero's cards (weapon/treatment/power ranking).
+      let pool = heroCards.length ? heroCards : cards;
+      const scored=pool.map(c=>{
+        let s=0;
+        if(iHero&&heroMatch(c.hero,iHero))s+=60;          // hero is king
+        if(iNum&&normNum(c.cardNum)===iNum)s+=50;
+        else if(iNum&&lev(normNum(c.cardNum),iNum)<=1)s+=20;
+        if(iTreat&&c.treatment?.toLowerCase()===iTreat)s+=35; // treatment strongly narrows
+        if(iWeap&&c.weapon?.toLowerCase()===iWeap)s+=30;      // weapon narrows the rainbow
+        if(iPow&&String(c.power||"").replace(/[^0-9]/g,"")===iPow)s+=15;
+        return {card:c,score:s};
+      }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score);
+
+      const candidates=scored.slice(0,8).map(x=>x.card);
+    return { match, candidates };
+  }
+
   async function scanCardPhoto(file) {
     if (scanInFlight.current) return; // prevent overlapping scans when scanning back-to-back
     scanInFlight.current = true;
@@ -33957,6 +34066,81 @@ See you in there!
     } catch(e){setPhotoScan({status:"error",message:e.message});}
     finally { scanInFlight.current = false; }
   }
+  // ── MULTI-CARD BINDER SCAN ──────────────────────────────────────────────────────────────────
+  // One photo with several cards -> detect all, match each against the checklist, show a deselect
+  // grid. Everything matched is pre-checked; the user unchecks misses and taps "Add".
+  async function scanPagePhoto(file) {
+    setPageScan({ status:"scanning" });
+    setPageSel(new Set());
+    try {
+      // Resize bigger than a single scan (a page of 9 needs detail to read each card). Max 2000px.
+      const base64 = await new Promise((res,rej) => {
+        const img=new Image(), url=URL.createObjectURL(file);
+        img.onload=()=>{ URL.revokeObjectURL(url);
+          const MAX=2000, scale=Math.min(1,MAX/Math.max(img.width,img.height));
+          const w=Math.round(img.width*scale), h=Math.round(img.height*scale);
+          const c=document.createElement("canvas"); c.width=w; c.height=h;
+          c.getContext("2d").drawImage(img,0,0,w,h);
+          res(c.toDataURL("image/jpeg",0.9).split(",")[1]);
+        };
+        img.onerror=rej; img.src=url;
+      });
+      const resp = await fetch("/api/scan-page", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ imageBase64: base64, mediaType:"image/jpeg" }),
+      });
+      if (!resp.ok) {
+        const e = await resp.json().catch(()=>({}));
+        setPageScan({ status:"error", message: (e.details ? `${e.error}: ${String(e.details).slice(0,140)}` : e.error) || `HTTP ${resp.status}` });
+        return;
+      }
+      const data = await resp.json();
+      const detected = Array.isArray(data.cards) ? data.cards : [];
+      if (!detected.length) { setPageScan({ status:"error", message:"Couldn't read any cards in that photo. Try better lighting, less glare, and get the whole page in frame." }); return; }
+      // Match each detected card against the checklist.
+      const rows = detected.map((d, idx) => {
+        const { match, candidates } = matchOne(d);
+        return {
+          key: `r${idx}`,
+          detected: d,
+          match: match || null,                          // resolved card, or null
+          candidates: (candidates||[]).slice(0,6),       // if ambiguous, offer a pick
+          picked: match ? match.id : null,               // which card id this row will add
+        };
+      });
+      // Pre-select every row that resolved to a confident match.
+      const sel = new Set(rows.filter(r=>r.picked).map(r=>r.key));
+      setPageSel(sel);
+      setPageScan({ status:"review", rows });
+    } catch(e) {
+      setPageScan({ status:"error", message: e?.message || String(e) });
+    }
+  }
+
+  // Add all checked rows to the collection in one write.
+  async function addScannedPage() {
+    if (!user) { setSigningIn(true); return; }
+    const rows = (pageScan?.rows||[]).filter(r => pageSel.has(r.key) && r.picked);
+    if (!rows.length) { alert("Nothing selected to add."); return; }
+    setPageBusy(true);
+    try {
+      const next = { ...owned };
+      rows.forEach(r => { next[r.picked] = (parseInt(next[r.picked])||0) + 1; });
+      setOwned(next);
+      await setDoc(doc(db,"boba_owned",user.uid), next);
+      // Log each as a lot (acquisition), mirroring single-scan bookkeeping — no photo per card here.
+      const newLots = rows.map(r => ({ id: uid(), cardId: r.picked, cost:null, value:null, method:"scan", date:new Date().toISOString().split("T")[0], notes:"binder page scan", photoUrl:"" }));
+      const mergedLots = [...lots, ...newLots];
+      setLots(mergedLots);
+      try { await setDoc(doc(db,"boba_lots",user.uid), { lots: mergedLots }); } catch(_){}
+      showToast(`Added ${rows.length} card${rows.length===1?"":"s"} from the page`);
+      setPageScan(null); setPageSel(new Set());
+    } catch(e) {
+      alert("Couldn't add cards: " + (e?.message||e));
+    } finally { setPageBusy(false); }
+  }
+
+
   async function confirmScan(card,qty,opts={}) {
     if(!user){setSigningIn(true);return;}
     const next={...owned,[card.id]:(owned[card.id]||0)+qty};
@@ -37628,6 +37812,11 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                     onMouseEnter={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.35),rgba(123,47,247,0.35))";}}
                     onMouseLeave={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.2),rgba(123,47,247,0.2))";}}>
                     {isMobile ? "\uD83D\uDCF7" : "\uD83D\uDCF7 Scan"}</button>
+                <label style={{background:"linear-gradient(135deg,rgba(96,165,250,0.2),rgba(52,211,153,0.2))",color:"#60A5FA",border:"1px solid rgba(96,165,250,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",whiteSpace:"nowrap",display:"inline-flex",alignItems:"center"}} title="Scan a whole binder page or a group of cards at once">
+                  {isMobile ? "\uD83D\uDCD2" : "\uD83D\uDCD2 Scan Page"}
+                  <input type="file" accept="image/*" capture="environment" style={{display:"none"}}
+                    onChange={e=>{ const f=e.target.files?.[0]; if(f) scanPagePhoto(f); e.target.value=""; }}/>
+                </label>
                   <button onClick={async ()=>{ if(_cardAdmin){ try{ setToast("Regenerating fast snapshot…"); const snap2=await getDocs(collection(db,"boba_checklist")); const all=snap2.docs.map(d=>({id:d.id,...d.data()})); await writeCardSnapshot(all,300); const blob=new Blob([JSON.stringify(all)],{type:"application/json"}); await uploadBytes(ref(storage,"card_data/boba_checklist.json"),blob,{contentType:"application/json",cacheControl:"public,max-age=300"}); try{await setDoc(doc(db,"meta","cards_version"),{ts:Date.now(),count:all.length});}catch(e){} }catch(e){} } try{localStorage.removeItem("boba_checklist_cache_v3");}catch(e){} await idbClearCards(); window.location.reload(); }} title={_cardAdmin?"Regenerate fast snapshot & refresh":"Refresh"}
                     style={{background:"rgba(255,255,255,0.05)",color:"rgba(255,255,255,0.6)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:isMobile?"9px 13px":"8px 14px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",whiteSpace:"nowrap"}}>
                     {"\uD83D\uDD04"}</button>
@@ -37797,6 +37986,89 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       </div>
 
       {/* Messages slide-in panel */}
+
+      {/* ── MULTI-CARD PAGE SCAN: review + deselect grid ── */}
+      {pageScan && (
+        <div style={{position:"fixed",inset:0,zIndex:14200,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div style={{width:"100%",maxWidth:760,maxHeight:"92vh",display:"flex",flexDirection:"column",background:"#101016",border:"1px solid rgba(96,165,250,0.3)",borderRadius:16,padding:"18px 20px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+              <div style={{fontSize:18,fontWeight:900,color:"#fff"}}>{"\uD83D\uDCD2"} Scan a Page</div>
+              <button onClick={()=>{ if(!pageBusy){ setPageScan(null); setPageSel(new Set()); } }} style={{background:"transparent",border:"none",color:"#888",fontSize:24,cursor:"pointer",lineHeight:1}}>{"\u00d7"}</button>
+            </div>
+
+            {pageScan.status==="scanning" && (
+              <div style={{padding:"48px 0",textAlign:"center"}}>
+                <div style={{fontSize:34,marginBottom:12}}>{"\uD83D\uDD0D"}</div>
+                <div style={{fontSize:15,fontWeight:800,color:"#fff",marginBottom:6}}>Reading the cards\u2026</div>
+                <div style={{fontSize:12.5,color:"rgba(255,255,255,0.5)"}}>Detecting every card in your photo. This can take a few seconds for a full page.</div>
+              </div>
+            )}
+
+            {pageScan.status==="error" && (
+              <div style={{padding:"40px 10px",textAlign:"center"}}>
+                <div style={{fontSize:30,marginBottom:12}}>{"\u26a0\ufe0f"}</div>
+                <div style={{fontSize:14,fontWeight:800,color:"#fff",marginBottom:8}}>Couldn't scan that page</div>
+                <div style={{fontSize:12.5,color:"rgba(255,255,255,0.55)",marginBottom:18,lineHeight:1.5}}>{pageScan.message}</div>
+                <button onClick={()=>{ setPageScan(null); setPageSel(new Set()); }} style={{background:"rgba(255,255,255,0.08)",border:"1px solid #333",color:"#fff",borderRadius:10,padding:"10px 20px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
+              </div>
+            )}
+
+            {pageScan.status==="review" && (() => {
+              const rows = pageScan.rows||[];
+              const matched = rows.filter(r=>r.picked);
+              const unmatched = rows.filter(r=>!r.picked);
+              const selCount = rows.filter(r=>pageSel.has(r.key)&&r.picked).length;
+              return (
+                <>
+                  <div style={{fontSize:12.5,color:"rgba(255,255,255,0.55)",marginBottom:12}}>
+                    Found <strong style={{color:"#fff"}}>{rows.length}</strong> card{rows.length===1?"":"s"} \u2014 <strong style={{color:"#4ade80"}}>{matched.length}</strong> matched. Everything matched is checked; uncheck any that are wrong, then add.
+                  </div>
+                  <div style={{flex:1,overflowY:"auto",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:10,marginBottom:14}}>
+                    {rows.map(r => {
+                      const on = pageSel.has(r.key) && !!r.picked;
+                      const card = r.match;
+                      const d = r.detected;
+                      return (
+                        <div key={r.key} onClick={()=>{ if(!r.picked) return; setPageSel(s=>{ const n=new Set(s); n.has(r.key)?n.delete(r.key):n.add(r.key); return n; }); }}
+                          style={{border:on?"2px solid #4ade80":r.picked?"2px solid rgba(255,255,255,0.12)":"2px dashed rgba(251,191,36,0.4)",borderRadius:10,padding:8,background:on?"rgba(74,222,128,0.06)":"rgba(255,255,255,0.02)",cursor:r.picked?"pointer":"default",position:"relative",opacity:r.picked?1:0.75}}>
+                          {r.picked && <div style={{position:"absolute",top:6,right:6,width:20,height:20,borderRadius:"50%",background:on?"#4ade80":"rgba(255,255,255,0.15)",color:on?"#06240f":"#666",fontSize:13,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>{on?"\u2713":""}</div>}
+                          <div style={{aspectRatio:"3/4",borderRadius:6,overflow:"hidden",background:"#0a0a0f",marginBottom:6}}>
+                            {card?.imageUrl ? <img src={card.imageUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : <div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#555",textAlign:"center",padding:6}}>{card?.hero||d?.hero||"?"}</div>}
+                          </div>
+                          {r.picked ? (
+                            <>
+                              <div style={{fontSize:12,fontWeight:800,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{card.hero}</div>
+                              <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{[card.treatment,card.weapon,card.cardNum?`#${card.cardNum}`:""].filter(Boolean).join(" \u00b7 ")}</div>
+                            </>
+                          ) : (
+                            <>
+                              <div style={{fontSize:11.5,fontWeight:800,color:"#FBBF24"}}>Not matched</div>
+                              <div style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>Read: {d?.hero||"?"}{d?.cardNum?` #${d.cardNum}`:""}</div>
+                              {r.candidates.length>0 && (
+                                <select value="" onChange={e=>{ const cid=e.target.value; if(!cid) return; setPageScan(ps=>({...ps, rows: ps.rows.map(x=>x.key===r.key?{...x,picked:cid,match:cards.find(c=>c.id===cid)||x.match}:x)})); setPageSel(s=>new Set(s).add(r.key)); }}
+                                  onClick={e=>e.stopPropagation()} style={{marginTop:5,width:"100%",fontSize:10,background:"#0e0e13",color:"#ccc",border:"1px solid #333",borderRadius:6,padding:"4px"}}>
+                                  <option value="">Pick the right card\u2026</option>
+                                  {r.candidates.map(c=><option key={c.id} value={c.id}>{c.hero} {c.treatment?`\u00b7 ${c.treatment}`:""} {c.cardNum?`#${c.cardNum}`:""}</option>)}
+                                </select>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{display:"flex",gap:9,alignItems:"center"}}>
+                    <span style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginRight:"auto"}}>{selCount} selected{unmatched.length?` \u00b7 ${unmatched.length} unmatched`:""}</span>
+                    <button onClick={()=>{ setPageScan(null); setPageSel(new Set()); }} disabled={pageBusy} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:10,padding:"11px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                    <button onClick={addScannedPage} disabled={pageBusy||selCount===0} style={{background:selCount>0?"linear-gradient(135deg,#4ade80,#22c55e)":"#222",color:selCount>0?"#06240f":"#666",border:"none",borderRadius:10,padding:"11px 20px",fontSize:13.5,fontWeight:800,cursor:pageBusy?"wait":"pointer",fontFamily:"inherit"}}>{pageBusy?"Adding\u2026":`Add ${selCount} card${selCount===1?"":"s"}`}</button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
 
       {/* ── PROMINENT NOTIFICATION POPUP ── slides in top-center; impossible to miss. */}
       {notifPop && (
@@ -42128,7 +42400,14 @@ function BugAdmin({ user }) {
     return ()=>unsub();
   }, [isAdmin]);
   async function setStatus(id, status) { try { await setDoc(doc(db,"bug_reports",id), { status }, { merge:true }); } catch(e){} }
-  if (!isAdmin) return <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:"#08000a",color:"#E8317A",fontFamily:"'Trebuchet MS',sans-serif",fontWeight:700}}>Admins only.</div>;
+  if (!isAdmin) return (
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100vh",background:"#08000a",color:"#E8317A",fontFamily:"'Trebuchet MS',sans-serif",fontWeight:700,padding:24,textAlign:"center",gap:10}}>
+      <div style={{fontSize:18}}>Admins only.</div>
+      <div style={{fontSize:13,color:"rgba(255,255,255,0.6)",fontWeight:600,maxWidth:420,lineHeight:1.5}}>
+        {user ? <>You're signed in as <strong style={{color:"#fff"}}>{user.email}</strong>, which isn't an admin account. The bug list is only visible to <strong style={{color:"#fff"}}>@bazookabreaks.com</strong> accounts \u2014 sign in with yours to see reports.</> : <>You're not signed in. Sign in with your <strong style={{color:"#fff"}}>@bazookabreaks.com</strong> account to view bug reports.</>}
+      </div>
+    </div>
+  );
   const shown = bugs.filter(b => filter==="all" ? true : (b.status||"open")===filter);
   const sevColor = {minor:"#4ade80",annoying:"#FBBF24",broken:"#E8317A"};
   const counts = { open: bugs.filter(b=>(b.status||"open")==="open").length, resolved: bugs.filter(b=>b.status==="resolved").length };
