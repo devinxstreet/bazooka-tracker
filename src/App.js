@@ -35579,11 +35579,14 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     // Uses allDeckUse (not otherDeckUse): the quick builder proposes a NEW deck, so a card sitting
     // in the deck currently open in the editor is unavailable too.
     const isAvailable = c => {
-      const mine = (_srcMine && owned && owned[c.id]) ? (parseInt(owned[c.id])||1) : 0;
-      const fam = famOwner(c) ? (famOwner(c).copies||1) : 0;
-      const copies = mine + fam;
-        const usedElsewhere = (allDeckUse[c.id] || 0) + (familyDeckUse[c.id] || 0);
-      return copies > usedElsewhere;
+      // Keep YOUR copies and BORROWABLE family copies separate (same rule as the manual builder's
+      // canAddToDeck): a copy already committed to any deck is spent. Merging the two totals would
+      // let a card you own one of — and already used in a saved deck — look available just because
+      // a relative also owns one.
+      const myOwned = (_srcMine && owned && owned[c.id]) ? (parseInt(owned[c.id])||1) : 0;
+      const myFree  = Math.max(0, myOwned - (allDeckUse[c.id] || 0));   // allDeckUse counts EVERY saved deck
+      const famFree = famOwner(c) ? (famOwner(c).copies||1) : 0;         // famOwner already nets out the relative's own deck usage
+      return (myFree + famFree) > 0;
     };
     // Tiebreak sorter: same-priority cards ordered YOURS first, then family.
     const mineFirst = (a,b) => (isMine(b)?1:0) - (isMine(a)?1:0);
