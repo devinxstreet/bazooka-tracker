@@ -31866,10 +31866,10 @@ See you in there!
         snap => setMyListings(snap.docs.map(d=>({...d.data(),id:d.id})))
       ),
       // Marketplace notifications for me (offers on my listings)
-      onSnapshot(query(collection(db,"market_offers"), where("sellerUid","==",uid2), where("notified","==",false)),
+      onSnapshot(query(collection(db,"market_offers"), where("awaitingUid","==",uid2), where("notified","==",false)),
         snap => setMarketNotifs(snap.docs.map(d=>({...d.data(),id:d.id})))
       ),
-      onSnapshot(query(collection(db,"market_offers"), where("sellerUid","==",uid2), where("status","==","pending")),
+      onSnapshot(query(collection(db,"market_offers"), where("awaitingUid","==",uid2), where("status","==","pending")),
         snap => setAllMyOffers(snap.docs.map(d=>({...d.data(),id:d.id})).sort((a,b)=>(b.offerAmount||0)-(a.offerAmount||0)))
       ),
       // Want notifications -- someone listed a card I want
@@ -34595,7 +34595,7 @@ See you in there!
   async function submitOffer() {
     if(!user||!offerModal||!offerAmt)return;
     const offId=uid();
-    await setDoc(doc(db,"market_offers",offId),{id:offId,cardId:offerModal.cardId||offerModal.id,listingId:offerModal.id,cardName:offerModal.cardName,cardImage:offerModal.cardImage||null,cardTreatment:offerModal.cardTreatment||"",cardWeapon:offerModal.cardWeapon||"",setName:offerModal.setName||"",sellerUid:offerModal.sellerUid,sellerName:offerModal.sellerName,buyerUid:user.uid,buyerName:user.displayName||user.email,buyerEmail:user.email,offerAmount:parseFloat(offerAmt)||0,note:offerNote,status:"pending",notified:false,createdAt:new Date().toISOString()});
+    await setDoc(doc(db,"market_offers",offId),{id:offId,cardId:offerModal.cardId||offerModal.id,listingId:offerModal.id,cardName:offerModal.cardName,cardImage:offerModal.cardImage||null,cardTreatment:offerModal.cardTreatment||"",cardWeapon:offerModal.cardWeapon||"",setName:offerModal.setName||"",sellerUid:offerModal.sellerUid,awaitingUid:offerModal.sellerUid,sellerName:offerModal.sellerName,buyerUid:user.uid,buyerName:user.displayName||user.email,buyerEmail:user.email,offerAmount:parseFloat(offerAmt)||0,note:offerNote,status:"pending",notified:false,createdAt:new Date().toISOString()});
     // Increment offer count
     await setDoc(doc(db,"marketplace",offerModal.id),{offerCount:(offerModal.offerCount||0)+1},{merge:true});
     setOfferSent(true);
@@ -35027,10 +35027,11 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
         cardImage: offer.cardImage||null,
         cardTreatment: offer.cardTreatment||"",
         cardWeapon: offer.cardWeapon||"",
-        sellerUid:  iAmSeller ? offer.buyerUid  : offer.sellerUid,
-        sellerName: iAmSeller ? offer.buyerName  : offer.sellerName,
-        buyerUid:   iAmSeller ? offer.sellerUid  : offer.buyerUid,
-        buyerName:  iAmSeller ? offer.sellerName : offer.buyerName,
+        sellerUid:  offer.sellerUid,
+        sellerName: offer.sellerName,
+        buyerUid:   offer.buyerUid,
+        buyerName:  offer.buyerName,
+        awaitingUid: (offer.sellerUid === user.uid) ? offer.buyerUid : offer.sellerUid,   // the OTHER party responds next
         offerAmount: amt,
         isCounter: true,
         status: "pending",
