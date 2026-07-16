@@ -22766,7 +22766,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                      <div style={{ fontSize:16, fontWeight:800, color:"#E8317A", marginBottom:4 }}>Tap to scan a card</div>
                      <div style={{ fontSize:12, color:"var(--bz-ink-3)" }}>Opens camera to identify the card</div>
                    </div>
-                   <input type="file" accept="image/*" capture="environment"
+                   <input type="file" accept="image/*"
                      onChange={e=>{ const f=e.target.files?.[0]; if(f){ setPhotoScan(null); scanCardPhoto(f); } e.target.value=""; }}
                      style={{ position:"absolute", opacity:0, width:1, height:1, pointerEvents:"none" }}/>
                  </label>
@@ -22822,7 +22822,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                       </button>
                       <label style={{ background:"#1a1a1a", color:"var(--bz-ink-3)", border:"1px solid var(--bz-line-2)", borderRadius:8, padding:"10px 14px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center" }}>
                         Retake
-                        <input type="file" accept="image/*" capture="environment" onChange={e=>{ const f=e.target.files[0]; if(f){ setPhotoScan(null); setScanQty(1); scanCardPhoto(f); } e.target.value=""; }} style={{ display:"none" }}/>
+                        <input type="file" accept="image/*" onChange={e=>{ const f=e.target.files[0]; if(f){ setPhotoScan(null); setScanQty(1); scanCardPhoto(f); } e.target.value=""; }} style={{ display:"none" }}/>
                       </label>
                       <button onClick={()=>{ setPhotoScan({ status:"nomatch", card:null, identified: photoScan.detected }); }}
                         style={{ background:"transparent", border:"none", color:"#E8317A", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", padding:"0 4px" }}>
@@ -22840,7 +22840,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                   {photoScan.identified?.hero && <div style={{ fontSize:12, color:"var(--bz-ink-3)", marginBottom:12 }}>Detected: {photoScan.identified.hero} #{photoScan.identified.cardNum}</div>}
                   <label style={{ background:"#E8317A", color:"#fff", border:"none", borderRadius:8, padding:"10px 24px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit", display:"inline-block" }}>
                     Try Again
-                    <input type="file" accept="image/*" capture="environment" onChange={e=>{ const f=e.target.files[0]; if(f){ setPhotoScan(null); scanCardPhoto(f); } e.target.value=""; }} style={{ display:"none" }}/>
+                    <input type="file" accept="image/*" onChange={e=>{ const f=e.target.files[0]; if(f){ setPhotoScan(null); scanCardPhoto(f); } e.target.value=""; }} style={{ display:"none" }}/>
                   </label>
                 </div>
               )}
@@ -22852,7 +22852,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                   {photoScan.message && <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginBottom:12, fontFamily:"monospace" }}>{photoScan.message}</div>}
                   <label style={{ background:"#E8317A", color:"#fff", border:"none", borderRadius:8, padding:"10px 24px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit", display:"inline-block" }}>
                     Try Again
-                    <input type="file" accept="image/*" capture="environment" onChange={e=>{ const f=e.target.files?.[0]; if(f){ setPhotoScan(null); scanCardPhoto(f); } e.target.value=""; }} style={{ display:"none" }}/>
+                    <input type="file" accept="image/*" onChange={e=>{ const f=e.target.files?.[0]; if(f){ setPhotoScan(null); scanCardPhoto(f); } e.target.value=""; }} style={{ display:"none" }}/>
                   </label>
                 </div>
               )}
@@ -29038,7 +29038,7 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
                     <div style={{fontSize:12,color:"rgba(255,255,255,0.55)",display:"flex",gap:8,alignItems:"flex-start"}}><span>🔢</span><span>Keep the card number (bottom corner) visible for the best match</span></div>
                   </div>
                 </div>
-                <input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{position:"absolute",opacity:0,width:1,height:1,pointerEvents:"none"}}/>
+                <input type="file" accept="image/*" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{position:"absolute",opacity:0,width:1,height:1,pointerEvents:"none"}}/>
               </label>
             )}
             {photoScan?.status==="scanning"&&(
@@ -29137,7 +29137,7 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
                 </div>
                 <div style={{display:"flex",gap:10,justifyContent:"center"}}>
                   <label style={{background:"transparent",color:"rgba(255,255,255,0.5)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:12,padding:"10px 20px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",display:"inline-block"}}>
-                    None — Rescan<input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
+                    None — Rescan<input type="file" accept="image/*" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
                   </label>
                 </div>
               </div>
@@ -29148,7 +29148,7 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
                 <div style={{fontSize:16,fontWeight:800,color:"#E8317A",marginBottom:8}}>Card not recognized</div>
                 <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:16,lineHeight:1.6}}>Tip: fill the frame with the card, avoid glare,<br/>and keep the card number visible</div>
                 <label style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"inline-block",boxShadow:"0 4px 20px rgba(232,49,122,0.4)"}}>
-                  Try Again<input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
+                  Try Again<input type="file" accept="image/*" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
                 </label>
               </div>
             )}
@@ -29158,7 +29158,7 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
                 <div style={{fontSize:16,fontWeight:800,color:"#E8317A",marginBottom:6}}>Scan failed</div>
                 {photoScan.message&&<div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:16,fontFamily:"monospace"}}>{photoScan.message}</div>}
                 <label style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"inline-block"}}>
-                  Try Again<input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
+                  Try Again<input type="file" accept="image/*" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
                 </label>
               </div>
             )}
@@ -37940,7 +37940,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                     {isMobile ? "\uD83D\uDCF7" : "\uD83D\uDCF7 Scan"}</button>
                 <label style={{background:"linear-gradient(135deg,rgba(96,165,250,0.2),rgba(52,211,153,0.2))",color:"#60A5FA",border:"1px solid rgba(96,165,250,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",whiteSpace:"nowrap",display:"inline-flex",alignItems:"center"}} title="Scan a whole binder page or a group of cards at once">
                   {isMobile ? "\uD83D\uDCD2" : "\uD83D\uDCD2 Scan Page"}
-                  <input type="file" accept="image/*" capture="environment" style={{display:"none"}}
+                  <input type="file" accept="image/*" style={{display:"none"}}
                     onChange={e=>{ const f=e.target.files?.[0]; if(f) scanPagePhoto(f); e.target.value=""; }}/>
                 </label>
                 <button onClick={startVoiceAdd} title="Say a card out loud to add it" style={{background:"linear-gradient(135deg,rgba(168,85,247,0.2),rgba(232,49,122,0.2))",color:"#C084FC",border:"1px solid rgba(168,85,247,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",whiteSpace:"nowrap"}}>
