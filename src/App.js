@@ -30838,6 +30838,7 @@ See you in there!
   const [msgPanelOpen,  setMsgPanelOpen]  = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [editPicUploading, setEditPicUploading] = useState(false);
   const [filterOwned,   setFilterOwned]   = useState(savedUI.filterOwned ?? "all");
@@ -31079,6 +31080,7 @@ See you in there!
   const [pageScan, setPageScan] = useState(null);   // { status:"scanning"|"review"|"error", rows:[...], message }
   const [pageSel,  setPageSel]  = useState(new Set());  // matched-card ids currently checked to add
   const [pageBusy, setPageBusy] = useState(false);
+  const [pageGrid, setPageGrid] = useState({ rows:3, cols:3 });   // binder page layout (3x3 default)
   // Voice-to-add: speak a card, confirm the match, add it.
   const [voiceState, setVoiceState] = useState(null);  // { status:"listening"|"result"|"nomatch"|"error", transcript, matches, picked, message }
   const voiceRecRef = useRef(null);
@@ -34133,20 +34135,34 @@ See you in there!
     setPageSel(new Set());
     try {
       // Resize bigger than a single scan (a page of 9 needs detail to read each card). Max 2000px.
-      const base64 = await new Promise((res,rej) => {
+      // Slice the page into a GRID and send one crop PER card — each crop is a full-detail image of a
+      // single card, which the model reads far more accurately than nine tiny cards in one photo.
+      // Default 3x3 (a standard binder page). gridRows/gridCols come from state.
+      const gRows = pageGrid.rows, gCols = pageGrid.cols;
+      const crops = await new Promise((res,rej) => {
         const img=new Image(), url=URL.createObjectURL(file);
         img.onload=()=>{ URL.revokeObjectURL(url);
-          const MAX=2000, scale=Math.min(1,MAX/Math.max(img.width,img.height));
-          const w=Math.round(img.width*scale), h=Math.round(img.height*scale);
-          const c=document.createElement("canvas"); c.width=w; c.height=h;
-          c.getContext("2d").drawImage(img,0,0,w,h);
-          res(c.toDataURL("image/jpeg",0.9).split(",")[1]);
+          const cellW = img.width / gCols, cellH = img.height / gRows;
+          // Upscale each cell so small text (card number, treatment) stays legible. Target ~900px tall.
+          const TARGET_H = 900;
+          const out = [];
+          for (let r=0; r<gRows; r++) {
+            for (let cc=0; cc<gCols; cc++) {
+              const scale = Math.min(2.2, TARGET_H / cellH);
+              const cw = Math.round(cellW * scale), ch = Math.round(cellH * scale);
+              const cv = document.createElement("canvas"); cv.width=cw; cv.height=ch;
+              const ctx = cv.getContext("2d"); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality="high";
+              ctx.drawImage(img, cc*cellW, r*cellH, cellW, cellH, 0, 0, cw, ch);
+              out.push(cv.toDataURL("image/jpeg", 0.9).split(",")[1]);
+            }
+          }
+          res(out);
         };
         img.onerror=rej; img.src=url;
       });
       const resp = await fetch("/api/scan-page", {
         method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ imageBase64: base64, mediaType:"image/jpeg" }),
+        body: JSON.stringify({ crops }),
       });
       if (!resp.ok) {
         const e = await resp.json().catch(()=>({}));
@@ -34155,7 +34171,7 @@ See you in there!
       }
       const data = await resp.json();
       const detected = Array.isArray(data.cards) ? data.cards : [];
-      if (!detected.length) { setPageScan({ status:"error", message:"Couldn't read any cards in that photo. Try better lighting, less glare, and get the whole page in frame." }); return; }
+      if (!detected.length) { setPageScan({ status:"error", message:"Couldn't read any cards. Make sure the page fills the frame straight-on (each pocket lands in its own grid cell), with good light and no glare." }); return; }
       // Match each detected card against the checklist.
       const rows = detected.map((d, idx) => {
         const { match, candidates } = matchOne(d);
@@ -37934,29 +37950,42 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                     <div style={{fontSize:13,fontWeight:700}}>{user.displayName?.split(" ")[0]}</div>
                     <div style={{fontSize:11,color:"#4ade80"}}>{totalOwned} owned</div>
                   </div>}
-                  <button onClick={()=>setScanModal(true)} style={{background:"linear-gradient(135deg,rgba(232,49,122,0.2),rgba(123,47,247,0.2))",color:"#E8317A",border:"1px solid rgba(232,49,122,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}
-                    onMouseEnter={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.35),rgba(123,47,247,0.35))";}}
-                    onMouseLeave={e=>{e.currentTarget.style.background="linear-gradient(135deg,rgba(232,49,122,0.2),rgba(123,47,247,0.2))";}}>
-                    {isMobile ? "\uD83D\uDCF7" : "\uD83D\uDCF7 Scan"}</button>
-                <label style={{background:"linear-gradient(135deg,rgba(96,165,250,0.2),rgba(52,211,153,0.2))",color:"#60A5FA",border:"1px solid rgba(96,165,250,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",whiteSpace:"nowrap",display:"inline-flex",alignItems:"center"}} title="Scan a whole binder page or a group of cards at once">
-                  {isMobile ? "\uD83D\uDCD2" : "\uD83D\uDCD2 Scan Page"}
-                  <input type="file" accept="image/*" style={{display:"none"}}
-                    onChange={e=>{ const f=e.target.files?.[0]; if(f) scanPagePhoto(f); e.target.value=""; }}/>
-                </label>
-                <button onClick={startVoiceAdd} title="Say a card out loud to add it" style={{background:"linear-gradient(135deg,rgba(168,85,247,0.2),rgba(232,49,122,0.2))",color:"#C084FC",border:"1px solid rgba(168,85,247,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",whiteSpace:"nowrap"}}>
-                  {isMobile ? "\uD83C\uDFA4" : "\uD83C\uDFA4 Say a Card"}
-                </button>
+                <div style={{position:"relative"}}>
+                  <button onClick={()=>setQuickAddOpen(v=>!v)} title="Add cards to your collection" style={{background:"linear-gradient(135deg,rgba(232,49,122,0.2),rgba(123,47,247,0.2))",color:"#E8317A",border:"1px solid rgba(232,49,122,0.4)",borderRadius:12,padding:isMobile?"9px 12px":"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",whiteSpace:"nowrap",display:"inline-flex",alignItems:"center",gap:5}}>
+                    {isMobile ? "\u2795" : "\u2795 Quick Add"} <span style={{fontSize:9,opacity:0.7}}>{quickAddOpen?"\u25B2":"\u25BC"}</span>
+                  </button>
+                  {quickAddOpen && (
+                    <>
+                      <div onClick={()=>setQuickAddOpen(false)} style={{position:"fixed",inset:0,zIndex:2147483600}}/>
+                      <div style={{position:"absolute",top:"110%",right:0,zIndex:2147483601,background:"#141018",border:"1px solid rgba(232,49,122,0.3)",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.5)",padding:6,minWidth:210}}>
+                        <div style={{fontSize:10,fontWeight:800,color:"#71717a",textTransform:"uppercase",letterSpacing:1,padding:"6px 10px 4px"}}>Add to collection</div>
+                        <button onClick={()=>{ setQuickAddOpen(false); setScanModal(true); }} style={{display:"flex",alignItems:"center",gap:10,width:"100%",background:"transparent",border:"none",color:"#eee",borderRadius:8,padding:"10px 10px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}
+                          onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                          <span style={{fontSize:16}}>{"\uD83D\uDCF7"}</span> Scan a Card
+                        </button>
+                        <label style={{display:"flex",alignItems:"center",gap:10,width:"100%",background:"transparent",border:"none",color:"#eee",borderRadius:8,padding:"10px 10px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}
+                          onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                          <span style={{fontSize:16}}>{"\uD83D\uDCD2"}</span> Scan a Page
+                          <input type="file" accept="image/*" style={{display:"none"}}
+                            onChange={e=>{ const f=e.target.files?.[0]; if(f){ setQuickAddOpen(false); scanPagePhoto(f); } e.target.value=""; }}/>
+                        </label>
+                        <div style={{display:"flex",alignItems:"center",gap:6,padding:"2px 10px 8px",fontSize:11,color:"rgba(255,255,255,0.4)"}}>
+                          <span>Page layout:</span>
+                          {[{r:3,c:3,label:"3\u00d73"},{r:4,c:3,label:"4\u00d73"},{r:2,c:2,label:"2\u00d72"}].map(g=>(
+                            <button key={g.label} onClick={()=>setPageGrid({rows:g.r,cols:g.c})} style={{background:pageGrid.rows===g.r&&pageGrid.cols===g.c?"rgba(96,165,250,0.25)":"rgba(255,255,255,0.05)",border:"1px solid "+(pageGrid.rows===g.r&&pageGrid.cols===g.c?"rgba(96,165,250,0.5)":"rgba(255,255,255,0.1)"),color:pageGrid.rows===g.r&&pageGrid.cols===g.c?"#60A5FA":"#999",borderRadius:6,padding:"3px 8px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{g.label}</button>
+                          ))}
+                        </div>
+                        <button onClick={()=>{ setQuickAddOpen(false); startVoiceAdd(); }} style={{display:"flex",alignItems:"center",gap:10,width:"100%",background:"transparent",border:"none",color:"#eee",borderRadius:8,padding:"10px 10px",fontSize:13.5,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}
+                          onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                          <span style={{fontSize:16}}>{"\uD83C\uDFA4"}</span> Say a Card
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
                   <button onClick={async ()=>{ if(_cardAdmin){ try{ setToast("Regenerating fast snapshot…"); const snap2=await getDocs(collection(db,"boba_checklist")); const all=snap2.docs.map(d=>({id:d.id,...d.data()})); await writeCardSnapshot(all,300); const blob=new Blob([JSON.stringify(all)],{type:"application/json"}); await uploadBytes(ref(storage,"card_data/boba_checklist.json"),blob,{contentType:"application/json",cacheControl:"public,max-age=300"}); try{await setDoc(doc(db,"meta","cards_version"),{ts:Date.now(),count:all.length});}catch(e){} }catch(e){} } try{localStorage.removeItem("boba_checklist_cache_v3");}catch(e){} await idbClearCards(); window.location.reload(); }} title={_cardAdmin?"Regenerate fast snapshot & refresh":"Refresh"}
                     style={{background:"rgba(255,255,255,0.05)",color:"rgba(255,255,255,0.6)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:isMobile?"9px 13px":"8px 14px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",whiteSpace:"nowrap"}}>
                     {"\uD83D\uDD04"}</button>
-                  <button onClick={()=>{ setImportModal(true); setImportRows(null); setImportRaw(null); setImportSetMap({}); setImportColMap(null); setColMapConfirmed(false); }} title="Import your collection from a CSV" style={{background:"linear-gradient(135deg,rgba(123,156,255,0.18),rgba(74,222,128,0.12))",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}>
-                    {isMobile ? "\u2B07" : "\u2B07 Import"}</button>
-                  <button onClick={exportCollection} title="Export your collection (with cost/value) as a CSV" style={{background:"linear-gradient(135deg,rgba(251,191,36,0.16),rgba(232,49,122,0.12))",color:"#FBBF24",border:"1px solid rgba(251,191,36,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}>
-                    {isMobile ? "\u2B06" : "\u2B06 Export"}</button>
-                  <button onClick={()=>{ const url=`${window.location.origin}/showcase?uid=${user.uid}`; if(navigator.share){navigator.share({title:"My Bazooka Collection",url}).catch(()=>{});} else { navigator.clipboard.writeText(url).then(()=>showToast("Collection link copied!")).catch(()=>{}); } }}
-                    title="Share your public collection page"
-                    style={{background:"linear-gradient(135deg,rgba(74,222,128,0.18),rgba(34,197,94,0.18))",color:"#4ade80",border:"1px solid rgba(74,222,128,0.4)",borderRadius:12,padding:isMobile?"9px 14px":"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",transition:"all 0.2s",whiteSpace:"nowrap"}}>
-                    {isMobile ? "\uD83D\uDD17" : "\uD83D\uDD17 Share"}</button>
                   {_cardAdmin && (
                     <div style={{position:"relative"}}>
                       <button onClick={()=>setAdminMenuOpen(v=>!v)} title="Admin tools" style={{background:adminMenuOpen?"rgba(232,49,122,0.2)":"rgba(232,49,122,0.1)",color:"#E8317A",border:"1px solid rgba(232,49,122,0.4)",borderRadius:12,padding:isMobile?"9px 13px":"8px 15px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:6}}>
@@ -38089,6 +38118,9 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                       ...(userMissing.length>0 ? [{label:"⏳ Pending Cards",badge:userMissing.length,act:()=>setUserMissingModal(true)}] : []),
                       ...((user?.email||"").toLowerCase().endsWith("@bazookabreaks.com") ? [{label:"🗂️ Missing Cards",act:()=>{ setMissingCardsModal(true); loadMissingCards(); }}] : []),
                       {label:"🖼️ My Collection",act:()=>{ window.open(`/showcase?uid=${user.uid}`,"_blank"); }},
+                  {label:"\u2b07\ufe0f Import Cards",act:()=>{ setImportModal(true); setImportRows(null); setImportRaw(null); setImportSetMap({}); setImportColMap(null); setColMapConfirmed(false); }},
+                  {label:"\u2b06\ufe0f Export Collection",act:exportCollection},
+                  {label:"\uD83D\uDD17 Share Collection",act:()=>{ const url=`${window.location.origin}/showcase?uid=${user.uid}`; if(navigator.share){navigator.share({title:"My Bazooka Collection",url}).catch(()=>{});} else { navigator.clipboard.writeText(url).then(()=>showToast("Collection link copied!")).catch(()=>{}); } }},
                       {label:"👥 Friends",badge:(friendReqs.length+teamInvites.length),act:()=>setActiveTab("friends")},
                       {label:"📒 Ledger",act:()=>setActiveTab("ledger")},
                       {label:"🧭 App Tour",act:()=>{ setActiveTab("cards"); setTimeout(()=>setTourStep(0),100); }},
@@ -38207,7 +38239,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
               <div style={{padding:"48px 0",textAlign:"center"}}>
                 <div style={{fontSize:34,marginBottom:12}}>{"\uD83D\uDD0D"}</div>
                 <div style={{fontSize:15,fontWeight:800,color:"#fff",marginBottom:6}}>Reading the cards\u2026</div>
-                <div style={{fontSize:12.5,color:"rgba(255,255,255,0.5)"}}>Detecting every card in your photo. This can take a few seconds for a full page.</div>
+                <div style={{fontSize:12.5,color:"rgba(255,255,255,0.5)"}}>Reading each card in your {pageGrid.rows}×{pageGrid.cols} page. For best results, fill the frame with the page, straight-on, no glare.</div>
               </div>
             )}
 
@@ -38230,7 +38262,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   <div style={{fontSize:12.5,color:"rgba(255,255,255,0.55)",marginBottom:12}}>
                     Found <strong style={{color:"#fff"}}>{rows.length}</strong> card{rows.length===1?"":"s"} \u2014 <strong style={{color:"#4ade80"}}>{matched.length}</strong> matched. Everything matched is checked; uncheck any that are wrong, then add.
                   </div>
-                  <div style={{flex:1,overflowY:"auto",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:10,marginBottom:14}}>
+                  <div style={{flex:1,overflowY:"auto",display:"grid",gridTemplateColumns:`repeat(${pageGrid.cols}, 1fr)`,gap:10,marginBottom:14}}>
                     {rows.map(r => {
                       const on = pageSel.has(r.key) && !!r.picked;
                       const card = r.match;
