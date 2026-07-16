@@ -35455,7 +35455,10 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     // saved deck, still look addable just because a relative also owns one. A copy already committed
     // to ANY deck (yours or a relative's) is spent and can't be added again.
     const _myOwned   = (owned && owned[c.id]) ? (parseInt(owned[c.id]) || 0) : 0;
-    const _myFree    = Math.max(0, _myOwned - (otherDeckUse[c.id] || 0)); // my copies not in another of my decks
+    // My copies that are free = what I own, minus copies committed to another of MY decks
+    // (otherDeckUse) AND minus copies a FAMILY member has put in one of THEIR decks (familyDeckUse
+    // only ever counts cards I own). If Derrik slots my card into his deck, it's spoken for.
+    const _myFree    = Math.max(0, _myOwned - (otherDeckUse[c.id] || 0) - (familyDeckUse[c.id] || 0));
     // Family copies genuinely free to borrow. familyOwnerByCard only surfaces a lender when you had
     // no free copy of your own, and its `copies` is already the borrowable remainder.
     const _famFree   = (familyOwnerByCard && familyOwnerByCard[c.id]) ? (familyOwnerByCard[c.id].copies || 0) : 0;
@@ -35604,7 +35607,9 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       // let a card you own one of — and already used in a saved deck — look available just because
       // a relative also owns one.
       const myOwned = (_srcMine && owned && owned[c.id]) ? (parseInt(owned[c.id])||1) : 0;
-      const myFree  = Math.max(0, myOwned - (allDeckUse[c.id] || 0));   // allDeckUse counts EVERY saved deck
+      // My free copies = owned minus what's in any of MY saved decks (allDeckUse) minus what a
+      // family member has committed to THEIR deck (familyDeckUse counts only cards I own).
+      const myFree  = Math.max(0, myOwned - (allDeckUse[c.id] || 0) - (familyDeckUse[c.id] || 0));
       const famFree = famOwner(c) ? (famOwner(c).copies||1) : 0;         // famOwner already nets out the relative's own deck usage
       return (myFree + famFree) > 0;
     };
