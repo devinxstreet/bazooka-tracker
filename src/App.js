@@ -15650,6 +15650,15 @@ function SharedTradePackage({ packageId }) {
           <div style={{display:"inline-block",fontSize:11,fontWeight:800,letterSpacing:1,color:"#4ade80",background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:20,padding:"4px 12px",marginBottom:12}}>{"\uD83E\uDD1D"} TRADE PACKAGE</div>
           <div style={{fontSize:26,fontWeight:900,color:"#fff",marginBottom:6}}>{pkg.title || "Trade package"}</div>
           <div style={{fontSize:13,color:"rgba(255,255,255,0.5)"}}>From {pkg.ownerName || "a collector"} {"\u00b7"} {totalCards} card{totalCards===1?"":"s"}</div>
+          {pkg.status === "completed" && (
+            <div style={{marginTop:14,display:"flex",alignItems:"center",gap:10,background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.4)",borderRadius:12,padding:"12px 16px"}}>
+              <span style={{fontSize:22}}>{"\u2705"}</span>
+              <div>
+                <div style={{fontSize:14,fontWeight:800,color:"#4ade80"}}>Trade completed</div>
+                <div style={{fontSize:12,color:"rgba(255,255,255,0.6)"}}>{pkg.completedAt ? `Marked traded on ${new Date(pkg.completedAt).toLocaleDateString()}` : "This trade has been completed."} {"\u00b7"} Kept as a receipt for both sides.</div>
+              </div>
+            </div>
+          )}
           {pkg.totalValue > 0 && <div style={{marginTop:12,display:"inline-block",background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.35)",borderRadius:10,padding:"8px 16px"}}><span style={{fontSize:12,color:"rgba(255,255,255,0.55)",fontWeight:700}}>Total value{"  "}</span><span style={{fontSize:20,fontWeight:900,color:"#4ade80"}}>${Number(pkg.totalValue).toFixed(2)}</span></div>}
           {pkg.note && <div style={{marginTop:14,fontSize:14,lineHeight:1.6,color:"rgba(255,255,255,0.8)",background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:10,padding:"12px 15px"}}>{pkg.note}</div>}
           {pkg.contact && (
@@ -25788,7 +25797,7 @@ function MarketTab({ onMarkTraded, onEditPackage, onAddSideToTrade, onUnacceptTr
     (async () => {
       try {
         const snap = await getDocs(query(collection(db,"boba_trade_packages"), where("ownerUid","==",user.uid)));
-        const rows = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
+        const rows = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{ const ac=a.status==="completed"?1:0, bc=b.status==="completed"?1:0; if(ac!==bc) return ac-bc; return String(b.createdAt||"").localeCompare(String(a.createdAt||"")); });
         setMktPkgs(rows);
       } catch(e){ console.error("load packages (market) failed:", e); setMktPkgs([]); }
       setMktPkgsBusy(false);
@@ -25806,9 +25815,13 @@ function MarketTab({ onMarkTraded, onEditPackage, onAddSideToTrade, onUnacceptTr
     setMktTradingId(pk.id);
     try {
       await onMarkTraded(pk);
-      // Once traded, retire the package + its link so it's not re-sent by accident.
-      try { await deleteDoc(doc(db,"boba_trade_packages",pk.id)); } catch(e){}
-      setMktPkgs(l=>(l||[]).filter(p=>p.id!==pk.id));
+      // Don't DESTROY the package on completion — that killed the share link (both parties got
+      // "this trade doesn't exist") and erased the only record of the deal. Instead mark it
+      // completed: the link stays alive as a receipt, and it moves to the Completed section below.
+      try {
+        await updateDoc(doc(db,"boba_trade_packages",pk.id), { status:"completed", completedAt: new Date().toISOString() });
+      } catch(e){ console.error("mark package completed failed:", e); }
+      setMktPkgs(l=>(l||[]).map(p=>p.id===pk.id ? { ...p, status:"completed", completedAt: new Date().toISOString() } : p));
     } catch(e){ alert("Couldn't complete: "+(e?.message||e)); }
     setMktTradingId(null);
   }
@@ -25926,7 +25939,7 @@ function MarketTab({ onMarkTraded, onEditPackage, onAddSideToTrade, onUnacceptTr
                               <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginTop:2}}>{count} card{count===1?"":"s"}{pk.createdAt?` \u00b7 ${new Date(pk.createdAt).toLocaleDateString()}`:""}</div>
                             </div>
                             <div style={{display:"flex",gap:6,flexShrink:0}}>
-                              <button onClick={()=>{ onEditPackage(pk); setMktPkgs(null); }} style={{background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.4)",color:"#7B9CFF",borderRadius:7,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Edit</button>
+                              {pk.status !== "completed" && <button onClick={()=>{ onEditPackage(pk); setMktPkgs(null); }} style={{background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.4)",color:"#7B9CFF",borderRadius:7,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Edit</button>}
                             <button onClick={()=>mktDeletePkg(pk.id)} style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.4)",color:"#f87171",borderRadius:7,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>Delete</button>
                             </div>
                           </div>
@@ -25961,10 +25974,16 @@ function MarketTab({ onMarkTraded, onEditPackage, onAddSideToTrade, onUnacceptTr
                             <button onClick={async()=>{ try{ await navigator.clipboard.writeText(url);}catch(e){} }} style={{background:"rgba(74,222,128,0.15)",color:"#4ade80",border:"1px solid rgba(74,222,128,0.4)",borderRadius:7,padding:"0 12px",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Copy</button>
                             <a href={url} target="_blank" rel="noreferrer" style={{background:"rgba(123,156,255,0.12)",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.3)",borderRadius:7,padding:"6px 12px",fontSize:11,fontWeight:800,textDecoration:"none",fontFamily:"inherit",whiteSpace:"nowrap"}}>Open</a>
                           </div>
+                      {pk.status === "completed" ? (
+                        <div style={{width:"100%",marginTop:8,background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:8,padding:"9px 12px",fontSize:12.5,fontWeight:700,color:"#4ade80",textAlign:"center"}}>
+                          {"\u2705"} Traded{pk.completedAt ? ` \u00b7 ${new Date(pk.completedAt).toLocaleDateString()}` : ""} {"\u00b7"} link kept as receipt
+                        </div>
+                      ) : (
                         <button onClick={()=>mktMarkTraded(pk)} disabled={mktTradingId===pk.id}
                           style={{width:"100%",marginTop:8,background:mktTradingId===pk.id?"#333":"rgba(74,222,128,0.14)",border:"1px solid rgba(74,222,128,0.45)",color:mktTradingId===pk.id?"#888":"#4ade80",borderRadius:8,padding:"9px",fontSize:12.5,fontWeight:800,cursor:mktTradingId===pk.id?"wait":"pointer",fontFamily:"inherit"}}>
                           {mktTradingId===pk.id ? "Marking traded\u2026" : "\u2705 Mark as Traded (remove from collection)"}
                         </button>
+                      )}
                         </div>
                       );
                     })}
@@ -32459,16 +32478,46 @@ See you in there!
     catch(e){ console.error("save sold log failed:", e); }
   }
 
-  // Mark an entire trade package as TRADED: run each card through sellCard(reason:"traded"), which
-  // logs it to the ledger and removes it from the active collection. Used from the package manager.
+  // Mark an entire trade package as TRADED: log every card to the sold ledger and remove it from the
+  // active collection in a SINGLE batched write (see the note inside about why we don't loop sellCard).
   async function markPackageTraded(pkg) {
     if (!pkg || !Array.isArray(pkg.items)) return;
+    if (!user) { setSigningIn(true); return; }
     const note = pkg.title ? `Traded: ${pkg.title}` : "Traded (package)";
+    // IMPORTANT: do NOT call sellCard() in a loop here. sellCard reads `owned`/`soldLog` from the
+    // component closure, which does not update between iterations of a for-await loop — so each call
+    // starts from the ORIGINAL state and the last setOwned/setSoldLog wins, logging out only one card.
+    // Instead, apply every item to a single working copy of state and write once.
+    const nextOwned = { ...owned };
+    const nextTags  = { ...kidAssign };
+    const newEntries = [];
     for (const it of pkg.items) {
-      const per = (Number(it.value) || 0);
-      // sellCard handles qty>1 and removes the card when the last copy leaves.
-      await sellCard(it.id, { qty: parseInt(it.qty)||1, reason: "traded", note, price: per||null });
+      const cardId = it.id;
+      const have = parseInt(nextOwned[cardId]) || 0;
+      if (have <= 0) continue; // nothing to remove for this card
+      const n = Math.min(Math.max(1, parseInt(it.qty) || 1), have);
+      const remaining = have - n;
+      if (remaining <= 0) delete nextOwned[cardId]; else nextOwned[cardId] = remaining;
+      // Keep per-copy kid tags in step (drop tags for copies that no longer exist).
+      delete nextTags[cardId];
+      for (let i = remaining; i < have; i++) delete nextTags[`${cardId}#${i}`];
+      newEntries.push({
+        id: `sold_${Date.now()}_${Math.random().toString(36).slice(2,7)}_${cardId}`,
+        cardId, qty: n, reason: "traded",
+        note,
+        price: (Number(it.value) || 0) || null,
+        date: new Date().toISOString(),
+      });
     }
+    if (!newEntries.length) return; // nothing was actually owned
+    // Apply once.
+    setOwned(nextOwned);
+    queueOwnedSave(nextOwned);
+    saveKids(kidGroups, nextTags);
+    const nextLog = [...newEntries, ...soldLog];
+    setSoldLog(nextLog);
+    try { await setDoc(doc(db,"boba_sold",user.uid), { entries: nextLog }); }
+    catch(e){ console.error("save sold log (package) failed:", e); }
   }
 
   // Undo — puts a card back in your collection and removes the ledger entry.
