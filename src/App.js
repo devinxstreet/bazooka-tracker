@@ -25188,8 +25188,22 @@ function MessagesTab({ user, activeThread, setActiveThread, threads, threadMsgs,
 // package. Cards don't move until each person confirms THEIR package arrived — because the cards move
 // in the post, not in the database, and a collection that lies about what you physically hold is
 // worse than no tracking at all.
-function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onReceived }) {
+function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onReceived, cards=[], owned={}, onAddSide, onUnaccept, deckLockedForTrade={} }) {
   const [trackDraft, setTrackDraft] = useState({});
+  // Recipient "add my side" modal state.
+  const [addSideFor, setAddSideFor] = useState(null);   // the trade offer we are adding our side to
+  const [asSel, setAsSel] = useState(new Set());        // card ids I am offering back
+  const [asCash, setAsCash] = useState("");             // cash I am adding
+  const [asSearch, setAsSearch] = useState("");
+  const [asBusy, setAsBusy] = useState(false);
+  function openAddSide(t){ setAddSideFor(t); setAsSel(new Set()); setAsCash(""); setAsSearch(""); }
+  async function submitAddSide(){
+    if (!addSideFor) return;
+    setAsBusy(true);
+    const chosen = cards.filter(c => asSel.has(c.id));
+    await onAddSide(addSideFor, { myCards: chosen, cashFromMe: parseFloat(asCash)||0 });
+    setAsBusy(false); setAddSideFor(null);
+  }
   const [zoom, setZoom] = useState(null);   // a card from the trade, shown full size
 
   const mine = tradeOffers.filter(t => t.fromUid === user?.uid || t.toUid === user?.uid);
@@ -25249,6 +25263,8 @@ function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onRec
       theyReceived: iAmSender ? t.toReceived : t.fromReceived,
       myTracking:  iAmSender ? t.fromTracking : t.toTracking,
       theirTracking: iAmSender ? t.toTracking : t.fromTracking,
+        iGetCash:  iAmSender ? (t.cashFromRecipient||0) : (t.cashFromSender||0),
+        iGiveCash: iAmSender ? (t.cashFromSender||0)    : (t.cashFromRecipient||0),
     };
   };
 
@@ -25271,14 +25287,32 @@ function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onRec
             </div>
             <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:12}}>
               <CardRow list={v.iGet}  label="YOU GET"  color="#4ade80"/>
+              {v.iGetCash > 0 && <div style={{fontSize:12,fontWeight:800,color:"#4ade80",alignSelf:"center",background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"6px 10px"}}>+ ${Number(v.iGetCash).toFixed(2)} cash</div>}
               <div style={{display:"flex",alignItems:"center",color:"rgba(255,255,255,0.2)",fontSize:16,fontWeight:800,alignSelf:"stretch"}}>{"\u21C4"}</div>
               <CardRow list={v.iGive} label="YOU GIVE" color="#FBBF24"/>
+              {v.iGiveCash > 0 && <div style={{fontSize:12,fontWeight:800,color:"#FBBF24",alignSelf:"center",background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"6px 10px"}}>+ ${Number(v.iGiveCash).toFixed(2)} cash</div>}
             </div>
             {t.note && <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",fontStyle:"italic",marginBottom:12,paddingLeft:10,borderLeft:"2px solid #333"}}>{t.note}</div>}
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>onRespond(t,true)} style={{flex:1,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:8,padding:"9px",fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Accept</button>
-              <button onClick={()=>onRespond(t,false)} style={{flex:1,background:"transparent",border:"1px solid #333",color:"#999",borderRadius:8,padding:"9px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
-            </div>
+                    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                      {t.needsRecipientSide ? (
+                        <button onClick={()=>openAddSide(t)} style={{flex:1,minWidth:150,background:"linear-gradient(135deg,#4ade80,#22c55e)",color:"#06240f",border:"none",borderRadius:10,padding:"11px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{"\uD83E\uDD1D"} Add my cards / cash</button>
+                      ) : (() => {
+                        const mine = t.toAccepted, theirs = t.fromAccepted;
+                        if (mine) return (
+                          <>
+                            <div style={{flex:1,minWidth:150,textAlign:"center",background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:10,padding:"11px",fontSize:12.5,fontWeight:800}}>{theirs?"Both agreed \u2014 finalizing\u2026":"\u2713 You agreed \u2014 waiting on them"}</div>
+                            <button onClick={()=>onUnaccept(t)} style={{background:"transparent",border:"1px solid #444",color:"#999",borderRadius:10,padding:"11px 14px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Undo</button>
+                          </>
+                        );
+                        return (
+                          <>
+                            <button onClick={()=>onRespond(t,true)} style={{flex:1,minWidth:120,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"11px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{theirs?"Accept deal":"Agree to terms"}</button>
+                            <button onClick={()=>openAddSide(t)} style={{background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.35)",color:"#7B9CFF",borderRadius:10,padding:"11px 14px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Change my side</button>
+                            <button onClick={()=>onRespond(t,false)} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:10,padding:"11px 14px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
+                          </>
+                        );
+                      })()}
+                    </div>
           </div>
         );}}
       </Section>
@@ -25288,14 +25322,27 @@ function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onRec
           <div key={t.id} style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,padding:14}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,gap:10}}>
               <div style={{fontSize:13.5,fontWeight:800,color:"#fff"}}>Offer to {v.them}</div>
-              <span style={{fontSize:10.5,color:"var(--bz-ink-3)",fontWeight:700}}>Waiting for a reply</span>
+                        <span style={{fontSize:10.5,color:"var(--bz-ink-3)",fontWeight:700}}>{t.needsRecipientSide ? "Waiting for their side" : t.fromAccepted ? (t.toAccepted?"Both agreed":"You agreed — waiting on them") : t.toAccepted ? "They agreed — your move" : "Waiting for a reply"}</span>
             </div>
             <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:12}}>
               <CardRow list={v.iGet}  label="YOU GET"  color="#4ade80"/>
+              {v.iGetCash > 0 && <div style={{fontSize:12,fontWeight:800,color:"#4ade80",alignSelf:"center",background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"6px 10px"}}>+ ${Number(v.iGetCash).toFixed(2)} cash</div>}
               <div style={{display:"flex",alignItems:"center",color:"rgba(255,255,255,0.2)",fontSize:16,fontWeight:800,alignSelf:"stretch"}}>{"\u21C4"}</div>
               <CardRow list={v.iGive} label="YOU GIVE" color="#FBBF24"/>
+              {v.iGiveCash > 0 && <div style={{fontSize:12,fontWeight:800,color:"#FBBF24",alignSelf:"center",background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"6px 10px"}}>+ ${Number(v.iGiveCash).toFixed(2)} cash</div>}
             </div>
-            <button onClick={()=>onCancel(t)} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:8,padding:"7px 14px",fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Withdraw offer</button>
+                    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                      {!t.needsRecipientSide && (() => {
+                        const mine = t.fromAccepted, theirs = t.toAccepted;
+                        if (mine) return (
+                          <button onClick={()=>onUnaccept(t)} style={{flex:1,minWidth:150,background:"rgba(74,222,128,0.1)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:9,padding:"10px",fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{theirs?"Both agreed \u2014 finalizing\u2026":"\u2713 You agreed \u00b7 tap to undo"}</button>
+                        );
+                        return (
+                          <button onClick={()=>onRespond(t,true)} style={{flex:1,minWidth:150,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:9,padding:"10px",fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{theirs?"Accept deal":"Agree to terms"}</button>
+                        );
+                      })()}
+                      <button onClick={()=>onCancel(t)} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:9,padding:"10px 14px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel offer</button>
+                    </div>
           </div>
         );}}
       </Section>
@@ -25320,8 +25367,10 @@ function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onRec
               </div>
             <div style={{display:"flex",gap:14,flexWrap:"wrap",marginBottom:14}}>
               <CardRow list={v.iGet}  label="INCOMING" color="#4ade80"/>
+              {v.iGetCash > 0 && <div style={{fontSize:12,fontWeight:800,color:"#4ade80",alignSelf:"center",background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"6px 10px"}}>+ ${Number(v.iGetCash).toFixed(2)} cash</div>}
               <div style={{display:"flex",alignItems:"center",color:"rgba(255,255,255,0.2)",fontSize:16,fontWeight:800,alignSelf:"stretch"}}>{"\u21C4"}</div>
               <CardRow list={v.iGive} label="OUTGOING" color="#FBBF24"/>
+              {v.iGiveCash > 0 && <div style={{fontSize:12,fontWeight:800,color:"#FBBF24",alignSelf:"center",background:"rgba(255,255,255,0.04)",borderRadius:8,padding:"6px 10px"}}>+ ${Number(v.iGiveCash).toFixed(2)} cash</div>}
             </div>
 
             {/* Your tracking, so they know it's on the way. */}
@@ -25393,6 +25442,56 @@ function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onRec
             style={{position:"fixed",top:20,right:20,background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fff",width:38,height:38,borderRadius:"50%",fontSize:19,cursor:"pointer",fontFamily:"inherit",lineHeight:1}}>{"\u00D7"}</button>
         </div>
       )}
+
+      {/* ── RECIPIENT: ADD MY SIDE ── search my collection, pick cards + cash, send back. */}
+      {addSideFor && (() => {
+        const q = asSearch.trim().toLowerCase();
+        const mine = cards.filter(c => (owned[c.id]||0) > 0);
+        const avail = mine.filter(c => (owned[c.id]||0) > (deckLockedForTrade[c.id]||0));
+        const shown = q ? avail.filter(c => (c.hero||c.playName||"").toLowerCase().includes(q) || String(c.cardNum||"").toLowerCase().includes(q) || (c.setName||"").toLowerCase().includes(q)) : avail;
+        const chosenCount = asSel.size;
+        return (
+          <div onClick={()=>!asBusy&&setAddSideFor(null)} style={{position:"fixed",inset:0,zIndex:14000,background:"rgba(0,0,0,0.82)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+            <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:640,maxHeight:"90vh",display:"flex",flexDirection:"column",background:"#14141c",border:"1px solid rgba(74,222,128,0.3)",borderRadius:16,padding:"20px 22px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                <div style={{fontSize:18,fontWeight:900,color:"#fff"}}>{"\uD83E\uDD1D"} Add your side</div>
+                <button onClick={()=>setAddSideFor(null)} style={{background:"transparent",border:"none",color:"#888",fontSize:22,cursor:"pointer",lineHeight:1}}>{"\u00d7"}</button>
+              </div>
+              <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginBottom:12}}>Pick cards from your collection to offer back{addSideFor.fromName?` to ${addSideFor.fromName}`:""}, and/or add cash.</div>
+              <input value={asSearch} onChange={e=>setAsSearch(e.target.value)} placeholder="Search your collection\u2026" style={{width:"100%",background:"#0e0e13",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",borderRadius:9,padding:"9px 12px",fontSize:13,fontFamily:"inherit",marginBottom:10,boxSizing:"border-box"}}/>
+              <div style={{flex:1,overflowY:"auto",display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(92px,1fr))",gap:8,marginBottom:12,minHeight:120}}>
+                {shown.slice(0,120).map(c => {
+                  const sel = asSel.has(c.id);
+                  return (
+                    <div key={c.id} onClick={()=>setAsSel(s=>{ const n=new Set(s); n.has(c.id)?n.delete(c.id):n.add(c.id); return n; })}
+                      style={{cursor:"pointer",borderRadius:9,overflow:"hidden",border:sel?"2px solid #4ade80":"2px solid transparent",background:"rgba(255,255,255,0.03)",position:"relative"}}>
+                      <div style={{aspectRatio:"3/4",background:"#0a0a0f"}}>
+                        {c.imageUrl ? <img src={c.imageUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : <div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,color:"#555",textAlign:"center",padding:4}}>{c.hero||c.playName}</div>}
+                      </div>
+                      {sel && <div style={{position:"absolute",top:4,right:4,width:20,height:20,borderRadius:"50%",background:"#4ade80",color:"#06240f",fontSize:13,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center"}}>{"\u2713"}</div>}
+                      <div style={{fontSize:9.5,fontWeight:700,color:"#ddd",padding:"3px 4px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.hero||c.playName}</div>
+                    </div>
+                  );
+                })}
+                {shown.length===0 && <div style={{gridColumn:"1/-1",textAlign:"center",color:"rgba(255,255,255,0.35)",fontSize:12,padding:"24px 0"}}>No matching cards you can offer.</div>}
+              </div>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,flexWrap:"wrap"}}>
+                <span style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.6)"}}>Cash you add:</span>
+                <div style={{display:"flex",alignItems:"center",gap:3}}>
+                  <span style={{fontSize:13,color:"rgba(255,255,255,0.5)"}}>$</span>
+                  <input type="number" min="0" step="0.01" value={asCash} onChange={e=>setAsCash(e.target.value)} placeholder="0" style={{width:80,background:"#0e0e13",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",borderRadius:7,padding:"6px 9px",fontSize:13,fontFamily:"inherit"}}/>
+                </div>
+                <span style={{fontSize:12,color:"rgba(255,255,255,0.45)",marginLeft:"auto"}}>{chosenCount} card{chosenCount===1?"":"s"} selected</span>
+              </div>
+              <div style={{display:"flex",gap:9}}>
+                <button onClick={submitAddSide} disabled={asBusy||(chosenCount===0 && (parseFloat(asCash)||0)<=0)} style={{flex:1,background:(chosenCount>0||(parseFloat(asCash)||0)>0)?"linear-gradient(135deg,#4ade80,#22c55e)":"#222",color:(chosenCount>0||(parseFloat(asCash)||0)>0)?"#06240f":"#666",border:"none",borderRadius:10,padding:"12px",fontSize:14,fontWeight:800,cursor:asBusy?"wait":"pointer",fontFamily:"inherit"}}>{asBusy?"Sending\u2026":"Send my side back"}</button>
+                <button onClick={()=>setAddSideFor(null)} disabled={asBusy} style={{background:"transparent",border:"1px solid #333",color:"#888",borderRadius:10,padding:"12px 18px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
     </div>
   );
 }
@@ -25652,7 +25751,7 @@ function TradeView({ user, traders, matchCount, wantList, onViewProfile, setActi
   );
 }
 
-function MarketTab({ onMarkTraded, onEditPackage, user, myListings, listings, onViewProfile, WEAPON_COLORS, allMyOffers, marketSales, trackingInputs, setTrackingInputs, setListModal, setOfferModal, setOfferAmt, setOfferNote, setOfferSent, setCounterModal, setCounterAmt, buyNow, respondOffer, unsellListing, saveTracking, setSigningIn, setActiveTab, inp , listType, cards, owned, search, removeListing, tradeIndex=[], wantList={}, tradeBait={}, tradeOffers=[], onSendTrade, onRespondTrade, onCancelTrade, onTradeTracking, onTradeReceived, initialView}) {
+function MarketTab({ onMarkTraded, onEditPackage, onAddSideToTrade, onUnacceptTrade, deckLockedForTrade={}, user, myListings, listings, onViewProfile, WEAPON_COLORS, allMyOffers, marketSales, trackingInputs, setTrackingInputs, setListModal, setOfferModal, setOfferAmt, setOfferNote, setOfferSent, setCounterModal, setCounterAmt, buyNow, respondOffer, unsellListing, saveTracking, setSigningIn, setActiveTab, inp , listType, cards, owned, search, removeListing, tradeIndex=[], wantList={}, tradeBait={}, tradeOffers=[], onSendTrade, onRespondTrade, onCancelTrade, onTradeTracking, onTradeReceived, initialView}) {
   // Sale and trade are the same idea in different currencies, so they sit side by side.
   const [mktView, setMktView] = useState(initialView || "sale");   // "sale" | "trade" | "trades"
   // My trade packages (shareable links) — loaded here so they live in the marketplace too.
@@ -25867,7 +25966,7 @@ function MarketTab({ onMarkTraded, onEditPackage, user, myListings, listings, on
             
               <TradesPanel user={user} tradeOffers={tradeOffers}
                 onRespond={onRespondTrade} onCancel={onCancelTrade}
-                onTracking={onTradeTracking} onReceived={onTradeReceived}/>
+                onTracking={onTradeTracking} onReceived={onTradeReceived} cards={cards} owned={owned} onAddSide={onAddSideToTrade} onUnaccept={onUnacceptTrade} deckLockedForTrade={deckLockedForTrade}/>
             ) : mktView==="trade" ? (
               <TradeView user={user} traders={traders} matchCount={matchCount}
                 wantList={wantList} onViewProfile={onViewProfile} onZoom={setZoomCard} onOffer={setOfferTo}
@@ -34146,8 +34245,9 @@ See you in there!
   }
 
   // ── Trade actions ────────────────────────────────────────────────────────────────────────────
-  async function sendTradeOffer({ toUid, toName, theirCards, myCards, note }) {
-    if (!user || !toUid || theirCards.length === 0 || myCards.length === 0) return;
+async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, cashFromSender=0, cashFromRecipient=0 }) {
+    if (!user || !toUid) return;
+    if (myCards.length === 0 && (parseFloat(cashFromSender)||0) <= 0 && theirCards.length === 0 && (parseFloat(cashFromRecipient)||0) <= 0) { alert("Add at least one card or some cash to the offer."); return; }
 
     // Re-check at SEND time, not just at render time. The card list you're looking at could be
     // seconds old — someone else may have locked the same card in the meantime, and the client-side
@@ -34186,6 +34286,10 @@ See you in there!
         // viewer would mean flipping them everywhere and getting it wrong somewhere.
         giving: myCards.map(slim),      // what the SENDER hands over
         getting: theirCards.map(slim),  // what the SENDER receives
+        cashFromSender: parseFloat(cashFromSender)||0,
+        cashFromRecipient: parseFloat(cashFromRecipient)||0,
+        needsRecipientSide: theirCards.length===0 && (parseFloat(cashFromRecipient)||0)<=0,  // recipient still to add their side
+        fromAccepted: false, toAccepted: false,
         note: (note||"").trim(),
         status: "pending",
         // Settlement is per-side: each person confirms when THEIR package arrives, and only then
@@ -34205,18 +34309,70 @@ See you in there!
   }
 
   async function respondTradeOffer(t, accept) {
-    if (!user || t.toUid !== user.uid) return;   // only the recipient decides
+    if (!user || (t.fromUid !== user.uid && t.toUid !== user.uid)) return;   // only participants
+    const iAmSender = t.fromUid === user.uid;
     try {
-      await setDoc(doc(db,"trade_offers",t.id),
-        { status: accept ? "accepted" : "declined", respondedAt: new Date().toISOString() },
-        { merge:true });
+      if (!accept) {
+        // Decline / cancel the offer outright.
+        await setDoc(doc(db,"trade_offers",t.id), { status:"declined", respondedAt:new Date().toISOString() }, { merge:true });
+        await setDoc(doc(db,"market_notifs",uid()), { toUid: iAmSender?t.toUid:t.fromUid, type:"trade_declined", tradeId:t.id, fromName:user.displayName||user.email, read:false, createdAt:new Date().toISOString() });
+        showToast("Offer declined");
+        return;
+      }
+      // MUTUAL ACCEPT: set my own accept flag. If both are now true, the deal is on.
+      const myField = iAmSender ? "fromAccepted" : "toAccepted";
+      const otherAccepted = iAmSender ? t.toAccepted : t.fromAccepted;
+      const patch = { [myField]: true, respondedAt:new Date().toISOString() };
+      if (otherAccepted) patch.status = "accepted";       // both in agreement -> live trade
+      await setDoc(doc(db,"trade_offers",t.id), patch, { merge:true });
+      await setDoc(doc(db,"market_notifs",uid()), { toUid: iAmSender?t.toUid:t.fromUid, type: otherAccepted?"trade_accepted":"trade_agreed", tradeId:t.id, fromName:user.displayName||user.email, read:false, createdAt:new Date().toISOString() });
+      showToast(otherAccepted ? "Trade accepted \u2014 send your cards" : "You agreed \u2014 waiting on them to agree too");
+    } catch(e) { alert("Couldn't respond: " + (e?.message||e)); }
+  }
+  // Pull back your acceptance (unfreezes the cards so terms can change again).
+  async function unacceptTradeOffer(t) {
+    if (!user || (t.fromUid !== user.uid && t.toUid !== user.uid)) return;
+    const iAmSender = t.fromUid === user.uid;
+    const myField = iAmSender ? "fromAccepted" : "toAccepted";
+    try {
+      await setDoc(doc(db,"trade_offers",t.id), { [myField]:false, status:"pending" }, { merge:true });
+      showToast("Acceptance pulled back \u2014 you can change the terms now");
+    } catch(e){ alert("Couldn't undo: "+(e?.message||e)); }
+  }
+
+  // Recipient fills in THEIR side of a one-sided offer (cards from their collection + optional cash),
+  // then it's sent back to the original sender to accept. Only allowed while the offer is pending and
+  // only by the recipient. We re-check locks at submit time, same as sendTradeOffer.
+  async function addSideToTrade(t, { myCards=[], cashFromMe=0 }) {
+    if (!user || t.toUid !== user.uid) return;           // only the recipient adds their side
+    if (t.status !== "pending") { alert("This offer isn't open anymore."); return; }
+    const slim = c => ({ id:c.id, name:c.hero||c.playName||"", image:c.imageUrl||null,
+      treatment:c.treatment||"", weapon:c.weapon||"", setName:c.setName||"" });
+    // Re-check: none of my chosen cards already committed elsewhere or locked in a deck.
+    const live = tradeOffers.filter(x => (x.status==="pending"||x.status==="accepted") && x.id!==t.id);
+    const locked = new Set();
+    live.forEach(x => { (x.giving||[]).forEach(c=>locked.add(`${x.fromUid}:${c.id}`)); (x.getting||[]).forEach(c=>locked.add(`${x.toUid}:${c.id}`)); });
+    const clash = myCards.find(c => locked.has(`${user.uid}:${c.id}`));
+    if (clash) { alert(`"${clash.hero||clash.playName||"A card"}" is already in another trade. Refresh and try again.`); return; }
+    const deckClash = myCards.find(c => (owned[c.id]||0) <= (deckLockedForTrade[c.id]||0));
+    if (deckClash) { alert(`"${deckClash.hero||deckClash.playName||"A card"}" is in a deck. Remove it from the deck first.`); return; }
+    try {
+      // The recipient's cards become the sender's "getting" (offer is stored from the SENDER's POV).
+      await setDoc(doc(db,"trade_offers",t.id), {
+        getting: myCards.map(slim),
+        cashFromRecipient: parseFloat(cashFromMe)||0,
+        needsRecipientSide: false,
+        fromAccepted: false, toAccepted: false,   // terms changed -> any prior acceptance resets
+        recipientRespondedAt: new Date().toISOString(),
+      }, { merge:true });
       await setDoc(doc(db,"market_notifs",uid()), {
-        toUid: t.fromUid, type: accept ? "trade_accepted" : "trade_declined", tradeId: t.id,
+        toUid: t.fromUid, type:"trade_countered", tradeId:t.id,
         fromName: user.displayName || user.email, read:false, createdAt:new Date().toISOString(),
       });
-      showToast(accept ? "Trade accepted \u2014 send your cards" : "Offer declined");
-    } catch(e) { alert("Couldn't respond: " + e.message); }
+      showToast("Your side sent back \u2014 waiting on them to accept");
+    } catch(e){ alert("Couldn't send your side: " + (e?.message||e)); }
   }
+
 
   // Back out of a trade. Deals fall through — someone goes quiet, a card turns out to be damaged,
   // people change their minds — and an app that won't let you cancel just leaves dead trades sitting
@@ -37303,7 +37459,7 @@ See you in there!
 
       {/* Listing modal */}
       {listModal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)"}} onClick={()=>setListModal(null)}>
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:13000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)"}} onClick={()=>setListModal(null)}>
           <div style={{background:"linear-gradient(135deg,#0d0d0d,#0a1a0a)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:24,padding:32,width:420,maxWidth:"90vw",boxShadow:"0 40px 120px rgba(74,222,128,0.15)",animation:"floatUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
             <div style={{fontSize:18,fontWeight:900,color:"#4ade80",marginBottom:4}}>{"\uD83D\uDCB0 List for Sale/Trade"}</div>
             <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:20}}>{listModal.hero} · {listModal.treatment} · {listModal.power}{"\u26A1"}</div>
@@ -39461,6 +39617,9 @@ See you in there!
             initialView={mktInitView}
                 onMarkTraded={markPackageTraded}
                 onEditPackage={openTradeEditor}
+                onAddSideToTrade={addSideToTrade}
+                onUnacceptTrade={unacceptTradeOffer}
+                deckLockedForTrade={deckLockedForTrade}
               />
         )}
 
