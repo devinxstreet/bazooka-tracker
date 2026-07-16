@@ -28564,7 +28564,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         {isOwned&&<div style={{position:"absolute",top:6,right:6,fontSize:11,pointerEvents:"none",filter:"drop-shadow(0 1px 2px rgba(0,0,0,0.8))"}}>{String.fromCharCode(9989)}</div>}
                         {/* add affordance on hover */}
                         {ok&&<div className="deck-add-badge" style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:38,height:38,borderRadius:"50%",background:"rgba(74,222,128,0.95)",color:"#000",fontSize:24,fontWeight:900,display:"flex",alignItems:"center",justifyContent:"center",opacity:0,transition:"opacity 0.15s",pointerEvents:"none",boxShadow:"0 4px 16px rgba(0,0,0,0.5)"}}>+</div>}
-                        {!ok&&<div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",fontSize:9,fontWeight:700,color:"#fff",background:"rgba(232,49,122,0.85)",borderRadius:6,padding:"3px 8px",textAlign:"center",maxWidth:"85%",pointerEvents:"none"}}>{reason}</div>}
+                        {!ok&&<div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",fontSize:9,fontWeight:700,color:"#fff",background:"rgba(232,49,122,0.9)",borderRadius:6,padding:"4px 8px",textAlign:"center",maxWidth:"90%",lineHeight:1.3,pointerEvents:"none"}}>{/^In /.test(reason||"")?"\uD83D\uDD12 ":""}{reason}</div>}
                       </div>
                     );
                   })}
@@ -35400,6 +35400,34 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     return m;
   }, [familyDecks, owned]);
 
+  // Where each card is committed, so the builder can TELL you where a locked card lives instead of
+  // just greying it out. Maps cardId -> [{ where:"mine"|"family", deck:"<deck name>", who:"<name>" }].
+  const deckLocations = useMemo(() => {
+    const m = {};
+    const push = (cid, entry) => { (m[cid] = m[cid] || []).push(entry); };
+    (savedDecks||[]).forEach(d => {
+      const seen = new Set();
+      (d.cardIds||[]).forEach(cid => { if(seen.has(cid))return; seen.add(cid); push(cid, { where:"mine", deck: d.name || "Untitled deck", who: "You" }); });
+    });
+    (familyDecks||[]).forEach(group => {
+      (group.decks||[]).forEach(d => {
+        const seen = new Set();
+        (d.cardIds||[]).forEach(cid => {
+          // Only surface family placements of cards I own (those are the ones that lock me out).
+          if(seen.has(cid))return; seen.add(cid);
+          if(owned[cid]) push(cid, { where:"family", deck: d.name || "Untitled deck", who: group.friendName || "Family" });
+        });
+      });
+    });
+    return m;
+  }, [savedDecks, familyDecks, owned]);
+  // Human-readable "where is this card" string for a locked card.
+  const deckLocationText = (cid) => {
+    const locs = deckLocations[cid] || [];
+    if(!locs.length) return "";
+    return locs.map(l => l.where==="mine" ? `your "${l.deck}"` : `${l.who}'s "${l.deck}"`).join(", ");
+  };
+
 
   // Same as otherDeckUse but counting EVERY saved deck, including the one open in the editor.
   // The quick builder is proposing a brand-new deck, so a card sitting in the currently-loaded
@@ -35429,15 +35457,23 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
         if (fam[cid]) return; // first available family owner wins
         const myCopies = (owned && owned[cid]) ? (parseInt(owned[cid])||1) : 0;
         const myFree = Math.max(0, myCopies - (otherDeckUse[cid]||0));
-        // Surface the family copy if you have no free copy of your own.
-        if (myFree <= 0) {
-          fam[cid] = { uid: famUid, name: info.ownerName, copies };
-          merged[cid] = (merged[cid]||0) + copies;
+        // How many copies of this card I've ALREADY borrowed into my own decks. familyAvail's
+        // `copies` only nets out the OWNER's deck usage, not mine — so without this subtraction, a
+        // family card I already slotted into one of my decks would keep showing as available to
+        // borrow again. My borrow count = my deck usage beyond my own owned copies.
+        const myUseInDecks = allDeckUse[cid] || 0;
+        const myBorrowsUsed = Math.max(0, myUseInDecks - myCopies);
+        const famFreeToLend = Math.max(0, copies - myBorrowsUsed);
+        // Surface the family copy only if I have no free copy of my own AND there's an unborrowed
+        // family copy left.
+        if (myFree <= 0 && famFreeToLend > 0) {
+          fam[cid] = { uid: famUid, name: info.ownerName, copies: famFreeToLend };
+          merged[cid] = (merged[cid]||0) + famFreeToLend;
         }
       });
     });
     return { familyOwnerByCard: fam, deckOwnedMerged: merged };
-  }, [owned, familyAvail, otherDeckUse]);
+  }, [owned, familyAvail, otherDeckUse, allDeckUse]);
   function canAddToDeck(c){
     const F = fmtOf(deckType);                    // this format's rules — see DECK_FORMATS
     const SIZE = F.size || 60;
@@ -35463,9 +35499,12 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     // no free copy of your own, and its `copies` is already the borrowable remainder.
     const _famFree   = (familyOwnerByCard && familyOwnerByCard[c.id]) ? (familyOwnerByCard[c.id].copies || 0) : 0;
     const _totalFree = _myFree + _famFree;
-    const _anyOwned  = _myOwned > 0 || _famFree > 0;
-    if(_anyOwned && _totalFree <= 0){
-      return {ok:false, reason: (familyDeckUse[c.id]||0) > 0 ? "In a deck (yours or family)" : _myOwned===1 ? "In another deck" : `All ${_myOwned} copies are in other decks`};
+    // Is this card one that belongs to me or a family member at all? (owned by me, committed by me to
+    // decks, owned/committed by family). If so and there's no free copy left anywhere, it's spent.
+    const _relevant  = _myOwned > 0 || (otherDeckUse[c.id]||0) > 0 || (familyDeckUse[c.id]||0) > 0 || (allDeckUse[c.id]||0) > 0 || _famFree > 0;
+    if(_relevant && _totalFree <= 0){
+      const _loc = deckLocationText(c.id);
+      return {ok:false, reason: _loc ? `In ${_loc}` : ((familyDeckUse[c.id]||0) > 0 ? "In a deck (yours or family)" : _myOwned===1 ? "In another deck" : `All ${_myOwned} copies are in other decks`)};
     }
 
     // ── Format restrictions ──────────────────────────────────────────────────────────────────
