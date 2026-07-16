@@ -33865,14 +33865,19 @@ See you in there!
             const byTreat = iTreat ? numCards.filter(c=>c.treatment?.toLowerCase()===iTreat) : [];
             const byWeap  = iWeap  ? numCards.filter(c=>canonWeapon(c.weapon)===canonWeapon(iWeap)) : [];
             const byPow   = iPow   ? numCards.filter(c=>String(c.power||"").replace(/[^0-9]/g,"")===iPow) : [];
-            if(byTreat.length===1) match=byTreat[0];
-            else if(byWeap.length===1) match=byWeap[0];
+            // Weapon/power read more reliably than the tiny treatment text, so trust them first.
+            if(byWeap.length===1) match=byWeap[0];
             else if(byPow.length===1) match=byPow[0];
+            else if(byTreat.length===1) {
+              // Treatment is the flakiest read on a page scan. Auto-accept only if nothing
+              // contradicts it (no weapon read, or the weapon agrees). Otherwise leave the
+              // variants as candidates so the user confirms rather than taking the wrong foil.
+              const tCard = byTreat[0];
+              if(!iWeap || canonWeapon(tCard.weapon)===canonWeapon(iWeap)) match=tCard;
+            }
             else {
-              // combine weapon+treatment to narrow, then weapon+power
               const wt = numCards.filter(c=>(!iWeap||canonWeapon(c.weapon)===canonWeapon(iWeap))&&(!iTreat||c.treatment?.toLowerCase()===iTreat));
               if(wt.length===1) match=wt[0];
-              // else leave null -> candidate suggester shows the shared-number cards
             }
           }
         }
@@ -34143,17 +34148,22 @@ See you in there!
         const img=new Image(), url=URL.createObjectURL(file);
         img.onload=()=>{ URL.revokeObjectURL(url);
           const cellW = img.width / gCols, cellH = img.height / gRows;
-          // Upscale each cell so small text (card number, treatment) stays legible. Target ~900px tall.
-          const TARGET_H = 900;
+          // Upscale each cell so small text (card number, treatment) stays legible.
+          const TARGET_H = 1100;
+          // Trim a small margin off each cell so a neighbor bleeding across the pocket line
+          // doesn't pollute the read (treatment text lives at the bottom and is the first casualty).
+          const INSET = 0.04; // 4% inward on each side
           const out = [];
           for (let r=0; r<gRows; r++) {
             for (let cc=0; cc<gCols; cc++) {
-              const scale = Math.min(2.2, TARGET_H / cellH);
-              const cw = Math.round(cellW * scale), ch = Math.round(cellH * scale);
+              const sx = (cc + INSET) * cellW, sy = (r + INSET) * cellH;
+              const sw = cellW * (1 - INSET*2), sh = cellH * (1 - INSET*2);
+              const scale = Math.min(2.4, TARGET_H / sh);
+              const cw = Math.round(sw * scale), ch = Math.round(sh * scale);
               const cv = document.createElement("canvas"); cv.width=cw; cv.height=ch;
               const ctx = cv.getContext("2d"); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality="high";
-              ctx.drawImage(img, cc*cellW, r*cellH, cellW, cellH, 0, 0, cw, ch);
-              out.push(cv.toDataURL("image/jpeg", 0.9).split(",")[1]);
+              ctx.drawImage(img, sx, sy, sw, sh, 0, 0, cw, ch);
+              out.push(cv.toDataURL("image/jpeg", 0.92).split(",")[1]);
             }
           }
           res(out);
@@ -35420,14 +35430,19 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     if(F.unique && deckSet.has(c.id))return{ok:false,reason:"Power Glove: every card must be unique"};
     if(inDeckDupKeys.has(dupKey(c)))return{ok:false,reason:"Duplicate card"};
 
-    // Cross-deck copy lock: counts YOUR copies plus any family copies you can borrow.
-    // Every copy already committed to another deck is unavailable here.
-    const _copies = (deckOwnedMerged && deckOwnedMerged[c.id]) ? deckOwnedMerged[c.id] : 0;
-    // Copies committed to OTHER decks \u2014 mine (otherDeckUse, excludes the open deck) plus any family
-    // member's deck (familyDeckUse). A card your father-in-law put in his deck counts here too.
-    const _usedElsewhere = (otherDeckUse[c.id] || 0) + (familyDeckUse[c.id] || 0);
-    if(_copies > 0 && _usedElsewhere >= _copies){
-      return {ok:false, reason: (familyDeckUse[c.id]||0) > 0 ? "In a deck (yours or family)" : _copies===1 ? "In another deck" : `All ${_copies} copies are in other decks`};
+    // Cross-deck copy lock. Keep YOUR copies and BORROWABLE family copies separate — merging them
+    // (as deckOwnedMerged does) let a card you own exactly one of, and have already slotted into a
+    // saved deck, still look addable just because a relative also owns one. A copy already committed
+    // to ANY deck (yours or a relative's) is spent and can't be added again.
+    const _myOwned   = (owned && owned[c.id]) ? (parseInt(owned[c.id]) || 0) : 0;
+    const _myFree    = Math.max(0, _myOwned - (otherDeckUse[c.id] || 0)); // my copies not in another of my decks
+    // Family copies genuinely free to borrow. familyOwnerByCard only surfaces a lender when you had
+    // no free copy of your own, and its `copies` is already the borrowable remainder.
+    const _famFree   = (familyOwnerByCard && familyOwnerByCard[c.id]) ? (familyOwnerByCard[c.id].copies || 0) : 0;
+    const _totalFree = _myFree + _famFree;
+    const _anyOwned  = _myOwned > 0 || _famFree > 0;
+    if(_anyOwned && _totalFree <= 0){
+      return {ok:false, reason: (familyDeckUse[c.id]||0) > 0 ? "In a deck (yours or family)" : _myOwned===1 ? "In another deck" : `All ${_myOwned} copies are in other decks`};
     }
 
     // ── Format restrictions ──────────────────────────────────────────────────────────────────
@@ -35487,8 +35502,8 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
           : `All ${slots} Apex slots used (${insertUnlocks} from Inserts + ${Math.min(4,foilHotDogs)} from Foil Hot Dogs)`};
       }
     }
-    const _free = Math.max(0, _copies - _usedElsewhere);
-    return{ok:true, free:_free, copies:_copies, committed:_usedElsewhere};
+    const _committed = (otherDeckUse[c.id] || 0) + (familyDeckUse[c.id] || 0);
+    return{ok:true, free:_totalFree, copies:(_myOwned + _famFree), committed:_committed};
   }
   // PERF: filters AND sorts the full 36k checklist — was running on every render of the whole
   // collector app, including while you type in the card database.
@@ -38278,10 +38293,11 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                             <>
                               <div style={{fontSize:12,fontWeight:800,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{card.hero}</div>
                               <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{[card.treatment,card.weapon,card.cardNum?`#${card.cardNum}`:""].filter(Boolean).join(" \u00b7 ")}</div>
+                              <div style={{fontSize:9,color:"rgba(255,255,255,0.28)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginTop:1}} title="What the scanner read">read: {d?.hero||"?"}{d?.treatment?` \u00b7 ${d.treatment}`:""}{d?.cardNum?` #${d.cardNum}`:""}</div>
                             </>
                           ) : (
                             <>
-                              <div style={{fontSize:11.5,fontWeight:800,color:"#FBBF24"}}>Not matched</div>
+                              <div style={{fontSize:11.5,fontWeight:800,color:"#FBBF24"}}>{r.candidates.length>0?"Pick variant":"Not matched"}</div>
                               <div style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>Read: {d?.hero||"?"}{d?.cardNum?` #${d.cardNum}`:""}</div>
                               {r.candidates.length>0 && (
                                 <select value="" onChange={e=>{ const cid=e.target.value; if(!cid) return; setPageScan(ps=>({...ps, rows: ps.rows.map(x=>x.key===r.key?{...x,picked:cid,match:cards.find(c=>c.id===cid)||x.match}:x)})); setPageSel(s=>new Set(s).add(r.key)); }}
