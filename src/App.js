@@ -30696,6 +30696,9 @@ function ProfileModal({ profileUid, onClose, currentUser, cards=[], onAddFriend,
 function PublicCardDatabase({ swancity = false } = {}) {
   // -- Core state --
   const [toast, setToast] = useState(null);
+  // Prominent in-app notification popup — slides in when a NEW alert arrives while you're using the app.
+  const [notifPop, setNotifPop] = useState(null);   // { title, sub, image, view }
+  const notifSeenRef = useRef(null);          // ids we've already popped (null = not primed yet)
   // Auto-dismiss. There are a dozen setToast() calls in here and NOT ONE of them ever cleared it,
   // so any toast simply stayed on screen forever \u2014 covering the buttons underneath it. One effect
   // here beats remembering a setTimeout at every call site (which is how it got missed).
@@ -30708,6 +30711,31 @@ function PublicCardDatabase({ swancity = false } = {}) {
   const [fanMode, setFanMode] = useState("grid"); // "grid" | "fan"
   const [cardSize, setCardSize] = useState(200); // grid card min-width in px, adjustable via slider
   const showToast = (msg) => { try { setToast(msg); setTimeout(()=>{ try{setToast(null);}catch(e){} }, 3500); } catch(e){} };
+
+  // Watch for NEW notifications and pop a prominent, impossible-to-miss card. On first load we just
+  // record what's already there (no pop for a backlog); after that, any newly-arrived alert pops.
+  useEffect(() => {
+    const ids = new Set(wantNotifs.map(n=>n.id));
+    if (notifSeenRef.current === null) { notifSeenRef.current = ids; return; }   // prime, don't pop backlog
+    const fresh = wantNotifs.filter(n => !notifSeenRef.current.has(n.id));
+    notifSeenRef.current = ids;
+    if (!fresh.length) return;
+    const n = fresh[0];
+    const type = String(n.type||"");
+    const isTrade = type.startsWith("trade_");
+    const title = type==="trade_offer" ? `${n.fromName||"Someone"} sent you a trade`
+      : type==="trade_accepted" ? `${n.fromName||"Someone"} accepted your trade`
+      : type==="trade_agreed" ? `${n.fromName||"Someone"} agreed \u2014 your move`
+      : type==="trade_countered" ? `${n.fromName||"Someone"} added their side`
+      : type==="trade_declined" ? `${n.fromName||"Someone"} declined your trade`
+      : type==="want_tradeable" ? `A card you want is up for trade`
+      : `${n.cardName||"A card"} you want is on the marketplace`;
+    const sub = fresh.length>1 ? `+${fresh.length-1} more notification${fresh.length-1===1?"":"s"}` : (isTrade ? "Tap to open My Trades" : "Tap to view it");
+    setNotifPop({ title, sub, image: n.cardImage||null, view: isTrade?"trades":"sale" });
+    const t = setTimeout(()=>setNotifPop(null), 7000);
+    return () => clearTimeout(t);
+  }, [wantNotifs]);
+
   const [cards,         setCards]         = useState(()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){const{cards:cc}=JSON.parse(r);if(cc?.length>0)return cc;} } catch(e){} return []; });
   const [foundInMap,    setFoundInMap]    = useState(()=>{ try { const r=localStorage.getItem("found_in_v1"); return r?JSON.parse(r):{}; } catch(e){ return {}; } }); // live {set|treatment: [packIds]}
   const [dbsOverrides,  setDbsOverrides]  = useState(()=>{ try { const r=localStorage.getItem("dbs_overrides_v1"); return r?JSON.parse(r):{}; } catch(e){ return {}; } }); // live {cardId: dbs} — instant DBS updates for everyone
@@ -30814,6 +30842,7 @@ See you in there!
   const navGroupItems = useRef({});
   const [msgPanelOpen,  setMsgPanelOpen]  = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [editPicUploading, setEditPicUploading] = useState(false);
   const [filterOwned,   setFilterOwned]   = useState(savedUI.filterOwned ?? "all");
@@ -37652,8 +37681,17 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
               </button>
             )}
 
+            {/* Mobile hamburger — opens the full nav menu. Replaces the cramped scrolling tab row. */}
+            {isMobile && (
+              <button onClick={()=>setMobileNavOpen(true)} title="Menu" style={{flexShrink:0,background:"rgba(255,255,255,0.06)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:9,width:40,height:40,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:4,cursor:"pointer",marginLeft:"auto"}}>
+                <span style={{width:18,height:2,background:"#fff",borderRadius:2}}/>
+                <span style={{width:18,height:2,background:"#fff",borderRadius:2}}/>
+                <span style={{width:18,height:2,background:"#fff",borderRadius:2}}/>
+              </button>
+            )}
+
           {/* Left: primary nav */}
-          <div className="nav-bar" style={{display:"flex",gap:isMobile?16:28,alignItems:"center",flex:1,minWidth:0,overflowX:isMobile?"auto":"visible",overflowY:"visible",WebkitOverflowScrolling:"touch"}}>
+          <div className="nav-bar" style={{display:isMobile?"none":"flex",gap:isMobile?16:28,alignItems:"center",flex:1,minWidth:0,overflowX:isMobile?"auto":"visible",overflowY:"visible",WebkitOverflowScrolling:"touch"}}>
             {swancity ? (<>
               {navItem("supers","⭐ Supers",0)}
               {navItem("1of1","💎 Secret 1/1s",0)}
@@ -37738,6 +37776,68 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       </div>
 
       {/* Messages slide-in panel */}
+
+      {/* ── PROMINENT NOTIFICATION POPUP ── slides in top-center; impossible to miss. */}
+      {notifPop && (
+        <div style={{position:"fixed",top:isMobile?12:18,left:"50%",transform:"translateX(-50%)",zIndex:2147483000,width:"calc(100% - 24px)",maxWidth:420,animation:"bzNotifIn 0.35s cubic-bezier(0.2,0.9,0.3,1.3)"}}>
+          <style>{`@keyframes bzNotifIn{from{opacity:0;transform:translateX(-50%) translateY(-24px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}`}</style>
+          <div onClick={()=>{ setMktInitView(notifPop.view); setActiveTab("market"); setNotifPop(null); }}
+            style={{display:"flex",alignItems:"center",gap:12,background:"linear-gradient(135deg,#1c0d16,#180f22)",border:"1px solid rgba(232,49,122,0.5)",borderRadius:14,padding:"12px 14px",cursor:"pointer",boxShadow:"0 10px 40px rgba(232,49,122,0.35)"}}>
+            <div style={{fontSize:22,flexShrink:0}}>{"\uD83D\uDD14"}</div>
+            {notifPop.image && <img src={notifPop.image} alt="" style={{width:36,height:48,objectFit:"cover",borderRadius:6,flexShrink:0}}/>}
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:14,fontWeight:800,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{notifPop.title}</div>
+              <div style={{fontSize:12,color:"rgba(255,255,255,0.55)"}}>{notifPop.sub}</div>
+            </div>
+            <button onClick={e=>{ e.stopPropagation(); setNotifPop(null); }} style={{background:"transparent",border:"none",color:"rgba(255,255,255,0.4)",fontSize:20,cursor:"pointer",flexShrink:0,lineHeight:1,padding:"0 2px"}}>{"\u00d7"}</button>
+          </div>
+        </div>
+      )}
+
+
+      {/* ── MOBILE NAV DRAWER ── full menu so nothing is cut off on a phone. */}
+      {isMobile && mobileNavOpen && (
+        <div onClick={()=>setMobileNavOpen(false)} style={{position:"fixed",inset:0,zIndex:14500,background:"rgba(0,0,0,0.75)",backdropFilter:"blur(4px)",display:"flex",justifyContent:"flex-end"}}>
+          <div onClick={e=>e.stopPropagation()} style={{width:"82%",maxWidth:340,height:"100%",background:"#0e0b12",borderLeft:"1px solid rgba(232,49,122,0.25)",overflowY:"auto",padding:"18px 16px",boxSizing:"border-box"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+              <span style={{fontSize:12,fontWeight:800,letterSpacing:2,color:"#E8317A"}}>MENU</span>
+              <button onClick={()=>setMobileNavOpen(false)} style={{background:"transparent",border:"none",color:"#888",fontSize:26,cursor:"pointer",lineHeight:1}}>{"\u00d7"}</button>
+            </div>
+            {(() => {
+              const go = (id) => { setActiveTab(id); setMobileNavOpen(false); };
+              const marketBadge = wantNotifs.length + tradeOffers.filter(t => (t.status==="pending"&&t.toUid===user?.uid) || (t.status==="accepted" && !(t.fromUid===user?.uid?t.fromReceived:t.toReceived))).length;
+              const items = [
+                { id:"cards", label:"Card Database", badge:0 },
+                { section:"Collectibility" },
+                { id:"rainbow", label:"\uD83C\uDF08 Rainbow Progress", badge:0 },
+                { id:"supers", label:"\u2B50 Supers", badge:0 },
+                { id:"1of1", label:"\uD83D\uDC8E Secret 1/1s", badge:0 },
+                { id:"bojax34", label:"\uD83C\uDD71\uFE0F /34 BoJax", badge:0 },
+                { id:"wants", label:"\uD83C\uDFAF Want List", badge:Object.keys(wantList).length },
+                { id:"tradebait", label:"\uD83D\uDD01 Trade Bait", badge:0 },
+                { id:"intransit", label:"\uD83D\uDE9A On the Way", badge:Object.keys(inTransit).length },
+                { section:"Deck Builder" },
+                { id:"deck", label:"\u2694\uFE0F Hero Deck", badge:0 },
+                { id:"playbook", label:"\uD83D\uDCD6 Playbook", badge:0 },
+                ...(user?[{ id:"team", label:"\uD83C\uDFC6 Team", badge:0 }]:[]),
+                { section:"More" },
+                { id:"market", label:"\uD83E\uDD1D Marketplace", badge:marketBadge },
+                { id:"leaderboard", label:"\uD83E\uDD47 Leaderboard", badge:0 },
+                ...(user?[{ id:"friends", label:"\uD83D\uDC65 Friends", badge:friendReqs.length+teamInvites.length }, { id:"ledger", label:"\uD83D\uDCD2 Ledger", badge:0 }]:[]),
+              ];
+              return items.map((it,idx) => it.section ? (
+                <div key={"s"+idx} style={{fontSize:10.5,fontWeight:800,letterSpacing:1.5,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",margin:"16px 0 6px",paddingLeft:4}}>{it.section}</div>
+              ) : (
+                <button key={it.id} onClick={()=>go(it.id)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",background:activeTab===it.id?"rgba(232,49,122,0.12)":"transparent",border:"1px solid "+(activeTab===it.id?"rgba(232,49,122,0.4)":"transparent"),borderRadius:10,padding:"13px 14px",fontSize:15,fontWeight:700,color:activeTab===it.id?"#fff":"rgba(255,255,255,0.75)",cursor:"pointer",fontFamily:"inherit",marginBottom:2}}>
+                  <span>{it.label}</span>
+                  {it.badge>0 && <span style={{background:"#E8317A",color:"#fff",borderRadius:10,minWidth:20,height:20,fontSize:11,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 6px"}}>{it.badge}</span>}
+                </button>
+              ));
+            })()}
+          </div>
+        </div>
+      )}
+
       {msgPanelOpen&&user&&(
         <>
           <div onClick={()=>setMsgPanelOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,backdropFilter:"blur(2px)"}}/>
