@@ -37640,6 +37640,18 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             <img src="/Bazooka_Logo_cropped.png" alt="Bazooka" style={{height:isMobile?26:34,width:"auto",objectFit:"contain",display:"block",filter:"drop-shadow(0 2px 8px rgba(232,49,122,0.4))"}}/>
           </a>
           <span title="This app is in beta — found a bug? Tap the 🐛 button!" style={{flexShrink:0,fontSize:isMobile?9:10,fontWeight:900,letterSpacing:1,color:"#FBBF24",background:"rgba(251,191,36,0.12)",border:"1px solid rgba(251,191,36,0.4)",borderRadius:6,padding:isMobile?"2px 5px":"3px 8px",marginRight:isMobile?4:8,textTransform:"uppercase"}}>Beta</span>
+            {/* Persistent notification bell — always visible (outside the horizontally-scrolling
+                 nav), so mobile users see they have alerts even when the Marketplace tab is scrolled
+                 off-screen. Tapping jumps to where the alerts live. */}
+            {totalNotifs > 0 && (
+              <button onClick={()=>{ setMktInitView(wantNotifs.some(n=>String(n.type||"").startsWith("trade_"))?"trades":"sale"); setActiveTab("market"); }}
+                title={`${totalNotifs} notification${totalNotifs===1?"":"s"}`}
+                style={{flexShrink:0,position:"relative",background:"transparent",border:"none",cursor:"pointer",fontSize:isMobile?20:22,padding:"4px 6px",marginRight:isMobile?4:10,lineHeight:1}}>
+                {"\uD83D\uDD14"}
+                <span style={{position:"absolute",top:-2,right:-2,background:"#E8317A",color:"#fff",borderRadius:10,minWidth:16,height:16,fontSize:10,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px",boxSizing:"border-box"}}>{totalNotifs>99?"99+":totalNotifs}</span>
+              </button>
+            )}
+
           {/* Left: primary nav */}
           <div className="nav-bar" style={{display:"flex",gap:isMobile?16:28,alignItems:"center",flex:1,minWidth:0,overflowX:isMobile?"auto":"visible",overflowY:"visible",WebkitOverflowScrolling:"touch"}}>
             {swancity ? (<>
