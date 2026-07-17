@@ -28878,7 +28878,54 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     ))}
                   </div>
                   <div style={{display:"flex",gap:8}}>
-                    <button onClick={()=>window.print()} style={{background:"#111",color:"#fff",border:"none",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🖨 Print / Save PDF</button>
+                    <button onClick={()=>{
+                      // Print via a CLEAN popup window (same approach as the weekly schedule print).
+                      // Printing the app in place kept duplicating page 1 because the pick list lives
+                      // in a fixed/flex/scrolling overlay that browsers mis-paginate. A standalone
+                      // window with just the table paginates correctly every time.
+                      const esc = s => String(s==null?"":s).replace(/[&<>"]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+                      const ownLabel = c => {
+                        if (owned && owned[c.id]) return '<span style="color:#1a7a3a;font-weight:700">You</span>';
+                        const fam = familyOwnerByCard && familyOwnerByCard[c.id];
+                        if (fam) return '<span style="color:#7B2FF7;font-weight:700">'+esc(fam.name||"Family")+'</span>';
+                        return '<span style="color:#c0392b;font-weight:700">Not owned</span>';
+                      };
+                      const rows = sorted.map((c,i)=>(
+                        '<tr>'+
+                        '<td class="num">'+(i+1)+'</td>'+
+                        '<td class="mono">'+esc(c.cardNum||"—")+'</td>'+
+                        '<td class="hero">'+esc(c.hero||"—")+'</td>'+
+                        '<td class="r">'+esc(c.power)+'</td>'+
+                        '<td>'+esc(c.weapon||"—")+'</td>'+
+                        '<td>'+esc(c.treatment||"—")+'</td>'+
+                        '<td class="set">'+esc(c.setName||"—")+'</td>'+
+                        '<td>'+ownLabel(c)+'</td>'+
+                        '</tr>'
+                      )).join("");
+                      const html = '<!DOCTYPE html><html><head><title>'+esc(deckName||"My Deck")+' — Pick List</title>'+
+                        '<style>'+
+                        '*{box-sizing:border-box;} body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:24px;color:#111;}'+
+                        'h1{font-size:20px;font-weight:900;margin:0 0 2px;} .sub{font-size:12px;color:#888;margin-bottom:16px;}'+
+                        'table{width:100%;border-collapse:collapse;font-size:12.5px;} thead{display:table-header-group;}'+
+                        'th{text-align:left;background:#f3f3f3;border-bottom:2px solid #ccc;padding:7px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#555;}'+
+                        'td{padding:6px;border-bottom:1px solid #e5e5e5;} tr{page-break-inside:avoid;}'+
+                        'td.num{text-align:center;color:#999;} td.mono{font-family:monospace;color:#555;} td.hero{font-weight:700;}'+
+                        'td.r{text-align:right;font-weight:800;} th.r{text-align:right;} td.set{color:#888;font-size:11.5px;}'+
+                        '.foot{margin-top:16px;font-size:11px;color:#aaa;text-align:center;}'+
+                        '.btns{margin-bottom:18px;} button{background:#111;color:#fff;border:none;border-radius:7px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;margin-right:8px;}'+
+                        '@page{margin:14mm;} @media print{.btns{display:none;}}'+
+                        '</style></head><body>'+
+                        '<div class="btns"><button onclick="window.print()">🖨 Print / Save PDF</button><button onclick="window.close()" style="background:#666">Close</button></div>'+
+                        '<h1>'+esc(deckName||"My Deck")+' — Pick List</h1>'+
+                        '<div class="sub">'+sorted.length+' cards · generated '+new Date().toLocaleDateString()+'</div>'+
+                        '<table><thead><tr><th>#</th><th>Card #</th><th>Hero</th><th class="r">Power</th><th>Weapon</th><th>Treatment</th><th>Set</th><th>In Collection</th></tr></thead>'+
+                        '<tbody>'+rows+'</tbody></table>'+
+                        '<div class="foot">Bazooka Dash · '+esc(deckName||"My Deck")+'</div>'+
+                        '</body></html>';
+                      const w = window.open("","_blank","width=900,height=1000");
+                      if (!w) { alert("Please allow pop-ups for this site to print the pick list."); return; }
+                      w.document.write(html); w.document.close();
+                    }} style={{background:"#111",color:"#fff",border:"none",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🖨 Print / Save PDF</button>
                     <button onClick={()=>setShowPickList(false)} style={{background:"#f0f0f0",color:"#444",border:"none",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
                   </div>
                 </div>
