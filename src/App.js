@@ -33355,6 +33355,7 @@ See you in there!
   // {fieldId: newValue} for every field you've switched on. A typo like "Kyle Trucker" usually lives
   // in BOTH hero and inspiredBy, so fixing one field at a time means running the same selection twice.
   const [bulkEdits,     setBulkEdits]     = useState({});
+  const [bulkImgUploading, setBulkImgUploading] = useState(false);
   const [bulkEditing,   setBulkEditing]   = useState(false);
 
   const BULK_FIELDS = [
@@ -33367,6 +33368,7 @@ See you in there!
     { id:"inspiredBy", label:"Inspired By" },
     { id:"playName",   label:"Play Name" },
     { id:"power",      label:"Power" },
+    { id:"imageUrl",   label:"Image URL (placeholder)", isImage:true },
   ];
 
   async function bulkEditCards() {
@@ -37538,6 +37540,31 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                             type={f.id==="power" ? "number" : "text"}
                             placeholder={f.id==="power" ? "e.g. 150 \u2014 blank to clear" : `New ${f.label.toLowerCase()}\u2026`}
                             style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:7,padding:"8px 11px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
+                        {f.isImage && (
+                          <div style={{marginTop:8,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                            <label style={{fontSize:11.5,fontWeight:700,color:"#7B9CFF",cursor:bulkImgUploading?"wait":"pointer",background:"rgba(123,156,255,0.1)",border:"1px solid rgba(123,156,255,0.35)",borderRadius:7,padding:"7px 12px"}}>
+                              {bulkImgUploading ? "Uploading\u2026" : "\uD83D\uDCF7 Upload placeholder image"}
+                              <input type="file" accept="image/*" disabled={bulkImgUploading} style={{display:"none"}}
+                                onChange={async e=>{
+                                  const file = e.target.files && e.target.files[0];
+                                  if(!file) return;
+                                  setBulkImgUploading(true);
+                                  try {
+                                    const path = `card_data/placeholders/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g,"_")}`;
+                                    await uploadBytes(ref(storage, path), file, { contentType:file.type||"image/jpeg", cacheControl:"public,max-age=31536000" });
+                                    const url = await getDownloadURL(ref(storage, path));
+                                    setBulkEdits(prev=>({...prev, imageUrl:url}));
+                                  } catch(err) {
+                                    alert("Upload failed: " + (err?.message||err));
+                                  } finally { setBulkImgUploading(false); e.target.value=""; }
+                                }}/>
+                            </label>
+                            {bulkEdits.imageUrl ? (
+                              <img src={bulkEdits.imageUrl} alt="" style={{width:34,height:47,objectFit:"cover",borderRadius:4,border:"1px solid #333"}}/>
+                            ) : null}
+                            <span style={{fontSize:10.5,color:"var(--bz-ink-3)"}}>Upload once \u2014 it's applied to all {selectedIds.size} selected card{selectedIds.size===1?"":"s"}.</span>
+                          </div>
+                        )}
                           {mixed && (
                             <div style={{fontSize:10.5,color:"#FBBF24",lineHeight:1.5,marginTop:6}}>
                               {d.slice(0,4).map(([v,n])=>`${v} (${n})`).join("  \u00B7  ")}
