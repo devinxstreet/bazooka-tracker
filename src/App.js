@@ -32675,7 +32675,11 @@ See you in there!
       try {
         const enriched = publicIds.map(id => {
           const c = cards.find(x=>x.id===id) || {};
-          return { id, hero:c.hero||"", treatment:c.treatment||"", weapon:c.weapon||"", cardNum:c.cardNum||"", setName:c.setName||"", imageUrl:c.imageUrl||"" };
+          // If the card has no official catalog image, fall back to MY scanned copy's photo so the
+          // public profile shows the card I actually own instead of an empty placeholder.
+          const scan = (lots||[]).find(l => l && l.cardId===id && l.photoUrl);
+          const img = c.imageUrl || (scan ? scan.photoUrl : "");
+          return { id, hero:c.hero||"", treatment:c.treatment||"", weapon:c.weapon||"", cardNum:c.cardNum||"", setName:c.setName||"", imageUrl:img };
         });
         await setDoc(doc(db,"boba_public_cards",user.uid), { cards: enriched, updatedAt: new Date().toISOString() });
       } catch(e){}
@@ -32690,7 +32694,10 @@ See you in there!
       const publicIds = Object.keys(nextPublic).filter(id=>nextPublic[id]);
       const enriched = publicIds.map(id => {
         const c = cards.find(x=>x.id===id) || {};
-        return { id, hero:c.hero||"", treatment:c.treatment||"", weapon:c.weapon||"", cardNum:c.cardNum||"", setName:c.setName||"", imageUrl:c.imageUrl||"" };
+        // No official image? Use my scanned copy's photo so the public profile shows a real card.
+        const scan = (lots||[]).find(l => l && l.cardId===id && l.photoUrl);
+        const img = c.imageUrl || (scan ? scan.photoUrl : "");
+        return { id, hero:c.hero||"", treatment:c.treatment||"", weapon:c.weapon||"", cardNum:c.cardNum||"", setName:c.setName||"", imageUrl:img };
       });
       await setDoc(doc(db,"boba_public_cards",user.uid), { cards: enriched, updatedAt: new Date().toISOString() });
     } catch(e){ console.error("public cards snapshot failed:", e); }
