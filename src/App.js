@@ -20491,7 +20491,10 @@ function TreatmentChecker() {
 // ── CARD SET IMPORTER ─────────────────────────────────────────────────────────
 function CardSetImporter({ userRole }) {
   const isAdmin = ["Admin"].includes(userRole?.role);
-  const [mode,      setMode]      = useState("data");   // "data" | "images" | "cleanup"
+  const [mode,      setMode]      = useState("data");   // "data" | "images" | "cleanup" | "single"
+  const [newCard, setNewCard] = useState({ hero:"", treatment:"", weapon:"", cardNum:"", setName:"", power:"", playName:"", athlete:"" });
+  const [addingCard, setAddingCard] = useState(false);
+  const [addCardMsg, setAddCardMsg] = useState(null);
   const [files,     setFiles]     = useState([]);
   const [imgFiles,  setImgFiles]  = useState([]);       // flat list of {file, folder, cardNum}
   const [importSet, setImportSet] = useState("");       // restrict image import to this set (avoids cross-set hero collisions)
@@ -20502,6 +20505,43 @@ function CardSetImporter({ userRole }) {
   const [progress,  setProgress]  = useState(null);
   const [results,   setResults]   = useState(null);
   const [errors,    setErrors]    = useState([]);
+
+  // Add ONE missing card straight into boba_checklist (admin). Uses the SAME idempotent id scheme as
+  // the bulk importer, so if this card later comes in via a CSV import it lands on the same doc
+  // instead of duplicating. Requires hero + set at minimum.
+  async function addSingleCard() {
+    const c = newCard;
+    if (!c.hero.trim() || !c.setName.trim()) { setAddCardMsg({ ok:false, text:"Hero and Set are required." }); return; }
+    setAddingCard(true); setAddCardMsg(null);
+    try {
+      const nrm = v => String(v==null?"":v).trim().toLowerCase().replace(/\s+/g," ");
+      const key = [nrm(c.setName), nrm(c.cardNum), nrm(c.hero), nrm(c.treatment)].join("|");
+      const slug = key.replace(/[^a-z0-9]/g,"").slice(0,20);
+      const hash = Math.abs(key.split("").reduce((h,ch)=>((h<<5)-h)+ch.charCodeAt(0)|0,0)).toString(16).slice(0,6);
+      const id = slug + "_" + hash;
+      // Don't clobber an existing card — if this id already exists, tell the admin.
+      const existing = await getDoc(doc(db,"boba_checklist",id));
+      if (existing.exists()) { setAddCardMsg({ ok:false, text:`That card already exists in the database (${existing.data().hero||"?"} ${existing.data().cardNum||""}).` }); setAddingCard(false); return; }
+      const cardData = {
+        hero: c.hero.trim(),
+        treatment: c.treatment.trim() || "Base Set",
+        weapon: c.weapon.trim(),
+        cardNum: c.cardNum.trim(),
+        setName: c.setName.trim(),
+        power: c.power.trim(),
+        ...(c.playName.trim() ? { playName: c.playName.trim() } : {}),
+        ...(c.athlete.trim() ? { athlete: c.athlete.trim() } : {}),
+        addedManually: true,
+        addedAt: new Date().toISOString(),
+      };
+      await setDoc(doc(db,"boba_checklist",id), cardData, { merge:true });
+      setAddCardMsg({ ok:true, text:`Added ${cardData.hero}${cardData.cardNum?` #${cardData.cardNum}`:""}. Rebuild the card snapshot (Cleanup tab) so it shows for everyone.` });
+      setNewCard({ hero:"", treatment:"", weapon:"", cardNum:"", setName: c.setName, power:"", playName:"", athlete:"" }); // keep set for fast multi-add
+    } catch(e) {
+      setAddCardMsg({ ok:false, text:"Couldn't add card: " + (e?.message||e) });
+    } finally { setAddingCard(false); }
+  }
+
   const setList = (()=>{ try { const r=localStorage.getItem("boba_checklist_cache_v3"); if(r){ const {cards}=JSON.parse(r); if(cards?.length){ return [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort(); } } } catch(e){} return []; })();
 
   if (!isAdmin) return <div style={{ padding:40, textAlign:"center", color:"var(--bz-ink-3)" }}>Admin only.</div>;
@@ -20878,13 +20918,42 @@ function CardSetImporter({ userRole }) {
 
       {/* Mode toggle */}
       <div style={{ display:"flex", gap:8 }}>
-        {[["data","📄 Import Data"],["images","🖼 Import by Filename"],["prefix","🏷 Prefixes"],["foundin","📦 Found In"],["treatments","🏷 Merge Treatments"],["junkplays","🧹 Junk Plays"],["dedupe","🧬 Dedupe"],["merge","🔀 Merge Sets"],["cleanup","🧹 Cleanup"],["manual","🎯 Manual Image"]].map(([m,l])=>(
+        {[["single","➕ Add Card"],["data","📄 Import Data"],["images","🖼 Import by Filename"],["prefix","🏷 Prefixes"],["foundin","📦 Found In"],["treatments","🏷 Merge Treatments"],["junkplays","🧹 Junk Plays"],["dedupe","🧬 Dedupe"],["merge","🔀 Merge Sets"],["cleanup","🧹 Cleanup"],["manual","🎯 Manual Image"]].map(([m,l])=>(
           <button key={m} onClick={()=>{ setMode(m); setResults(null); setErrors([]); }}
             style={{ background:mode===m?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${mode===m?"#E8317A":"#2a2a2a"}`, color:mode===m?"#E8317A":"#888", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
             {l}
           </button>
         ))}
       </div>
+
+
+        {/* ── Add a single missing card ── */}
+        {mode==="single" && (
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            <div style={{fontSize:12.5,color:"var(--bz-ink-3)",lineHeight:1.5}}>
+              Add one card that's missing from the database. It gets the same ID scheme as a CSV import, so a later bulk import of the same card won't duplicate it. <strong style={{color:"var(--bz-ink)"}}>Hero</strong> and <strong style={{color:"var(--bz-ink)"}}>Set</strong> are required.
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              {[["hero","Hero *","e.g. Wrecking Ball"],["setName","Set *","e.g. Tecmo Bowl"],["treatment","Treatment","e.g. Base Set"],["weapon","Weapon","Fire / Ice / Steel / …"],["cardNum","Card #","e.g. TB-42"],["power","Power","e.g. 135"],["playName","Play name (optional)",""],["athlete","Athlete (optional)",""]].map(([k,label,ph])=>(
+                <div key={k} style={{display:"flex",flexDirection:"column",gap:4}}>
+                  <label style={{fontSize:11,fontWeight:700,color:"var(--bz-ink-3)"}}>{label}</label>
+                  <input value={newCard[k]} onChange={e=>setNewCard(v=>({...v,[k]:e.target.value}))} placeholder={ph}
+                    style={{background:"#0d0d0d",border:"1.5px solid #2a2a2a",color:"var(--bz-ink)",borderRadius:8,padding:"8px 10px",fontSize:13,fontFamily:"inherit"}}/>
+                </div>
+              ))}
+            </div>
+            {addCardMsg && (
+              <div style={{fontSize:12.5,fontWeight:600,color:addCardMsg.ok?"#4ade80":"#f87171",background:addCardMsg.ok?"rgba(74,222,128,0.08)":"rgba(248,113,113,0.08)",border:`1px solid ${addCardMsg.ok?"rgba(74,222,128,0.3)":"rgba(248,113,113,0.3)"}`,borderRadius:8,padding:"9px 12px"}}>
+                {addCardMsg.text}
+              </div>
+            )}
+            <button onClick={addSingleCard} disabled={addingCard}
+              style={{alignSelf:"flex-start",background:addingCard?"#333":"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"11px 22px",fontSize:14,fontWeight:800,cursor:addingCard?"wait":"pointer",fontFamily:"inherit"}}>
+              {addingCard?"Adding…":"➕ Add Card to Database"}
+            </button>
+          </div>
+        )}
+
 
       {/* ── JSON import ── */}
       {mode==="data" && (
@@ -28122,7 +28191,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       <div style={{fontSize:12,color:"#bbb",lineHeight:1.6,marginBottom:10}}>Apex Madness has too many moving parts (10 core per insert, apex unlocks, foiled Hot Dog slots) for a reliable one-tap build. Add cards below and the <strong>Apex Madness rules tracker</strong> will guide you — it shows which inserts you've unlocked and what each apex needs.</div>
                       <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
                         <span style={{fontSize:11,color:"#a0a0a0",fontWeight:700}}>Goal:</span>
-                        <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:"#E8317A"}}>
+                        <select value={deckType} onChange={e=>{ const v=e.target.value; setDeckType(v); if(!(v==="spec"||v==="vegasbaby"||v==="apex")) setDeckMaxMode(false); }} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:"#E8317A"}}>
                           {Object.entries(DECK_FORMATS).map(([k,f])=><option key={k} value={k}>{f.label}</option>)}
                         </select>
                       </div>
@@ -28167,7 +28236,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     )}
                     <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
                       <span style={{fontSize:11,color:"#a0a0a0",fontWeight:700}}>Goal:</span>
-                      <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:deckType==="none"?"rgba(255,255,255,0.5)":"#FBBF24"}}>
+                      <select value={deckType} onChange={e=>{ const v=e.target.value; setDeckType(v); if(!(v==="spec"||v==="vegasbaby"||v==="apex")) setDeckMaxMode(false); }} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:deckType==="none"?"rgba(255,255,255,0.5)":"#FBBF24"}}>
                         {Object.entries(DECK_FORMATS).map(([k,f])=><option key={k} value={k}>{f.label}</option>)}
                       </select>
                       {/* Weapon + treatment goals are multi-select: an "all Hex and Gum" Apex deck is
@@ -28399,7 +28468,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               })()}
               <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
                 <input value={deckSearch} onChange={e=>setDeckSearch(e.target.value)} placeholder="Search hero, treatment..." style={{...inp,flex:1,minWidth:160}}/>
-                <select value={deckType} onChange={e=>setDeckType(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:deckType==="spec"?"#FBBF24":deckType==="apexmadness"?"#E8317A":deckType==="apex"?"#A855F7":deckType==="elite"?"#4ade80":deckType==="specplus"?"#38BDF8":deckType==="blast"?"#F472B6":"rgba(255,255,255,0.4)"}}>
+                <select value={deckType} onChange={e=>{ const v=e.target.value; setDeckType(v); if(!(v==="spec"||v==="vegasbaby"||v==="apex")) setDeckMaxMode(false); }} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:deckType==="spec"?"#FBBF24":deckType==="apexmadness"?"#E8317A":deckType==="apex"?"#A855F7":deckType==="elite"?"#4ade80":deckType==="specplus"?"#38BDF8":deckType==="blast"?"#F472B6":"rgba(255,255,255,0.4)"}}>
                   {/* Generated from DECK_FORMATS so this can't drift out of sync with the rules. */}
                   {Object.entries(DECK_FORMATS).map(([k,f])=><option key={k} value={k}>{f.label}</option>)}
                   <optgroup label="── Events ──">
@@ -35994,22 +36063,34 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
         cards.filter(c => formatEligible(c)).map(c => c.setName).filter(Boolean)
       )];
 
-      // Every power level that has at least one legal card, strongest first.
+      // Every power level that has at least one legal card.
+      // For a PER-CARD-cap format (Spec) we want the STRONGEST legal deck, so walk high→low.
+      // For a TOTAL-power format (Elite: ≤8,250 summed), grabbing the highest powers blows the
+      // budget instantly and demands cards you'd never legally fit — so walk LOW→high and stop once
+      // the remaining power budget is used up. That suggests a set of cards that actually completes
+      // a legal Elite deck instead of an impossible "6× 250-power" wishlist.
+      const isTotalCap = !!F.totalPower;
       const powersAvail = [...new Set(
         cards.filter(c => formatEligible(c)).map(c => powerOf(c)).filter(p => p > 0)
-      )].sort((a,b)=>b-a);
+      )].sort((a,b)=> isTotalCap ? (a-b) : (b-a));
 
       const perPowerM = { ...perPower };
       const bySlot = {};
       let need = shortBy;
+      // Remaining total-power budget (only meaningful for total-cap formats).
+      let budget = isTotalCap ? Math.max(0, F.totalPower - usable.reduce((s,c)=>s+powerOf(c),0)) : Infinity;
       for (const p of powersAvail) {
         if (need <= 0) break;
-        const room = PER_POWER - (perPowerM[String(p)] || 0);   // how many more can sit at this power
+        let room = PER_POWER - (perPowerM[String(p)] || 0);   // how many more can sit at this power
         if (room <= 0) continue;
-        const take = Math.min(room, need);
+        let take = Math.min(room, need);
+        // For a total-power format, don't suggest more cards at this power than the budget allows.
+        if (isTotalCap && p > 0) take = Math.min(take, Math.floor(budget / p));
+        if (take <= 0) continue;
         bySlot[p] = (bySlot[p] || 0) + take;
         perPowerM[String(p)] = (perPowerM[String(p)] || 0) + take;
         need -= take;
+        if (isTotalCap) budget -= take * p;
       }
       missingSlots = Object.entries(bySlot)
         .map(([power,count]) => ({ power: Number(power), count, sets: legalSets }))
