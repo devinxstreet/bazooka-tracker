@@ -28305,7 +28305,25 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     {/* WHAT'S MISSING — expressed as POWER SLOTS, because any legal card at that
                         power fills the slot equally well. The marketplace lookup therefore searches
                         for ANY card at that power in a legal set, rather than one arbitrary card. */}
-                    {deckProgress?.missingSlots?.length > 0 && (() => {
+                    {/* ELITE (total-power) — there are NO per-power-level quotas. The only requirement is
+                  that the deck's summed power reaches the cap (e.g. 8,250). Any cards get you there,
+                  so showing "×6 at 250⚡ needed" is nonsense here. Show the power GAP instead. */}
+              {fmtOf(deckType).totalPower && deckProgress && deckProgress.have < (fmtOf(deckType).size||60) && (() => {
+                const F = fmtOf(deckType);
+                const cardsGap = Math.max(0, (F.size||60) - (deckProgress.have||0));
+                return (
+                  <div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.25)",borderRadius:10,padding:"12px 14px",marginTop:10}}>
+                    <div style={{fontSize:12.5,fontWeight:800,color:"#FBBF24",marginBottom:4}}>{"\uD83D\uDD0E"} What you're missing</div>
+                    <div style={{fontSize:12.5,color:"var(--bz-ink)",lineHeight:1.5}}>
+                      Elite has no power-level requirements — you just need to reach <strong>{F.totalPower.toLocaleString()} total power</strong> with up to {F.size||60} cards (max 6 at any one power level, no duplicates).
+                    </div>
+                    <div style={{fontSize:12.5,color:"var(--bz-ink-3)",marginTop:6}}>
+                      You're at <strong style={{color:"var(--bz-ink)"}}>{(deckProgress.totalPower||0).toLocaleString()}</strong> power across <strong style={{color:"var(--bz-ink)"}}>{deckProgress.have}</strong> cards. Add any {cardsGap>0?`${cardsGap} more `:""}cards to reach {F.totalPower.toLocaleString()}.
+                    </div>
+                  </div>
+                );
+              })()}
+              {!fmtOf(deckType).totalPower && deckProgress?.missingSlots?.length > 0 && (() => {
                       const cardById = {};
                       cards.forEach(c => { cardById[c.id] = c; });
 
@@ -32664,27 +32682,34 @@ See you in there!
   }
   // Backfill: existing users who made cards public before denormalization get their
   // boba_public_cards snapshot written once, so their profile loads instantly.
-  const publicBackfilledRef = useRef(false);
+  // Keep each user's denormalized public-cards snapshot fresh automatically. The public profile
+  // page reads this snapshot (never the private collection), so anything not baked in here is
+  // invisible to visitors. This runs on the user's OWN client — the only place their scan photos
+  // (private boba_lots) are readable — and rewrites the snapshot whenever it's missing an image we
+  // can now supply from a scan. No user action, no "refresh your collection" ask: it self-heals the
+  // next time each person opens the app. Guarded so it only WRITES when something actually changed.
+  const publicSnapshotSig = useRef("");
   useEffect(() => {
-    if (publicBackfilledRef.current) return;
     if (!user || !cards.length) return;
     const publicIds = Object.keys(publicCards).filter(id=>publicCards[id]);
     if (publicIds.length === 0) return;
-    publicBackfilledRef.current = true;
+    // Build a lookup of my scan photos by card id (first photo wins).
+    const scanByCard = {};
+    for (const l of (lots||[])) { if (l && l.cardId && l.photoUrl && !scanByCard[l.cardId]) scanByCard[l.cardId] = l.photoUrl; }
+    const enriched = publicIds.map(id => {
+      const c = cards.find(x=>x.id===id) || {};
+      const img = c.imageUrl || scanByCard[id] || "";   // official art, else my scan, else nothing
+      return { id, hero:c.hero||"", treatment:c.treatment||"", weapon:c.weapon||"", cardNum:c.cardNum||"", setName:c.setName||"", imageUrl:img };
+    });
+    // Only write if the content actually changed (avoids a write on every render / app open).
+    const sig = JSON.stringify(enriched);
+    if (sig === publicSnapshotSig.current) return;
+    publicSnapshotSig.current = sig;
     (async () => {
-      try {
-        const enriched = publicIds.map(id => {
-          const c = cards.find(x=>x.id===id) || {};
-          // If the card has no official catalog image, fall back to MY scanned copy's photo so the
-          // public profile shows the card I actually own instead of an empty placeholder.
-          const scan = (lots||[]).find(l => l && l.cardId===id && l.photoUrl);
-          const img = c.imageUrl || (scan ? scan.photoUrl : "");
-          return { id, hero:c.hero||"", treatment:c.treatment||"", weapon:c.weapon||"", cardNum:c.cardNum||"", setName:c.setName||"", imageUrl:img };
-        });
-        await setDoc(doc(db,"boba_public_cards",user.uid), { cards: enriched, updatedAt: new Date().toISOString() });
-      } catch(e){}
+      try { await setDoc(doc(db,"boba_public_cards",user.uid), { cards: enriched, updatedAt: new Date().toISOString() }); }
+      catch(e){ /* non-fatal: snapshot just stays as-is until next load */ }
     })();
-  }, [user, cards, publicCards]);
+  }, [user, cards, publicCards, lots]);
 
   // Write both the public flags and the denormalized snapshot for a given publicCards map.
   async function persistPublicCards(nextPublic) {
