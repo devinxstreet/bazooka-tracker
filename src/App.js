@@ -36007,15 +36007,50 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
           take(c); highUsed[p] = (highUsed[p]||0)+1;
         }
       }
+    } else if (F.totalPower) {
+      // ── ELITE: strongest 60 that still totals ≤ 8,250 ──
+      // Elite is "Spec but you may exceed 160, as long as the whole deck sums to ≤ 8,250." So we
+      // want the HIGHEST-power cards, but every high card taken forces room for the remaining slots.
+      // For each of the 60 slots, take the strongest card you can afford SUCH THAT the slots left
+      // after it can still be filled by your cheapest remaining legal cards without blowing the
+      // budget. That yields the strongest legal 60 that fits under 8,250.
+      const strongFirst = ownedCards.slice().sort((a,b)=>(powerOf(b)-powerOf(a))
+        || (((treatCount[b.treatment||"—"]||0)-(treatCount[a.treatment||"—"]||0)))
+        || mineFirst(a,b));   // strongest first; treatment we're deepest in as a tiebreak, then mine
+      while (usable.length < DECK_SIZE) {
+        const slotsLeft  = DECK_SIZE - usable.length;         // includes the slot we're filling now
+        const budgetLeft = F.totalPower - runningPower;
+        const affordableRest = ownedCards.filter(c => canTake(c)).sort((a,b)=>powerOf(a)-powerOf(b)); // cheap→dear
+        if (affordableRest.length === 0) break;               // nothing legal left
+        const cheapest = affordableRest.slice(0, slotsLeft);  // cheapest cards we could still use
+        let pick = null;
+        for (const c of strongFirst) {
+          if (!canTake(c)) continue;
+          // Reserve the cheapest (slotsLeft-1) OTHER cards to guarantee the rest of the 60 still fit.
+          let reserve = 0, taken = 0, skippedSelf = false;
+          for (const r of cheapest) {
+            if (!skippedSelf && r === c) { skippedSelf = true; continue; }
+            if (taken >= slotsLeft - 1) break;
+            reserve += powerOf(r); taken++;
+          }
+          if (taken < slotsLeft - 1) continue;                // not enough cheap cards to fill the rest
+          if (powerOf(c) + reserve <= budgetLeft) { pick = c; break; } // strongest that still lets 60 fit
+        }
+        if (!pick) {
+          pick = affordableRest[0];                           // fall back to cheapest legal card
+          if (!pick || runningPower + powerOf(pick) > F.totalPower) break;
+        }
+        take(pick);
+      }
     } else {
-      // Everything else: bucket by power, walk tiers high → low.
+      // Everything else (Spec, etc.): bucket by power, walk tiers strongest→weakest (or lowest first
+      // for lowPower / Coach formats).
       const tiers = {};
       ownedCards.forEach(c => { const p = powerOf(c); (tiers[p] = tiers[p]||[]).push(c); });
-      const tierPowers = Object.keys(tiers).map(Number).sort((a,b)=>F.lowPower?(a-b):(b-a));
+      const tierPowers = Object.keys(tiers).map(Number).sort((a,b)=> F.lowPower ? (a-b) : (b-a));
 
       for (const p of tierPowers) {
         if (usable.length >= DECK_SIZE) break;
-        // Within this power tier, order by: treatment we already have most of, then my own cards.
         const tier = tiers[p].slice().sort((a,b)=>{
           const ct=(treatCount[a.treatment||"—"]||0), bt=(treatCount[b.treatment||"—"]||0);
           if (ct !== bt) return bt - ct;
@@ -36024,19 +36059,6 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
         for (const c of tier) {
           if (usable.length >= DECK_SIZE) break;
           if (!canTake(c)) continue;
-          take(c);
-        }
-      }
-      // ELITE — the total-power budget means the greedy high-first pass can strand the last few
-      // slots (nothing cheap enough left to fit). Backfill with the strongest cards that still fit
-      // under the remaining budget, so the deck reaches 60 rather than stopping short.
-      if (F.totalPower && usable.length < DECK_SIZE) {
-        const rest = ownedCards
-          .filter(c => !seen.has(dupKey(c)))
-          .sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
-        for (const c of rest) {
-          if (usable.length >= DECK_SIZE) break;
-          if (!canTake(c)) continue;   // canTake already enforces the budget
           take(c);
         }
       }
