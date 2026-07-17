@@ -28310,15 +28310,23 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                   so showing "×6 at 250⚡ needed" is nonsense here. Show the power GAP instead. */}
               {fmtOf(deckType).totalPower && deckProgress && deckProgress.have < (fmtOf(deckType).size||60) && (() => {
                 const F = fmtOf(deckType);
-                const cardsGap = Math.max(0, (F.size||60) - (deckProgress.have||0));
+                const SIZE = F.size||60;
+                const cardsGap = Math.max(0, SIZE - (deckProgress.have||0));
+                const cur = deckProgress.totalPower||0;
+                const headroom = F.totalPower - cur;
+                // If there's no power headroom left, the deck is stuck: it hit the cap before 60 cards.
+                const stuck = headroom <= 0;
                 return (
                   <div style={{background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.25)",borderRadius:10,padding:"12px 14px",marginTop:10}}>
                     <div style={{fontSize:12.5,fontWeight:800,color:"#FBBF24",marginBottom:4}}>{"\uD83D\uDD0E"} What you're missing</div>
                     <div style={{fontSize:12.5,color:"var(--bz-ink)",lineHeight:1.5}}>
-                      Elite has no power-level requirements — you just need to reach <strong>{F.totalPower.toLocaleString()} total power</strong> with up to {F.size||60} cards (max 6 at any one power level, no duplicates).
+                      Elite needs <strong>{SIZE} cards</strong> whose power sums to <strong>≤ {F.totalPower.toLocaleString()}</strong> (max 6 at any one power level, no duplicates).
                     </div>
                     <div style={{fontSize:12.5,color:"var(--bz-ink-3)",marginTop:6}}>
-                      You're at <strong style={{color:"var(--bz-ink)"}}>{(deckProgress.totalPower||0).toLocaleString()}</strong> power across <strong style={{color:"var(--bz-ink)"}}>{deckProgress.have}</strong> cards. Add any {cardsGap>0?`${cardsGap} more `:""}cards to reach {F.totalPower.toLocaleString()}.
+                      You have <strong style={{color:"var(--bz-ink)"}}>{deckProgress.have}</strong> cards at <strong style={{color:"var(--bz-ink)"}}>{cur.toLocaleString()}</strong> power.{" "}
+                      {stuck
+                        ? `You've reached the ${F.totalPower.toLocaleString()} cap but only have ${deckProgress.have} cards — to fit all ${SIZE}, swap some high-power cards for lower ones so ${SIZE} cards fit under the cap. Hit "Auto-build" to do this for you.`
+                        : `Add ${cardsGap} more card${cardsGap===1?"":"s"} (you have ${headroom.toLocaleString()} power of headroom). Keep the total ≤ ${F.totalPower.toLocaleString()}.`}
                     </div>
                   </div>
                 );
@@ -36042,39 +36050,57 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
         }
       }
     } else if (F.totalPower) {
-      // ── ELITE: strongest 60 that still totals ≤ 8,250 ──
-      // Elite is "Spec but you may exceed 160, as long as the whole deck sums to ≤ 8,250." So we
-      // want the HIGHEST-power cards, but every high card taken forces room for the remaining slots.
-      // For each of the 60 slots, take the strongest card you can afford SUCH THAT the slots left
-      // after it can still be filled by your cheapest remaining legal cards without blowing the
-      // budget. That yields the strongest legal 60 that fits under 8,250.
-      const strongFirst = ownedCards.slice().sort((a,b)=>(powerOf(b)-powerOf(a))
-        || (((treatCount[b.treatment||"—"]||0)-(treatCount[a.treatment||"—"]||0)))
-        || mineFirst(a,b));   // strongest first; treatment we're deepest in as a tiebreak, then mine
-      while (usable.length < DECK_SIZE) {
-        const slotsLeft  = DECK_SIZE - usable.length;         // includes the slot we're filling now
-        const budgetLeft = F.totalPower - runningPower;
-        const affordableRest = ownedCards.filter(c => canTake(c)).sort((a,b)=>powerOf(a)-powerOf(b)); // cheap→dear
-        if (affordableRest.length === 0) break;               // nothing legal left
-        const cheapest = affordableRest.slice(0, slotsLeft);  // cheapest cards we could still use
-        let pick = null;
-        for (const c of strongFirst) {
-          if (!canTake(c)) continue;
-          // Reserve the cheapest (slotsLeft-1) OTHER cards to guarantee the rest of the 60 still fit.
-          let reserve = 0, taken = 0, skippedSelf = false;
-          for (const r of cheapest) {
-            if (!skippedSelf && r === c) { skippedSelf = true; continue; }
-            if (taken >= slotsLeft - 1) break;
-            reserve += powerOf(r); taken++;
+      // ── ELITE: exactly 60 cards, total ≤ 8,250, as strong as possible ──────────────────────────
+      // Rule: 60 cards AND total ≤ 8,250 (both required), max 6 per power level, no dupes. Grabbing
+      // the highest-power cards first overshoots the budget before reaching 60 (the deck strands at
+      // ~51 cards @ 8,250 with no legal way to add more). So instead:
+      //   1) TAKE THE 60 CHEAPEST legal cards — guarantees a full 60 at the LOWEST possible total.
+      //      If even that total exceeds 8,250, no legal 60-card deck exists for this collection.
+      //   2) UPGRADE within the leftover budget — repeatedly swap a card already in the deck for a
+      //      stronger legal card you own, as long as it keeps the total ≤ 8,250 and respects max-6.
+      //      This spends the headroom on power without ever breaking the 60-card count.
+      const cheapFirst = ownedCards.slice().sort((a,b)=>(powerOf(a)-powerOf(b)) || mineFirst(a,b));
+      for (const c of cheapFirst) {
+        if (usable.length >= DECK_SIZE) break;
+        if (!canTake(c)) continue;          // canTake enforces per-power≤6, dedup, eligibility
+        take(c);                            // NOTE: canTake also blocks if it would exceed budget
+      }
+      // If we couldn't even seat 60 cheapest under budget, that's the best legal deck possible.
+      // Otherwise, spend remaining budget upgrading weak cards to stronger ones.
+      if (usable.length === DECK_SIZE) {
+        // Candidate upgrades: cards you own that aren't already in the deck, strongest first.
+        const inSet = new Set(usable.map(c=>c.id));
+        const upgrades = ownedCards.filter(c=>!inSet.has(c.id)).sort((a,b)=>powerOf(b)-powerOf(a));
+        let improved = true;
+        let guard = 0;
+        while (improved && guard++ < 400) {
+          improved = false;
+          for (const up of upgrades) {
+            if (inSet.has(up.id)) continue;
+            // Find the weakest card currently in the deck that's weaker than this upgrade, whose
+            // removal+replacement keeps total ≤ 8,250 and doesn't break max-6 at the new power.
+            let weakestIdx = -1, weakestPow = Infinity;
+            for (let i=0;i<usable.length;i++){
+              const cur = usable[i];
+              if (powerOf(cur) >= powerOf(up)) continue;                 // only upgrades
+              const newTotal = runningPower - powerOf(cur) + powerOf(up);
+              if (newTotal > F.totalPower) continue;                     // must stay ≤ cap
+              // max-6 at the upgrade's power AFTER removing cur (cur is a different power).
+              const pk = String(up.power||"0");
+              const atPk = usable.filter(x=>String(x.power||"0")===pk && x.id!==cur.id).length;
+              if (atPk >= (F.perPower||6)) continue;
+              if (powerOf(cur) < weakestPow) { weakestPow = powerOf(cur); weakestIdx = i; }
+            }
+            if (weakestIdx >= 0) {
+              const removed = usable[weakestIdx];
+              runningPower = runningPower - powerOf(removed) + powerOf(up);
+              inSet.delete(removed.id); inSet.add(up.id);
+              usable[weakestIdx] = up;
+              improved = true;
+              break;   // recompute from the top with the new deck state
+            }
           }
-          if (taken < slotsLeft - 1) continue;                // not enough cheap cards to fill the rest
-          if (powerOf(c) + reserve <= budgetLeft) { pick = c; break; } // strongest that still lets 60 fit
         }
-        if (!pick) {
-          pick = affordableRest[0];                           // fall back to cheapest legal card
-          if (!pick || runningPower + powerOf(pick) > F.totalPower) break;
-        }
-        take(pick);
       }
     } else {
       // Everything else (Spec, etc.): bucket by power, walk tiers strongest→weakest (or lowest first
