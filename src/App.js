@@ -31516,6 +31516,16 @@ See you in there!
   const [listModal,     setListModal]     = useState(null); // card being listed
   // -- Bulk select --
   const [selectMode,    setSelectMode]    = useState(false);
+  const [bulkMoreOpen,  setBulkMoreOpen]  = useState(false);  // consolidated bulk-action menu
+  // Close the bulk "More" menu on any outside click — a menu you can only dismiss by re-tapping the
+  // button feels stuck, especially on mobile where it covers the cards you're trying to see.
+  useEffect(() => {
+    if (!bulkMoreOpen) return;
+    const close = () => setBulkMoreOpen(false);
+    // Defer so the click that opened it doesn't immediately close it.
+    const t = setTimeout(() => document.addEventListener("click", close), 0);
+    return () => { clearTimeout(t); document.removeEventListener("click", close); };
+  }, [bulkMoreOpen]);
   const [selectedIds,   setSelectedIds]   = useState(()=>new Set());
   const [bulkListModal, setBulkListModal] = useState(false);
   const [bulkListPrice, setBulkListPrice] = useState("");
@@ -37778,92 +37788,72 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
 
       {/* ── BULK ACTION BAR ── shows when in select mode with cards chosen */}
       {selectMode && (
-        <div style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",zIndex:9000,background:"rgba(18,18,26,0.97)",border:"1px solid rgba(123,156,255,0.4)",borderRadius:16,padding:"12px 16px",display:"flex",alignItems:"center",gap:10,boxShadow:"0 12px 40px rgba(0,0,0,0.6)",backdropFilter:"blur(10px)",maxWidth:"94vw",overflowX:"auto"}}>
+        <div style={{position:"fixed",bottom:20,left:"50%",transform:"translateX(-50%)",zIndex:9000,background:"rgba(18,18,20,0.97)",backdropFilter:"blur(12px)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:14,padding:"10px 14px",display:"flex",alignItems:"center",gap:9,flexWrap:"wrap",maxWidth:"min(94vw,900px)",boxShadow:"0 12px 40px rgba(0,0,0,0.55)"}}>
           <span style={{fontSize:13,fontWeight:800,color:"#7B9CFF",whiteSpace:"nowrap"}}>{selectedIds.size} selected</span>
-          {/* Nobody discovers a drag gesture on their own — say it. */}
-          {selectedIds.size===0 && <span style={{fontSize:10.5,color:"rgba(255,255,255,0.3)",whiteSpace:"nowrap",lineHeight:1.3}}>drag to sweep{"\u00A0"}·{"\u00A0"}shift-click for a range</span>}
-          <button onClick={()=>{ const vis=visibleCards.map(c=>c.id); setSelectedIds(new Set(vis)); }} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.6)",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Select shown</button>
-          <button onClick={clearSelection} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.6)",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Clear</button>
-                          <button disabled={selectedIds.size===0} onClick={()=>bulkSetOwned(true)}
-                            title="Add every selected card to your collection"
-                            style={{background:selectedIds.size?"rgba(74,222,128,0.18)":"rgba(255,255,255,0.04)",border:"1px solid "+(selectedIds.size?"rgba(74,222,128,0.5)":"rgba(255,255,255,0.08)"),color:selectedIds.size?"#4ade80":"rgba(255,255,255,0.25)",borderRadius:8,padding:"7px 13px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"default",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                            ✅ Mark Owned
-                          </button>
-                          <button disabled={selectedIds.size===0} onClick={()=>bulkSetOwned(false)}
-                            title="Remove every selected card from your collection"
-                            style={{background:"transparent",border:"1px solid "+(selectedIds.size?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.06)"),color:selectedIds.size?"rgba(255,255,255,0.55)":"rgba(255,255,255,0.2)",borderRadius:8,padding:"7px 13px",fontSize:12,fontWeight:700,cursor:selectedIds.size?"pointer":"default",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                            ➖ Un-own
-                          </button>
-                          <div style={{width:1,height:24,background:"rgba(255,255,255,0.12)"}}/>
-          <button disabled={selectedIds.size===0} onClick={()=>bulkSetPublic(true)} style={{background:selectedIds.size?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)",border:`1px solid ${selectedIds.size?"#4ade80":"#333"}`,color:selectedIds.size?"#4ade80":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>👁 Make Public</button>
-          <button disabled={selectedIds.size===0} onClick={()=>bulkSetPublic(false)} style={{background:selectedIds.size?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.04)",border:"1px solid #333",color:selectedIds.size?"#ccc":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>🔒 Make Private</button>
-          <button disabled={selectedIds.size===0} onClick={()=>setBulkListModal(true)} style={{background:selectedIds.size?"linear-gradient(135deg,#E8317A,#7B2FF7)":"rgba(255,255,255,0.04)",border:"none",color:selectedIds.size?"#fff":"#555",borderRadius:8,padding:"7px 14px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>💰 List for Sale</button>
-                    <button disabled={selectedIds.size===0} onClick={()=>{ setTpTitle(""); setTpNote(""); setTpContact(""); setTpLink(""); setTpValues({}); setTpRemoved(new Set()); setTpEditId(null); setTpModal(true); }}
-                      style={{background:selectedIds.size?"rgba(74,222,128,0.14)":"rgba(255,255,255,0.04)",border:"1px solid "+(selectedIds.size?"rgba(74,222,128,0.5)":"#333"),color:selectedIds.size?"#4ade80":"#555",borderRadius:8,padding:"7px 13px",fontSize:12,fontWeight:700,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                      {"\uD83E\uDD1D"} Trade Package
-                    </button>
-                    <button onClick={()=>{ setTpListOpen(true); loadMyTradePackages(); }}
-                      style={{background:"rgba(123,156,255,0.1)",border:"1px solid rgba(123,156,255,0.3)",color:"#7B9CFF",borderRadius:8,padding:"7px 13px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                      My Packages
-                    </button>
-          {/* Want list. Both directions — you'll want to clear a chunk once you've pulled them. */}
-          <button disabled={selectedIds.size===0} onClick={()=>bulkWant(true)}
-            style={{background:selectedIds.size?"rgba(232,49,122,0.12)":"rgba(255,255,255,0.04)",border:`1px solid ${selectedIds.size?"rgba(232,49,122,0.4)":"#333"}`,color:selectedIds.size?"#E8317A":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-            {"\u2764\uFE0F"} Add to Wants
-          </button>
-          <button disabled={selectedIds.size===0} onClick={()=>bulkWant(false)}
-            style={{background:"transparent",border:"1px solid #333",color:selectedIds.size?"#888":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-            Remove from Wants
-          </button>
-
-
-          {/* Admin-only: remove cards from the shared database entirely. Sits apart from the other
-              actions (and after a divider) because it is the only one that affects every user. */}
-          {_cardAdmin && (
-            <>
-              <div style={{width:1,height:24,background:"rgba(255,255,255,0.12)"}}/>
-              <button disabled={selectedIds.size===0} onClick={()=>{setBulkEdits({});setBulkEditOpen(true);}}
-                style={{background:selectedIds.size?"rgba(123,156,255,0.12)":"rgba(255,255,255,0.04)",border:`1px solid ${selectedIds.size?"#7B9CFF":"#333"}`,color:selectedIds.size?"#7B9CFF":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                {"\u270F\uFE0F"} Bulk Edit
-              </button>
-              <button disabled={selectedIds.size===0} onClick={()=>{setBulkDelText("");setBulkDelOpen(true);}}
-                style={{background:selectedIds.size?"rgba(239,68,68,0.12)":"rgba(255,255,255,0.04)",border:`1px solid ${selectedIds.size?"#EF4444":"#333"}`,color:selectedIds.size?"#EF4444":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                {"\uD83D\uDDD1"} Delete from DB
-              </button>
-            </>
-          )}
-
-          {/* Bulk-tag to a kid's collection — much faster than tagging card by card. */}
-          {kidGroups.length>0 && (
-            <>
-              <div style={{width:1,height:24,background:"rgba(255,255,255,0.12)"}}/>
-              {kidGroups.map(g=>(
-                <button key={g.id} disabled={selectedIds.size===0} onClick={()=>bulkAssignKid(g.id)}
-                  title={`Tag the selected cards as ${g.name}'s`}
-                  style={{background:selectedIds.size?`${g.color}22`:"rgba(255,255,255,0.04)",border:`1px solid ${selectedIds.size?g.color:"#333"}`,color:selectedIds.size?g.color:"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                  🧒 {g.name}
-                </button>
-              ))}
-              <button disabled={selectedIds.size===0} onClick={()=>bulkAssignKid(null)}
-                title="Untag — make these yours again"
-                style={{background:"rgba(255,255,255,0.04)",border:"1px solid #333",color:selectedIds.size?"#ccc":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                Mine
-              </button>
-            </>
-          )}
-
-          {/* Bulk sold / traded away — one copy of each leaves the collection, record kept. */}
+          {selectedIds.size===0 && <span style={{fontSize:10.5,color:"rgba(255,255,255,0.3)",whiteSpace:"nowrap",lineHeight:1.3}}>drag to sweep</span>}
+          <button onClick={()=>{ const vis=visibleCards.map(c=>c.id); setSelectedIds(new Set(vis)); }} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.65)",borderRadius:8,padding:"6px 11px",fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Select shown</button>
+          <button onClick={clearSelection} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.5)",borderRadius:8,padding:"6px 11px",fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Clear</button>
           <div style={{width:1,height:24,background:"rgba(255,255,255,0.12)"}}/>
-          <button disabled={selectedIds.size===0} onClick={()=>bulkSellSelected("sold")}
-            title="Mark the selected cards as sold — one copy each leaves your collection, the record is kept"
-            style={{background:"rgba(255,255,255,0.04)",border:"1px solid #333",color:selectedIds.size?"#ccc":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-            ↗ Sold
-          </button>
-          <button disabled={selectedIds.size===0} onClick={()=>bulkSellSelected("traded")}
-            title="Mark the selected cards as traded away"
-            style={{background:"rgba(255,255,255,0.04)",border:"1px solid #333",color:selectedIds.size?"#ccc":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-            ↗ Traded
-          </button>
+
+          {/* THE THREE EVERYDAY ACTIONS. Everything else lives in the More menu below — this bar had
+              grown to 13 buttons at equal weight, which made the common case hard to find. */}
+          <button disabled={selectedIds.size===0} onClick={()=>bulkSetOwned(true)} title="Add every selected card to your collection"
+            style={{background:selectedIds.size?"rgba(74,222,128,0.18)":"rgba(255,255,255,0.04)",border:"1px solid "+(selectedIds.size?"rgba(74,222,128,0.5)":"rgba(255,255,255,0.08)"),color:selectedIds.size?"#4ade80":"rgba(255,255,255,0.25)",borderRadius:8,padding:"7px 13px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"default",fontFamily:"inherit",whiteSpace:"nowrap"}}>✅ Mark Owned</button>
+          <button disabled={selectedIds.size===0} onClick={()=>bulkSetPublic(true)} title="Show these on your public profile"
+            style={{background:selectedIds.size?"rgba(74,222,128,0.12)":"rgba(255,255,255,0.04)",border:"1px solid "+(selectedIds.size?"rgba(74,222,128,0.35)":"rgba(255,255,255,0.08)"),color:selectedIds.size?"#4ade80":"rgba(255,255,255,0.25)",borderRadius:8,padding:"7px 13px",fontSize:12,fontWeight:700,cursor:selectedIds.size?"pointer":"default",fontFamily:"inherit",whiteSpace:"nowrap"}}>👁 Make Public</button>
+          <button disabled={selectedIds.size===0} onClick={()=>setBulkListModal(true)} title="List the selected cards for sale"
+            style={{background:selectedIds.size?"linear-gradient(135deg,#E8317A,#7B2FF7)":"rgba(255,255,255,0.04)",border:"none",color:selectedIds.size?"#fff":"rgba(255,255,255,0.25)",borderRadius:8,padding:"7px 13px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"default",fontFamily:"inherit",whiteSpace:"nowrap"}}>💰 List for Sale</button>
+
+          {/* MORE — everything else, grouped by what it does. */}
+          <div style={{position:"relative"}} onClick={e=>e.stopPropagation()}>
+            <button onClick={()=>setBulkMoreOpen(v=>!v)}
+              style={{background:bulkMoreOpen?"rgba(123,156,255,0.18)":"transparent",border:"1px solid rgba(123,156,255,0.35)",color:"#7B9CFF",borderRadius:8,padding:"7px 13px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>More ▾</button>
+            {bulkMoreOpen && (
+              <div style={{position:"absolute",bottom:"calc(100% + 8px)",right:0,minWidth:230,maxHeight:"60vh",overflowY:"auto",background:"rgba(22,22,26,0.99)",border:"1px solid rgba(255,255,255,0.14)",borderRadius:12,padding:6,boxShadow:"0 16px 48px rgba(0,0,0,0.6)",zIndex:9100}}>
+                {(() => {
+                  const hdr = (t) => <div style={{fontSize:9.5,fontWeight:800,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",letterSpacing:0.7,padding:"8px 9px 4px"}}>{t}</div>;
+                  const item = (label, fn, opts={}) => (
+                    <button disabled={opts.needSel!==false && selectedIds.size===0}
+                      onClick={()=>{ setBulkMoreOpen(false); fn(); }}
+                      style={{display:"block",width:"100%",textAlign:"left",background:"none",border:"none",color:(opts.needSel!==false && selectedIds.size===0)?"rgba(255,255,255,0.25)":(opts.danger?"#ff8095":"var(--bz-ink)"),fontSize:12.5,fontWeight:600,padding:"8px 9px",borderRadius:7,cursor:(opts.needSel!==false && selectedIds.size===0)?"default":"pointer",fontFamily:"inherit"}}
+                      onMouseEnter={e=>{ if(!(opts.needSel!==false && selectedIds.size===0)) e.currentTarget.style.background="rgba(255,255,255,0.07)"; }}
+                      onMouseLeave={e=>e.currentTarget.style.background="none"}>{label}</button>
+                  );
+                  return (
+                    <>
+                      {hdr("Collection")}
+                      {item("➖ Remove from collection", ()=>bulkSetOwned(false))}
+                      {item("↗ Mark as sold", ()=>bulkSellSelected("sold"))}
+                      {item("↗ Mark as traded", ()=>bulkSellSelected("traded"))}
+                      {hdr("Visibility")}
+                      {item("🔒 Make private", ()=>bulkSetPublic(false))}
+                      {hdr("Want list")}
+                      {item("❤️ Add to wants", ()=>bulkWant(true))}
+                      {item("✕ Remove from wants", ()=>bulkWant(false))}
+                      {hdr("Trading")}
+                      {item("🤝 New trade package", ()=>{ setTpTitle(""); setTpNote(""); setTpContact(""); setTpLink(""); setTpValues({}); setTpRemoved(new Set()); setTpEditId(null); setTpModal(true); })}
+                      {item("📦 My packages", ()=>{ setTpListOpen(true); loadMyTradePackages(); }, {needSel:false})}
+                      {kidGroups.length>0 && <>
+                        {hdr("Assign to")}
+                        {kidGroups.map(g=>(
+                          <button key={g.id} disabled={selectedIds.size===0} onClick={()=>{ setBulkMoreOpen(false); bulkAssignKid(g.id); }}
+                            style={{display:"block",width:"100%",textAlign:"left",background:"none",border:"none",color:selectedIds.size===0?"rgba(255,255,255,0.25)":"var(--bz-ink)",fontSize:12.5,fontWeight:600,padding:"8px 9px",borderRadius:7,cursor:selectedIds.size?"pointer":"default",fontFamily:"inherit"}}
+                            onMouseEnter={e=>{ if(selectedIds.size) e.currentTarget.style.background="rgba(255,255,255,0.07)"; }}
+                            onMouseLeave={e=>e.currentTarget.style.background="none"}>{g.name}</button>
+                        ))}
+                        {item("Mine (unassign)", ()=>bulkAssignKid(null))}
+                      </>}
+                      {_cardAdmin && <>
+                        {hdr("Admin")}
+                        {item("✏️ Bulk edit cards", ()=>{setBulkEdits({});setBulkEditOpen(true);})}
+                        {item("🗑 Delete from database", ()=>{setBulkDelText("");setBulkDelOpen(true);}, {danger:true})}
+                      </>}
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
