@@ -28164,13 +28164,20 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const deckSearchIndex = useMemo(() => {
     const m = new Map();
     for (const c of cards) {
-      m.set(c.id, [c.hero,c.cardNum,c.treatment,c.weapon,c.power,c.setName,c.variation]
-        .filter(Boolean).join(" ").toLowerCase());
+      const hay = [c.hero,c.cardNum,c.treatment,c.weapon,c.power,c.setName,c.variation]
+        .filter(Boolean).join(" ").toLowerCase();
+      // Second copy with spacing/punctuation stripped, so "powerglove" finds "Power Glove".
+      m.set(c.id, { hay, tight: hay.replace(/[\s\-_.'’]/g, "") });
     }
     return m;
   }, [cards]);
   const deckSearchTerms = useMemo(
-    () => (deckSearchDebounced||"").toLowerCase().split(/\s+/).filter(Boolean),
+    () => (deckSearchDebounced||"").toLowerCase().split(/\s+/).filter(Boolean)
+            .map(t => ({ t, tight: t.replace(/[\s\-_.'’]/g, "") })),
+    [deckSearchDebounced]
+  );
+  const deckSearchTight = useMemo(
+    () => (deckSearchDebounced||"").toLowerCase().replace(/[\s\-_.'’]/g, ""),
     [deckSearchDebounced]
   );
 
@@ -28190,15 +28197,17 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     if(deckFilterS.size && !deckFilterS.has(c.setName)) return false;               // multi-select
     if(deckFilterT.size && !deckFilterT.has(c.treatment)) return false;             // multi-select
     if(deckSearchTerms.length){
-      const hay = deckSearchIndex.get(c.id) || "";
-      if(!deckSearchTerms.every(t=>hay.includes(t))) return false;
+      const idx = deckSearchIndex.get(c.id);
+      if(!idx) return false;
+      const whole = deckSearchTight && idx.tight.includes(deckSearchTight);
+      if(!whole && !deckSearchTerms.every(t=>idx.hay.includes(t.t) || idx.tight.includes(t.tight))) return false;
     }
     const t=(c.treatment||"").toLowerCase();
     if(t==="plays"||t==="bonus plays"||t==="home team discount") return false;
     return true;
   }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0)),
   // `owned` only matters here when the "My collection" filter is on — see the note on `filtered`.
-  [cards, deckType, deckSet, deckFamilyOnly, deckOwnedOnly, deckMineOnly, familyOwnerByCard, deckFilterW, deckFilterP, deckFilterS, deckFilterT, deckSearchTerms, deckSearchIndex,
+  [cards, deckType, deckSet, deckFamilyOnly, deckOwnedOnly, deckMineOnly, familyOwnerByCard, deckFilterW, deckFilterP, deckFilterS, deckFilterT, deckSearchTerms, deckSearchTight, deckSearchIndex,
    deckOwnedOnly ? owned : null]);
   const deckVisible = useMemo(()=>deckAvail.slice(0, deckPage*DECK_PAGE_SIZE), [deckAvail, deckPage]);
   useEffect(()=>{ setDeckPage(1); }, [deckSearch, deckFilterW, deckFilterS, deckFilterT, deckOwnedOnly, deckFamilyOnly, deckMineOnly, deckType]);
@@ -35599,15 +35608,29 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
   const searchIndex = useMemo(() => {
     const m = new Map();
     for (const c of cards) {
-      m.set(c.id, [c.hero,c.playName,c.cardNum,c.athlete,c.weapon,c.treatment,c.setName,c.variation,c.notation,c.power,synonymsFor(c)]
-        .filter(Boolean).join(" ").toLowerCase());
+      const hay = [c.hero,c.playName,c.cardNum,c.athlete,c.weapon,c.treatment,c.setName,c.variation,c.notation,c.power,synonymsFor(c)]
+        .filter(Boolean).join(" ").toLowerCase();
+      // Store a SECOND copy with all spacing/punctuation stripped. Matching against both makes
+      // spacing irrelevant in either direction: "power glove" and "powerglove" both hit "Power
+      // Glove", and "joecool" finds "Joe Cool". Without this, only the spaced form matched, because
+      // "powerglove" is not a substring of "power glove".
+      m.set(c.id, { hay, tight: hay.replace(/[\s\-_.'']/g, "") });
     }
     return m;
   }, [cards]);
 
-  // Split the query once per search — not once per card.
+  // Split the query once per search — not once per card. Each term is kept in both forms so it can
+  // be tested against the spaced haystack or the stripped one.
   const searchTerms = useMemo(
-    () => searchDebounced.toLowerCase().split(/\s+/).filter(Boolean),
+    () => searchDebounced.toLowerCase().split(/\s+/).filter(Boolean)
+            .map(t => ({ t, tight: t.replace(/[\s\-_.'']/g, "") })),
+    [searchDebounced]
+  );
+  // A term matches if it appears in the normal text OR in the space-stripped text. The whole query
+  // stripped of spaces is also tried, so "powerglove" matches even though it's one term and the
+  // source is two words.
+  const searchTight = useMemo(
+    () => searchDebounced.toLowerCase().replace(/[\s\-_.'']/g, ""),
     [searchDebounced]
   );
 
@@ -35649,13 +35672,19 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     // finds hero=Gronk + treatment=...Helmet... A single substring match on the joined string
     // couldn't do this, because the words live in separate fields and never sit next to each other.
     if(searchTerms.length){
-      const hay = searchIndex.get(c.id) || "";
-      return searchTerms.every(t => hay.includes(t));
+      const idx = searchIndex.get(c.id);
+      if(!idx) return false;
+      // Every term must match, but a term counts as matched if it appears in the normal text
+      // OR in the space-stripped text. Also allow the ENTIRE query, spaces removed, to match
+      // the stripped text — that is what lets a single token like "powerglove" find "Power
+      // Glove", where no individual term would.
+      if (searchTight && idx.tight.includes(searchTight)) return true;
+      return searchTerms.every(t => idx.hay.includes(t.t) || idx.tight.includes(t.tight));
     }
     return true;
   // PERF: `owned` only changes the result when the Owned/Missing filter is active, so gate it —
   // otherwise every tap while adding cards re-filters the entire 31k checklist.
-  }), [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchTerms, searchIndex,
+  }), [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchTerms, searchTight, searchIndex,
        kidFilter, kidAssign,
        (filterOwned === "owned" || filterOwned === "missing" || filterOwned === "free" || filterOwned === "indeck" || kidFilter !== "all") ? owned : null,
        (filterOwned === "free" || filterOwned === "indeck") ? deckLockedForTrade : null]);
