@@ -36115,17 +36115,33 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       Object.values(coreByIns).forEach(a => a.sort((x,y)=>(powerOf(y)-powerOf(x))||mineFirst(x,y)));
       Object.values(apexByIns).forEach(a => a.sort((x,y)=>(powerOf(y)-powerOf(x))||mineFirst(x,y)));
 
-      // Which inserts can actually yield an unlock? Need >=10 core AND >=1 apex in the same insert.
-      // Rank by the apex you'd win (that's the real prize), then by core depth.
+      // Which inserts can actually yield an unlock? "Enough cards" is not the raw count: seating
+      // dedups by hero+power+weapon AND caps 6 per power level, so an insert with 14 cards can
+      // easily be unable to seat 10. Simulate the seating rules to get the REAL usable depth,
+      // otherwise the builder picks inserts it can never complete and the deck comes up short.
+      const seatableDepth = (k) => {
+        const seenK = new Set(), perP = {};
+        let n = 0;
+        for (const c of (coreByIns[k]||[])) {
+          const dk = dupKey(c); if (seenK.has(dk)) continue;      // no duplicate hero+power+weapon
+          const pk = String(c.power||"0");
+          if ((perP[pk]||0) >= (F.perPower||6)) continue;         // max 6 at any one power level
+          seenK.add(dk); perP[pk] = (perP[pk]||0)+1; n++;
+        }
+        return n;
+      };
       const candidates = Object.keys(coreByIns)
         .map(k => ({
           insert: k,
-          coreAvail: coreByIns[k].length,
+          coreAvail: seatableDepth(k),                             // REAL depth, not raw count
           apexAvail: (apexByIns[k]||[]).length,
           bestApex: (apexByIns[k]||[])[0] ? powerOf(apexByIns[k][0]) : 0,
         }))
         .filter(x => x.coreAvail >= BLOCK && x.apexAvail > 0)
-        .sort((a,b)=>(b.bestApex-a.bestApex)||(b.coreAvail-a.coreAvail));
+        // Rank by DEPTH first, then by the apex you'd win. Sorting by apex power alone chased one
+        // big hero into an insert with a barely-there core, which then blocked deeper inserts from
+        // seating and left the deck short on unlocks. Deepest-first completes the most blocks.
+        .sort((a,b)=>(b.coreAvail-a.coreAvail)||(b.bestApex-a.bestApex));
 
       const perPowerAM = {};
       // Respect the per-power cap while seating a card.
