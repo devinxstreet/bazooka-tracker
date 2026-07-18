@@ -31680,6 +31680,7 @@ See you in there!
   }, [bulkMoreOpen]);
   const [selectedIds,   setSelectedIds]   = useState(()=>new Set());
   const [bulkListModal, setBulkListModal] = useState(false);
+  const [importLockAll, setImportLockAll] = useState(false);  // lock every copy in this import
   const [bulkListPrice, setBulkListPrice] = useState("");
   const [bulkListNote,  setBulkListNote]  = useState("");
   const [bulkListType,  setBulkListType]  = useState("sale");
@@ -33195,22 +33196,9 @@ See you in there!
     if (!user || selectedIds.size===0) return;
     let ids = [...selectedIds].filter(id => (parseInt(owned[id])||0) > 0);
     if (ids.length === 0) { alert("None of the selected cards are in your collection."); return; }
-    // A locked copy means "never trade or sell" — so honour it here rather than only showing a badge.
-    // Only cards whose copies are ALL locked get blocked; if you own three and locked one, the other
-    // two are still fair game.
-    const lockedIds = ids.filter(id => {
-      const ls = lots.filter(l => l.cardId === id);
-      return ls.length > 0 && ls.every(l => l.locked);
-    });
-    if (lockedIds.length) {
-      const names = lockedIds.slice(0,5).map(id => (cards.find(c=>c.id===id)?.hero) || id).join(", ");
-      ids = ids.filter(id => !lockedIds.includes(id));
-      if (ids.length === 0) {
-        alert(`\uD83D\uDD12 Locked — nothing was changed.\n\n${names}${lockedIds.length>5?` and ${lockedIds.length-5} more`:""} ${lockedIds.length===1?"is":"are"} marked "never trade or sell". Unlock in the copy details first.`);
-        return;
-      }
-      if (!window.confirm(`\uD83D\uDD12 ${lockedIds.length} locked card${lockedIds.length===1?"":"s"} will be SKIPPED (${names}${lockedIds.length>5?"…":""}).\n\nContinue with the other ${ids.length}?`)) return;
-    }
+    const _allowed = filterLocked(ids, reason==="traded" ? "traded" : "sold");
+    if (!_allowed) return;
+    ids = _allowed;
     if (!window.confirm(`Mark ${ids.length} card${ids.length!==1?"s":""} as ${reason}? One copy of each leaves your collection \u2014 the record is kept.`)) return;
 
     const nextOwned = {...owned};
@@ -33243,9 +33231,13 @@ See you in there!
   // Bulk list selected owned cards for sale/trade at one price. Skips already-listed cards.
   async function bulkListSelected() {
     if (!user || selectedIds.size===0 || bulkBusy) return;
+    const _candidates = [...selectedIds].filter(id => owned[id] && scanPhotoByCard[id] && !myListings.find(l=>l.cardId===id));
+    // Check the lock BEFORE the busy spinner, so cancelling doesn't leave the button stuck.
+    const _allowed = filterLocked(_candidates, "listed");
+    if (!_allowed) return;
     setBulkBusy(true);
     try {
-      const ids = [...selectedIds].filter(id => owned[id] && scanPhotoByCard[id] && !myListings.find(l=>l.cardId===id));
+      const ids = _allowed;
       for (const id of ids) {
         const c = cards.find(x=>x.id===id);
         if(!c) continue;
@@ -33276,6 +33268,9 @@ See you in there!
     const _extra = tpEditId ? [...selectedIds].filter(id => owned[id] && !tpEditIds.includes(id)) : [];
     const ids = [...new Set([..._base, ..._extra])].filter(id => !tpRemoved.has(id) && owned[id]);   // only cards you own
     if (!ids.length) { alert("Select some cards you own first."); return; }
+    const allowed = filterLocked(ids, "added to the package");
+    if (!allowed) return;
+    ids.length = 0; ids.push(...allowed);
     setTpBusy(true);
     try {
       const pick = new Set(ids);
@@ -33334,6 +33329,12 @@ See you in there!
   async function toggleTradeBait(cardId) {
     if (!user) { setSigningIn(true); return; }
     const wasFlagged = !!tradeBait[cardId];
+    // Don't advertise a locked card as available to trade. Un-flagging is always allowed.
+    if (!wasFlagged && lockedCardIds([cardId]).length) {
+      const c0 = cards.find(x=>x.id===cardId);
+      alert("\uD83D\uDD12 " + (c0?.hero||"This card") + " is marked “never trade or sell”, so it won't be added to your trade bait.\n\nUnlock it in the copy details first.");
+      return;
+    }
     const next = {...tradeBait};
     if (next[cardId]) delete next[cardId]; else next[cardId]=true;
     setTradeBait(next);
@@ -33488,6 +33489,10 @@ See you in there!
     const gradeCompany = cell("Grading Company") || "";
     const certNum      = cell("Cert #") || "";
     const location     = cell("Location") || "";
+    // Locked = "never trade or sell". Accept the spellings people actually type in a spreadsheet
+    // rather than demanding a strict TRUE, and treat a blank cell as unlocked.
+    const _lockRaw = (cell("Locked") || "").trim().toLowerCase();
+    const locked = ["y","yes","true","1","x","lock","locked"].includes(_lockRaw);
     if (!heroRaw && !cardNum) return null;
     const norm = s => String(s||"").replace(/[\s\-_.]/g,"").toLowerCase();
     // Hero name variants: full string, the quoted nickname (BoBA hero name), and the string with the quoted part removed
@@ -33502,7 +33507,7 @@ See you in there!
     const setMatches = c => !setName || norm(c.setName)===norm(setName) || norm(c.setName).includes(norm(setName)) || norm(setName).includes(norm(c.setName));
 
     let match = null;
-    if (forceSkip) { return { csv:{hero:heroRaw,setName:csvSet,csvSet,cardNum,parallel,weapon,power,qty,value,serial,notes,purchaseDate,condition,grade,gradeCompany,certNum,location}, match:null }; }
+    if (forceSkip) { return { csv:{hero:heroRaw,setName:csvSet,csvSet,cardNum,parallel,weapon,power,qty,value,serial,notes,purchaseDate,condition,grade,gradeCompany,certNum,location,locked}, match:null }; }
     // With sets explicitly mapped, the set MUST match — card numbers repeat across sets,
     // so a set-blind match would grab the wrong card. Every tier below requires the set.
     // 1) cardNum + set (most precise — number is unique within a set)
@@ -33515,7 +33520,7 @@ See you in there!
     if (!match && cardNum) match = cards.find(c => heroMatches(c) && norm(c.cardNum)===norm(cardNum) && setMatches(c));
     // No set-blind fallback — if the set doesn't match, we'd rather report "not found"
     // than import the wrong card. The user mapped the set, so this stays strict.
-    return { csv:{hero:heroRaw,setName,csvSet,cardNum,parallel,weapon,power,qty,value,serial,notes,purchaseDate,condition,grade,gradeCompany,certNum,location}, match:match||null };
+    return { csv:{hero:heroRaw,setName,csvSet,cardNum,parallel,weapon,power,qty,value,serial,notes,purchaseDate,condition,grade,gradeCompany,certNum,location,locked}, match:match||null };
   }
 
   // Common column-name aliases from other collection tools (CardLadder, eBay, COMC, Collectr, custom sheets, etc.)
@@ -33538,6 +33543,7 @@ See you in there!
     "Grading Company": ["grading company","grader","grading co","graded by","company"],
     "Cert #": ["cert","cert #","cert number","certification","certification number","slab #"],
     "Location": ["location","physical location","stored","storage","where","binder"],
+    "Locked": ["locked","lock","never trade","never sell","do not trade","keep","protected"],
   };
   function autoDetectColumns(hdr) {
     const norm = s => String(s||"").replace(/[\s\-_.()/#]/g,"").toLowerCase();
@@ -33638,7 +33644,7 @@ See you in there!
             gradeCompany: r.csv.gradeCompany||"",
             certNum: i===0 ? (r.csv.certNum||"") : "",   // a cert number identifies ONE slab
             location: r.csv.location||"",
-            locked: false,
+            locked: importLockAll || !!r.csv.locked,
             photoUrl:"", photoBackUrl:"",
           });
         }
@@ -33677,16 +33683,16 @@ See you in there!
       }
 
       showToast(`Imported ${matched.length} card${matched.length!==1?"s":""}${unmatched.length?` · ${unmatched.length} not in database yet`:""}!`);
-      setImportModal(false); setImportRows(null); setImportRaw(null); setImportSetMap({}); setImportColMap(null); setColMapConfirmed(false);
+      setImportModal(false); setImportRows(null); setImportRaw(null); setImportSetMap({}); setImportColMap(null); setColMapConfirmed(false); setImportLockAll(false);
     } catch(e) { console.error("import failed:", e); alert("Import failed. Please try again."); }
     setImporting(false);
   }
 
   function downloadImportTemplate() {
-    const headers = ["Name","Set","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value","Serial","Notes","Purchase Date","Condition","Grading Company","Grade","Cert #","Location"];
+    const headers = ["Name","Set","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value","Serial","Notes","Purchase Date","Condition","Grading Company","Grade","Cert #","Location","Locked"];
     // Set is REQUIRED — the same hero can appear in multiple sets
-    const ex1 = ["Bo Jackson","Tecmo Bowl Edition","TB1","Tecmo Bowl","","250","1","500","","first pull of the box","2026-03-14","Near Mint","","","","Binder 1 page 4"];
-    const ex2 = ["Cutback","Alpha Update","BFA-5","Inspired Ink Battlefoil","Hex","200","1","2500","21/50","on-card auto","2026-05-02","Mint","PSA","10","82736451","Slab case"];
+    const ex1 = ["Bo Jackson","Tecmo Bowl Edition","TB1","Tecmo Bowl","","250","1","500","","first pull of the box","2026-03-14","Near Mint","","","","Binder 1 page 4",""];
+    const ex2 = ["Cutback","Alpha Update","BFA-5","Inspired Ink Battlefoil","Hex","200","1","2500","21/50","on-card auto","2026-05-02","Mint","PSA","10","82736451","Slab case","YES"];
     const csv = headers.join(",") + "\n" + ex1.join(",") + "\n" + ex2.join(",") + "\n";
     const blob = new Blob([csv], { type:"text/csv" });
     const url = URL.createObjectURL(blob);
@@ -33752,6 +33758,28 @@ See you in there!
     saveLots(lots.filter(l => l.id!==lotId));
   }
   function lotsForCard(cardId) { return lots.filter(l => l.cardId===cardId); }
+  // A card counts as LOCKED only when every copy you own is locked — if you own three and locked one,
+  // the other two are still yours to move. Every path a card can leave by (sell, trade, list, package)
+  // funnels through this, so the lock can't be honoured in one place and forgotten in another.
+  function lockedCardIds(ids) {
+    return ids.filter(id => {
+      const ls = lots.filter(l => l.cardId === id);
+      return ls.length > 0 && ls.every(l => l.locked);
+    });
+  }
+  // Returns the ids that may proceed, or null if the user cancelled / nothing is left.
+  function filterLocked(ids, actionLabel) {
+    const locked = lockedCardIds(ids);
+    if (!locked.length) return ids;
+    const names = locked.slice(0,5).map(id => (cards.find(c=>c.id===id)?.hero) || id).join(", ");
+    const rest = ids.filter(id => !locked.includes(id));
+    if (!rest.length) {
+      alert(`\uD83D\uDD12 Locked — nothing was ${actionLabel}.\n\n${names}${locked.length>5?` and ${locked.length-5} more`:""} ${locked.length===1?"is":"are"} marked “never trade or sell”. Unlock in the copy details first.`);
+      return null;
+    }
+    if (!window.confirm(`\uD83D\uDD12 ${locked.length} locked card${locked.length===1?"":"s"} will be SKIPPED (${names}${locked.length>5?"…":""}).\n\nContinue with the other ${rest.length}?`)) return null;
+    return rest;
+  }
   // Upload a photo for one specific COPY. Quick-added and imported cards have no scan, so this is
   // how you attach pictures after the fact — and front/back are separate because the back is where
   // serial numbers, cert labels and damage usually are.
@@ -35315,6 +35343,11 @@ See you in there!
     if(listType!=="offer"&&listType!=="trade"&&(!listPrice||parseFloat(listPrice)<=0)){ alert("Please set an asking price to list this card for sale."); return; }
     const id=uid();
     const card=listModal;
+    // Locked cards are never listed, however you got here.
+    if (lockedCardIds([card.id]).length) {
+      alert("\uD83D\uDD12 " + (card.hero||"This card") + " is marked “never trade or sell”.\n\nUnlock it in the copy details if you really want to list it.");
+      return;
+    }
     await setDoc(doc(db,"marketplace",id),{id,isOBO:listType==="offer",cardId:card.id,cardName:card.hero,cardNum:card.cardNum,cardTreatment:card.treatment,cardWeapon:card.weapon,cardPower:card.power,cardImage:card.imageUrl||null,sellerPhotos:listPhotos.map(p=>p.url),setName:card.setName,sellerUid:user.uid,sellerName:user.displayName||user.email,askingPrice:parseFloat(listPrice)||0,listType,notes:listNotes,paymentInfo:listPayment,status:"active",createdAt:new Date().toISOString(),offerCount:0});
     // Notify users who have this card on their want list
     try {
@@ -37730,6 +37763,28 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                       <button onClick={()=>{ if(window.confirm(`Clear the image on ${c.hero}${c.cardNum?` #${c.cardNum}`:""}? This removes the wrong image so you can add the right one.`)){ handleCardImageClear(c); setExpandedCard({...c, imageUrl:null}); } }} style={{ background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.4)", color:"#FBBF24", borderRadius:9, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🧹 Clear Image</button>
                     )}
                     <button onClick={()=>{ setCardEditDraft({ hero:c.hero||"", power:c.power!=null?String(c.power):"", weapon:c.weapon||"", treatment:c.treatment||"", cardNum:c.cardNum||"", setName:c.setName||"", notation:c.notation||"", variation:c.variation||"", inspiredBy:c.inspiredBy||c.athlete||"", isError:!!c.isError, errorNote:c.errorNote||"" }); setCardEditMode(m=>!m); }} style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.4)", color:"#7B9CFF", borderRadius:9, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{cardEditMode?"✕ Cancel Edit":"✏️ Edit Info"}</button>
+                    {/* TEMP DIAGNOSTIC — reports what is actually stored for this card, so we can see
+                        whether isError reached Firestore, the snapshot, or neither. */}
+                    <button onClick={async()=>{
+                      try {
+                        const live = await getDoc(doc(db,"boba_checklist", c.fsId || c.id));
+                        const d = live.exists() ? live.data() : null;
+                        let snapVal = "(not checked)";
+                        try {
+                          const all = await readCardSnapshot(true);
+                          const hit = (all||[]).find(x=>x.id===(c.fsId||c.id));
+                          snapVal = hit ? String(hit.isError) : "(card not in snapshot)";
+                        } catch(e){ snapVal = "(snapshot read failed: "+(e?.message||e)+")"; }
+                        alert(
+                          "CARD: " + (c.hero||"?") + "\ndoc id used: " + (c.fsId || c.id) +
+                          "\n\nFIRESTORE isError: " + (d ? String(d.isError) : "(no document!)") +
+                          "\nFIRESTORE power: " + (d ? String(d.power) : "-") +
+                          "\nFIRESTORE originalPower: " + (d ? String(d.originalPower) : "-") +
+                          "\n\nSNAPSHOT isError: " + snapVal +
+                          "\n\nIN-APP c.isError: " + String(c.isError)
+                        );
+                      } catch(e){ alert("Diagnostic failed: "+(e?.message||e)); }
+                    }} style={{ background:"transparent", border:"1px dashed rgba(255,255,255,0.25)", color:"rgba(255,255,255,0.5)", borderRadius:9, padding:"8px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🔍 Debug flag</button>
                   </div>
                 )}
                 {_cardAdmin && cardEditMode && (
@@ -38562,7 +38617,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
 
 
       {bulkListModal && (()=>{
-        const eligibleCount = [...selectedIds].filter(id=>owned[id]&&scanPhotoByCard[id]&&!myListings.find(l=>l.cardId===id)).length;
+        const eligibleCount = [...selectedIds].filter(id=>owned[id]&&scanPhotoByCard[id]&&!myListings.find(l=>l.cardId===id)&&!lockedCardIds([id]).length).length;
         return (
         <div onClick={()=>!bulkBusy&&setBulkListModal(false)} style={{position:"fixed",inset:0,zIndex:9500,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
           <div onClick={e=>e.stopPropagation()} style={{background:"#14141c",border:"1px solid rgba(123,156,255,0.3)",borderRadius:16,padding:24,maxWidth:420,width:"100%"}}>
@@ -38832,6 +38887,15 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                       </div>
                     </div>
                   )}
+                  {/* Bulk lock — easier than adding a Locked column when the whole import is
+                      keepers (a graded slab batch, a PC binder). The CSV column still wins per row. */}
+                  <label style={{display:"flex",alignItems:"center",gap:9,cursor:"pointer",background:importLockAll?"rgba(251,191,36,0.1)":"rgba(255,255,255,0.03)",border:"1px solid "+(importLockAll?"rgba(251,191,36,0.4)":"rgba(255,255,255,0.1)"),borderRadius:10,padding:"10px 12px",marginBottom:10}}>
+                    <input type="checkbox" checked={importLockAll} onChange={e=>setImportLockAll(e.target.checked)} style={{accentColor:"#FBBF24",width:16,height:16}}/>
+                    <span style={{fontSize:12.5,fontWeight:800,color:importLockAll?"#FBBF24":"rgba(255,255,255,0.65)"}}>
+                      {"\uD83D\uDD12"} Lock every card in this import
+                    </span>
+                    <span style={{fontSize:10.5,color:"rgba(255,255,255,0.35)"}}>never trade or sell</span>
+                  </label>
                   <div style={{display:"flex",gap:10}}>
                     <button onClick={()=>setImportRows(null)} disabled={importing} style={{flex:1,background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"#ccc",borderRadius:12,padding:"13px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Back</button>
                     <button onClick={runImport} disabled={importing||matched.length===0} style={{flex:2,background:matched.length?"linear-gradient(135deg,#4ade80,#22c55e)":"#333",color:matched.length?"#000":"#666",border:"none",borderRadius:12,padding:"13px 0",fontSize:14,fontWeight:900,cursor:importing?"wait":matched.length?"pointer":"not-allowed",fontFamily:"inherit"}}>{importing?"Importing…":`Import ${totalCards} card${totalCards!==1?"s":""}`}</button>
@@ -38856,6 +38920,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 {key:"Grade", label:"Grade", required:false, hint:"e.g. 9.5"},
                 {key:"Cert #", label:"Cert #", required:false, hint:"Slab certification number"},
                 {key:"Location", label:"Location", required:false, hint:"Binder, safe, slab case…"},
+                {key:"Locked", label:"Locked", required:false, hint:"YES = never trade or sell"},
               ];
               const cm = importColMap || {};
               const nameOk = cm["Name"]>=0, setOk = cm["Set"]>=0;
@@ -38943,7 +39008,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   <input type="file" accept=".csv,text/csv" style={{display:"none"}} onChange={e=>{ const f=e.target.files?.[0]; if(f) handleImportFile(f); e.target.value=""; }}/>
                 </label>
                 <button onClick={downloadImportTemplate} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"#ccc",borderRadius:12,padding:"12px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\u2B07 Download blank template"} <span style={{opacity:0.5,fontWeight:600}}>(incl. Serial &amp; Notes)</span></button>
-                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:10}}>Columns: Name, Set, Card Number, Parallel, Weapon, Power, Quantity, Estimated Value, Serial, Notes, Purchase Date, Condition, Grading Company, Grade, Cert #, Location</div>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:10}}>Columns: Name, Set, Card Number, Parallel, Weapon, Power, Quantity, Estimated Value, Serial, Notes, Purchase Date, Condition, Grading Company, Grade, Cert #, Location, Locked</div>
               </>
             )}
           </div>
