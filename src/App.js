@@ -33714,11 +33714,6 @@ See you in there!
     { id:"inspiredBy", label:"Inspired By" },
     { id:"playName",   label:"Play Name" },
     { id:"power",      label:"Power" },
-    // Error / corrected cards. isError badges the card publicly (misprints, buffed or nerfed power);
-    // errorNote explains it in the card's own words. originalPower is captured automatically the
-    // first time power changes — see bulkEditCards — so nobody has to remember to type it.
-    { id:"isError",    label:"Error card (public badge)", isFlag:true },
-    { id:"errorNote",  label:"Error note (shown publicly)" },
     { id:"imageUrl",   label:"Image URL (placeholder)", isImage:true },
   ];
 
@@ -33732,9 +33727,7 @@ See you in there!
       const patch = {};
       fields.forEach(f => {
         const raw = String(bulkEdits[f] ?? "").trim();
-        if (f === "power") { patch[f] = raw === "" ? null : Number(raw); }
-        else if (f === "isError") { patch[f] = raw === "true" || raw === "1" || raw === "yes"; }
-        else { patch[f] = raw; }
+        patch[f] = f === "power" ? (raw === "" ? null : Number(raw)) : raw;
       });
 
       const ids = [...selectedIds];
@@ -33899,6 +33892,22 @@ See you in there!
     if (!card) return;
     try {
       const fsId = card.fsId || card.id;
+      // BUFF / NERF PROVENANCE. The first time a card's power actually changes, remember what it was
+      // so the card can publicly show "was 150". Written once only — editing power again later must
+      // not overwrite the true original with an already-adjusted value. Also stamp who/when, which
+      // only admins see.
+      if (Object.prototype.hasOwnProperty.call(updates, "power")) {
+        const prev = card.power, next = updates.power;
+        const changed = prev != null && next != null && Number(prev) !== Number(next);
+        if (changed) {
+          if (card.originalPower === undefined || card.originalPower === null) {
+            updates = { ...updates, originalPower: Number(prev) };
+          }
+          updates = { ...updates,
+            powerEditedBy: (user?.email || user?.displayName || "admin"),
+            powerEditedAt: new Date().toISOString() };
+        }
+      }
       const clean = {};
       Object.entries(updates).forEach(([k,v]) => { clean[k] = (v===""||v==null) ? deleteField() : v; });
       await setDoc(doc(db,"boba_checklist",fsId), clean, { merge:true });
@@ -37497,7 +37506,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                     {c.imageUrl && (
                       <button onClick={()=>{ if(window.confirm(`Clear the image on ${c.hero}${c.cardNum?` #${c.cardNum}`:""}? This removes the wrong image so you can add the right one.`)){ handleCardImageClear(c); setExpandedCard({...c, imageUrl:null}); } }} style={{ background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.4)", color:"#FBBF24", borderRadius:9, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>🧹 Clear Image</button>
                     )}
-                    <button onClick={()=>{ setCardEditDraft({ hero:c.hero||"", power:c.power!=null?String(c.power):"", weapon:c.weapon||"", treatment:c.treatment||"", cardNum:c.cardNum||"", setName:c.setName||"", notation:c.notation||"", variation:c.variation||"", inspiredBy:c.inspiredBy||c.athlete||"" }); setCardEditMode(m=>!m); }} style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.4)", color:"#7B9CFF", borderRadius:9, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{cardEditMode?"✕ Cancel Edit":"✏️ Edit Info"}</button>
+                    <button onClick={()=>{ setCardEditDraft({ hero:c.hero||"", power:c.power!=null?String(c.power):"", weapon:c.weapon||"", treatment:c.treatment||"", cardNum:c.cardNum||"", setName:c.setName||"", notation:c.notation||"", variation:c.variation||"", inspiredBy:c.inspiredBy||c.athlete||"", isError:!!c.isError, errorNote:c.errorNote||"" }); setCardEditMode(m=>!m); }} style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.4)", color:"#7B9CFF", borderRadius:9, padding:"8px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{cardEditMode?"✕ Cancel Edit":"✏️ Edit Info"}</button>
                   </div>
                 )}
                 {_cardAdmin && cardEditMode && (
@@ -37518,6 +37527,27 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                         <input type={f.type||"text"} value={cardEditDraft[f.k]??""} onChange={e=>setCardEditDraft(d=>({...d,[f.k]:e.target.value}))} style={{ width:"100%", background:"#0d0d12", border:"1px solid rgba(255,255,255,0.15)", color:"#fff", borderRadius:7, padding:"7px 9px", fontSize:13, fontFamily:"inherit", boxSizing:"border-box" }}/>
                       </div>
                     ))}
+                    {/* ERROR CARD. Lives here rather than in the bulk tool because flagging a misprint
+                        or a buff/nerf is a per-card judgement, made while you're looking at the card.
+                        originalPower is captured on save the first time power actually changes, so the
+                        badge can show "was 150" without anyone typing it. */}
+                    <div style={{ gridColumn:"1 / -1", borderTop:"1px solid rgba(255,255,255,0.1)", paddingTop:10, marginTop:2 }}>
+                      <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", fontSize:12.5, fontWeight:700, color: cardEditDraft.isError ? "#FBBF24" : "rgba(255,255,255,0.6)" }}>
+                        <input type="checkbox" checked={!!cardEditDraft.isError}
+                          onChange={e=>setCardEditDraft(d=>({...d,isError:e.target.checked}))}
+                          style={{ accentColor:"#FBBF24", width:16, height:16 }}/>
+                        {"\u26A0\uFE0F"} Error card \u2014 show a public badge
+                      </label>
+                      <div style={{ fontSize:10, color:"rgba(255,255,255,0.35)", marginTop:4, lineHeight:1.45 }}>
+                        For misprints, or when power has been officially buffed or nerfed. If you change Power above, the original is recorded automatically and shown as \u201cwas {c.originalPower!=null ? c.originalPower : (c.power!=null?c.power:"\u2014")}\u201d.
+                      </div>
+                    </div>
+                    <div style={{ gridColumn:"1 / -1" }}>
+                      <label style={{ fontSize:10, color:"#7B9CFF", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5, display:"block", marginBottom:3 }}>Error note (public)</label>
+                      <input value={cardEditDraft.errorNote??""} onChange={e=>setCardEditDraft(d=>({...d,errorNote:e.target.value}))}
+                        placeholder="e.g. Misprint \u2014 power corrected per BoBA ruling"
+                        style={{ width:"100%", background:"#0d0d12", border:"1px solid rgba(255,255,255,0.15)", color:"#fff", borderRadius:7, padding:"7px 9px", fontSize:13, fontFamily:"inherit", boxSizing:"border-box" }}/>
+                    </div>
                     <button onClick={()=>{ const upd={...cardEditDraft}; if(upd.power!=="")upd.power=parseInt(upd.power)||0; handleCardFieldEdit(c, upd); }} style={{ gridColumn:"1 / -1", background:"linear-gradient(135deg,#7B9CFF,#7B2FF7)", color:"#fff", border:"none", borderRadius:9, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit", marginTop:4 }}>💾 Save Changes</button>
                   </div>
                 )}
@@ -38187,15 +38217,6 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                       </label>
                       {on && (
                         <div style={{padding:"0 12px 11px 42px"}}>
-                          {f.isFlag ? (
-                            <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:"var(--bz-ink)",cursor:"pointer"}}>
-                              <input type="checkbox" disabled={bulkEditing}
-                                checked={bulkEdits[f.id]==="true"}
-                                onChange={e=>setBulkEdits(prev=>({...prev,[f.id]: e.target.checked ? "true" : "false"}))}
-                                style={{accentColor:"#FBBF24",width:16,height:16}}/>
-                              {bulkEdits[f.id]==="true" ? "Flag these as error cards" : "Not an error card (unchecking clears the badge)"}
-                            </label>
-                          ) : (
                           <input
                             value={bulkEdits[f.id]}
                             onChange={e=>setBulkEdits(prev=>({...prev,[f.id]:e.target.value}))}
@@ -38203,7 +38224,6 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                             type={f.id==="power" ? "number" : "text"}
                             placeholder={f.id==="power" ? "e.g. 150 \u2014 blank to clear" : `New ${f.label.toLowerCase()}\u2026`}
                             style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:7,padding:"8px 11px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
-                          )}
                         {f.isImage && (
                           <div style={{marginTop:8,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                             <label style={{fontSize:11.5,fontWeight:700,color:"#7B9CFF",cursor:bulkImgUploading?"wait":"pointer",background:"rgba(123,156,255,0.1)",border:"1px solid rgba(123,156,255,0.35)",borderRadius:7,padding:"7px 12px"}}>
