@@ -28220,7 +28220,9 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 const weapons = sortWeapons(Array.from(new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))));
                 const treatments = Array.from(new Set(cards.map(c=>c.treatment).filter(t=>t&&!["plays","bonus plays","home team discount"].includes(t.toLowerCase())))).sort();
                 // Sets, not strings: "Hex + Gum Prismatic" rather than "Hex Prismatic".
-                const goalLabel = [Array.from(deckGoalW).join(" + "), Array.from(deckGoalT).join(" + ")].filter(Boolean).join(" ");
+                // Weapons are a PRIORITY order (first pick fills the deck first), so show them with › rather
+  // than "+", which reads as an unordered mix.
+  const goalLabel = [Array.from(deckGoalW).join(" › "), Array.from(deckGoalT).join(" + ")].filter(Boolean).join(" ");
                 const dtLabel = deckType==="spec"?"Spec (≤160)":deckType==="vegasbaby"?"Vegas Baby (≤160)":deckType==="apex"?"Apex":deckType==="apexmadness"?"Apex Madness":deckType==="none"?"":deckType;
                 return (
                   <div style={{background:done?"linear-gradient(135deg,rgba(74,222,128,0.12),rgba(34,197,94,0.06))":"rgba(255,255,255,0.02)",border:`1px solid ${done?"rgba(74,222,128,0.4)":"rgba(232,49,122,0.25)"}`,borderRadius:14,padding:"14px 16px"}}>
@@ -28286,7 +28288,17 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                             )}
                             {goalWOpen && (
                               <div style={{width:"100%",marginTop:6,padding:"10px 12px",background:"rgba(0,0,0,0.25)",border:"1px solid var(--bz-line)",borderRadius:10,display:"flex",flexWrap:"wrap",gap:6}}>
-                                {weapons.map(w=><button key={w} onClick={()=>toggleW(w)} style={pill(deckGoalW.has(w))}>{w}</button>)}
+                                <div style={{width:"100%",fontSize:10,color:"var(--bz-ink-3)",marginBottom:4}}>
+                            Tap in priority order — the deck fills from your first pick, then tops up with the next.
+                          </div>
+                          {weapons.map(w=>{
+                            const rank = Array.from(deckGoalW).indexOf(w);   // Sets keep insertion order
+                            return (
+                              <button key={w} onClick={()=>toggleW(w)} style={pill(deckGoalW.has(w))}>
+                                {rank>=0 ? `${rank+1}. ` : ""}{w}
+                              </button>
+                            );
+                          })}
                               </div>
                             )}
                             {goalTOpen && (
@@ -35977,6 +35989,19 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     const asSet = v => v instanceof Set ? v : (v ? new Set([v]) : new Set());
     const wSet = asSet(weaponFilter), tSet = asSet(treatmentFilter);
     const weaponOk = c => wSet.size===0 || wSet.has(canonWeapon(c.weapon));
+    // WEAPON PRIORITY. Selecting several weapons used to be a flat "any of these" filter, after which
+    // cards were ordered purely by power — so if your Gum is stronger than your Glow, a Glow+Gum goal
+    // built a mostly-Gum deck. That's backwards: the extra weapons are there to TOP UP the first one,
+    // not compete with it. A Set preserves insertion order, so the order you picked them IS the
+    // priority: exhaust weapon #1, then #2, and so on. Lower rank = higher priority.
+    const wPriority = Array.from(wSet);
+    const weaponRank = c => {
+      if (wPriority.length === 0) return 0;              // no goal weapons — everything ties
+      const i = wPriority.indexOf(canonWeapon(c.weapon));
+      return i === -1 ? wPriority.length : i;            // unlisted weapons sort last
+    };
+    // Use in place of a bare power sort whenever a goal weapon order exists.
+    const weaponFirst = (a,b) => weaponRank(a) - weaponRank(b);
     const treatOk  = c => tSet.size===0 || tSet.has(c.treatment);
     const isPlayCard = c => { const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="bonus plays"||t==="home team discount"; };
     const F = fmtOf(dtype);                       // this format's rules — see DECK_FORMATS
@@ -36359,22 +36384,39 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     } else {
       // Everything else (Spec, etc.): bucket by power, walk tiers strongest→weakest (or lowest first
       // for lowPower / Coach formats).
-      const tiers = {};
-      ownedCards.forEach(c => { const p = powerOf(c); (tiers[p] = tiers[p]||[]).push(c); });
-      const tierPowers = Object.keys(tiers).map(Number).sort((a,b)=> F.lowPower ? (a-b) : (b-a));
-
-      for (const p of tierPowers) {
-        if (usable.length >= DECK_SIZE) break;
-        const tier = tiers[p].slice().sort((a,b)=>{
-          const ct=(treatCount[a.treatment||"—"]||0), bt=(treatCount[b.treatment||"—"]||0);
-          if (ct !== bt) return bt - ct;
-          return mineFirst(a,b);
-        });
-        for (const c of tier) {
+      //
+      // WEAPON PRIORITY: if you picked several goal weapons, they're a priority order, not a flat
+      // "any of these". Fill from weapon #1 as deep as it will go, then #2 tops up what's left, etc.
+      // Without this, the tier walk below just takes the strongest cards regardless of weapon, so a
+      // "Glow, then Gum" goal produced a mostly-Gum deck whenever Gum ran stronger.
+      const fillFrom = (pool) => {
+        const tiers = {};
+        pool.forEach(c => { const p = powerOf(c); (tiers[p] = tiers[p]||[]).push(c); });
+        const tierPowers = Object.keys(tiers).map(Number).sort((a,b)=> F.lowPower ? (a-b) : (b-a));
+        for (const p of tierPowers) {
           if (usable.length >= DECK_SIZE) break;
-          if (!canTake(c)) continue;
-          take(c);
+          const tier = tiers[p].slice().sort((a,b)=>{
+            const ct=(treatCount[a.treatment||"—"]||0), bt=(treatCount[b.treatment||"—"]||0);
+            if (ct !== bt) return bt - ct;
+            return mineFirst(a,b);
+          });
+          for (const c of tier) {
+            if (usable.length >= DECK_SIZE) break;
+            if (!canTake(c)) continue;
+            take(c);
+          }
         }
+      };
+      if (wPriority.length > 1) {
+        // One pass per goal weapon, in the order they were picked.
+        for (const w of wPriority) {
+          if (usable.length >= DECK_SIZE) break;
+          fillFrom(ownedCards.filter(c => canonWeapon(c.weapon) === w));
+        }
+        // Anything still short gets topped up from whatever else is legal.
+        if (usable.length < DECK_SIZE) fillFrom(ownedCards);
+      } else {
+        fillFrom(ownedCards);
       }
     }
 
