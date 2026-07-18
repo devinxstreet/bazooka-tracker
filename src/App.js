@@ -36140,40 +36140,48 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
         .map(k => {
           const depth = depthOf(k);
           const apexAvail = (apexByIns[k]||[]).length;
+          // An insert can contribute at most 10 core cards no matter how deep your collection runs,
+          // so "usable" is what actually counts toward the 60. Depth beyond 10 is dead weight here.
+          const usable = Math.min(depth, BLOCK);
           return {
-            insert: k, depth, apexAvail,
-            blocks: apexAvail > 0 ? Math.floor(depth / BLOCK) : 0,   // a block with no apex earns nothing
+            insert: k, depth, usable, apexAvail,
+            complete: usable >= BLOCK && apexAvail > 0,   // a full 10 with an apex to claim
             bestApex: (apexByIns[k]||[])[0] ? powerOf(apexByIns[k][0]) : 0,
           };
         })
         .filter(x => x.depth > 0)
-        .sort((a,b)=>(b.blocks-a.blocks)||(b.depth-a.depth)||(b.bestApex-a.bestApex));
+        // Prefer inserts that can complete a full 10 AND have an apex waiting; then by how much of
+        // the core they can fill; then by the apex you'd win.
+        .sort((a,b)=>(Number(b.complete)-Number(a.complete))||(b.usable-a.usable)||(b.bestApex-a.bestApex));
 
-      // Take up to 6 inserts, preferring ones that unlock, but keep adding until we can cover 60
-      // cards — a deck that can't reach 60 is illegal, so depth matters even without an unlock.
+      // The core is 60 cards from at most 6 inserts, and each insert caps at 10 — so a full deck is
+      // exactly 6 inserts contributing 10 apiece. Take the best 6 that can reach 60 between them.
       const picked = [];
       let covered = 0;
       for (const r of ranked) {
         if (picked.length >= MAX_UNLOCKS) break;
-        picked.push(r); covered += r.depth;
-        if (covered >= 60 && picked.some(x=>x.blocks>0)) {
-          // Enough depth for a full core AND at least one unlock — keep going only while more
-          // inserts still add unlocks (blocks), since extra depth beyond 60 is wasted.
-          if (!ranked.slice(picked.length).some(x=>x.blocks>0)) break;
-        }
+        picked.push(r); covered += r.usable;
+        if (covered >= 60) break;              // 6 x 10 — nothing more can be added legally
       }
       const pickedKeys = new Set(picked.map(x=>x.insert));
 
       const perPowerAM = {};
+      const perInsAM = {};   // core cards seated per insert — HARD CAP of 10 (the apex makes 11)
       const seat = (c) => {
         const k = dupKey(c); if (usedKeys.has(k)) return false;
         const pk = String(c.power||"0"); if ((perPowerAM[pk]||0) >= (F.perPower||6)) return false;
-        usedKeys.add(k); perPowerAM[pk] = (perPowerAM[pk]||0)+1; chosen.push(c); return true;
+        // An insert tops out at 10 core cards. Beyond that the cards are illegal, not just wasted —
+        // the top-up used to pour 16 of one insert into the deck. 6 inserts x 10 = the full 60.
+        const ik = insertKey(c.treatment) || "—";
+        if ((perInsAM[ik]||0) >= BLOCK) return false;
+        usedKeys.add(k); perPowerAM[pk] = (perPowerAM[pk]||0)+1;
+        perInsAM[ik] = (perInsAM[ik]||0)+1;
+        chosen.push(c); return true;
       };
 
       // 2. Seat complete blocks of 10 first, so unlocks are locked in before the core fills up.
       //    Ordered by the apex won, so the best heroes are the ones that get claimed.
-      const blockOrder = picked.filter(x=>x.blocks>0).sort((a,b)=>b.bestApex-a.bestApex);
+      const blockOrder = picked.filter(x=>x.complete).sort((a,b)=>b.bestApex-a.bestApex);
       for (const cand of blockOrder) {
         if (completedInserts.length >= MAX_UNLOCKS) break;
         if (chosen.length + BLOCK > 60) break;
@@ -36198,6 +36206,69 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
         .filter(c => inRange(c) && pickedKeys.has(insertKey(c.treatment) || "—"))
         .sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
       for (const c of restCore) { if (chosen.length >= 60) break; seat(c); }
+
+      // 3b. REPAIR PASS — the greedy fill above can strand the deck a few cards short. Classic case:
+      // you need one more card from insert X, you own four of them, but they're all 145 power and the
+      // deck already holds 6 at 145. The slot is blocked — yet one of those sitting 145s may belong to
+      // an insert where you have a spare at a DIFFERENT power. Swap that card for its same-insert
+      // alternative and the 145 slot opens up for the card you actually need.
+      //
+      // So for each card we still want: find an in-deck card at that same power whose insert has an
+      // unused alternative at some other power, swap it out, and seat the wanted card. The donor
+      // insert keeps its count (critical — it must not lose a completed block of 10).
+      if (chosen.length < 60) {
+        const inDeckIds = () => new Set(chosen.map(c=>c.id));
+        // Cards we'd still like, from our picked inserts, strongest first.
+        const wanted = base
+          .filter(c => inRange(c) && pickedKeys.has(insertKey(c.treatment) || "—"))
+          .filter(c => !usedKeys.has(dupKey(c)))
+          .sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
+
+        for (const want of wanted) {
+          if (chosen.length >= 60) break;
+          // If this card's own insert is already at its 10-card ceiling, no power swap can help.
+          if ((perInsAM[insertKey(want.treatment) || "—"]||0) >= BLOCK) continue;
+          const wp = String(want.power||"0");
+          if ((perPowerAM[wp]||0) < (F.perPower||6)) { seat(want); continue; }  // not actually blocked
+
+          // Blocked at this power. Find a donor: an in-deck card at the SAME power that we can
+          // replace with another card from the donor's own insert at a DIFFERENT power.
+          const ids = inDeckIds();
+          let swapped = false;
+          for (let i = 0; i < chosen.length && !swapped; i++) {
+            const donor = chosen[i];
+            if (String(donor.power||"0") !== wp) continue;                 // must free THIS power
+            if (donor.id === want.id) continue;
+            const donorIns = insertKey(donor.treatment) || "—";
+            // A replacement from the donor's insert, at a different power that still has room.
+            const repl = (coreByIns[donorIns]||[]).find(r => {
+              if (ids.has(r.id) || usedKeys.has(dupKey(r))) return false;
+              const rp = String(r.power||"0");
+              if (rp === wp) return false;                                  // wouldn't free the slot
+              return (perPowerAM[rp]||0) < (F.perPower||6);
+            });
+            if (!repl) continue;
+            // Perform the swap: donor out, repl in (donor's insert count is unchanged), then seat want.
+            usedKeys.delete(dupKey(donor));
+            perPowerAM[wp] = Math.max(0, (perPowerAM[wp]||0) - 1);
+            chosen[i] = repl;
+            usedKeys.add(dupKey(repl));
+            const rp = String(repl.power||"0");
+            perPowerAM[rp] = (perPowerAM[rp]||0) + 1;
+            // Now the wanted card fits.
+            if (!seat(want)) {
+              // Shouldn't happen, but undo cleanly if it does.
+              usedKeys.delete(dupKey(repl));
+              perPowerAM[rp] = Math.max(0, (perPowerAM[rp]||0) - 1);
+              chosen[i] = donor;
+              usedKeys.add(dupKey(donor));
+              perPowerAM[wp] = (perPowerAM[wp]||0) + 1;
+            } else {
+              swapped = true;
+            }
+          }
+        }
+      }
 
       // A late block can complete once the top-up lands more of an insert — sweep once more.
       if (completedInserts.length < MAX_UNLOCKS) {
