@@ -4475,7 +4475,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
                                               DHL:   `https://www.dhl.com/us-en/home/tracking.html?tracking-id=${num}`,
                                             };
                                             const url = CURL[tracking.carrier] || `https://www.google.com/search?q=${encodeURIComponent((tracking.carrier||'')+" tracking "+num)}`;
-                                            return <a key="tlink" href={url} target="_blank" rel="noreferrer" style={{ fontSize:12, color:"#E8317A", fontWeight:700, fontFamily:"monospace", textDecoration:"none" }}>{num} \u2197</a>;
+                                            return <a key="tlink" href={url} target="_blank" rel="noreferrer" style={{ fontSize:12, color:"#E8317A", fontWeight:700, fontFamily:"monospace", textDecoration:"none" }}>{num} ↗</a>;
                                           })()}
                                         {tracking.lastChecked && <span style={{ fontSize:10, color:"var(--bz-ink-2)" }}>· checked {new Date(tracking.lastChecked).toLocaleString()}</span>}
                                       </>
@@ -9871,7 +9871,7 @@ function BreakPlanner({ skuPrices={}, userRole }) {
             <div style={{ fontSize:11, fontWeight:700, color:zone.c, textTransform:"uppercase", letterSpacing:2, marginBottom:8 }}>{zone.l} · {targetPct}% of Market Value</div>
             <div style={{ fontSize:13, color:"var(--bz-ink-2)", marginBottom:6 }}>Price per spot to hit your target</div>
             <div style={{ fontSize:56, fontWeight:900, color:zone.c, letterSpacing:-1 }}>${spotPrice.toFixed(2)}</div>
-            <div style={{ fontSize:13, color:"#999", marginTop:6 }}>{numSpots} spots \u00D7 ${spotPrice.toFixed(2)} = <strong style={{color:"var(--bz-ink)"}}>${targetGross.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</strong> gross</div>
+            <div style={{ fontSize:13, color:"#999", marginTop:6 }}>{numSpots} spots × ${spotPrice.toFixed(2)} = <strong style={{color:"var(--bz-ink)"}}>${targetGross.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</strong> gross</div>
           </div>
 
           {/* Financial breakdown */}
@@ -15521,13 +15521,13 @@ function SharedDeck({ deckId }) {
   const wrap = { minHeight:"100vh", background:"#0a0a0a", color:"#fff", fontFamily:"'DM Sans',system-ui,sans-serif", padding:"32px 20px" };
 
   if (loading) return <div style={{...wrap, display:"flex", alignItems:"center", justifyContent:"center"}}>
-    <div style={{color:"rgba(255,255,255,0.4)", fontSize:14}}>Loading deck\u2026</div></div>;
+    <div style={{color:"rgba(255,255,255,0.4)", fontSize:14}}>Loading deck…</div></div>;
 
   if (err || !deck) return <div style={{...wrap, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:14}}>
     <div style={{fontSize:34}}>{"\uD83C\uDCCF"}</div>
     <div style={{fontSize:16, fontWeight:800}}>{deck ? "Couldn't show this deck" : "Deck not found"}</div>
     <div style={{fontSize:13, color:"rgba(255,255,255,0.45)"}}>{err || "That deck doesn't exist."}</div>
-    <a href="/cards" style={{marginTop:8, color:"#E8317A", fontSize:13, fontWeight:700}}>Go to Bazooka Dash \u2192</a>
+    <a href="/cards" style={{marginTop:8, color:"#E8317A", fontSize:13, fontWeight:700}}>Go to Bazooka Dash →</a>
   </div>;
 
   const F = fmtOf(deck.deckType);
@@ -15538,7 +15538,7 @@ function SharedDeck({ deckId }) {
       <div style={{maxWidth:1100, margin:"0 auto"}}>
         <div style={{display:"flex", alignItems:"flex-start", gap:14, flexWrap:"wrap", marginBottom:22}}>
           <div style={{flex:1, minWidth:240}}>
-            <div style={{fontSize:11, fontWeight:800, color:"#E8317A", letterSpacing:1.4, textTransform:"uppercase", marginBottom:4}}>Bazooka \u00B7 Shared Deck</div>
+            <div style={{fontSize:11, fontWeight:800, color:"#E8317A", letterSpacing:1.4, textTransform:"uppercase", marginBottom:4}}>Bazooka · Shared Deck</div>
             <h1 style={{fontSize:30, fontWeight:900, margin:"0 0 6px", letterSpacing:-0.5}}>{deck.name || "Untitled deck"}</h1>
             <div style={{fontSize:13, color:"rgba(255,255,255,0.45)"}}>
               {owner?.displayName ? <>Built by <strong style={{color:"rgba(255,255,255,0.75)"}}>{owner.displayName}</strong> {"\u00B7"} </> : null}
@@ -18959,17 +18959,17 @@ function SwanCityBulkImport() {
     <div>
       <div style={{ fontSize: 11, color: "var(--bz-ink-3)", marginBottom: 10 }}>
         Paste Swan City's CSV tracker. Only cells with a <strong>date + source</strong> import.
-        Superfoils \u2192 <strong style={{ color: "#F59E0B" }}>super_claims</strong>, other parallels \u2192 <strong style={{ color: "#E8317A" }}>oneof1_claims</strong>, all <strong>verified</strong>. Preview before importing.
+        Superfoils → <strong style={{ color: "#F59E0B" }}>super_claims</strong>, other parallels → <strong style={{ color: "#E8317A" }}>oneof1_claims</strong>, all <strong>verified</strong>. Preview before importing.
       </div>
 
       {!cardsLoaded ? (
         <button onClick={loadCards}
           style={{ background: "rgba(255,255,255,0.08)", color: "var(--bz-ink)", border: "1px solid rgba(255,255,255,0.15)",
                    borderRadius: 10, padding: "9px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginBottom: 10 }}>
-          \u2b07\ufe0f Load checklist
+          ⬇️ Load checklist
         </button>
       ) : (
-        <div style={{ fontSize: 11, color: "#4ade80", marginBottom: 8 }}>\u2705 {cards.length} cards loaded</div>
+        <div style={{ fontSize: 11, color: "#4ade80", marginBottom: 8 }}>✅ {cards.length} cards loaded</div>
       )}
 
       <textarea value={csvText} onChange={e => setCsvText(e.target.value)} spellCheck={false}
@@ -18981,7 +18981,7 @@ function SwanCityBulkImport() {
         <button onClick={buildPreview} disabled={!csvText.trim() || !cardsLoaded}
           style={{ background: "rgba(255,255,255,0.08)", color: "var(--bz-ink)", border: "1px solid rgba(255,255,255,0.15)",
                    borderRadius: 10, padding: "9px 16px", fontSize: 13, fontWeight: 700, cursor: (csvText.trim() && cardsLoaded) ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
-          \ud83d\udd0d Preview matches
+          🔍 Preview matches
         </button>
         {preview && (preview.sf.length + preview.one.length > 0) && (
           <button onClick={runImport} disabled={running}
@@ -18993,7 +18993,7 @@ function SwanCityBulkImport() {
         <button onClick={undoImport} disabled={running}
           style={{ background: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.3)",
                    borderRadius: 10, padding: "9px 16px", fontSize: 13, fontWeight: 700, cursor: running ? "wait" : "pointer", fontFamily: "inherit" }}>
-          \ud83d\uddd1\ufe0f Undo import
+          🗑️ Undo import
         </button>
       </div>
 
@@ -19004,9 +19004,9 @@ function SwanCityBulkImport() {
       {preview && (
         <div style={{ marginTop: 16 }}>
           <div style={{ display: "flex", gap: 16, fontSize: 12, fontWeight: 700, marginBottom: 8, flexWrap: "wrap" }}>
-            <span style={{ color: "#F59E0B" }}>\u2b50 {preview.sf.length} Superfoils</span>
-            <span style={{ color: "#E8317A" }}>\ud83c\udfaf {preview.one.length} Secret 1/1s</span>
-            <span style={{ color: preview.unmatched.length ? "#ef4444" : "#555" }}>\u26a0\ufe0f {preview.unmatched.length} unmatched</span>
+            <span style={{ color: "#F59E0B" }}>⭐ {preview.sf.length} Superfoils</span>
+            <span style={{ color: "#E8317A" }}>🎯 {preview.one.length} Secret 1/1s</span>
+            <span style={{ color: preview.unmatched.length ? "#ef4444" : "#555" }}>⚠️ {preview.unmatched.length} unmatched</span>
           </div>
           {[["\u2b50 Superfoils \u2192 super_claims", preview.sf],
             ["\ud83c\udfaf Secret 1/1s \u2192 oneof1_claims", preview.one]].map(([title, list]) => list.length > 0 && (
@@ -19030,7 +19030,7 @@ function SwanCityBulkImport() {
           {preview.unmatched.length > 0 && (
             <div>
               <div style={{ fontSize: 11, fontWeight: 800, color: "#ef4444", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>
-                \u26a0\ufe0f Unmatched \u2014 not imported (fix COLUMN_MAP or add the card, then re-preview)
+                ⚠️ Unmatched — not imported (fix COLUMN_MAP or add the card, then re-preview)
               </div>
               <div style={{ maxHeight: 200, overflowY: "auto", border: "1px solid #2a1414", borderRadius: 8 }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}><tbody>
@@ -19696,7 +19696,7 @@ function FoundInEditor() {
       <div style={{fontSize:15,fontWeight:800,color:"var(--bz-ink)",marginBottom:4}}>{"\uD83D\uDCE6"} Found In — which packs contain what</div>
       <div style={{fontSize:12,color:"var(--bz-ink-3)",marginBottom:14,lineHeight:1.6}}>
         Set which pack types each treatment can be pulled from. This drives the <strong>Found In</strong> badge on every
-        card. It{"\u2019"}s per set on purpose \u2014 a treatment that{"\u2019"}s Hobby-only in one release can be Double Mega in
+        card. It{"\u2019"}s per set on purpose — a treatment that{"\u2019"}s Hobby-only in one release can be Double Mega in
         the next. Changes go live for everyone as soon as you save.
       </div>
 
@@ -26042,7 +26042,7 @@ function MarketTab({ onMarkTraded, onEditPackage, onAddSideToTrade, onUnacceptTr
             {mktView==="packages" ? (
               <div>
                 <div style={{fontSize:12.5,color:"rgba(255,255,255,0.5)",marginBottom:14,lineHeight:1.5}}>
-                  Shareable trade offers you can send to anyone \u2014 they don't need a Bazooka account. Build one from your collection with select mode {"\u2192"} {"\uD83E\uDD1D"} Trade Package.
+                  Shareable trade offers you can send to anyone — they don't need a Bazooka account. Build one from your collection with select mode {"\u2192"} {"\uD83E\uDD1D"} Trade Package.
                 </div>
                 {mktPkgsBusy ? (
                   <div style={{fontSize:13,color:"rgba(255,255,255,0.4)",padding:"24px 0",textAlign:"center"}}>Loading{"\u2026"}</div>
@@ -27111,7 +27111,7 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
       {state && !state.error && (
         <div style={{marginTop:9,fontSize:11.5,lineHeight:1.7,color:"rgba(255,255,255,0.7)"}}>
           <div><strong style={{color:"#fff"}}>{state.raw}</strong> unique cards actually in the collection (the real data).</div>
-          <div><strong style={{color:"#fff"}}>{state.copies}</strong> total copies (a card owned more than once counts each copy \u2014 this is usually the bigger "collection size" number).</div>
+          <div><strong style={{color:"#fff"}}>{state.copies}</strong> total copies (a card owned more than once counts each copy — this is usually the bigger "collection size" number).</div>
           <div><strong style={{color:"#4ade80"}}>{state.matched}</strong> currently match a card in the database (what the counter shows).</div>
           {state.orphans.length > 0 ? (
             <div style={{marginTop:7,padding:"8px 10px",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:8,color:"#FBBF24"}}>
@@ -27138,13 +27138,13 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
                           <div key={pr.oldId} style={{background:"rgba(0,0,0,0.25)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"7px 9px"}}>
                             <div style={{fontSize:9.5,color:"rgba(255,255,255,0.3)",fontFamily:"monospace",marginBottom:4,wordBreak:"break-all"}}>{pr.oldId}{pr.qty>1?`  (\u00d7${pr.qty})`:""}</div>
                             {pr.candidates.length===0 ? (
-                              <div style={{fontSize:11,color:"#E8317A"}}>No confident match found \u2014 left untouched.</div>
+                              <div style={{fontSize:11,color:"#E8317A"}}>No confident match found — left untouched.</div>
                             ) : (
                               <>
                               {pr.candidates.length>1 && <div style={{fontSize:9.5,color:"#FBBF24",marginBottom:3}}>{pr.candidates.length} sets share this number — defaulted to Tecmo Bowl, change if wrong</div>}
                               <select value={pr.chosen} onChange={e=>{ const v=e.target.value; setProposals(ps=>ps.map((x,xi)=>xi===pi?{...x,chosen:v}:x)); }}
                                 style={{width:"100%",background:"#14141a",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,padding:"5px 7px",fontSize:11.5,fontFamily:"inherit"}}>
-                                <option value="">\u2014 don't heal this one \u2014</option>
+                                <option value="">— don't heal this one —</option>
                                 {pr.candidates.map(c => (
                                   <option key={c.id} value={c.id}>{[c.hero,c.treatment,c.cardNum?("#"+c.cardNum):"",c.setName].filter(Boolean).join(" \u00b7 ")}</option>
                                 ))}
@@ -27188,11 +27188,11 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
                 <div key={pr.oldId} style={{background:"rgba(0,0,0,0.25)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"7px 9px"}}>
                   <div style={{fontSize:9.5,color:"rgba(255,255,255,0.3)",fontFamily:"monospace",marginBottom:4,wordBreak:"break-all"}}>{pr.oldId}</div>
                   {pr.candidates.length===0 ? (
-                    <div style={{fontSize:11,color:"#E8317A"}}>No confident match \u2014 left untouched.</div>
+                    <div style={{fontSize:11,color:"#E8317A"}}>No confident match — left untouched.</div>
                   ) : (
                     <select value={pr.chosen} onChange={e=>{ const v=e.target.value; setTransitProps(ps=>ps.map((x,xi)=>xi===pi?{...x,chosen:v}:x)); }}
                       style={{width:"100%",background:"#14141a",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,padding:"4px 7px",fontSize:11,fontFamily:"inherit"}}>
-                      <option value="">\u2014 leave as-is \u2014</option>
+                      <option value="">— leave as-is —</option>
                       {pr.candidates.map(c => (
                         <option key={c.id} value={c.id}>{[c.hero,c.treatment,c.cardNum?("#"+c.cardNum):"",c.setName].filter(Boolean).join(" \u00b7 ")}</option>
                       ))}
@@ -27232,16 +27232,16 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
             <div style={{maxHeight:300,overflowY:"auto",display:"flex",flexDirection:"column",gap:10}}>
               {deckProps.map((d,di) => (
                 <div key={d.deckId} style={{background:"rgba(0,0,0,0.25)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:8,padding:"8px 10px"}}>
-                  <div style={{fontSize:12,fontWeight:800,color:"#eee",marginBottom:6}}>{d.name} <span style={{color:"rgba(255,255,255,0.35)",fontWeight:600}}>\u2014 {d.dead} of {d.total} drifted</span></div>
+                  <div style={{fontSize:12,fontWeight:800,color:"#eee",marginBottom:6}}>{d.name} <span style={{color:"rgba(255,255,255,0.35)",fontWeight:600}}>— {d.dead} of {d.total} drifted</span></div>
                   <div style={{display:"flex",flexDirection:"column",gap:5}}>
                     {d.fixes.map((f,fi) => (
                       <div key={f.oldId}>
                         {f.candidates.length===0 ? (
-                          <div style={{fontSize:10.5,color:"#E8317A"}}>No confident match \u2014 left in the deck as-is.</div>
+                          <div style={{fontSize:10.5,color:"#E8317A"}}>No confident match — left in the deck as-is.</div>
                         ) : (
                           <select value={f.chosen} onChange={e=>{ const v=e.target.value; setDeckProps(ps=>ps.map((x,xi)=>xi===di?{...x,fixes:x.fixes.map((y,yi)=>yi===fi?{...y,chosen:v}:y)}:x)); }}
                             style={{width:"100%",background:"#14141a",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",borderRadius:6,padding:"4px 7px",fontSize:11,fontFamily:"inherit"}}>
-                            <option value="">\u2014 leave this card as-is \u2014</option>
+                            <option value="">— leave this card as-is —</option>
                             {f.candidates.map(c => (
                               <option key={c.id} value={c.id}>{[c.hero,c.treatment,c.cardNum?("#"+c.cardNum):"",c.setName].filter(Boolean).join(" \u00b7 ")}</option>
                             ))}
@@ -37612,7 +37612,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
           </div>
         </div>
       )}
-      {/* Sits ABOVE the select toolbar (which is at bottom:20), not on top of it \u2014 a toast that
+      {/* Sits ABOVE the select toolbar (which is at bottom:20), not on top of it — a toast that
           covers the buttons you are trying to press is worse than no toast. */}
       {toast && <div style={{position:"fixed",bottom:96,left:"50%",transform:"translateX(-50%)",zIndex:11000,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",padding:"12px 22px",borderRadius:12,fontSize:14,fontWeight:700,boxShadow:"0 8px 32px rgba(232,49,122,0.4)",maxWidth:"90vw",textAlign:"center"}}>{toast}</div>}
       {bulkImg && !bulkProg && (()=>{
@@ -38346,14 +38346,14 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
           <div onClick={()=>!tpBusy&&(setTpModal(false),setTpEditId(null))} style={{position:"fixed",inset:0,zIndex:13500,background:"rgba(0,0,0,0.8)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
             <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:440,background:"#15151c",border:"1px solid rgba(74,222,128,0.25)",borderRadius:16,padding:"24px 26px",maxHeight:"88vh",overflowY:"auto"}}>
               <div style={{fontSize:19,fontWeight:900,color:"#fff",marginBottom:3}}>{"\uD83E\uDD1D"} {tpEditId ? "Edit Trade Package" : "Trade Package"}</div>
-              <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginBottom:18}}>{n} card{n===1?"":"s"} you own \u2014 shareable with anyone, no login needed.</div>
+              <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginBottom:18}}>{n} card{n===1?"":"s"} you own — shareable with anyone, no login needed.</div>
               {!tpLink ? (
                 <>
                   <label style={{fontSize:11,fontWeight:800,color:"#4ade80",display:"block",marginBottom:5}}>Title</label>
                   <input value={tpTitle} onChange={e=>setTpTitle(e.target.value)} placeholder="e.g. Gold Coin doubles for trade" style={{width:"100%",background:"#0e0e13",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"9px 11px",fontSize:13,fontFamily:"inherit",marginBottom:14,boxSizing:"border-box"}}/>
                   <label style={{fontSize:11,fontWeight:800,color:"#4ade80",display:"block",marginBottom:5}}>Note to the other person <span style={{color:"rgba(255,255,255,0.3)",fontWeight:400}}>(optional)</span></label>
                   <textarea value={tpNote} onChange={e=>setTpNote(e.target.value)} placeholder="What you're looking for in return, condition notes, etc." rows={3} style={{width:"100%",background:"#0e0e13",color:"#eee",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"9px 11px",fontSize:13,fontFamily:"inherit",marginBottom:14,boxSizing:"border-box",resize:"vertical"}}/>
-                  <label style={{fontSize:11,fontWeight:800,color:"#4ade80",display:"block",marginBottom:5}}>Card values <span style={{color:"rgba(255,255,255,0.3)",fontWeight:400}}>(optional \u2014 shows a total on the link)</span></label>
+                  <label style={{fontSize:11,fontWeight:800,color:"#4ade80",display:"block",marginBottom:5}}>Card values <span style={{color:"rgba(255,255,255,0.3)",fontWeight:400}}>(optional — shows a total on the link)</span></label>
                   <div style={{maxHeight:170,overflowY:"auto",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"6px 8px",marginBottom:8}}>
                     {ids.map(cid => {
                       const cc = cards.find(x=>x.id===cid);
@@ -38390,7 +38390,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
               ) : (
                 <>
                   <div style={{fontSize:13,fontWeight:800,color:"#4ade80",marginBottom:8}}>{"\u2713"} {tpEditId ? "Trade package updated" : "Your trade package is live"}</div>
-                  <div style={{fontSize:12,color:"rgba(255,255,255,0.55)",marginBottom:10}}>Send this link to anyone \u2014 they don't need an account.</div>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,0.55)",marginBottom:10}}>Send this link to anyone — they don't need an account.</div>
                   <div style={{display:"flex",gap:8,marginBottom:16}}>
                     <input readOnly value={tpLink} onClick={e=>e.target.select()} style={{flex:1,background:"#0e0e13",color:"#7B9CFF",border:"1px solid rgba(123,156,255,0.3)",borderRadius:8,padding:"9px 11px",fontSize:12,fontFamily:"monospace"}}/>
                     <button onClick={async()=>{ try{ await navigator.clipboard.writeText(tpLink); setTpCopied(true); setTimeout(()=>setTpCopied(false),2000);}catch(e){} }} style={{background:tpCopied?"#22c55e":"rgba(74,222,128,0.15)",color:tpCopied?"#06240f":"#4ade80",border:"1px solid rgba(74,222,128,0.4)",borderRadius:8,padding:"0 14px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{tpCopied?"Copied!":"Copy"}</button>
@@ -38446,7 +38446,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
 
 
       {/* ── BULK LIST MODAL ── */}
-      {/* Bulk edit. Switch on any number of fields and set them all in ONE write \u2014 a typo like
+      {/* Bulk edit. Switch on any number of fields and set them all in ONE write — a typo like
           "Kyle Trucker" usually lives in both hero AND inspiredBy, and fixing one field at a time
           means running the same selection twice.
 
@@ -38537,7 +38537,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                             {bulkEdits.imageUrl ? (
                               <img src={bulkEdits.imageUrl} alt="" style={{width:34,height:47,objectFit:"cover",borderRadius:4,border:"1px solid #333"}}/>
                             ) : null}
-                            <span style={{fontSize:10.5,color:"var(--bz-ink-3)"}}>Upload once \u2014 it's applied to all {selectedIds.size} selected card{selectedIds.size===1?"":"s"}.</span>
+                            <span style={{fontSize:10.5,color:"var(--bz-ink-3)"}}>Upload once — it's applied to all {selectedIds.size} selected card{selectedIds.size===1?"":"s"}.</span>
                           </div>
                         )}
                           {mixed && (
@@ -39011,9 +39011,9 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 <button onClick={downloadImportTemplate} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"#ccc",borderRadius:12,padding:"12px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\u2B07 Download blank template"} <span style={{opacity:0.5,fontWeight:600}}>(incl. Serial &amp; Notes)</span></button>
 
                 {/* IMPORTER FAQ. Every answer here reflects what runImport()/matchImportRow() actually
-                    do \u2014 people were going to ask, and a wrong FAQ is worse than none. */}
+                    do — people were going to ask, and a wrong FAQ is worse than none. */}
                 <button onClick={()=>setImportFaqOpen(v=>!v)} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.12)",color:"rgba(255,255,255,0.6)",borderRadius:12,padding:"10px 0",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginTop:8}}>
-                  {importFaqOpen ? "\u25B4" : "\u25BE"} Import FAQ \u2014 how matching, locking &amp; copies work
+                  {importFaqOpen ? "\u25B4" : "\u25BE"} Import FAQ — how matching, locking &amp; copies work
                 </button>
                 {importFaqOpen && (
                   <div style={{marginTop:8,background:"rgba(0,0,0,0.25)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:"14px 16px",fontSize:12,color:"var(--bz-ink-2)",lineHeight:1.65,maxHeight:"46vh",overflowY:"auto"}}>
@@ -39488,8 +39488,8 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   <span style={{fontSize:34}}>{"\uD83C\uDFA4"}</span>
                 </div>
                 <style>{`@keyframes bzPulse{0%,100%{box-shadow:0 0 0 0 rgba(168,85,247,0.4);}50%{box-shadow:0 0 0 16px rgba(168,85,247,0);}}`}</style>
-                <div style={{fontSize:15,fontWeight:800,color:"#fff",marginBottom:6}}>Listening\u2026</div>
-                <div style={{fontSize:12.5,color:"rgba(255,255,255,0.5)"}}>Say the set, hero, weapon and treatment \u2014 e.g. "Alpha Update BoJax Green Battlefoil"</div>
+                <div style={{fontSize:15,fontWeight:800,color:"#fff",marginBottom:6}}>Listening…</div>
+                <div style={{fontSize:12.5,color:"rgba(255,255,255,0.5)"}}>Say the set, hero, weapon and treatment — e.g. "Alpha Update BoJax Green Battlefoil"</div>
               </div>
             )}
 
@@ -39563,7 +39563,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             {pageScan.status==="scanning" && (
               <div style={{padding:"48px 0",textAlign:"center"}}>
                 <div style={{fontSize:34,marginBottom:12}}>{"\uD83D\uDD0D"}</div>
-                <div style={{fontSize:15,fontWeight:800,color:"#fff",marginBottom:6}}>Reading the cards\u2026</div>
+                <div style={{fontSize:15,fontWeight:800,color:"#fff",marginBottom:6}}>Reading the cards…</div>
                 <div style={{fontSize:12.5,color:"rgba(255,255,255,0.5)"}}>Reading each card in your {pageGrid.rows}×{pageGrid.cols} page. For best results, fill the frame with the page, straight-on, no glare.</div>
               </div>
             )}
@@ -39585,7 +39585,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
               return (
                 <>
                   <div style={{fontSize:12.5,color:"rgba(255,255,255,0.55)",marginBottom:12}}>
-                    Found <strong style={{color:"#fff"}}>{rows.length}</strong> card{rows.length===1?"":"s"} \u2014 <strong style={{color:"#4ade80"}}>{matched.length}</strong> matched. Everything matched is checked; uncheck any that are wrong, then add.
+                    Found <strong style={{color:"#fff"}}>{rows.length}</strong> card{rows.length===1?"":"s"} — <strong style={{color:"#4ade80"}}>{matched.length}</strong> matched. Everything matched is checked; uncheck any that are wrong, then add.
                   </div>
                   <div style={{flex:1,overflowY:"auto",display:"grid",gridTemplateColumns:`repeat(${pageGrid.cols}, 1fr)`,gap:10,marginBottom:14}}>
                     {rows.map(r => {
@@ -39612,7 +39612,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                               {r.candidates.length>0 && (
                                 <select value="" onChange={e=>{ const cid=e.target.value; if(!cid) return; setPageScan(ps=>({...ps, rows: ps.rows.map(x=>x.key===r.key?{...x,picked:cid,match:cards.find(c=>c.id===cid)||x.match}:x)})); setPageSel(s=>new Set(s).add(r.key)); }}
                                   onClick={e=>e.stopPropagation()} style={{marginTop:5,width:"100%",fontSize:10,background:"#0e0e13",color:"#ccc",border:"1px solid #333",borderRadius:6,padding:"4px"}}>
-                                  <option value="">Pick the right card\u2026</option>
+                                  <option value="">Pick the right card…</option>
                                   {r.candidates.map(c=><option key={c.id} value={c.id}>{c.hero} {c.treatment?`\u00b7 ${c.treatment}`:""} {c.cardNum?`#${c.cardNum}`:""}</option>)}
                                 </select>
                               )}
@@ -39767,7 +39767,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       {wantNotifs.length>0&&(
         <div style={{background:"linear-gradient(135deg,rgba(232,49,122,0.08),rgba(123,47,247,0.05))",borderBottom:"1px solid rgba(232,49,122,0.15)",padding:"10px 24px"}}>
           <div style={{maxWidth:1400,margin:"0 auto",display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
-            {/* The header said "cards from your want list" for EVERYTHING \u2014 including trade
+            {/* The header said "cards from your want list" for EVERYTHING — including trade
                 offers, which have nothing to do with a want list. Count them separately. */}
             <span style={{fontSize:12,color:"rgba(255,255,255,0.4)",fontWeight:700,whiteSpace:"nowrap"}}>
               {(() => {
@@ -44012,7 +44012,7 @@ function BugAdmin({ user }) {
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100vh",background:"#08000a",color:"#E8317A",fontFamily:"'Trebuchet MS',sans-serif",fontWeight:700,padding:24,textAlign:"center",gap:10}}>
       <div style={{fontSize:18}}>Admins only.</div>
       <div style={{fontSize:13,color:"rgba(255,255,255,0.6)",fontWeight:600,maxWidth:420,lineHeight:1.5}}>
-        {user ? <>You're signed in as <strong style={{color:"#fff"}}>{user.email}</strong>, which isn't an admin account. The bug list is only visible to <strong style={{color:"#fff"}}>@bazookabreaks.com</strong> accounts \u2014 sign in with yours to see reports.</> : <>You're not signed in. Sign in with your <strong style={{color:"#fff"}}>@bazookabreaks.com</strong> account to view bug reports.</>}
+        {user ? <>You're signed in as <strong style={{color:"#fff"}}>{user.email}</strong>, which isn't an admin account. The bug list is only visible to <strong style={{color:"#fff"}}>@bazookabreaks.com</strong> accounts — sign in with yours to see reports.</> : <>You're not signed in. Sign in with your <strong style={{color:"#fff"}}>@bazookabreaks.com</strong> account to view bug reports.</>}
       </div>
     </div>
   );
