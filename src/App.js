@@ -28056,7 +28056,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, giveDeckToFamily, familyList=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -28788,6 +28788,22 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       ))}
                     </div>
                       )}
+                  {givenDecks.length>0 && (
+                    <div style={{marginTop:10,paddingTop:10,borderTop:"1px solid rgba(255,255,255,0.08)"}}>
+                      <div style={{fontSize:9.5,fontWeight:700,color:"var(--bz-ink-3)",textTransform:"uppercase",letterSpacing:0.6,marginBottom:6}}>Given away</div>
+                      {givenDecks.map(d=>(
+                        <div key={d.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:6,padding:"3px 0"}}>
+                          <span style={{fontSize:11,color:"#8a8a8a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                            {d.name} <span style={{color:"var(--bz-ink-3)"}}>({d.cardCount})</span>
+                          </span>
+                          <button onClick={()=>takeBackDeck && takeBackDeck(d)} title="Take this deck back to your account"
+                            style={{background:"none",border:"none",color:"#C084FC",cursor:"pointer",fontSize:11,fontWeight:700,fontFamily:"inherit",whiteSpace:"nowrap",padding:"0 2px"}}>
+                            ↩ Take back
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                     </>
                   )}
                 </div>
@@ -31302,12 +31318,17 @@ See you in there!
   const [savedDecks,    setSavedDecks]    = useState([]);
   const [deckLoadId,    setDeckLoadId]    = useState(null);
   const [deckSaving,    setDeckSaving]    = useState(false);
+  const [givenDecks,    setGivenDecks]    = useState([]);  // decks I gave to family (reclaimable)
   const [deckSaved,     setDeckSaved]     = useState(false);
   useEffect(() => {
     if (!user) { setSavedDecks([]); return; }
     const unsub = onSnapshot(collection(db, "boba_decks"), snap => {
-      const mine = snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.userId===user.uid).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||""));
+      const all = snap.docs.map(d=>({id:d.id,...d.data()}));
+      const mine = all.filter(d=>d.userId===user.uid).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||""));
       setSavedDecks(mine);
+      // Decks I handed to a family member and could still take back. boba_decks is public-read, so
+      // this comes free out of the same snapshot — no extra query.
+      setGivenDecks(all.filter(d => d.transferredFrom === user.uid && d.userId !== user.uid));
     }, e => {
       // A denied read used to fail silently, leaving savedDecks empty \u2014 indistinguishable from
       // "you have no decks". Surface it, because it's the difference between "empty" and "broken".
@@ -31384,6 +31405,24 @@ See you in there!
       setToast(`Deck given to ${toName||"them"} — it's on their account now.`);
     } catch(e) {
       alert("Couldn't give the deck: " + (e?.message||e));
+    }
+  }
+  // Take back a deck you previously gave to a family member. Requires the boba_decks rule to allow
+  // the ORIGINAL giver (recorded as transferredFrom) to write — see the rule note shipped with this.
+  // Without that rule, only the current owner can move it, so they'd have to hand it back instead.
+  async function takeBackDeck(deck) {
+    if (!deck || !user) return;
+    if (!window.confirm(`Take back "${deck.name||"this deck"}"? It will move back to your account and leave theirs.`)) return;
+    try {
+      await updateDoc(doc(db,"boba_decks",deck.id), {
+        userId: user.uid,
+        takenBackAt: new Date().toISOString(),
+        transferredFrom: deleteField(),
+        transferredFromName: deleteField(),
+      });
+      setToast("Deck taken back — it's on your account again.");
+    } catch(e) {
+      alert("Couldn't take the deck back: " + (e?.message||e) + "\n\nIf this says permission denied, the Firestore rule for boba_decks needs the take-back clause, or ask them to give it back from their account.");
     }
   }
   function loadDeckTab(d) { setDeckLoadId(d.id); setDeckName(d.name||"My Deck"); setDeckCards(d.cardIds||[]); setDeckType(d.deckType||"none"); }
@@ -32780,11 +32819,15 @@ See you in there!
     if (!user || !cards.length) return;
     const publicIds = Object.keys(publicCards).filter(id=>publicCards[id]);
     if (publicIds.length === 0) return;
+    // Index the catalog once (O(1) lookups). Doing cards.find() per public id was O(publicIds × 35k)
+    // and re-ran on every cards/owned/publicCards/lots change — a real drag during deck building.
+    const byId = {};
+    for (const c of cards) byId[c.id] = c;
     // Build a lookup of my scan photos by card id (first photo wins).
     const scanByCard = {};
     for (const l of (lots||[])) { if (l && l.cardId && l.photoUrl && !scanByCard[l.cardId]) scanByCard[l.cardId] = l.photoUrl; }
     const enriched = publicIds.map(id => {
-      const c = cards.find(x=>x.id===id) || {};
+      const c = byId[id] || {};
       const img = c.imageUrl || scanByCard[id] || "";   // official art, else my scan, else nothing
       return { id, hero:c.hero||"", treatment:c.treatment||"", weapon:c.weapon||"", cardNum:c.cardNum||"", setName:c.setName||"", imageUrl:img };
     });
@@ -36160,38 +36203,38 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       // If we couldn't even seat 60 cheapest under budget, that's the best legal deck possible.
       // Otherwise, spend remaining budget upgrading weak cards to stronger ones.
       if (usable.length === DECK_SIZE) {
-        // Candidate upgrades: cards you own that aren't already in the deck, strongest first.
+        // Spend remaining budget upgrading weak cards to stronger ones — but cheaply. The old version
+        // re-scanned all cards × all slots × a per-power filter inside a 400-iteration while loop,
+        // which could hit hundreds of millions of ops and freeze the builder. This version keeps a
+        // live per-power tally and does a single pass of upgrades, each O(deck size).
         const inSet = new Set(usable.map(c=>c.id));
+        const powCount = {};
+        usable.forEach(c=>{ const pk=String(c.power||"0"); powCount[pk]=(powCount[pk]||0)+1; });
+        // Strongest candidate upgrades you own but haven't used, high→low.
         const upgrades = ownedCards.filter(c=>!inSet.has(c.id)).sort((a,b)=>powerOf(b)-powerOf(a));
-        let improved = true;
-        let guard = 0;
-        while (improved && guard++ < 400) {
-          improved = false;
-          for (const up of upgrades) {
-            if (inSet.has(up.id)) continue;
-            // Find the weakest card currently in the deck that's weaker than this upgrade, whose
-            // removal+replacement keeps total ≤ 8,250 and doesn't break max-6 at the new power.
-            let weakestIdx = -1, weakestPow = Infinity;
-            for (let i=0;i<usable.length;i++){
-              const cur = usable[i];
-              if (powerOf(cur) >= powerOf(up)) continue;                 // only upgrades
-              const newTotal = runningPower - powerOf(cur) + powerOf(up);
-              if (newTotal > F.totalPower) continue;                     // must stay ≤ cap
-              // max-6 at the upgrade's power AFTER removing cur (cur is a different power).
-              const pk = String(up.power||"0");
-              const atPk = usable.filter(x=>String(x.power||"0")===pk && x.id!==cur.id).length;
-              if (atPk >= (F.perPower||6)) continue;
-              if (powerOf(cur) < weakestPow) { weakestPow = powerOf(cur); weakestIdx = i; }
-            }
-            if (weakestIdx >= 0) {
-              const removed = usable[weakestIdx];
-              runningPower = runningPower - powerOf(removed) + powerOf(up);
-              inSet.delete(removed.id); inSet.add(up.id);
-              usable[weakestIdx] = up;
-              improved = true;
-              break;   // recompute from the top with the new deck state
-            }
+        // Keep the deck's weak cards handy, weakest first, so each upgrade swaps the cheapest slot.
+        const weakOrder = () => usable.map((c,idx)=>({idx,p:powerOf(c)})).sort((a,b)=>a.p-b.p);
+        let order = weakOrder();
+        for (const up of upgrades) {
+          const upP = powerOf(up), upk = String(up.power||"0");
+          if ((powCount[upk]||0) >= (F.perPower||6)) continue;       // already 6 at this power
+          // Find the weakest in-deck card weaker than `up` whose swap keeps total ≤ cap.
+          let did = false;
+          for (const slot of order) {
+            const cur = usable[slot.idx];
+            const curP = powerOf(cur);
+            if (curP >= upP) break;                                   // order is weakest-first; no gain past here
+            if (runningPower - curP + upP > F.totalPower) continue;   // would exceed budget
+            // swap
+            const curk = String(cur.power||"0");
+            powCount[curk] = Math.max(0,(powCount[curk]||0)-1);
+            powCount[upk] = (powCount[upk]||0)+1;
+            runningPower = runningPower - curP + upP;
+            inSet.delete(cur.id); inSet.add(up.id);
+            usable[slot.idx] = up;
+            did = true; break;
           }
+          if (did) order = weakOrder();                              // refresh weak order after a swap
         }
       }
     } else {
@@ -40663,7 +40706,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             familyOwnerByCard={familyOwnerByCard} familyOwnsCard={familyOwnsCard} deckOwnedMerged={deckOwnedMerged}
             canAddToDeck={canAddToDeck} isMobile={isMobile}
             savedDecks={savedDecks} familyDecks={familyDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
-            saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} giveDeckToFamily={giveDeckToFamily} familyList={familyList} setFanDeck={setFanDeck} setFanMode={setFanMode}
+            saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} giveDeckToFamily={giveDeckToFamily} takeBackDeck={takeBackDeck} familyList={familyList} givenDecks={givenDecks} setFanDeck={setFanDeck} setFanMode={setFanMode}
             deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} deckSource={deckSource} setDeckSource={setDeckSource} computeDeckProgress={computeDeckProgress} listings={listings} setActiveTab={setActiveTab} deckLegality={deckLegality}
           />
         )}
