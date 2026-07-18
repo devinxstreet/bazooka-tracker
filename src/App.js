@@ -22226,9 +22226,11 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
 
   function downloadTemplate() {
     const csv = [
-      ["card_num","hero","treatment","weapon","notation","quantity"],
-      ["RAD-1","Bojax","80's Rad Battlefoil","Hex","",1],
-      ["1","Maverick","Base Set","Fire","",2],
+      // Kept in step with downloadImportTemplate() — the live importer. Two templates drifting apart
+      // is how someone ends up with a file whose columns the importer no longer recognises.
+      ["Name","Set","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value","Serial","Notes"],
+      ["Bojax","Alpha Edition","RAD-1","80's Rad Battlefoil","Hex","150",1,"","",""],
+      ["Maverick","Alpha Edition","1","Base","Fire","120",2,"","21/50","on-card auto"],
     ].map(r => r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type:"text/csv" });
     const url = URL.createObjectURL(blob);
@@ -33900,6 +33902,27 @@ See you in there!
         const prev = card.power, next = updates.power;
         const changed = prev != null && next != null && Number(prev) !== Number(next);
         if (changed) {
+          // A power change is not cosmetic: decks store card IDs and look power up live, so this
+          // silently re-decides legality for every saved deck holding this card. Crossing 160 makes
+          // a card Apex-eligible; dropping below 155 can break someone's Max Apex deck. Surface the
+          // blast radius BEFORE writing, because after the write it just looks like their deck broke.
+          const p1 = Number(prev), p2 = Number(next);
+          const crossings = [];
+          if (p1 <= 160 && p2 > 160) crossings.push("goes over 160, so it is no longer legal in Spec / Vegas Baby and now counts as an Apex Hero in Madness");
+          if (p1 > 160 && p2 <= 160) crossings.push("drops to 160 or under, so it becomes Spec-legal and stops counting as a Madness Apex Hero");
+          if (p1 >= 155 && p2 < 155) crossings.push("falls below the 155 Max Apex floor");
+          if (p1 < 155 && p2 >= 155) crossings.push("reaches the 155 Max Apex floor");
+          if (p1 >= 115 && p2 < 115) crossings.push("falls below the 115 Max Spec floor");
+          let affected = 0;
+          try {
+            const dsnap = await getDocs(collection(db,"boba_decks"));
+            dsnap.docs.forEach(d => { const ids = d.data()?.cardIds || []; if (ids.includes(card.id)) affected++; });
+          } catch(e) { /* if we can't count, still warn about the rule change */ }
+          const lines = [`Change ${card.hero||"this card"} from ${p1} to ${p2} power?`];
+          if (crossings.length) lines.push("", "This crosses a format boundary — the card " + crossings.join("; ") + ".");
+          if (affected > 0) lines.push("", `${affected} saved deck${affected===1?"":"s"} already contain${affected===1?"s":""} this card. Their legality is recalculated live, so some may become illegal.`);
+          lines.push("", "Continue?");
+          if (!window.confirm(lines.join("\n"))) return;
           if (card.originalPower === undefined || card.originalPower === null) {
             updates = { ...updates, originalPower: Number(prev) };
           }
@@ -38701,7 +38724,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   </div>
                   <input type="file" accept=".csv,text/csv" style={{display:"none"}} onChange={e=>{ const f=e.target.files?.[0]; if(f) handleImportFile(f); e.target.value=""; }}/>
                 </label>
-                <button onClick={downloadImportTemplate} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"#ccc",borderRadius:12,padding:"12px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\u2B07 Download blank template"}</button>
+                <button onClick={downloadImportTemplate} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"#ccc",borderRadius:12,padding:"12px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\u2B07 Download blank template"} <span style={{opacity:0.5,fontWeight:600}}>(incl. Serial &amp; Notes)</span></button>
                 <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:10}}>Columns: Name, Set, Card Number, Parallel, Weapon, Power, Quantity, Estimated Value, Serial, Notes</div>
               </>
             )}
