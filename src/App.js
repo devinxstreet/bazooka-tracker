@@ -17015,18 +17015,21 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
                       </span>
                     )}
                   </div>
-                  {c.isError && (
-                    <div style={{ marginTop:6, display:"inline-flex", alignItems:"center", gap:5, background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.4)", borderRadius:6, padding:"3px 8px", fontSize:10, fontWeight:800, color:"#FBBF24" }}>
-                      {"\u26A0\uFE0F"} Error card
-                    </div>
-                  )}
-                  {c.errorNote && <div style={{ marginTop:5, fontSize:10.5, color:"var(--bz-ink-3)", lineHeight:1.45 }}>{c.errorNote}</div>}
-                  {/* Who changed the power and when — internal provenance, admins only. */}
-                  {isAdmin && c.powerEditedAt && (
-                    <div style={{ marginTop:5, fontSize:9.5, color:"rgba(255,255,255,0.3)" }}>
-                      power edited {String(c.powerEditedAt).split("T")[0]}{c.powerEditedBy?` by ${c.powerEditedBy}`:""}
-                    </div>
-                  )}
+                </div>
+              )}
+              {/* Error card badge sits OUTSIDE the power block on purpose: a card with no power value
+                  still needs to be flaggable, and nesting it under {c.power && ...} meant the badge
+                  silently never rendered for those cards. */}
+              {c.isError && (
+                <div style={{ marginBottom:8, display:"inline-flex", alignItems:"center", gap:5, background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.4)", borderRadius:6, padding:"3px 8px", fontSize:10, fontWeight:800, color:"#FBBF24" }}>
+                  {"\u26A0\uFE0F"} Error card
+                </div>
+              )}
+              {c.errorNote && <div style={{ marginBottom:8, fontSize:10.5, color:"var(--bz-ink-3)", lineHeight:1.45 }}>{c.errorNote}</div>}
+              {/* Who changed the power and when — internal provenance, admins only. */}
+              {isAdmin && c.powerEditedAt && (
+                <div style={{ marginBottom:8, fontSize:9.5, color:"rgba(255,255,255,0.3)" }}>
+                  power edited {String(c.powerEditedAt).split("T")[0]}{c.powerEditedBy?` by ${c.powerEditedBy}`:""}
                 </div>
               )}
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
@@ -30236,10 +30239,18 @@ const LOT_METHODS = [
   { v:"other",     l:"❓ Other" },
 ];
 
-function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
-  const blank = { cost:"", value:"", method:"purchased", date:todayLocal(), notes:"", serial:"" };
+function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp, onUploadPhoto }) {
+  // Everything here is a fact about YOUR PARTICULAR COPY rather than about the card, which is why it
+  // lives on the lot: purchase date, condition, grading, where the card physically is, whether it's
+  // locked from trade, and front/back photos.
+  const blank = { cost:"", value:"", method:"purchased", date:todayLocal(), notes:"", serial:"",
+                  purchaseDate:"", condition:"", grade:"", gradeCompany:"", certNum:"",
+                  location:"", locked:false };
   const [draft, setDraft] = useState(blank);
   const [editId, setEditId] = useState(null);
+  const [busySide, setBusySide] = useState(null);   // "front" | "back" while uploading
+  const CONDITIONS = ["", "Mint", "Near Mint", "Excellent", "Very Good", "Good", "Played", "Damaged"];
+  const GRADERS    = ["", "PSA", "BGS", "SGC", "CGC", "TAG", "Other"];
 
   function commit() {
     const data = {
@@ -30247,11 +30258,20 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
       value: draft.value==="" ? null : parseFloat(draft.value),
       method: draft.method, date: draft.date, notes: draft.notes.trim(),
       serial: (draft.serial||"").trim(),   // e.g. "21/50" — which numbered copy this is
+      purchaseDate: draft.purchaseDate||"",
+      condition: draft.condition||"",
+      grade: (draft.grade||"").trim(),
+      gradeCompany: draft.gradeCompany||"",
+      certNum: (draft.certNum||"").trim(),
+      location: (draft.location||"").trim(),
+      locked: !!draft.locked,
     };
     if (editId) { onUpdate(editId, data); } else { onAdd(card.id, data); }
     setDraft(blank); setEditId(null);
   }
-  function startEdit(l) { setEditId(l.id); setDraft({ cost:l.cost??"", value:l.value??"", method:l.method||"purchased", date:l.date||blank.date, notes:l.notes||"", serial:l.serial||"" }); }
+  function startEdit(l) { setEditId(l.id); setDraft({ cost:l.cost??"", value:l.value??"", method:l.method||"purchased", date:l.date||blank.date, notes:l.notes||"", serial:l.serial||"",
+      purchaseDate:l.purchaseDate||"", condition:l.condition||"", grade:l.grade||"", gradeCompany:l.gradeCompany||"",
+      certNum:l.certNum||"", location:l.location||"", locked:!!l.locked }); }
 
   const totalCost = lots.reduce((s,l)=>s+(l.cost||0),0);
   const totalVal  = lots.reduce((s,l)=>s+(l.value||0),0);
@@ -30287,12 +30307,20 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
             <div style={{ fontSize:11, color:"#999", fontWeight:700, marginBottom:6 }}>Your copies ({lots.length})</div>
             {lots.map((l,i)=>(
               <div key={l.id} style={{ display:"flex", alignItems:"center", gap:8, background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:8, padding:"8px 10px", marginBottom:6 }}>
-                {l.photoUrl && (
-                  <div style={{ position:"relative", flexShrink:0 }}>
-                    <img src={l.photoUrl} alt="" style={{ width:38, height:51, objectFit:"cover", borderRadius:6, border:"1px solid var(--bz-line-2)" }}/>
-                    <button onClick={()=>{ if(window.confirm("Delete this saved photo? You'll need to re-scan or upload to list this copy with a pic.")) onUpdate(l.id, { ...l, photoUrl:"" }); }} title="Delete saved photo" style={{ position:"absolute", top:-6, right:-6, background:"#1a1a1a", border:"1px solid #5a2a2a", color:"#E8317A", borderRadius:"50%", width:18, height:18, fontSize:11, cursor:"pointer", lineHeight:1, padding:0, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+                {/* Front / back thumbnails. photoUrl is the original single-photo field (the front);
+                    photoBackUrl was added later so existing scans keep working untouched. */}
+                {(l.photoUrl || l.photoBackUrl) && (
+                  <div style={{ display:"flex", gap:4, flexShrink:0 }}>
+                  {[["front", l.photoUrl], ["back", l.photoBackUrl]].filter(x=>x[1]).map(([side,url])=>(
+                    <div key={side} style={{ position:"relative" }}>
+                      <img src={url} alt={side} title={side} style={{ width:38, height:51, objectFit:"cover", borderRadius:6, border:"1px solid var(--bz-line-2)" }}/>
+                      <div style={{ position:"absolute", bottom:-1, left:0, right:0, textAlign:"center", fontSize:7, fontWeight:800, color:"#fff", background:"rgba(0,0,0,0.6)", borderRadius:"0 0 5px 5px" }}>{side}</div>
+                      <button onClick={()=>{ if(window.confirm(`Delete the ${side} photo?`)) onUpdate(l.id, { ...l, [side==="front"?"photoUrl":"photoBackUrl"]:"" }); }} title={`Delete ${side} photo`} style={{ position:"absolute", top:-6, right:-6, background:"#1a1a1a", border:"1px solid #5a2a2a", color:"#E8317A", borderRadius:"50%", width:18, height:18, fontSize:11, cursor:"pointer", lineHeight:1, padding:0, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+                    </div>
+                  ))}
                   </div>
                 )}
+                
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:12, color:"#ddd", fontWeight:700 }}>
                     {LOT_METHODS.find(m=>m.v===l.method)?.l || l.method}
@@ -30300,6 +30328,27 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
                     {l.value!=null && <span style={{ color:"#4ade80" }}> → ${l.value}</span>}
                   </div>
                   <div style={{ fontSize:10, color:"#b0b0b0" }}>{l.date}{l.notes?` · ${l.notes}`:""}{l.photoUrl?" · 📸":""}</div>
+                  {/* Add photos after the fact — quick-added and imported copies have no scan. */}
+                  <div style={{ display:"flex", gap:6, marginTop:4, flexWrap:"wrap" }}>
+                    {["front","back"].map(side => {
+                      const key = side==="front" ? "photoUrl" : "photoBackUrl";
+                      const busy = busySide === l.id+side;
+                      return (
+                        <label key={side} style={{ fontSize:9.5, fontWeight:700, color: busy?"rgba(255,255,255,0.35)":"#7B9CFF", border:"1px solid rgba(123,156,255,0.35)", borderRadius:6, padding:"2px 7px", cursor: busy?"default":"pointer" }}>
+                          {busy ? "uploading…" : (l[key] ? `replace ${side}` : `+ ${side} photo`)}
+                          <input type="file" accept="image/*" style={{display:"none"}} disabled={busy}
+                            onChange={async e => {
+                              const f = e.target.files && e.target.files[0]; e.target.value = "";
+                              if (!f || !onUploadPhoto) return;
+                              setBusySide(l.id+side);
+                              const url = await onUploadPhoto(l.cardId, f, side);
+                              setBusySide(null);
+                              if (url) onUpdate(l.id, { ...l, [key]: url });
+                            }}/>
+                        </label>
+                      );
+                    })}
+                  </div>
                   {l.serial && <div style={{ fontSize:11, fontWeight:800, color:"#FBBF24", marginTop:2 }}>#{l.serial}</div>}
                 </div>
                 <button onClick={()=>startEdit(l)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>Edit</button>
@@ -30340,6 +30389,46 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
               <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Notes (optional)</div>
               <input value={draft.notes} onChange={e=>setDraft({...draft,notes:e.target.value})} placeholder="e.g. from John's break" style={{...inp,width:"100%"}}/>
             </div>
+          </div>
+          {/* --- Per-copy detail: acquisition, condition, grading, where it physically lives --- */}
+          <div style={{ display:"flex", gap:8, marginBottom:9, flexWrap:"wrap" }}>
+            <div style={{ flex:1, minWidth:120 }}>
+              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Purchase date</div>
+              <input type="date" value={draft.purchaseDate} onChange={e=>setDraft({...draft,purchaseDate:e.target.value})} style={{...inp,width:"100%"}}/>
+            </div>
+            <div style={{ flex:1, minWidth:120 }}>
+              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Condition</div>
+              <select value={draft.condition} onChange={e=>setDraft({...draft,condition:e.target.value})} style={{...inp,width:"100%",cursor:"pointer"}}>
+                {CONDITIONS.map(x=><option key={x} value={x}>{x||"\u2014"}</option>)}
+              </select>
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:8, marginBottom:9, flexWrap:"wrap" }}>
+            <div style={{ flex:1, minWidth:110 }}>
+              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Grading co.</div>
+              <select value={draft.gradeCompany} onChange={e=>setDraft({...draft,gradeCompany:e.target.value})} style={{...inp,width:"100%",cursor:"pointer"}}>
+                {GRADERS.map(x=><option key={x} value={x}>{x||"Raw / ungraded"}</option>)}
+              </select>
+            </div>
+            <div style={{ flex:1, minWidth:80 }}>
+              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Grade</div>
+              <input value={draft.grade} onChange={e=>setDraft({...draft,grade:e.target.value})} placeholder="e.g. 9.5" style={{...inp,width:"100%"}}/>
+            </div>
+            <div style={{ flex:1, minWidth:110 }}>
+              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Cert #</div>
+              <input value={draft.certNum} onChange={e=>setDraft({...draft,certNum:e.target.value})} placeholder="cert number" style={{...inp,width:"100%"}}/>
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:8, marginBottom:9, flexWrap:"wrap", alignItems:"flex-end" }}>
+            <div style={{ flex:2, minWidth:150 }}>
+              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Where is it?</div>
+              <input value={draft.location} onChange={e=>setDraft({...draft,location:e.target.value})} placeholder="e.g. Binder 3 page 12, safe, slab case" style={{...inp,width:"100%"}}/>
+            </div>
+            {/* Locking is per copy on purpose \u2014 you might trade one copy of a card and keep another. */}
+            <label style={{ flex:1, minWidth:150, display:"flex", alignItems:"center", gap:7, cursor:"pointer", fontSize:12, fontWeight:700, color: draft.locked ? "#FBBF24" : "rgba(255,255,255,0.55)", paddingBottom:8 }}>
+              <input type="checkbox" checked={!!draft.locked} onChange={e=>setDraft({...draft,locked:e.target.checked})} style={{ accentColor:"#FBBF24", width:16, height:16 }}/>
+              {"\uD83D\uDD12"} Never trade or sell
+            </label>
           </div>
           <div style={{ display:"flex", gap:8 }}>
             <button onClick={commit} style={{ flex:1, background:"linear-gradient(135deg,#E8317A,#FBBF24)", border:"none", color:"#fff", borderRadius:8, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{editId?"Save changes":"Add copy"}</button>
@@ -33104,8 +33193,24 @@ See you in there!
   // Bulk mark selected cards as sold / traded away. Decrements ONE copy of each and logs it.
   async function bulkSellSelected(reason="sold") {
     if (!user || selectedIds.size===0) return;
-    const ids = [...selectedIds].filter(id => (parseInt(owned[id])||0) > 0);
+    let ids = [...selectedIds].filter(id => (parseInt(owned[id])||0) > 0);
     if (ids.length === 0) { alert("None of the selected cards are in your collection."); return; }
+    // A locked copy means "never trade or sell" — so honour it here rather than only showing a badge.
+    // Only cards whose copies are ALL locked get blocked; if you own three and locked one, the other
+    // two are still fair game.
+    const lockedIds = ids.filter(id => {
+      const ls = lots.filter(l => l.cardId === id);
+      return ls.length > 0 && ls.every(l => l.locked);
+    });
+    if (lockedIds.length) {
+      const names = lockedIds.slice(0,5).map(id => (cards.find(c=>c.id===id)?.hero) || id).join(", ");
+      ids = ids.filter(id => !lockedIds.includes(id));
+      if (ids.length === 0) {
+        alert(`\uD83D\uDD12 Locked — nothing was changed.\n\n${names}${lockedIds.length>5?` and ${lockedIds.length-5} more`:""} ${lockedIds.length===1?"is":"are"} marked "never trade or sell". Unlock in the copy details first.`);
+        return;
+      }
+      if (!window.confirm(`\uD83D\uDD12 ${lockedIds.length} locked card${lockedIds.length===1?"":"s"} will be SKIPPED (${names}${lockedIds.length>5?"…":""}).\n\nContinue with the other ${ids.length}?`)) return;
+    }
     if (!window.confirm(`Mark ${ids.length} card${ids.length!==1?"s":""} as ${reason}? One copy of each leaves your collection \u2014 the record is kept.`)) return;
 
     const nextOwned = {...owned};
@@ -33377,6 +33482,12 @@ See you in there!
     // Accept several header spellings so people don't have to guess the exact column name.
     const serial = cell("Serial") || cell("Serial Number") || cell("Numbered") || cell("Serial #") || "";
     const notes  = cell("Notes") || cell("Note") || cell("Comment") || cell("Comments") || "";
+    const purchaseDate = cell("Purchase Date") || "";
+    const condition    = cell("Condition") || "";
+    const grade        = cell("Grade") || "";
+    const gradeCompany = cell("Grading Company") || "";
+    const certNum      = cell("Cert #") || "";
+    const location     = cell("Location") || "";
     if (!heroRaw && !cardNum) return null;
     const norm = s => String(s||"").replace(/[\s\-_.]/g,"").toLowerCase();
     // Hero name variants: full string, the quoted nickname (BoBA hero name), and the string with the quoted part removed
@@ -33391,7 +33502,7 @@ See you in there!
     const setMatches = c => !setName || norm(c.setName)===norm(setName) || norm(c.setName).includes(norm(setName)) || norm(setName).includes(norm(c.setName));
 
     let match = null;
-    if (forceSkip) { return { csv:{hero:heroRaw,setName:csvSet,csvSet,cardNum,parallel,weapon,power,qty,value,serial,notes}, match:null }; }
+    if (forceSkip) { return { csv:{hero:heroRaw,setName:csvSet,csvSet,cardNum,parallel,weapon,power,qty,value,serial,notes,purchaseDate,condition,grade,gradeCompany,certNum,location}, match:null }; }
     // With sets explicitly mapped, the set MUST match — card numbers repeat across sets,
     // so a set-blind match would grab the wrong card. Every tier below requires the set.
     // 1) cardNum + set (most precise — number is unique within a set)
@@ -33404,7 +33515,7 @@ See you in there!
     if (!match && cardNum) match = cards.find(c => heroMatches(c) && norm(c.cardNum)===norm(cardNum) && setMatches(c));
     // No set-blind fallback — if the set doesn't match, we'd rather report "not found"
     // than import the wrong card. The user mapped the set, so this stays strict.
-    return { csv:{hero:heroRaw,setName,csvSet,cardNum,parallel,weapon,power,qty,value,serial,notes}, match:match||null };
+    return { csv:{hero:heroRaw,setName,csvSet,cardNum,parallel,weapon,power,qty,value,serial,notes,purchaseDate,condition,grade,gradeCompany,certNum,location}, match:match||null };
   }
 
   // Common column-name aliases from other collection tools (CardLadder, eBay, COMC, Collectr, custom sheets, etc.)
@@ -33421,6 +33532,12 @@ See you in there!
     // fell back to the default "Imported".
     "Serial": ["serial","serial number","serial #","numbered","numbering","serial no"],
     "Notes": ["notes","note","comment","comments","remarks","description"],
+    "Purchase Date": ["purchase date","date purchased","bought","date acquired","acquired"],
+    "Condition": ["condition","cond","card condition"],
+    "Grade": ["grade","grading","numeric grade"],
+    "Grading Company": ["grading company","grader","grading co","graded by","company"],
+    "Cert #": ["cert","cert #","cert number","certification","certification number","slab #"],
+    "Location": ["location","physical location","stored","storage","where","binder"],
   };
   function autoDetectColumns(hdr) {
     const norm = s => String(s||"").replace(/[\s\-_.()/#]/g,"").toLowerCase();
@@ -33515,7 +33632,14 @@ See you in there!
             date:todayLocal(),
             serial: i===0 ? (r.csv.serial||"") : "",
             notes: r.csv.notes || "Imported",
-            photoUrl:"",
+            purchaseDate: r.csv.purchaseDate||"",
+            condition: r.csv.condition||"",
+            grade: r.csv.grade||"",
+            gradeCompany: r.csv.gradeCompany||"",
+            certNum: i===0 ? (r.csv.certNum||"") : "",   // a cert number identifies ONE slab
+            location: r.csv.location||"",
+            locked: false,
+            photoUrl:"", photoBackUrl:"",
           });
         }
       }
@@ -33559,10 +33683,10 @@ See you in there!
   }
 
   function downloadImportTemplate() {
-    const headers = ["Name","Set","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value","Serial","Notes"];
+    const headers = ["Name","Set","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value","Serial","Notes","Purchase Date","Condition","Grading Company","Grade","Cert #","Location"];
     // Set is REQUIRED — the same hero can appear in multiple sets
-    const ex1 = ["Bo Jackson","Tecmo Bowl Edition","TB1","Tecmo Bowl","","250","1","500","","first pull of the box"];
-    const ex2 = ["Cutback","Alpha Update","BFA-5","Inspired Ink Battlefoil","Hex","200","1","2500","21/50","on-card auto"];
+    const ex1 = ["Bo Jackson","Tecmo Bowl Edition","TB1","Tecmo Bowl","","250","1","500","","first pull of the box","2026-03-14","Near Mint","","","","Binder 1 page 4"];
+    const ex2 = ["Cutback","Alpha Update","BFA-5","Inspired Ink Battlefoil","Hex","200","1","2500","21/50","on-card auto","2026-05-02","Mint","PSA","10","82736451","Slab case"];
     const csv = headers.join(",") + "\n" + ex1.join(",") + "\n" + ex2.join(",") + "\n";
     const blob = new Blob([csv], { type:"text/csv" });
     const url = URL.createObjectURL(blob);
@@ -33628,6 +33752,39 @@ See you in there!
     saveLots(lots.filter(l => l.id!==lotId));
   }
   function lotsForCard(cardId) { return lots.filter(l => l.cardId===cardId); }
+  // Upload a photo for one specific COPY. Quick-added and imported cards have no scan, so this is
+  // how you attach pictures after the fact — and front/back are separate because the back is where
+  // serial numbers, cert labels and damage usually are.
+  async function uploadLotPhoto(cardId, file, side) {
+    if (!user) { setSigningIn(true); return null; }
+    if (!file) return null;
+    try {
+      // Downscale before upload; phone photos are many MB and slow the collection to a crawl.
+      const dataUrl = await new Promise((res, rej) => {
+        const fr = new FileReader();
+        fr.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            const MAX = 1400;
+            const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+            const cv = document.createElement("canvas");
+            cv.width = Math.round(img.width * scale); cv.height = Math.round(img.height * scale);
+            cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+            res(cv.toDataURL("image/jpeg", 0.85));
+          };
+          img.onerror = rej; img.src = fr.result;
+        };
+        fr.onerror = rej; fr.readAsDataURL(file);
+      });
+      const sref = ref(storage, `scan_photos/${user.uid}/${cardId}_${side}_${uid()}.jpg`);
+      await uploadString(sref, dataUrl, "data_url");
+      return await getDownloadURL(sref);
+    } catch(e) {
+      console.error("lot photo upload failed:", e);
+      alert("Photo upload failed: " + (e?.code || e?.message || e));
+      return null;
+    }
+  }
   // Per-card lot COUNT is rendered for every card in the grid. Calling lotsForCard() per card
   // was an O(cards × lots) full-scan on every render (hover, page bump, etc.) — a real perf drag.
   // Build the count map once per lots change; each card then does an O(1) lookup.
@@ -33854,15 +34011,25 @@ See you in there!
       setCards(cs => cs.map(c => c.id===card.id ? { ...c, imageUrl:url } : c));
       setExpandedCard(ec => ec && ec.id===card.id ? { ...ec, imageUrl:url } : ec);
       // Refresh the shared snapshot so it shows for everyone, not just this device
+      // Rebuild the shared snapshot. These used to be silently swallowed, which produced the worst
+      // possible failure: Firestore has the new value, but every client (including this one, on the
+      // next load) keeps reading the STALE .gz snapshot — so the edit looks like it never saved.
+      const snapProblems = [];
       try {
         const snap2 = await getDocs(collection(db,"boba_checklist"));
         const all = snap2.docs.map(d=>({id:d.id,...d.data()}));
         const blob = new Blob([JSON.stringify(all)],{type:"application/json"});
-        await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, {contentType:"application/json",cacheControl:"public,max-age=300"});
-        try { await writeCardSnapshot(all, 300); } catch(e) {}
-        try { await setDoc(doc(db,"meta","cards_version"),{ts:Date.now()}); } catch(e){}
-        try { idbSetCards(all, Date.now()); } catch(e){}
-      } catch(e) {}
+        try { await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, {contentType:"application/json",cacheControl:"public,max-age=300"}); }
+        catch(e){ snapProblems.push("plain JSON snapshot: "+(e?.message||e)); }
+        try { await writeCardSnapshot(all, 300); } catch(e) { snapProblems.push("gzip snapshot (this is the one clients read): "+(e?.message||e)); }
+        try { await setDoc(doc(db,"meta","cards_version"),{ts:Date.now()}); } catch(e){ snapProblems.push("version bump: "+(e?.message||e)); }
+        try { idbSetCards(all, Date.now()); } catch(e){ snapProblems.push("local cache: "+(e?.message||e)); }
+      } catch(e) { snapProblems.push("reading boba_checklist: "+(e?.message||e)); }
+      if (snapProblems.length) {
+        console.error("[card edit] snapshot rebuild problems", snapProblems);
+        alert("The card was saved to the database, but publishing it failed:\n\n• " + snapProblems.join("\n• ") +
+              "\n\nUntil the snapshot rebuilds, the app will keep showing the OLD value. Try the \u201cRebuild Card Snapshot\u201d button in the importer.");
+      }
       try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
       setToast("✅ Image updated");
     } catch(e) { alert("Upload failed: "+(e?.message||e)); }
@@ -33876,15 +34043,25 @@ See you in there!
       // update this page immediately
       setCards(cs => cs.map(c => c.id===card.id ? { ...c, imageUrl:null } : c));
       // refresh snapshot + version so it clears everywhere
+      // Rebuild the shared snapshot. These used to be silently swallowed, which produced the worst
+      // possible failure: Firestore has the new value, but every client (including this one, on the
+      // next load) keeps reading the STALE .gz snapshot — so the edit looks like it never saved.
+      const snapProblems = [];
       try {
         const snap2 = await getDocs(collection(db,"boba_checklist"));
         const all = snap2.docs.map(d=>({id:d.id,...d.data()}));
         const blob = new Blob([JSON.stringify(all)],{type:"application/json"});
-        await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, {contentType:"application/json",cacheControl:"public,max-age=300"});
-        try { await writeCardSnapshot(all, 300); } catch(e) {}
-        try { await setDoc(doc(db,"meta","cards_version"),{ts:Date.now()}); } catch(e){}
-        try { idbSetCards(all, Date.now()); } catch(e){}
-      } catch(e) {}
+        try { await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, {contentType:"application/json",cacheControl:"public,max-age=300"}); }
+        catch(e){ snapProblems.push("plain JSON snapshot: "+(e?.message||e)); }
+        try { await writeCardSnapshot(all, 300); } catch(e) { snapProblems.push("gzip snapshot (this is the one clients read): "+(e?.message||e)); }
+        try { await setDoc(doc(db,"meta","cards_version"),{ts:Date.now()}); } catch(e){ snapProblems.push("version bump: "+(e?.message||e)); }
+        try { idbSetCards(all, Date.now()); } catch(e){ snapProblems.push("local cache: "+(e?.message||e)); }
+      } catch(e) { snapProblems.push("reading boba_checklist: "+(e?.message||e)); }
+      if (snapProblems.length) {
+        console.error("[card edit] snapshot rebuild problems", snapProblems);
+        alert("The card was saved to the database, but publishing it failed:\n\n• " + snapProblems.join("\n• ") +
+              "\n\nUntil the snapshot rebuilds, the app will keep showing the OLD value. Try the \u201cRebuild Card Snapshot\u201d button in the importer.");
+      }
       setToast("🧹 Image cleared — you can add the correct one now");
     } catch(e) { alert("Clear failed: "+(e?.message||e)); }
   }
@@ -33933,21 +34110,44 @@ See you in there!
       }
       const clean = {};
       Object.entries(updates).forEach(([k,v]) => { clean[k] = (v===""||v==null) ? deleteField() : v; });
-      await setDoc(doc(db,"boba_checklist",fsId), clean, { merge:true });
+      // Log exactly what we're writing and where. When an edit silently reverts, the cause is almost
+      // always that the doc ID doesn't exist (so merge:true creates a NEW doc that nothing reads) or
+      // the rules reject the write — both are invisible without this.
+      console.log("[card edit] writing to boba_checklist/" + fsId, clean);
+      const _ref = doc(db,"boba_checklist",fsId);
+      const _existing = await getDoc(_ref);
+      if (!_existing.exists()) {
+        alert("Save aborted: no card document found at boba_checklist/" + fsId +
+              "\n\nThe card in the app has id \"" + card.id + "\"" +
+              (card.fsId ? " and fsId \"" + card.fsId + "\"" : "") +
+              ", which doesn't match a Firestore document. Writing would create an orphan the app never reads.");
+        return;
+      }
+      await setDoc(_ref, clean, { merge:true });
       // Update this page immediately (replace deleteField sentinels with the actual value/blank)
       const localUpdates = {}; Object.entries(updates).forEach(([k,v])=>{ localUpdates[k] = (v===""||v==null)?null:v; });
       setCards(cs => cs.map(c => c.id===card.id ? { ...c, ...localUpdates } : c));
       setExpandedCard(ec => ec && ec.id===card.id ? { ...ec, ...localUpdates } : ec);
       // Refresh the shared snapshot so the edit shows for everyone
+      // Rebuild the shared snapshot. These used to be silently swallowed, which produced the worst
+      // possible failure: Firestore has the new value, but every client (including this one, on the
+      // next load) keeps reading the STALE .gz snapshot — so the edit looks like it never saved.
+      const snapProblems = [];
       try {
         const snap2 = await getDocs(collection(db,"boba_checklist"));
         const all = snap2.docs.map(d=>({id:d.id,...d.data()}));
         const blob = new Blob([JSON.stringify(all)],{type:"application/json"});
-        await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, {contentType:"application/json",cacheControl:"public,max-age=300"});
-        try { await writeCardSnapshot(all, 300); } catch(e) {}
-        try { await setDoc(doc(db,"meta","cards_version"),{ts:Date.now()}); } catch(e){}
-        try { idbSetCards(all, Date.now()); } catch(e){}
-      } catch(e) {}
+        try { await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, {contentType:"application/json",cacheControl:"public,max-age=300"}); }
+        catch(e){ snapProblems.push("plain JSON snapshot: "+(e?.message||e)); }
+        try { await writeCardSnapshot(all, 300); } catch(e) { snapProblems.push("gzip snapshot (this is the one clients read): "+(e?.message||e)); }
+        try { await setDoc(doc(db,"meta","cards_version"),{ts:Date.now()}); } catch(e){ snapProblems.push("version bump: "+(e?.message||e)); }
+        try { idbSetCards(all, Date.now()); } catch(e){ snapProblems.push("local cache: "+(e?.message||e)); }
+      } catch(e) { snapProblems.push("reading boba_checklist: "+(e?.message||e)); }
+      if (snapProblems.length) {
+        console.error("[card edit] snapshot rebuild problems", snapProblems);
+        alert("The card was saved to the database, but publishing it failed:\n\n• " + snapProblems.join("\n• ") +
+              "\n\nUntil the snapshot rebuilds, the app will keep showing the OLD value. Try the \u201cRebuild Card Snapshot\u201d button in the importer.");
+      }
       try { localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
       setToast("✅ Card updated");
       setCardEditMode(false);
@@ -37559,16 +37759,16 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                         <input type="checkbox" checked={!!cardEditDraft.isError}
                           onChange={e=>setCardEditDraft(d=>({...d,isError:e.target.checked}))}
                           style={{ accentColor:"#FBBF24", width:16, height:16 }}/>
-                        {"\u26A0\uFE0F"} Error card \u2014 show a public badge
+                        {"\u26A0\uFE0F"} Error card — show a public badge
                       </label>
                       <div style={{ fontSize:10, color:"rgba(255,255,255,0.35)", marginTop:4, lineHeight:1.45 }}>
-                        For misprints, or when power has been officially buffed or nerfed. If you change Power above, the original is recorded automatically and shown as \u201cwas {c.originalPower!=null ? c.originalPower : (c.power!=null?c.power:"\u2014")}\u201d.
+                        For misprints, or when power has been officially buffed or nerfed. If you change Power above, the original is recorded automatically and shown as “was {c.originalPower!=null ? c.originalPower : (c.power!=null?c.power:"—")}”.
                       </div>
                     </div>
                     <div style={{ gridColumn:"1 / -1" }}>
                       <label style={{ fontSize:10, color:"#7B9CFF", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5, display:"block", marginBottom:3 }}>Error note (public)</label>
                       <input value={cardEditDraft.errorNote??""} onChange={e=>setCardEditDraft(d=>({...d,errorNote:e.target.value}))}
-                        placeholder="e.g. Misprint \u2014 power corrected per BoBA ruling"
+                        placeholder="e.g. Misprint — power corrected per BoBA ruling"
                         style={{ width:"100%", background:"#0d0d12", border:"1px solid rgba(255,255,255,0.15)", color:"#fff", borderRadius:7, padding:"7px 9px", fontSize:13, fontFamily:"inherit", boxSizing:"border-box" }}/>
                     </div>
                     <button onClick={()=>{ const upd={...cardEditDraft}; if(upd.power!=="")upd.power=parseInt(upd.power)||0; handleCardFieldEdit(c, upd); }} style={{ gridColumn:"1 / -1", background:"linear-gradient(135deg,#7B9CFF,#7B2FF7)", color:"#fff", border:"none", borderRadius:9, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit", marginTop:4 }}>💾 Save Changes</button>
@@ -37791,8 +37991,20 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                                 <div style={{ color:"#fff", fontWeight:700 }}>
                                   Copy {i+1}
                                   {l.serial && <span style={{ color:"#FBBF24", fontWeight:900, marginLeft:6 }}>#{l.serial}</span>}
+                                  {l.locked && <span title="Locked — never trade or sell" style={{ marginLeft:6 }}>{"\uD83D\uDD12"}</span>}
                                   {l.value?` · worth ${fmt$(l.value)}`:""}
                                 </div>
+                                {/* Per-copy detail lives on the back of the card in the modal. */}
+                                {(l.gradeCompany || l.grade || l.condition) && (
+                                  <div style={{ fontSize:10.5, color:"#4ade80", fontWeight:700, marginTop:2 }}>
+                                    {[l.gradeCompany, l.grade].filter(Boolean).join(" ")}
+                                    {(l.gradeCompany||l.grade) && l.condition ? " · " : ""}
+                                    {l.condition}
+                                    {l.certNum ? <span style={{ color:"rgba(255,255,255,0.4)", fontWeight:600 }}>{" · cert "+l.certNum}</span> : null}
+                                  </div>
+                                )}
+                                {l.location && <div style={{ fontSize:10, color:"var(--bz-ink-3)", marginTop:2 }}>{"\uD83D\uDCCD "}{l.location}</div>}
+                                {l.purchaseDate && <div style={{ fontSize:10, color:"var(--bz-ink-3)", marginTop:2 }}>bought {l.purchaseDate}</div>}
                                 <div style={{ color:"rgba(255,255,255,0.4)", fontSize:10 }}>Paid {fmt$(l.cost)}{l.method?` · ${l.method}`:""}{l.date?` · ${l.date}`:""}{l.notes?` · ${l.notes}`:""}</div>
                               </div>
                               {l.value&&l.cost&&<span style={{ fontSize:11, fontWeight:800, color:(parseFloat(l.value)-parseFloat(l.cost))>=0?"#4ade80":"#E8317A" }}>{(parseFloat(l.value)-parseFloat(l.cost))>=0?"+":""}{fmt$(parseFloat(l.value)-parseFloat(l.cost))}</span>}
@@ -38519,7 +38731,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
           </div>
         </div>
       )}
-      {lotModal && <LotModal card={lotModal.card} lots={lotsForCard(lotModal.card.id)} onAdd={addLot} onUpdate={updateLot} onRemove={removeLot} onClose={()=>setLotModal(null)} inp={inp} />}
+      {lotModal && <LotModal card={lotModal.card} lots={lotsForCard(lotModal.card.id)} onAdd={addLot} onUpdate={updateLot} onRemove={removeLot} onClose={()=>setLotModal(null)} inp={inp} onUploadPhoto={uploadLotPhoto} />}
       {reviewModal && <ReviewModal sale={reviewModal.sale} onSubmit={submitReview} onClose={()=>setReviewModal(null)} inp={inp} />}
       <BackToTop />
       {onboarding && user && <OnboardingModal user={user} inp={inp} onComplete={(uname,purl)=>{ setMyUsername(uname); if(purl)setMyPhotoURL(purl); usernameClaimedThisSession.current=true; try{localStorage.setItem("bazooka_username_"+user.uid,uname); if(purl)localStorage.setItem("bazooka_photo_"+user.uid,purl);}catch(e){} setOnboarding(false); showToast(`Welcome, @${uname}!`); }} />}
@@ -38638,6 +38850,12 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 {key:"Estimated Value", label:"Value", required:false, hint:"Market / estimated value"},
                 {key:"Serial", label:"Serial", required:false, hint:"e.g. 21/50 — goes on the first copy"},
                 {key:"Notes", label:"Notes", required:false, hint:"Your note about this copy"},
+                {key:"Purchase Date", label:"Purchase date", required:false, hint:"When you got it"},
+                {key:"Condition", label:"Condition", required:false, hint:"Mint, Near Mint…"},
+                {key:"Grading Company", label:"Grading co.", required:false, hint:"PSA, BGS, SGC…"},
+                {key:"Grade", label:"Grade", required:false, hint:"e.g. 9.5"},
+                {key:"Cert #", label:"Cert #", required:false, hint:"Slab certification number"},
+                {key:"Location", label:"Location", required:false, hint:"Binder, safe, slab case…"},
               ];
               const cm = importColMap || {};
               const nameOk = cm["Name"]>=0, setOk = cm["Set"]>=0;
@@ -38725,7 +38943,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   <input type="file" accept=".csv,text/csv" style={{display:"none"}} onChange={e=>{ const f=e.target.files?.[0]; if(f) handleImportFile(f); e.target.value=""; }}/>
                 </label>
                 <button onClick={downloadImportTemplate} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"#ccc",borderRadius:12,padding:"12px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\u2B07 Download blank template"} <span style={{opacity:0.5,fontWeight:600}}>(incl. Serial &amp; Notes)</span></button>
-                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:10}}>Columns: Name, Set, Card Number, Parallel, Weapon, Power, Quantity, Estimated Value, Serial, Notes</div>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:10}}>Columns: Name, Set, Card Number, Parallel, Weapon, Power, Quantity, Estimated Value, Serial, Notes, Purchase Date, Condition, Grading Company, Grade, Cert #, Location</div>
               </>
             )}
           </div>
