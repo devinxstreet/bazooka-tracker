@@ -28119,6 +28119,9 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
       // Iterate INSERTS (Inspired Ink variants collapse to one), not raw treatment strings.
       Array.from(new Set(treatments.map(insertKey))).forEach(tl=>{ const t=insertLabel(tl, treatments.find(x=>insertKey(x)===tl)||tl),core=treatCore[tl]||0,apex=treatApex[tl]||0; if(apex>0&&core<10) tips.push({t:"warn",m:`${t}: apex card in deck but only ${core}/10 core cards — needs 10 core to be legal.`}); else if(core>=10&&apex===0) tips.push({t:"good",m:`${t} unlocked (${core} core) — you can add 1 apex card.`}); else if(core>0&&core<10){ const need=10-core; const ownedEligible = owned ? cards.filter(cc=>!deckSet.has(cc.id)&&insertKey(cc.treatment)===tl&&((parseFloat(cc.power)||0)>=115)&&((parseFloat(cc.power)||0)<=160)&&owned[cc.id]).length : 0; tips.push({t:"info",m:`${t}: ${core}/10 core toward an apex unlock.${owned?(ownedEligible>=need?` You own ${ownedEligible} eligible — enough to finish!`:` You own ${ownedEligible} of ${need} more needed.`):""}`}); } });
       if(treatments.length===0) tips.push({t:"info",m:"Apex Madness: build 10 core cards (115–160) of a treatment to unlock its apex card."});
+      // Foil Hot Dogs aren't part of the quick build (they depend on foils you own, not the deck), so
+      // surface them here as a manual next step once the auto-built deck is on the table.
+      tips.push({t:"info",m:"Hot Dogs: add 4 DIFFERENT Foil Hot Dogs by hand and you unlock 4 more Apex Heroes — and those four can be from any insert."});
     }
     if(isSpec){ const over=inDeck.filter(c=>(parseFloat(c.power)||0)>160).length; if(over>0) tips.push({t:"warn",m:`${over} card(s) over 160 power — not legal in a Spec deck.`}); }
     // balance coaching
@@ -28207,7 +28210,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       <div style={{fontSize:12,color:"#bbb",lineHeight:1.6,marginBottom:10}}>Apex Madness has too many moving parts (10 core per insert, apex unlocks, foiled Hot Dog slots) for a reliable one-tap build. Add cards below and the <strong>Apex Madness rules tracker</strong> will guide you — it shows which inserts you've unlocked and what each apex needs.</div>
                       <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
                         <span style={{fontSize:11,color:"#a0a0a0",fontWeight:700}}>Goal:</span>
-                        <select value={deckType} onChange={e=>{ const v=e.target.value; setDeckType(v); if(!(v==="spec"||v==="vegasbaby"||v==="apex")) setDeckMaxMode(false); }} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:"#E8317A"}}>
+                        <select value={deckType} onChange={e=>{ const v=e.target.value; setDeckType(v); if(!(v==="spec"||v==="vegasbaby"||v==="apex"||v==="apexmadness")) setDeckMaxMode(false); }} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:"#E8317A"}}>
                           {Object.entries(DECK_FORMATS).map(([k,f])=><option key={k} value={k}>{f.label}</option>)}
                         </select>
                       </div>
@@ -28252,7 +28255,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     )}
                     <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
                       <span style={{fontSize:11,color:"#a0a0a0",fontWeight:700}}>Goal:</span>
-                      <select value={deckType} onChange={e=>{ const v=e.target.value; setDeckType(v); if(!(v==="spec"||v==="vegasbaby"||v==="apex")) setDeckMaxMode(false); }} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:deckType==="none"?"rgba(255,255,255,0.5)":"#FBBF24"}}>
+                      <select value={deckType} onChange={e=>{ const v=e.target.value; setDeckType(v); if(!(v==="spec"||v==="vegasbaby"||v==="apex"||v==="apexmadness")) setDeckMaxMode(false); }} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:deckType==="none"?"rgba(255,255,255,0.5)":"#FBBF24"}}>
                         {Object.entries(DECK_FORMATS).map(([k,f])=><option key={k} value={k}>{f.label}</option>)}
                       </select>
                       {/* Weapon + treatment goals are multi-select: an "all Hex and Gum" Apex deck is
@@ -28297,7 +28300,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     </div>
                     {/* Build Max Deck — enforce the format's legal power window (Apex 155+, Spec 115–160)
                         instead of just grabbing your top 60 regardless of power. */}
-                    {(deckType==="apex"||deckType==="spec"||deckType==="vegasbaby") && (
+                    {(deckType==="apex"||deckType==="spec"||deckType==="vegasbaby"||deckType==="apexmadness") && (
                       <div style={{display:"flex",gap:8,alignItems:"center",marginTop:10,flexWrap:"wrap"}}>
                         <div onClick={()=>setDeckMaxMode(v=>!v)} style={{display:"flex",alignItems:"center",gap:7,background:deckMaxMode?"rgba(251,191,36,0.14)":"rgba(255,255,255,0.03)",border:`1px solid ${deckMaxMode?"#FBBF24":"var(--bz-line-2)"}`,borderRadius:8,padding:"6px 11px",cursor:"pointer",whiteSpace:"nowrap"}}>
                           <div style={{width:28,height:16,borderRadius:8,background:deckMaxMode?"#FBBF24":"#333",position:"relative",transition:"background 0.2s",flexShrink:0}}>
@@ -28307,8 +28310,8 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         </div>
                         <span style={{fontSize:10.5,color:"var(--bz-ink-3)",lineHeight:1.5}}>
                           {deckMaxMode
-                            ? <>Only <strong style={{color:"#FBBF24"}}>{deckType==="apex"?"155+":"115–160"}</strong> power cards — the legal {deckType==="apex"?"Apex":"Spec"} window. Won't pad with weaker cards.</>
-                            : <>Off: takes your top 60 regardless of power. Turn on to enforce the legal {deckType==="apex"?"Apex (155+)":"Spec (115–160)"} window.</>}
+                            ? <>Only <strong style={{color:"#FBBF24"}}>{deckType==="apex"?"155+":"115–160"}</strong> power cards{deckType==="apexmadness"?" in the 60-card core":""} — the legal {deckType==="apex"?"Apex":deckType==="apexmadness"?"Madness core":"Spec"} window. Won't pad with weaker cards.</>
+                            : <>Off: takes your top 60 regardless of power. Turn on to enforce the legal {deckType==="apex"?"Apex (155+)":deckType==="apexmadness"?"Madness core (115–160)":"Spec (115–160)"} window.</>}
                         </span>
                       </div>
                     )}
@@ -28510,7 +28513,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               })()}
               <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
                 <input value={deckSearch} onChange={e=>setDeckSearch(e.target.value)} placeholder="Search hero, treatment..." style={{...inp,flex:1,minWidth:160}}/>
-                <select value={deckType} onChange={e=>{ const v=e.target.value; setDeckType(v); if(!(v==="spec"||v==="vegasbaby"||v==="apex")) setDeckMaxMode(false); }} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:deckType==="spec"?"#FBBF24":deckType==="apexmadness"?"#E8317A":deckType==="apex"?"#A855F7":deckType==="elite"?"#4ade80":deckType==="specplus"?"#38BDF8":deckType==="blast"?"#F472B6":"rgba(255,255,255,0.4)"}}>
+                <select value={deckType} onChange={e=>{ const v=e.target.value; setDeckType(v); if(!(v==="spec"||v==="vegasbaby"||v==="apex"||v==="apexmadness")) setDeckMaxMode(false); }} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:deckType==="spec"?"#FBBF24":deckType==="apexmadness"?"#E8317A":deckType==="apex"?"#A855F7":deckType==="elite"?"#4ade80":deckType==="specplus"?"#38BDF8":deckType==="blast"?"#F472B6":"rgba(255,255,255,0.4)"}}>
                   {/* Generated from DECK_FORMATS so this can't drift out of sync with the rules. */}
                   {Object.entries(DECK_FORMATS).map(([k,f])=><option key={k} value={k}>{f.label}</option>)}
                   <optgroup label="── Events ──">
@@ -35981,18 +35984,22 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     const PER_POWER  = F.perPower || 6;
     const specCap    = !!F.powerCap;              // Spec's ≤160 ceiling
     const isApexType = (dtype==="apex");
+    const isMadness  = (dtype==="apexmadness");
     // MAX DECK: enforce the format's real legal power window instead of just taking your top 60.
     //   Max Apex → 155+ only (155–200, plus 250s). Never pads with sub-155 cards.
     //   Max Spec → 115–160 only (hard floor at 115).
+    //   Max Madness → same as Spec: the 60-card core is 115–160 only. In REGULAR mode the core is
+    //     just "≤160" with no floor, so a thinner collection can still field a legal deck.
     // If you can't fill 60 inside the window, the deck comes up short (we surface the gap).
     const inMaxWindow = c => {
       if(!maxMode) return true;
       const p = parseFloat(c.power)||0;
       if(isApexType) return p >= 155;
+      if(isMadness)  return (p >= 115 && p <= 160) || p > 160;  // core floor; apex heroes still allowed
       if(specCap)    return p >= 115 && p <= (F.powerCap||160);
       return true; // max mode has no defined window for other types
     };
-    const maxWindowLabel = !maxMode ? "" : isApexType ? "155+" : specCap ? `115–${F.powerCap||160}` : "";
+    const maxWindowLabel = !maxMode ? "" : isApexType ? "155+" : isMadness ? "115–160 core" : specCap ? `115–${F.powerCap||160}` : "";
     const powerOf = c => parseFloat(c.power)||0;
     // Ownership now spans YOUR cards + FAMILY cards you can borrow.
     // Card source: "mine" = only my cards, "family" = only borrowable family cards,
@@ -36071,50 +36078,96 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       const completedInserts = [];   // {insert, apexPower}
       const lockedInserts = new Set();
 
-      // MADNESS (per the 2026 National rules): start from a 60-card SPEC deck (everything ≤160).
-      // Then "every 10 matching Inserts unlocks one Apex Hero (max 6)" — the unlock is driven by how
-      // many of each Insert (= treatment) are IN THE BUILT DECK, counted cumulatively across the
-      // whole deck. It is NOT "10 core of that insert plus an apex of that insert" — an unlocked
-      // Apex can be any Apex Hero you own. Four different Foil Hot Dogs unlock four more.
-      // A fully optimised deck is therefore 60 + 6 + 4 = 70.
+      // MADNESS — the quick build. The rule, plainly: a 60-card core where every card is 115-160
+      // power (Spec-style), and every complete block of 10 cards from ONE INSERT unlocks one Apex
+      // Hero (>160) FROM THAT SAME INSERT. Max 6 insert unlocks.
+      //
+      // Naively taking the strongest 60 spreads them thin across many inserts and completes few (or
+      // no) blocks of 10 — a strong core that unlocks nothing. So the build is insert-aware:
+      //   1. Work out which inserts you could actually complete a block of 10 in, AND have a
+      //      matching Apex Hero for (a block with no apex to claim is worth nothing here).
+      //   2. Seat those blocks first, strongest inserts first, up to 6 blocks / 60 cards.
+      //   3. Fill any leftover core slots with your strongest remaining legal cards.
+      //   4. Claim one matching-insert Apex per completed block.
+      // Foil Hot Dog unlocks are deliberately NOT part of the quick build — they're a manual-builder
+      // addition (see the coach note), since they depend on foils you own rather than the deck.
+      // Core power window. MAX mode enforces the competitive 115–160 core (same as Max Spec);
+      // REGULAR mode is just "≤160" with no floor, so a thinner collection can still field 60.
+      const CORE_MIN = maxMode ? 115 : 0, CORE_MAX = 160, BLOCK = 10, MAX_UNLOCKS = 6;
+      const inRange = c => { const p = powerOf(c); return p >= CORE_MIN && p <= CORE_MAX; };
 
-      // 1. Build the strongest legal 60-card SPEC core (≤160, max 6 per power).
-      const coreSorted = base.filter(c=>powerOf(c)<=160).sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
+      // Pool the eligible core cards and the apex heroes, both grouped by insert.
+      const coreByIns = {}, apexByIns = {};
+      base.forEach(c => {
+        const k = insertKey(c.treatment) || "—";
+        if (inRange(c)) (coreByIns[k] = coreByIns[k]||[]).push(c);
+        else if (powerOf(c) > CORE_MAX) (apexByIns[k] = apexByIns[k]||[]).push(c);
+      });
+      Object.values(coreByIns).forEach(a => a.sort((x,y)=>(powerOf(y)-powerOf(x))||mineFirst(x,y)));
+      Object.values(apexByIns).forEach(a => a.sort((x,y)=>(powerOf(y)-powerOf(x))||mineFirst(x,y)));
+
+      // Which inserts can actually yield an unlock? Need >=10 core AND >=1 apex in the same insert.
+      // Rank by the apex you'd win (that's the real prize), then by core depth.
+      const candidates = Object.keys(coreByIns)
+        .map(k => ({
+          insert: k,
+          coreAvail: coreByIns[k].length,
+          apexAvail: (apexByIns[k]||[]).length,
+          bestApex: (apexByIns[k]||[])[0] ? powerOf(apexByIns[k][0]) : 0,
+        }))
+        .filter(x => x.coreAvail >= BLOCK && x.apexAvail > 0)
+        .sort((a,b)=>(b.bestApex-a.bestApex)||(b.coreAvail-a.coreAvail));
+
       const perPowerAM = {};
-      for (const c of coreSorted) {
-        if (chosen.length >= 60) break;
-        const k = dupKey(c); if (usedKeys.has(k)) continue;
-        const pk = String(c.power||"0"); if ((perPowerAM[pk]||0) >= 6) continue;
-        usedKeys.add(k); perPowerAM[pk] = (perPowerAM[pk]||0)+1;
-        chosen.push(c);
+      // Respect the per-power cap while seating a card.
+      const seat = (c) => {
+        const k = dupKey(c); if (usedKeys.has(k)) return false;
+        const pk = String(c.power||"0"); if ((perPowerAM[pk]||0) >= (F.perPower||6)) return false;
+        usedKeys.add(k); perPowerAM[pk] = (perPowerAM[pk]||0)+1; chosen.push(c); return true;
+      };
+
+      // 2. Seat complete blocks of 10, best inserts first.
+      for (const cand of candidates) {
+        if (completedInserts.length >= MAX_UNLOCKS) break;
+        if (chosen.length + BLOCK > 60) break;              // no room for a full block
+        const pool = coreByIns[cand.insert];
+        const staged = [];
+        for (const c of pool) {
+          if (staged.length >= BLOCK) break;
+          const k = dupKey(c); if (usedKeys.has(k)) continue;
+          const pk = String(c.power||"0");
+          const projected = (perPowerAM[pk]||0) + staged.filter(x=>String(x.power||"0")===pk).length;
+          if (projected >= (F.perPower||6)) continue;       // would break max-6 at that power
+          staged.push(c);
+        }
+        if (staged.length < BLOCK) continue;                 // can't complete this block legally
+        staged.forEach(seat);
+        const apex = (apexByIns[cand.insert]||[]).find(a => !apexUsed.has(dupKey(a)));
+        completedInserts.push({ insert: insertLabel(cand.insert, cand.insert), apexPower: apex?powerOf(apex):0, apexCard: apex||null });
       }
 
-      // 2. Count Inserts in the deck we just built. Every complete block of 10 unlocks one Apex.
+      // 3. Top the core up to 60 with the strongest remaining legal cards (any insert).
+      const restCore = base.filter(inRange).sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
+      for (const c of restCore) { if (chosen.length >= 60) break; seat(c); }
+
+      // 4. Claim one matching-insert Apex Hero per completed block.
+      completedInserts.forEach(ci => {
+        if (!ci.apexCard) return;
+        const k = dupKey(ci.apexCard);
+        if (usedKeys.has(k) || apexUsed.has(k)) return;
+        usedKeys.add(k); apexUsed.add(k); chosen.push(ci.apexCard);
+      });
+
       const insertTally = {};
-      chosen.forEach(c => { const t = insertKey(c.treatment) || "—"; insertTally[t] = (insertTally[t]||0)+1; });
+      chosen.filter(inRange).forEach(c => { const t = insertKey(c.treatment) || "—"; insertTally[t] = (insertTally[t]||0)+1; });
       const insertList = Object.entries(insertTally)
-        .map(([insert,count]) => ({ insert: insertLabel(insert, insert), count, unlocks: Math.floor(count/10) }))
+        .map(([insert,count]) => ({ insert: insertLabel(insert, insert), count, unlocks: Math.floor(count/BLOCK) }))
         .sort((a,b)=>b.count-a.count);
-      const insertUnlocks = Math.min(6, insertList.reduce((n,x)=>n+x.unlocks, 0));
-
-      // 3. Foil Hot Dogs — four DIFFERENT ones unlock four more Apex slots.
-      const foilHotDogTreatments = new Set(
-        base.filter(c => (c.treatment||"").toLowerCase().includes("hot dog") && owned[c.id+"::foil"])
-            .map(c => c.treatment)
-      );
-      const foiledHotDogs = foilHotDogTreatments.size;
-      const hotDogSlots = Math.min(4, foiledHotDogs);
-
-      // 4. Fill the unlocked Apex slots with your strongest Apex Heroes (>160), any insert.
-      const apexSlots = insertUnlocks + hotDogSlots;
-      let apexAdded = 0;
-      for (const apex of allApex) {
-        if (apexAdded >= apexSlots) break;
-        const k = dupKey(apex);
-        if (usedKeys.has(k) || apexUsed.has(k)) continue;
-        usedKeys.add(k); apexUsed.add(k);
-        chosen.push(apex); apexAdded++;
-      }
+      const insertUnlocks = Math.min(MAX_UNLOCKS, completedInserts.length);
+      const hotDogSlots = 0;   // manual-builder only — see coach note
+      const foiledHotDogs = 0; // not counted in the quick build
+      const apexSlots = insertUnlocks;                       // one slot per completed insert block
+      const apexAdded = chosen.filter(c=>powerOf(c)>CORE_MAX).length;
 
       // "Closest to another unlock" — inserts sitting just short of the next block of 10.
       const nearInserts = insertList
