@@ -32972,6 +32972,30 @@ See you in there!
     const [lo, hi] = a < b ? [a, b] : [b, a];
     setSelectedIds(prev => { const n = new Set(prev); for (let i=lo; i<=hi; i++) n.add(ids[i]); return n; });
   }
+  // Bulk mark the selected cards as OWNED (or remove them). The single biggest time-saver in the
+  // app: someone who has a full insert can filter to it, Select shown, and claim the lot in one tap
+  // instead of clicking 60 cards one at a time. Adding only sets cards you don't already have, so
+  // re-running it never inflates quantities on copies you'd already logged.
+  async function bulkSetOwned(add) {
+    if (!user) { setSigningIn(true); return; }
+    if (selectedIds.size === 0) return;
+    const next = {...owned};
+    let changed = 0;
+    if (add) {
+      selectedIds.forEach(id => { if (!next[id]) { next[id] = 1; changed++; } });
+      if (changed === 0) { alert("You already own every card selected."); return; }
+    } else {
+      const have = [...selectedIds].filter(id => next[id]);
+      if (have.length === 0) { alert("None of the selected cards are in your collection."); return; }
+      if (!window.confirm(`Remove ${have.length} card${have.length!==1?"s":""} from your collection? This clears every copy — use "Mark as sold" instead if you want it kept in your formerly-owned ledger.`)) return;
+      have.forEach(id => { delete next[id]; changed++; });
+    }
+    setOwned(next);
+    queueOwnedSave(next);
+    setToast(add
+      ? `Added ${changed} card${changed!==1?"s":""} to your collection.`
+      : `Removed ${changed} card${changed!==1?"s":""} from your collection.`);
+  }
   // Bulk make public / private — one write via the whole map.
   async function bulkSetPublic(makePublic) {
     if (!user || selectedIds.size===0) return;
@@ -37760,7 +37784,17 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
           {selectedIds.size===0 && <span style={{fontSize:10.5,color:"rgba(255,255,255,0.3)",whiteSpace:"nowrap",lineHeight:1.3}}>drag to sweep{"\u00A0"}·{"\u00A0"}shift-click for a range</span>}
           <button onClick={()=>{ const vis=visibleCards.map(c=>c.id); setSelectedIds(new Set(vis)); }} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.6)",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Select shown</button>
           <button onClick={clearSelection} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.6)",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Clear</button>
-          <div style={{width:1,height:24,background:"rgba(255,255,255,0.12)"}}/>
+                          <button disabled={selectedIds.size===0} onClick={()=>bulkSetOwned(true)}
+                            title="Add every selected card to your collection"
+                            style={{background:selectedIds.size?"rgba(74,222,128,0.18)":"rgba(255,255,255,0.04)",border:"1px solid "+(selectedIds.size?"rgba(74,222,128,0.5)":"rgba(255,255,255,0.08)"),color:selectedIds.size?"#4ade80":"rgba(255,255,255,0.25)",borderRadius:8,padding:"7px 13px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"default",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                            ✅ Mark Owned
+                          </button>
+                          <button disabled={selectedIds.size===0} onClick={()=>bulkSetOwned(false)}
+                            title="Remove every selected card from your collection"
+                            style={{background:"transparent",border:"1px solid "+(selectedIds.size?"rgba(255,255,255,0.15)":"rgba(255,255,255,0.06)"),color:selectedIds.size?"rgba(255,255,255,0.55)":"rgba(255,255,255,0.2)",borderRadius:8,padding:"7px 13px",fontSize:12,fontWeight:700,cursor:selectedIds.size?"pointer":"default",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                            ➖ Un-own
+                          </button>
+                          <div style={{width:1,height:24,background:"rgba(255,255,255,0.12)"}}/>
           <button disabled={selectedIds.size===0} onClick={()=>bulkSetPublic(true)} style={{background:selectedIds.size?"rgba(74,222,128,0.15)":"rgba(255,255,255,0.04)",border:`1px solid ${selectedIds.size?"#4ade80":"#333"}`,color:selectedIds.size?"#4ade80":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>👁 Make Public</button>
           <button disabled={selectedIds.size===0} onClick={()=>bulkSetPublic(false)} style={{background:selectedIds.size?"rgba(255,255,255,0.06)":"rgba(255,255,255,0.04)",border:"1px solid #333",color:selectedIds.size?"#ccc":"#555",borderRadius:8,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>🔒 Make Private</button>
           <button disabled={selectedIds.size===0} onClick={()=>setBulkListModal(true)} style={{background:selectedIds.size?"linear-gradient(135deg,#E8317A,#7B2FF7)":"rgba(255,255,255,0.04)",border:"none",color:selectedIds.size?"#fff":"#555",borderRadius:8,padding:"7px 14px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"not-allowed",fontFamily:"inherit",whiteSpace:"nowrap"}}>💰 List for Sale</button>
