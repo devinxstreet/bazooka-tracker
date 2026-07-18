@@ -21151,6 +21151,92 @@ function CardSetImporter({ userRole }) {
         </div>
       )}
 
+      {/* Blast Auto repair. Cards in the Alpha Blast set numbered #BBFA… are autos, but they were
+          imported under assorted treatments, so filtering the set surfaced Silver Blast and every
+          other blast card together. #BL… cards are genuinely Silver Blast and must NOT be touched.
+          PREVIEW FIRST — a bulk treatment rewrite is painful to undo. */}
+      {mode==="data" && (
+      <div style={{ background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:12, padding:16, marginTop:14 }}>
+        <div style={{ fontSize:13, fontWeight:800, color:"var(--bz-ink)", marginBottom:4 }}>\uD83D\uDCA5 Fix Alpha Blast autos</div>
+        <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginBottom:12, lineHeight:1.6 }}>
+          Sets every <strong>Alpha Blast</strong> card whose card number starts with <strong>BBFA</strong> to the
+          treatment <strong>Blast Auto</strong>. Cards numbered <strong>BL…</strong> are left alone — those are
+          Silver Blast. Preview shows exactly what would change before anything is written.
+        </div>
+        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+          <button onClick={async ()=>{
+            setImporting(true); setErrors([]); setResults(null);
+            try {
+              setProgress({ done:0, total:1, label:"Scanning Alpha Blast\u2026" });
+              const snap = await getDocs(collection(db,"boba_checklist"));
+              const all = snap.docs.map(d=>({id:d.id,...d.data()}));
+              const norm = s => String(s||"").toLowerCase().replace(/[\s\-_.]/g,"");
+              const inSet = all.filter(c => norm(c.setName)==="alphablast");
+              const hits  = inSet.filter(c => norm(c.cardNum).startsWith("bbfa"));
+              const already = hits.filter(c => c.treatment==="Blast Auto").length;
+              const byTreat = {};
+              hits.forEach(c => { const t=c.treatment||"(blank)"; byTreat[t]=(byTreat[t]||0)+1; });
+              const bl = inSet.filter(c => norm(c.cardNum).startsWith("bl")).length;
+              setProgress(null); setImporting(false);
+              alert(
+                "ALPHA BLAST PREVIEW — nothing has been changed.\n\n" +
+                inSet.length + " cards in the Alpha Blast set\n" +
+                hits.length + " numbered BBFA… (these would become \u201cBlast Auto\u201d)\n" +
+                already + " of those are already Blast Auto\n" +
+                (hits.length - already) + " would actually change\n\n" +
+                "Their current treatments:\n" +
+                Object.entries(byTreat).sort((a,b)=>b[1]-a[1]).map(([t,n])=>"  • "+t+" × "+n).join("\n") +
+                "\n\n" + bl + " cards numbered BL… will NOT be touched."
+              );
+            } catch(e){ setImporting(false); setProgress(null); alert("Preview failed: "+(e?.message||e)); }
+          }} disabled={importing}
+            style={{ background:"transparent", border:"1px solid #7B9CFF", color:"#7B9CFF", borderRadius:9, padding:"9px 14px", fontSize:12, fontWeight:800, cursor:importing?"wait":"pointer", fontFamily:"inherit" }}>
+            \uD83D\uDD0D Preview
+          </button>
+          <button onClick={async ()=>{
+            setImporting(true); setErrors([]); setResults(null);
+            const errs=[];
+            try {
+              setProgress({ done:0, total:1, label:"Scanning Alpha Blast\u2026" });
+              const snap = await getDocs(collection(db,"boba_checklist"));
+              const all = snap.docs.map(d=>({id:d.id,...d.data()}));
+              const norm = s => String(s||"").toLowerCase().replace(/[\s\-_.]/g,"");
+              const todo = all.filter(c => norm(c.setName)==="alphablast"
+                                        && norm(c.cardNum).startsWith("bbfa")
+                                        && c.treatment!=="Blast Auto");
+              if (!todo.length) { setImporting(false); setProgress(null); alert("Nothing to change — every BBFA card in Alpha Blast is already Blast Auto."); return; }
+              if (!window.confirm("Set treatment to \u201cBlast Auto\u201d on " + todo.length + " card" + (todo.length===1?"":"s") + " in Alpha Blast?\n\nBL… (Silver Blast) cards are not affected.\n\nThis rewrites the shared card database for everyone.")) { setImporting(false); setProgress(null); return; }
+              for (let i=0;i<todo.length;i+=300) {
+                const batch = writeBatch(db);
+                todo.slice(i,i+300).forEach(c => batch.set(doc(db,"boba_checklist",c.id), { treatment:"Blast Auto" }, { merge:true }));
+                await batch.commit();
+                setProgress({ done:Math.min(i+300,todo.length), total:todo.length, label:"Updating treatments\u2026" });
+              }
+              // The app serves a prebuilt snapshot, so the edit is invisible until this is rebuilt.
+              setProgress({ done:todo.length, total:todo.length, label:"Rebuilding snapshot\u2026" });
+              const fresh = await getDocs(collection(db,"boba_checklist"));
+              const all2 = fresh.docs.map(d=>({id:d.id,...d.data()}));
+              try {
+                const blob = new Blob([JSON.stringify(all2)], { type:"application/json" });
+                await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, { contentType:"application/json", cacheControl:"public,max-age=86400" });
+              } catch(e){ errs.push("Storage upload failed: "+e.message); }
+              try { await writeCardSnapshot(all2, 86400); } catch(e){ errs.push("Gzipped snapshot failed: "+e.message); }
+              try { await setDoc(doc(db,"meta","cards_version"), { ts: Date.now(), count: all2.length }); }
+              catch(e){ errs.push("Version bump failed: "+e.message); }
+              try { localStorage.removeItem("boba_checklist_cache"); localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+              try { await idbClearCards(); } catch(e){ errs.push("IndexedDB clear failed: "+e.message); }
+              setErrors(errs); setProgress(null); setImporting(false);
+              alert("Updated " + todo.length + " card" + (todo.length===1?"":"s") + " to Blast Auto." + (errs.length ? "\n\nBut publishing had problems:\n• " + errs.join("\n• ") : "\n\nReloading…"));
+              if (!errs.length) window.location.reload();
+            } catch(e){ setImporting(false); setProgress(null); alert("Update failed: "+(e?.message||e)); }
+          }} disabled={importing}
+            style={{ background:"linear-gradient(135deg,#E8317A,#7B2FF7)", border:"none", color:"#fff", borderRadius:9, padding:"9px 14px", fontSize:12, fontWeight:800, cursor:importing?"wait":"pointer", fontFamily:"inherit" }}>
+            Apply Blast Auto
+          </button>
+        </div>
+      </div>
+      )}
+
       {/* Rebuild snapshot — the app reads a prebuilt snapshot, NOT boba_checklist directly.
           If an import wrote cards but they don't show up, the snapshot is stale. Fix it here. */}
       {mode==="data" && (
@@ -22231,7 +22317,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
     const csv = [
       // Kept in step with downloadImportTemplate() — the live importer. Two templates drifting apart
       // is how someone ends up with a file whose columns the importer no longer recognises.
-      ["Name","Set","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value","Serial","Notes"],
+      ["Name","Set","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value","Purchase Price","Serial","Notes"],
       ["Bojax","Alpha Edition","RAD-1","80's Rad Battlefoil","Hex","150",1,"","",""],
       ["Maverick","Alpha Edition","1","Base","Fire","120",2,"","21/50","on-card auto"],
     ].map(r => r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
@@ -33482,8 +33568,20 @@ See you in there!
     // Per-copy detail: which numbered copy this is (e.g. "21/50") and any note about it. Both are
     // properties of YOUR copy, not of the card in the catalogue, so they ride along on the lot.
     // Accept several header spellings so people don't have to guess the exact column name.
-    const serial = cell("Serial") || cell("Serial Number") || cell("Numbered") || cell("Serial #") || "";
+    // Serial is stored as free text, so any of "14", "14/25", "#14/25" or "14 of 25" is accepted.
+    // We only tidy the common shapes into "14/25" so the display is consistent; a bare number
+    // stays as-is because we can't invent a print run we weren't told.
+    const serial = (() => {
+      let s = (cell("Serial") || cell("Serial Number") || cell("Numbered") || cell("Serial #") || "").trim();
+      if (!s) return "";
+      s = s.replace(/^#/, "").trim();
+      const m = s.match(/^(\d+)\s*(?:of|\/|out of)\s*(\d+)$/i);
+      return m ? `${m[1]}/${m[2]}` : s;
+    })();
     const notes  = cell("Notes") || cell("Note") || cell("Comment") || cell("Comments") || "";
+    // What YOU paid, as distinct from Estimated Value (what it's worth). Both matter: cost drives
+    // profit/loss, value drives collection worth. Strip currency symbols and thousands commas.
+    const cost = parseFloat(String(cell("Purchase Price")).replace(/[^0-9.]/g,"")) || null;
     const purchaseDate = cell("Purchase Date") || "";
     const condition    = cell("Condition") || "";
     const grade        = cell("Grade") || "";
@@ -33508,7 +33606,7 @@ See you in there!
     const setMatches = c => !setName || norm(c.setName)===norm(setName) || norm(c.setName).includes(norm(setName)) || norm(setName).includes(norm(c.setName));
 
     let match = null;
-    if (forceSkip) { return { csv:{hero:heroRaw,setName:csvSet,csvSet,cardNum,parallel,weapon,power,qty,value,serial,notes,purchaseDate,condition,grade,gradeCompany,certNum,location,locked}, match:null }; }
+    if (forceSkip) { return { csv:{hero:heroRaw,setName:csvSet,csvSet,cardNum,parallel,weapon,power,qty,value,cost,serial,notes,purchaseDate,condition,grade,gradeCompany,certNum,location,locked}, match:null }; }
     // With sets explicitly mapped, the set MUST match — card numbers repeat across sets,
     // so a set-blind match would grab the wrong card. Every tier below requires the set.
     // 1) cardNum + set (most precise — number is unique within a set)
@@ -33521,7 +33619,7 @@ See you in there!
     if (!match && cardNum) match = cards.find(c => heroMatches(c) && norm(c.cardNum)===norm(cardNum) && setMatches(c));
     // No set-blind fallback — if the set doesn't match, we'd rather report "not found"
     // than import the wrong card. The user mapped the set, so this stays strict.
-    return { csv:{hero:heroRaw,setName,csvSet,cardNum,parallel,weapon,power,qty,value,serial,notes,purchaseDate,condition,grade,gradeCompany,certNum,location,locked}, match:match||null };
+    return { csv:{hero:heroRaw,setName,csvSet,cardNum,parallel,weapon,power,qty,value,cost,serial,notes,purchaseDate,condition,grade,gradeCompany,certNum,location,locked}, match:match||null };
   }
 
   // Common column-name aliases from other collection tools (CardLadder, eBay, COMC, Collectr, custom sheets, etc.)
@@ -33538,6 +33636,7 @@ See you in there!
     // fell back to the default "Imported".
     "Serial": ["serial","serial number","serial #","numbered","numbering","serial no"],
     "Notes": ["notes","note","comment","comments","remarks","description"],
+    "Purchase Price": ["purchase price","cost","paid","price paid","buy price","acquisition cost","cost basis"],
     "Purchase Date": ["purchase date","date purchased","bought","date acquired","acquired"],
     "Condition": ["condition","cond","card condition"],
     "Grade": ["grade","grading","numeric grade"],
@@ -33635,7 +33734,8 @@ See you in there!
         // the same row get the note but no serial, and can be edited individually afterwards.
         for (let i=0;i<q;i++) {
           newLots.push({
-            id: uid(), cardId:id, cost:null, value: r.csv.value||null, method:"other",
+            id: uid(), cardId:id, cost: r.csv.cost, value: r.csv.value||null,
+            method: r.csv.cost!=null ? "purchased" : "other",
             date:todayLocal(),
             serial: i===0 ? (r.csv.serial||"") : "",
             notes: r.csv.notes || "Imported",
@@ -33690,10 +33790,10 @@ See you in there!
   }
 
   function downloadImportTemplate() {
-    const headers = ["Name","Set","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value","Serial","Notes","Purchase Date","Condition","Grading Company","Grade","Cert #","Location","Locked"];
+    const headers = ["Name","Set","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value","Purchase Price","Serial","Notes","Purchase Date","Condition","Grading Company","Grade","Cert #","Location","Locked"];
     // Set is REQUIRED — the same hero can appear in multiple sets
-    const ex1 = ["Bo Jackson","Tecmo Bowl Edition","TB1","Tecmo Bowl","","250","1","500","","first pull of the box","2026-03-14","Near Mint","","","","Binder 1 page 4",""];
-    const ex2 = ["Cutback","Alpha Update","BFA-5","Inspired Ink Battlefoil","Hex","200","1","2500","21/50","on-card auto","2026-05-02","Mint","PSA","10","82736451","Slab case","YES"];
+    const ex1 = ["Bo Jackson","Tecmo Bowl Edition","TB1","Tecmo Bowl","","250","1","500","320","","first pull of the box","2026-03-14","Near Mint","","","","Binder 1 page 4",""];
+    const ex2 = ["Cutback","Alpha Update","BFA-5","Inspired Ink Battlefoil","Hex","200","1","2500","1800","21/50","on-card auto","2026-05-02","Mint","PSA","10","82736451","Slab case","YES"];
     const csv = headers.join(",") + "\n" + ex1.join(",") + "\n" + ex2.join(",") + "\n";
     const blob = new Blob([csv], { type:"text/csv" });
     const url = URL.createObjectURL(blob);
@@ -38913,6 +39013,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 {key:"Power", label:"Power", required:false, hint:"Power level"},
                 {key:"Quantity", label:"Quantity", required:false, hint:"How many you own (defaults to 1)"},
                 {key:"Estimated Value", label:"Value", required:false, hint:"Market / estimated value"},
+                {key:"Purchase Price", label:"Purchase price", required:false, hint:"What you paid"},
                 {key:"Serial", label:"Serial", required:false, hint:"e.g. 21/50 — goes on the first copy"},
                 {key:"Notes", label:"Notes", required:false, hint:"Your note about this copy"},
                 {key:"Purchase Date", label:"Purchase date", required:false, hint:"When you got it"},
@@ -39044,6 +39145,18 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                        "No \u2014 photos upload from your device. After importing, open a card and use \u201c+ front photo\u201d / \u201c+ back photo\u201d on any copy."],
                       ["Grading columns \u2014 what goes where?",
                        "Grading Company is the grader (PSA, BGS, SGC, CGC, TAG), Grade is the number (e.g. 9.5), Cert # is the slab's certification number. Leave all three blank for raw cards."],
+                      ["Do Set, Parallel, Weapon and Condition have to match your exact wording?",
+                       "No. Matching ignores case, spaces, hyphens and dots, and Set also matches partially \u2014 so \u201cTemo Bowl\u201d, \u201cTecmo Bowl\u201d and \u201ctecmobowl\u201d all land the same way. A row is only rejected if nothing in the database fits; it's never silently mapped to the wrong card. Condition is free text and never rejects a row \u2014 it's your note about the copy, not a lookup."],
+                      ["Which of my fields should go in Parallel?",
+                       "Parallel is the card's treatment \u2014 Silver Blast, Inspired Ink Battlefoil, 80's Rad Battlefoil. If your export has a subset that isn't a finish (a themed insert grouping, say), leave Parallel blank and rely on Card Number + Set. A wrong Parallel is worse than a blank one: blank falls through to the card-number match, wrong actively blocks it."],
+                      ["What Serial formats work?",
+                       "All of these: 14, 14/25, #14/25, and \u201c14 of 25\u201d. Anything in the shape of a number over a number is tidied to 14/25; a bare number is kept as you wrote it, since we can't invent a print run you didn't give us. Serial is free text, so odd formats are preserved rather than rejected."],
+                      ["What counts as Locked?",
+                       "YES, Y, TRUE, 1, X, LOCK or LOCKED (any case) all lock the copy. Blank, NO, FALSE or 0 leave it unlocked. There's also a toggle on the import screen to lock the whole batch without touching the spreadsheet."],
+                      ["Can Quantity be more than 1 if I've filled in notes, condition or price?",
+                       "Yes, but everything on that row is copied to every copy \u2014 same condition, same location, same price, same notes. Only Serial and Cert # are treated as unique to one card, landing on the first copy. If your copies genuinely differ, give each its own row with Quantity 1."],
+                      ["Purchase Price vs Estimated Value \u2014 what's the difference?",
+                       "Purchase Price is what you paid; Estimated Value is what it's worth now. Both import, and both matter \u2014 cost drives profit and loss, value drives what your collection is worth. A row with a purchase price is logged as a purchase automatically."],
                       ["My columns are named differently. Do I have to rename them?",
                        "Usually not. Common variations are detected automatically (qty/count for Quantity, price/value for Estimated Value, and so on). Whatever it can't work out, you can map by hand on the next screen before importing."],
                     ].map(([q,a],i)=>(
@@ -39054,7 +39167,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                     ))}
                   </div>
                 )}
-                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:10}}>Columns: Name, Set, Card Number, Parallel, Weapon, Power, Quantity, Estimated Value, Serial, Notes, Purchase Date, Condition, Grading Company, Grade, Cert #, Location, Locked</div>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:10}}>Columns: Name, Set, Card Number, Parallel, Weapon, Power, Quantity, Estimated Value, Purchase Price, Serial, Notes, Purchase Date, Condition, Grading Company, Grade, Cert #, Location, Locked</div>
               </>
             )}
           </div>
