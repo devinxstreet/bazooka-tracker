@@ -21157,7 +21157,7 @@ function CardSetImporter({ userRole }) {
           PREVIEW FIRST — a bulk treatment rewrite is painful to undo. */}
       {mode==="data" && (
       <div style={{ background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:12, padding:16, marginTop:14 }}>
-        <div style={{ fontSize:13, fontWeight:800, color:"var(--bz-ink)", marginBottom:4 }}>\uD83D\uDCA5 Fix Alpha Blast autos</div>
+        <div style={{ fontSize:13, fontWeight:800, color:"var(--bz-ink)", marginBottom:4 }}>💥 Fix Alpha Blast autos</div>
         <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginBottom:12, lineHeight:1.6 }}>
           Sets every <strong>Alpha Blast</strong> card whose card number starts with <strong>BBFA</strong> to the
           treatment <strong>Blast Auto</strong>. Cards numbered <strong>BL…</strong> are left alone — those are
@@ -21191,7 +21191,7 @@ function CardSetImporter({ userRole }) {
             } catch(e){ setImporting(false); setProgress(null); alert("Preview failed: "+(e?.message||e)); }
           }} disabled={importing}
             style={{ background:"transparent", border:"1px solid #7B9CFF", color:"#7B9CFF", borderRadius:9, padding:"9px 14px", fontSize:12, fontWeight:800, cursor:importing?"wait":"pointer", fontFamily:"inherit" }}>
-            \uD83D\uDD0D Preview
+            🔍 Preview
           </button>
           <button onClick={async ()=>{
             setImporting(true); setErrors([]); setResults(null);
@@ -22317,7 +22317,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
     const csv = [
       // Kept in step with downloadImportTemplate() — the live importer. Two templates drifting apart
       // is how someone ends up with a file whose columns the importer no longer recognises.
-      ["Name","Set","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value","Purchase Price","Serial","Notes"],
+      ["Name","Set","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value","Purchase Price","Serial","Notes","Legacy ID"],
       ["Bojax","Alpha Edition","RAD-1","80's Rad Battlefoil","Hex","150",1,"","",""],
       ["Maverick","Alpha Edition","1","Base","Fire","120",2,"","21/50","on-card auto"],
     ].map(r => r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
@@ -33582,6 +33582,10 @@ See you in there!
     // What YOU paid, as distinct from Estimated Value (what it's worth). Both matter: cost drives
     // profit/loss, value drives collection worth. Strip currency symbols and thousands commas.
     const cost = parseFloat(String(cell("Purchase Price")).replace(/[^0-9.]/g,"")) || null;
+    // Opaque pointer back to whatever system this row came from. Never shown to collectors and
+    // never used for matching — it exists so a migration can be audited, re-run or reconciled
+    // later without guessing which imported copy corresponds to which source record.
+    const legacyId = cell("Legacy ID") || "";
     const purchaseDate = cell("Purchase Date") || "";
     const condition    = cell("Condition") || "";
     const grade        = cell("Grade") || "";
@@ -33606,7 +33610,7 @@ See you in there!
     const setMatches = c => !setName || norm(c.setName)===norm(setName) || norm(c.setName).includes(norm(setName)) || norm(setName).includes(norm(c.setName));
 
     let match = null;
-    if (forceSkip) { return { csv:{hero:heroRaw,setName:csvSet,csvSet,cardNum,parallel,weapon,power,qty,value,cost,serial,notes,purchaseDate,condition,grade,gradeCompany,certNum,location,locked}, match:null }; }
+    if (forceSkip) { return { csv:{hero:heroRaw,setName:csvSet,csvSet,cardNum,parallel,weapon,power,qty,value,cost,serial,notes,legacyId,purchaseDate,condition,grade,gradeCompany,certNum,location,locked}, match:null }; }
     // With sets explicitly mapped, the set MUST match — card numbers repeat across sets,
     // so a set-blind match would grab the wrong card. Every tier below requires the set.
     // 1) cardNum + set (most precise — number is unique within a set)
@@ -33619,7 +33623,7 @@ See you in there!
     if (!match && cardNum) match = cards.find(c => heroMatches(c) && norm(c.cardNum)===norm(cardNum) && setMatches(c));
     // No set-blind fallback — if the set doesn't match, we'd rather report "not found"
     // than import the wrong card. The user mapped the set, so this stays strict.
-    return { csv:{hero:heroRaw,setName,csvSet,cardNum,parallel,weapon,power,qty,value,cost,serial,notes,purchaseDate,condition,grade,gradeCompany,certNum,location,locked}, match:match||null };
+    return { csv:{hero:heroRaw,setName,csvSet,cardNum,parallel,weapon,power,qty,value,cost,serial,notes,legacyId,purchaseDate,condition,grade,gradeCompany,certNum,location,locked}, match:match||null };
   }
 
   // Common column-name aliases from other collection tools (CardLadder, eBay, COMC, Collectr, custom sheets, etc.)
@@ -33636,6 +33640,7 @@ See you in there!
     // fell back to the default "Imported".
     "Serial": ["serial","serial number","serial #","numbered","numbering","serial no"],
     "Notes": ["notes","note","comment","comments","remarks","description"],
+    "Legacy ID": ["legacy id","external id","external card id","source id","legacy card id","old id","record id","import id"],
     "Purchase Price": ["purchase price","cost","paid","price paid","buy price","acquisition cost","cost basis"],
     "Purchase Date": ["purchase date","date purchased","bought","date acquired","acquired"],
     "Condition": ["condition","cond","card condition"],
@@ -33746,6 +33751,9 @@ See you in there!
             certNum: i===0 ? (r.csv.certNum||"") : "",   // a cert number identifies ONE slab
             location: r.csv.location||"",
             locked: importLockAll || !!r.csv.locked,
+            // Source-system pointer. Multi-quantity rows suffix the copy index so each lot is
+            // still traceable to the row without two lots sharing an identical id.
+            ...(r.csv.legacyId ? { legacyId: q>1 ? `${r.csv.legacyId}#${i+1}` : r.csv.legacyId } : {}),
             photoUrl:"", photoBackUrl:"",
           });
         }
@@ -33790,10 +33798,10 @@ See you in there!
   }
 
   function downloadImportTemplate() {
-    const headers = ["Name","Set","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value","Purchase Price","Serial","Notes","Purchase Date","Condition","Grading Company","Grade","Cert #","Location","Locked"];
+    const headers = ["Name","Set","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value","Purchase Price","Serial","Notes","Legacy ID","Purchase Date","Condition","Grading Company","Grade","Cert #","Location","Locked"];
     // Set is REQUIRED — the same hero can appear in multiple sets
-    const ex1 = ["Bo Jackson","Tecmo Bowl Edition","TB1","Tecmo Bowl","","250","1","500","320","","first pull of the box","2026-03-14","Near Mint","","","","Binder 1 page 4",""];
-    const ex2 = ["Cutback","Alpha Update","BFA-5","Inspired Ink Battlefoil","Hex","200","1","2500","1800","21/50","on-card auto","2026-05-02","Mint","PSA","10","82736451","Slab case","YES"];
+    const ex1 = ["Bo Jackson","Tecmo Bowl Edition","TB1","Tecmo Bowl","","250","1","500","320","","first pull of the box","V1-00412","2026-03-14","Near Mint","","","","Binder 1 page 4",""];
+    const ex2 = ["Cutback","Alpha Update","BFA-5","Inspired Ink Battlefoil","Hex","200","1","2500","1800","21/50","on-card auto","V1-00877","2026-05-02","Mint","PSA","10","82736451","Slab case","YES"];
     const csv = headers.join(",") + "\n" + ex1.join(",") + "\n" + ex2.join(",") + "\n";
     const blob = new Blob([csv], { type:"text/csv" });
     const url = URL.createObjectURL(blob);
@@ -38161,6 +38169,9 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                                 )}
                                 {l.location && <div style={{ fontSize:10, color:"var(--bz-ink-3)", marginTop:2 }}>{"\uD83D\uDCCD "}{l.location}</div>}
                                 {l.purchaseDate && <div style={{ fontSize:10, color:"var(--bz-ink-3)", marginTop:2 }}>bought {l.purchaseDate}</div>}
+                                {/* Legacy ID is deliberately admin-only: it means nothing to a collector,
+                                    but it is the thread back to the source record when auditing a migration. */}
+                                {_cardAdmin && l.legacyId && <div style={{ fontSize:9, color:"rgba(255,255,255,0.28)", marginTop:2, fontFamily:"monospace" }}>legacy: {l.legacyId}</div>}
                                 <div style={{ color:"rgba(255,255,255,0.4)", fontSize:10 }}>Paid {fmt$(l.cost)}{l.method?` · ${l.method}`:""}{l.date?` · ${l.date}`:""}{l.notes?` · ${l.notes}`:""}</div>
                               </div>
                               {l.value&&l.cost&&<span style={{ fontSize:11, fontWeight:800, color:(parseFloat(l.value)-parseFloat(l.cost))>=0?"#4ade80":"#E8317A" }}>{(parseFloat(l.value)-parseFloat(l.cost))>=0?"+":""}{fmt$(parseFloat(l.value)-parseFloat(l.cost))}</span>}
@@ -39016,6 +39027,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 {key:"Purchase Price", label:"Purchase price", required:false, hint:"What you paid"},
                 {key:"Serial", label:"Serial", required:false, hint:"e.g. 21/50 — goes on the first copy"},
                 {key:"Notes", label:"Notes", required:false, hint:"Your note about this copy"},
+                {key:"Legacy ID", label:"Legacy ID", required:false, hint:"Your old system’s record id — stored, never shown"},
                 {key:"Purchase Date", label:"Purchase date", required:false, hint:"When you got it"},
                 {key:"Condition", label:"Condition", required:false, hint:"Mint, Near Mint…"},
                 {key:"Grading Company", label:"Grading co.", required:false, hint:"PSA, BGS, SGC…"},
@@ -39157,6 +39169,8 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                        "Yes, but everything on that row is copied to every copy \u2014 same condition, same location, same price, same notes. Only Serial and Cert # are treated as unique to one card, landing on the first copy. If your copies genuinely differ, give each its own row with Quantity 1."],
                       ["Purchase Price vs Estimated Value \u2014 what's the difference?",
                        "Purchase Price is what you paid; Estimated Value is what it's worth now. Both import, and both matter \u2014 cost drives profit and loss, value drives what your collection is worth. A row with a purchase price is logged as a purchase automatically."],
+                      ["What's Legacy ID for?",
+                       "If you're moving from another tracker, put its record id in this column and it's stored quietly against each copy. It's never shown to collectors and never used for matching \u2014 it exists so a migration can be audited or reconciled later, and so support can trace a copy back to where it came from. On a multi-quantity row each copy gets the id with a #1, #2 suffix so every record stays individually traceable."],
                       ["My columns are named differently. Do I have to rename them?",
                        "Usually not. Common variations are detected automatically (qty/count for Quantity, price/value for Estimated Value, and so on). Whatever it can't work out, you can map by hand on the next screen before importing."],
                     ].map(([q,a],i)=>(
@@ -39167,7 +39181,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                     ))}
                   </div>
                 )}
-                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:10}}>Columns: Name, Set, Card Number, Parallel, Weapon, Power, Quantity, Estimated Value, Purchase Price, Serial, Notes, Purchase Date, Condition, Grading Company, Grade, Cert #, Location, Locked</div>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:10}}>Columns: Name, Set, Card Number, Parallel, Weapon, Power, Quantity, Estimated Value, Purchase Price, Serial, Notes, Legacy ID, Purchase Date, Condition, Grading Company, Grade, Cert #, Location, Locked</div>
               </>
             )}
           </div>
