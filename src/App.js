@@ -35922,7 +35922,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     // Inserts in the deck unlocks one (max 6), plus four different Foil Hot Dogs unlock four more.
     if(deckType==="apexmadness" && p > 160){
       const tally = {};
-      inDeck.filter(x=>(parseFloat(x.power)||0)<=160).forEach(x=>{ const t=x.treatment||"—"; tally[t]=(tally[t]||0)+1; });
+      inDeck.filter(x=>(parseFloat(x.power)||0)<=160).forEach(x=>{ const t=insertKey(x.treatment)||"—"; tally[t]=(tally[t]||0)+1; });
       const insertUnlocks = Math.min(6, Object.values(tally).reduce((n,v)=>n+Math.floor(v/10), 0));
       const foilHotDogs = new Set(
         cards.filter(x => (x.treatment||"").toLowerCase().includes("hot dog") && owned[x.id+"::foil"]).map(x=>x.treatment)
@@ -36091,9 +36091,9 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
 
       // 2. Count Inserts in the deck we just built. Every complete block of 10 unlocks one Apex.
       const insertTally = {};
-      chosen.forEach(c => { const t = c.treatment || "—"; insertTally[t] = (insertTally[t]||0)+1; });
+      chosen.forEach(c => { const t = insertKey(c.treatment) || "—"; insertTally[t] = (insertTally[t]||0)+1; });
       const insertList = Object.entries(insertTally)
-        .map(([insert,count]) => ({ insert, count, unlocks: Math.floor(count/10) }))
+        .map(([insert,count]) => ({ insert: insertLabel(insert, insert), count, unlocks: Math.floor(count/10) }))
         .sort((a,b)=>b.count-a.count);
       const insertUnlocks = Math.min(6, insertList.reduce((n,x)=>n+x.unlocks, 0));
 
