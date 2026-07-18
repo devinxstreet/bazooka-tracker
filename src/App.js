@@ -31681,6 +31681,7 @@ See you in there!
   const [selectedIds,   setSelectedIds]   = useState(()=>new Set());
   const [bulkListModal, setBulkListModal] = useState(false);
   const [importLockAll, setImportLockAll] = useState(false);  // lock every copy in this import
+  const [importFaqOpen, setImportFaqOpen] = useState(false);
   const [bulkListPrice, setBulkListPrice] = useState("");
   const [bulkListNote,  setBulkListNote]  = useState("");
   const [bulkListType,  setBulkListType]  = useState("sale");
@@ -39008,6 +39009,51 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   <input type="file" accept=".csv,text/csv" style={{display:"none"}} onChange={e=>{ const f=e.target.files?.[0]; if(f) handleImportFile(f); e.target.value=""; }}/>
                 </label>
                 <button onClick={downloadImportTemplate} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"#ccc",borderRadius:12,padding:"12px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\u2B07 Download blank template"} <span style={{opacity:0.5,fontWeight:600}}>(incl. Serial &amp; Notes)</span></button>
+
+                {/* IMPORTER FAQ. Every answer here reflects what runImport()/matchImportRow() actually
+                    do \u2014 people were going to ask, and a wrong FAQ is worse than none. */}
+                <button onClick={()=>setImportFaqOpen(v=>!v)} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.12)",color:"rgba(255,255,255,0.6)",borderRadius:12,padding:"10px 0",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginTop:8}}>
+                  {importFaqOpen ? "\u25B4" : "\u25BE"} Import FAQ \u2014 how matching, locking &amp; copies work
+                </button>
+                {importFaqOpen && (
+                  <div style={{marginTop:8,background:"rgba(0,0,0,0.25)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:12,padding:"14px 16px",fontSize:12,color:"var(--bz-ink-2)",lineHeight:1.65,maxHeight:"46vh",overflowY:"auto"}}>
+                    {[
+                      ["Which columns do I actually need?",
+                       "Only Name and Set really matter, plus Card Number if you have it \u2014 everything else is optional. Set is important because the same hero appears in several sets; without it a row can match the wrong card."],
+                      ["How does it decide which card a row is?",
+                       "It tries card number + set first, then hero + parallel + weapon + power, then loosens the power requirement, then falls back to hero + card number. If nothing matches, the row is listed as unmatched and skipped \u2014 nothing is guessed into your collection."],
+                      ["What happens to rows it can't match?",
+                       "They're shown to you before you import, and logged so an admin can add the missing cards to the database. They are NOT added to your collection."],
+                      ["What does Quantity do?",
+                       "It creates that many separate copies. Three copies means three individual records you can price, photograph, grade and lock independently."],
+                      ["Why did my serial only land on one copy?",
+                       "A serial identifies one specific card, so \u201c21/50\u201d can't describe three copies. On a multi-quantity row the serial (and cert number) go on the first copy only \u2014 add the rest by opening the card and editing each copy."],
+                      ["What does \uD83D\uDD12 Locked actually do?",
+                       "It marks a copy \u201cnever trade or sell\u201d. Locked cards are blocked from bulk sold/traded, bulk listing, single listings, trade packages and trade bait \u2014 so you can't part with them by accident."],
+                      ["I own three of a card and locked one. Is the card locked?",
+                       "No. A card only counts as locked when EVERY copy you own is locked. Lock one of three and the other two can still be sold or traded \u2014 which is usually what you want."],
+                      ["Lock toggle vs the Locked column?",
+                       "The toggle locks everything in the import \u2014 good for a slab batch or PC binder. The column locks individual rows (YES, Y, TRUE, 1, X). Use either, or both: the toggle locks all, and the column can lock extras."],
+                      ["Can I unlock later?",
+                       "Yes. Open the card, hit \u201cAdd copy details\u201d, and untick the lock on that copy. Locking is never permanent."],
+                      ["What if I import the same file twice?",
+                       "You'll get duplicate copies \u2014 the importer adds, it doesn't reconcile. If you re-import, remove the rows you already brought in, or clean up afterwards with the card's copy list."],
+                      ["Does importing overwrite what I already own?",
+                       "No. Quantities are added to your existing counts, and existing copies are left untouched."],
+                      ["Can I add photos in the CSV?",
+                       "No \u2014 photos upload from your device. After importing, open a card and use \u201c+ front photo\u201d / \u201c+ back photo\u201d on any copy."],
+                      ["Grading columns \u2014 what goes where?",
+                       "Grading Company is the grader (PSA, BGS, SGC, CGC, TAG), Grade is the number (e.g. 9.5), Cert # is the slab's certification number. Leave all three blank for raw cards."],
+                      ["My columns are named differently. Do I have to rename them?",
+                       "Usually not. Common variations are detected automatically (qty/count for Quantity, price/value for Estimated Value, and so on). Whatever it can't work out, you can map by hand on the next screen before importing."],
+                    ].map(([q,a],i)=>(
+                      <div key={i} style={{marginBottom:11}}>
+                        <div style={{fontWeight:800,color:"#fff",marginBottom:2}}>{q}</div>
+                        <div style={{color:"rgba(255,255,255,0.55)"}}>{a}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:10}}>Columns: Name, Set, Card Number, Parallel, Weapon, Power, Quantity, Estimated Value, Serial, Notes, Purchase Date, Condition, Grading Company, Grade, Cert #, Location, Locked</div>
               </>
             )}
