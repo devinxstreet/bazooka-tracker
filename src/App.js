@@ -27275,8 +27275,11 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
                 <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:20,marginBottom:12,backdropFilter:"blur(10px)"}}>
                   <div style={{fontSize:14,fontWeight:800,color:"var(--bz-ink)",marginBottom:12}}>{"\u2795 Add Friend"}</div>
                   <div style={{display:"flex",gap:8}}>
-                    <input value={addEmail} onChange={e=>setAddEmail(e.target.value)} placeholder="Their Google sign-in email..." style={{...inp,flex:1}} onKeyDown={e=>e.key==="Enter"&&sendFriendRequest()}/>
+                    <input value={addEmail} onChange={e=>setAddEmail(e.target.value)} placeholder="Their username or email…" style={{...inp,flex:1}} onKeyDown={e=>e.key==="Enter"&&sendFriendRequest()}/>
                     <button onClick={sendFriendRequest} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"8px 20px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(232,49,122,0.3)"}}>Send</button>
+                  </div>
+                  <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",marginTop:8,lineHeight:1.5}}>
+                    Use their <strong style={{color:"rgba(255,255,255,0.55)"}}>username</strong> (from their profile page) or the email they signed up with — any email provider works, not just Gmail.
                   </div>
                   {addStatus&&<div style={{fontSize:12,color:addStatus.ok?"#4ade80":"#E8317A",marginTop:10,fontWeight:600}}>{addStatus.ok?"\u2705":"\u274C"} {addStatus.msg}</div>}
                 </div>
@@ -28213,6 +28216,25 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 // than "+", which reads as an unordered mix.
                 const goalLabel = [Array.from(deckGoalW).join(" › "), Array.from(deckGoalT).join(" + ")].filter(Boolean).join(" ");
                 const dtLabel = deckType==="spec"?"Spec (≤160)":deckType==="vegasbaby"?"Vegas Baby (≤160)":deckType==="apex"?"Apex":deckType==="apexmadness"?"Apex Madness":deckType==="none"?"":deckType;
+                // Apex Madness has too many interacting constraints for a reliable one-tap build:
+                // 10 core per insert (11 with the apex), the whole 60-card core drawn from at most 6
+                // inserts, insert-matched apex unlocks, and foiled Hot Dog slots on top. An auto-build
+                // that gets any of those subtly wrong is worse than none, so point people at the
+                // manual builder, where the rules tracker guides them card by card.
+                if (deckType === "apexmadness") {
+                  return (
+                    <div style={{background:"rgba(232,49,122,0.06)",border:"1px solid rgba(232,49,122,0.25)",borderRadius:12,padding:"14px 16px"}}>
+                      <div style={{fontSize:13,fontWeight:900,color:"#fff",marginBottom:6,display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>🔥 Apex Madness <span style={{fontSize:10,fontWeight:800,color:"#FBBF24",background:"rgba(251,191,36,0.12)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:6,padding:"2px 7px"}}>build manually</span></div>
+                      <div style={{fontSize:12,color:"#bbb",lineHeight:1.6,marginBottom:10}}>Apex Madness has too many moving parts (10 core per insert, a 6-insert core, insert-matched apex unlocks, foiled Hot Dog slots) for a reliable one-tap build. Add cards below and the <strong>Apex Madness rules tracker</strong> will guide you — it shows which inserts you've unlocked and what each apex needs.</div>
+                      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+                        <span style={{fontSize:11,color:"#a0a0a0",fontWeight:700}}>Goal:</span>
+                        <select value={deckType} onChange={e=>{ const v=e.target.value; setDeckType(v); if(!(v==="spec"||v==="vegasbaby"||v==="apex")) setDeckMaxMode(false); }} style={{...inp,width:"auto",cursor:"pointer"}}>
+                          {Object.entries(DECK_FORMATS).map(([k,f])=><option key={k} value={k}>{f.label}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <div style={{background:done?"linear-gradient(135deg,rgba(74,222,128,0.12),rgba(34,197,94,0.06))":"rgba(255,255,255,0.02)",border:`1px solid ${done?"rgba(74,222,128,0.4)":"rgba(232,49,122,0.25)"}`,borderRadius:14,padding:"14px 16px"}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,marginBottom:10}}>
@@ -28246,7 +28268,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     )}
                     <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
                       <span style={{fontSize:11,color:"#a0a0a0",fontWeight:700}}>Goal:</span>
-                      <select value={deckType} onChange={e=>{ const v=e.target.value; setDeckType(v); if(!(v==="spec"||v==="vegasbaby"||v==="apex"||v==="apexmadness")) setDeckMaxMode(false); }} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:deckType==="none"?"rgba(255,255,255,0.5)":"#FBBF24"}}>
+                      <select value={deckType} onChange={e=>{ const v=e.target.value; setDeckType(v); if(!(v==="spec"||v==="vegasbaby"||v==="apex")) setDeckMaxMode(false); }} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:deckType==="none"?"rgba(255,255,255,0.5)":"#FBBF24"}}>
                         {Object.entries(DECK_FORMATS).map(([k,f])=><option key={k} value={k}>{f.label}</option>)}
                       </select>
                       {/* Weapon + treatment goals are multi-select: an "all Hex and Gum" Apex deck is
@@ -28301,7 +28323,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     </div>
                     {/* Build Max Deck — enforce the format's legal power window (Apex 155+, Spec 115–160)
                         instead of just grabbing your top 60 regardless of power. */}
-                    {(deckType==="apex"||deckType==="spec"||deckType==="vegasbaby"||deckType==="apexmadness") && (
+                    {(deckType==="apex"||deckType==="spec"||deckType==="vegasbaby") && (
                       <div style={{display:"flex",gap:8,alignItems:"center",marginTop:10,flexWrap:"wrap"}}>
                         <div onClick={()=>setDeckMaxMode(v=>!v)} style={{display:"flex",alignItems:"center",gap:7,background:deckMaxMode?"rgba(251,191,36,0.14)":"rgba(255,255,255,0.03)",border:`1px solid ${deckMaxMode?"#FBBF24":"var(--bz-line-2)"}`,borderRadius:8,padding:"6px 11px",cursor:"pointer",whiteSpace:"nowrap"}}>
                           <div style={{width:28,height:16,borderRadius:8,background:deckMaxMode?"#FBBF24":"#333",position:"relative",transition:"background 0.2s",flexShrink:0}}>
@@ -28514,7 +28536,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               })()}
               <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
                 <input value={deckSearch} onChange={e=>setDeckSearch(e.target.value)} placeholder="Search hero, treatment..." style={{...inp,flex:1,minWidth:160}}/>
-                <select value={deckType} onChange={e=>{ const v=e.target.value; setDeckType(v); if(!(v==="spec"||v==="vegasbaby"||v==="apex"||v==="apexmadness")) setDeckMaxMode(false); }} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:deckType==="spec"?"#FBBF24":deckType==="apexmadness"?"#E8317A":deckType==="apex"?"#A855F7":deckType==="elite"?"#4ade80":deckType==="specplus"?"#38BDF8":deckType==="blast"?"#F472B6":"rgba(255,255,255,0.4)"}}>
+                <select value={deckType} onChange={e=>{ const v=e.target.value; setDeckType(v); if(!(v==="spec"||v==="vegasbaby"||v==="apex")) setDeckMaxMode(false); }} style={{...inp,width:"auto",cursor:"pointer",fontWeight:700,color:deckType==="spec"?"#FBBF24":deckType==="apexmadness"?"#E8317A":deckType==="apex"?"#A855F7":deckType==="elite"?"#4ade80":deckType==="specplus"?"#38BDF8":deckType==="blast"?"#F472B6":"rgba(255,255,255,0.4)"}}>
                   {/* Generated from DECK_FORMATS so this can't drift out of sync with the rules. */}
                   {Object.entries(DECK_FORMATS).map(([k,f])=><option key={k} value={k}>{f.label}</option>)}
                   <optgroup label="── Events ──">
@@ -30180,7 +30202,7 @@ const LOT_METHODS = [
 ];
 
 function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
-  const blank = { cost:"", value:"", method:"purchased", date:todayLocal(), notes:"" };
+  const blank = { cost:"", value:"", method:"purchased", date:todayLocal(), notes:"", serial:"" };
   const [draft, setDraft] = useState(blank);
   const [editId, setEditId] = useState(null);
 
@@ -30189,11 +30211,12 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
       cost: draft.cost==="" ? null : parseFloat(draft.cost),
       value: draft.value==="" ? null : parseFloat(draft.value),
       method: draft.method, date: draft.date, notes: draft.notes.trim(),
+      serial: (draft.serial||"").trim(),   // e.g. "21/50" — which numbered copy this is
     };
     if (editId) { onUpdate(editId, data); } else { onAdd(card.id, data); }
     setDraft(blank); setEditId(null);
   }
-  function startEdit(l) { setEditId(l.id); setDraft({ cost:l.cost??"", value:l.value??"", method:l.method||"purchased", date:l.date||blank.date, notes:l.notes||"" }); }
+  function startEdit(l) { setEditId(l.id); setDraft({ cost:l.cost??"", value:l.value??"", method:l.method||"purchased", date:l.date||blank.date, notes:l.notes||"", serial:l.serial||"" }); }
 
   const totalCost = lots.reduce((s,l)=>s+(l.cost||0),0);
   const totalVal  = lots.reduce((s,l)=>s+(l.value||0),0);
@@ -30242,6 +30265,7 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
                     {l.value!=null && <span style={{ color:"#4ade80" }}> → ${l.value}</span>}
                   </div>
                   <div style={{ fontSize:10, color:"#b0b0b0" }}>{l.date}{l.notes?` · ${l.notes}`:""}{l.photoUrl?" · 📸":""}</div>
+                  {l.serial && <div style={{ fontSize:11, fontWeight:800, color:"#FBBF24", marginTop:2 }}>#{l.serial}</div>}
                 </div>
                 <button onClick={()=>startEdit(l)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>Edit</button>
                 <button onClick={()=>onRemove(l.id)} style={{ background:"none", border:"1px solid #5a2a2a", color:"#E8317A", borderRadius:5, padding:"2px 8px", fontSize:10, cursor:"pointer", fontFamily:"inherit" }}>×</button>
@@ -30272,6 +30296,10 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp }) {
             <div style={{ flex:1 }}>
               <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Date</div>
               <input type="date" value={draft.date} onChange={e=>setDraft({...draft,date:e.target.value})} style={{...inp,width:"100%"}}/>
+            </div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Serial (optional)</div>
+              <input value={draft.serial} onChange={e=>setDraft({...draft,serial:e.target.value})} placeholder="e.g. 21/50" style={{...inp,width:"100%"}}/>
             </div>
             <div style={{ flex:2 }}>
               <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Notes (optional)</div>
@@ -33309,6 +33337,11 @@ See you in there!
     const power = cell("Power");
     const qty = parseInt(cell("Quantity")) || 1;
     const value = parseFloat(String(cell("Estimated Value")).replace(/[^0-9.]/g,"")) || null;
+    // Per-copy detail: which numbered copy this is (e.g. "21/50") and any note about it. Both are
+    // properties of YOUR copy, not of the card in the catalogue, so they ride along on the lot.
+    // Accept several header spellings so people don't have to guess the exact column name.
+    const serial = cell("Serial") || cell("Serial Number") || cell("Numbered") || cell("Serial #") || "";
+    const notes  = cell("Notes") || cell("Note") || cell("Comment") || cell("Comments") || "";
     if (!heroRaw && !cardNum) return null;
     const norm = s => String(s||"").replace(/[\s\-_.]/g,"").toLowerCase();
     // Hero name variants: full string, the quoted nickname (BoBA hero name), and the string with the quoted part removed
@@ -33323,7 +33356,7 @@ See you in there!
     const setMatches = c => !setName || norm(c.setName)===norm(setName) || norm(c.setName).includes(norm(setName)) || norm(setName).includes(norm(c.setName));
 
     let match = null;
-    if (forceSkip) { return { csv:{hero:heroRaw,setName:csvSet,csvSet,cardNum,parallel,weapon,power,qty,value}, match:null }; }
+    if (forceSkip) { return { csv:{hero:heroRaw,setName:csvSet,csvSet,cardNum,parallel,weapon,power,qty,value,serial,notes}, match:null }; }
     // With sets explicitly mapped, the set MUST match — card numbers repeat across sets,
     // so a set-blind match would grab the wrong card. Every tier below requires the set.
     // 1) cardNum + set (most precise — number is unique within a set)
@@ -33336,7 +33369,7 @@ See you in there!
     if (!match && cardNum) match = cards.find(c => heroMatches(c) && norm(c.cardNum)===norm(cardNum) && setMatches(c));
     // No set-blind fallback — if the set doesn't match, we'd rather report "not found"
     // than import the wrong card. The user mapped the set, so this stays strict.
-    return { csv:{hero:heroRaw,setName,csvSet,cardNum,parallel,weapon,power,qty,value}, match:match||null };
+    return { csv:{hero:heroRaw,setName,csvSet,cardNum,parallel,weapon,power,qty,value,serial,notes}, match:match||null };
   }
 
   // Common column-name aliases from other collection tools (CardLadder, eBay, COMC, Collectr, custom sheets, etc.)
@@ -33434,8 +33467,17 @@ See you in there!
         const id = r.match.id;
         const q = r.csv.qty || 1;
         nextOwned[id] = (nextOwned[id]||0) + q;
+        // One lot per copy. Serial + notes are per-copy facts, so if a row brings a serial we put it
+        // on the FIRST copy only — a "21/50" can't describe three different cards. Extra copies from
+        // the same row get the note but no serial, and can be edited individually afterwards.
         for (let i=0;i<q;i++) {
-          newLots.push({ id: uid(), cardId:id, cost:null, value: r.csv.value||null, method:"other", date:todayLocal(), notes:"Imported", photoUrl:"" });
+          newLots.push({
+            id: uid(), cardId:id, cost:null, value: r.csv.value||null, method:"other",
+            date:todayLocal(),
+            serial: i===0 ? (r.csv.serial||"") : "",
+            notes: r.csv.notes || "Imported",
+            photoUrl:"",
+          });
         }
       }
       setOwned(nextOwned);
@@ -33478,10 +33520,10 @@ See you in there!
   }
 
   function downloadImportTemplate() {
-    const headers = ["Name","Set","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value"];
+    const headers = ["Name","Set","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value","Serial","Notes"];
     // Set is REQUIRED — the same hero can appear in multiple sets
-    const ex1 = ["Bo Jackson","Tecmo Bowl Edition","TB1","Tecmo Bowl","","250","1","500"];
-    const ex2 = ["Cutback","Alpha Update","BFA-5","Inspired Ink Battlefoil","Hex","200","1","2500"];
+    const ex1 = ["Bo Jackson","Tecmo Bowl Edition","TB1","Tecmo Bowl","","250","1","500","","first pull of the box"];
+    const ex2 = ["Cutback","Alpha Update","BFA-5","Inspired Ink Battlefoil","Hex","200","1","2500","21/50","on-card auto"];
     const csv = headers.join(",") + "\n" + ex1.join(",") + "\n" + ex2.join(",") + "\n";
     const blob = new Blob([csv], { type:"text/csv" });
     const url = URL.createObjectURL(blob);
@@ -34759,18 +34801,45 @@ See you in there!
   async function sendFriendRequest() {
     if(!user||!addEmail.trim())return;
     setAddStatus(null);
-    const email=addEmail.trim().toLowerCase();
-    if(email===user.email?.toLowerCase()){setAddStatus({ok:false,msg:"That's you!"});return;}
-    if(friends.find(f=>f.toEmail?.toLowerCase()===email||f.fromEmail?.toLowerCase()===email)){setAddStatus({ok:false,msg:"Already friends"});return;}
-    const profSnap=await getDocs(query(collection(db,"boba_profiles"),where("email","==",email)));
-    if(profSnap.empty){setAddStatus({ok:false,msg:"No account found with that email -- they need to sign in at /cards first"});return;}
-    const toProfile=profSnap.docs[0].data(), toUid=profSnap.docs[0].id;
+    // Accept EITHER a username (@handle) or an email address of any kind. This used to say "Google
+    // sign-in email", which was wrong twice over: the lookup was never Google-specific (it matches
+    // whatever address someone signed up with, including email/password accounts), and plenty of
+    // people don't have or don't remember the email at all — but they do know each other's handles.
+    const raw = addEmail.trim();
+    const term = raw.replace(/^@/,"").toLowerCase();
+    if(term===user.email?.toLowerCase()){setAddStatus({ok:false,msg:"That's you!"});return;}
+
+    let toProfile=null, toUid=null;
+    if (term.includes("@")) {
+      // Looks like an email — match the profile by address.
+      const profSnap=await getDocs(query(collection(db,"boba_profiles"),where("email","==",term)));
+      if(!profSnap.empty){ toProfile=profSnap.docs[0].data(); toUid=profSnap.docs[0].id; }
+    } else {
+      // Treat it as a username handle.
+      try {
+        const uSnap = await getDoc(doc(db,"usernames",term));
+        if (uSnap.exists()) {
+          toUid = uSnap.data().uid;
+          const pSnap = await getDoc(doc(db,"boba_profiles",toUid));
+          toProfile = pSnap.exists() ? pSnap.data() : { username: term };
+        }
+      } catch(e){ /* fall through to the not-found message */ }
+    }
+    if(!toUid){
+      setAddStatus({ok:false,msg:term.includes("@")
+        ? "No account found with that email — check the spelling, or ask them for their username instead."
+        : `No collector found with the username "${term}" — usernames are set on their profile page.`});
+      return;
+    }
+    if(toUid===user.uid){setAddStatus({ok:false,msg:"That's you!"});return;}
+    if(friends.find(f=>f.friendUid===toUid)){setAddStatus({ok:false,msg:"Already friends"});return;}
+    const email = toProfile?.email || term;
     const existSnap=await getDocs(query(collection(db,"friend_requests"),where("from","==",user.uid),where("to","==",toUid)));
     if(!existSnap.empty){setAddStatus({ok:false,msg:"Request already sent"});return;}
     const id=uid();
-    await setDoc(doc(db,"friend_requests",id),{id,from:user.uid,fromEmail:user.email,fromName:user.displayName||user.email,to:toUid,toEmail:email,toName:toProfile.displayName||email,status:"pending",createdAt:new Date().toISOString()});
+    await setDoc(doc(db,"friend_requests",id),{id,from:user.uid,fromEmail:user.email,fromName:user.displayName||user.email,to:toUid,toEmail:email,toName:toProfile?.displayName||toProfile?.username||email,status:"pending",createdAt:new Date().toISOString()});
     await setDoc(doc(db,"boba_profiles",user.uid),{email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""},{merge:true});
-    setAddEmail(""); setAddStatus({ok:true,msg:`Request sent to ${toProfile.displayName||email}!`});
+    setAddEmail(""); setAddStatus({ok:true,msg:`Request sent to ${toProfile?.displayName||toProfile?.username||email}!`});
   }
   async function respondFriendReq(req,accept) {
     await setDoc(doc(db,"friend_requests",req.id),{status:accept?"accepted":"declined"},{merge:true});
@@ -37582,7 +37651,11 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                           {cardLots.map((l,i) => (
                             <div key={l.id||i} onClick={()=>setLotModal({card:c})} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, padding:"8px 12px", borderBottom:"1px solid rgba(255,255,255,0.04)", fontSize:12, cursor:"pointer" }} onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.03)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                               <div style={{ flex:1, minWidth:0 }}>
-                                <div style={{ color:"#fff", fontWeight:700 }}>Copy {i+1}{l.value?` · worth ${fmt$(l.value)}`:""}</div>
+                                <div style={{ color:"#fff", fontWeight:700 }}>
+                                  Copy {i+1}
+                                  {l.serial && <span style={{ color:"#FBBF24", fontWeight:900, marginLeft:6 }}>#{l.serial}</span>}
+                                  {l.value?` · worth ${fmt$(l.value)}`:""}
+                                </div>
                                 <div style={{ color:"rgba(255,255,255,0.4)", fontSize:10 }}>Paid {fmt$(l.cost)}{l.method?` · ${l.method}`:""}{l.date?` · ${l.date}`:""}{l.notes?` · ${l.notes}`:""}</div>
                               </div>
                               {l.value&&l.cost&&<span style={{ fontSize:11, fontWeight:800, color:(parseFloat(l.value)-parseFloat(l.cost))>=0?"#4ade80":"#E8317A" }}>{(parseFloat(l.value)-parseFloat(l.cost))>=0?"+":""}{fmt$(parseFloat(l.value)-parseFloat(l.cost))}</span>}
@@ -38513,7 +38586,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   <input type="file" accept=".csv,text/csv" style={{display:"none"}} onChange={e=>{ const f=e.target.files?.[0]; if(f) handleImportFile(f); e.target.value=""; }}/>
                 </label>
                 <button onClick={downloadImportTemplate} style={{width:"100%",background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"#ccc",borderRadius:12,padding:"12px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\u2B07 Download blank template"}</button>
-                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:10}}>Columns: Name, Set, Card Number, Parallel, Weapon, Power, Quantity, Estimated Value</div>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:10}}>Columns: Name, Set, Card Number, Parallel, Weapon, Power, Quantity, Estimated Value, Serial, Notes</div>
               </>
             )}
           </div>
