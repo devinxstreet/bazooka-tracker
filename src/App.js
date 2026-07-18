@@ -28068,6 +28068,9 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const [sharedDeckId, setSharedDeckId] = useState(null);
   const [setsOpen, setSetsOpen] = useState(false);   // set picker collapsed by default
   const [goalWOpen, setGoalWOpen] = useState(false); // weapon picker — collapsed, like the sets one
+  const [filtWOpen, setFiltWOpen] = useState(false); // manual builder: weapon multi-select picker
+  const [filtSOpen, setFiltSOpen] = useState(false); // manual builder: set multi-select picker
+  const [filtTOpen, setFiltTOpen] = useState(false); // manual builder: treatment multi-select picker
   const [giveDeckFor, setGiveDeckFor] = useState(null); // deck id whose "give to family" picker is open
   const [goalTOpen, setGoalTOpen] = useState(false); // treatment picker
   const [progressExpanded, setProgressExpanded] = useState(false);
@@ -28159,10 +28162,10 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
       const isFam  = !!familyOwnerByCard[c.id];
       if(deckMineOnly ? !isMine : (!isMine && !isFam)) return false;
     }
-    if(deckFilterW && c.weapon!==deckFilterW) return false;
+    if(deckFilterW.size && !deckFilterW.has(canonWeapon(c.weapon))) return false;   // multi-select
     if(deckFilterP && deckFilterP.size>0 && !deckFilterP.has(String(c.power||""))) return false;
-    if(deckFilterS && c.setName!==deckFilterS) return false;
-    if(deckFilterT && c.treatment!==deckFilterT) return false;
+    if(deckFilterS.size && !deckFilterS.has(c.setName)) return false;               // multi-select
+    if(deckFilterT.size && !deckFilterT.has(c.treatment)) return false;             // multi-select
     if(deckSearchTerms.length){
       const hay = deckSearchIndex.get(c.id) || "";
       if(!deckSearchTerms.every(t=>hay.includes(t))) return false;
@@ -28502,15 +28505,55 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     <option value="vegasbaby">🎲 Vegas Baby (SPEC)</option>
                   </optgroup>
                 </select>
-                <select value={deckFilterW} onChange={e=>setDeckFilterW(e.target.value)} style={{...inp,width:"auto",cursor:"pointer"}}>
-                  <option value="">All Weapons</option>{weapons.map(w=><option key={w} value={w}>{w}</option>)}
-                </select>
-                <select value={deckFilterS} onChange={e=>setDeckFilterS(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",color:deckFilterS?"#7B9CFF":"rgba(255,255,255,0.4)"}}>
-                  <option value="">All Sets</option>{sets.map(s=><option key={s} value={s}>{s}</option>)}
-                </select>
-                <select value={deckFilterT} onChange={e=>setDeckFilterT(e.target.value)} style={{...inp,width:"auto",cursor:"pointer",color:deckFilterT?"#FBBF24":"rgba(255,255,255,0.4)"}}>
-                  <option value="">All Treatments</option>{treatments.map(t=><option key={t} value={t}>{t}</option>)}
-                </select>
+                {/* Multi-select filters — same pattern as the quick builder: a toggle button that
+                    opens a pill grid, so you can pick SEVERAL weapons / sets / treatments at once
+                    instead of one at a time. */}
+                {(() => {
+                  const toggleIn = (setter) => (v) => setter(prev => { const n=new Set(prev); n.has(v)?n.delete(v):n.add(v); return n; });
+                  const tW = toggleIn(setDeckFilterW), tS = toggleIn(setDeckFilterS), tT = toggleIn(setDeckFilterT);
+                  const lab = (sel, none, one) => sel.size===0 ? none : sel.size===1 ? `${Array.from(sel)[0]} ${one}` : `${sel.size} ${none.replace(/^All /,"")}`;
+                  const pill = (on) => ({
+                    background: on ? "rgba(232,49,122,0.18)" : "rgba(255,255,255,0.04)",
+                    border: `1px solid ${on ? "#E8317A" : "var(--bz-line-2)"}`,
+                    color: on ? "#fff" : "var(--bz-ink-2)",
+                    borderRadius: 7, padding: "4px 9px", fontSize: 11, fontWeight: on?800:600,
+                    cursor: "pointer", fontFamily: "inherit",
+                  });
+                  const tabBtn = (open, active) => ({...inp, width:"auto", cursor:"pointer", textAlign:"left",
+                    color: active ? "#fff" : "rgba(255,255,255,0.4)"});
+                  return (
+                    <>
+                      <button onClick={()=>setFiltWOpen(v=>!v)} style={tabBtn(filtWOpen, deckFilterW.size>0)}>
+                        {lab(deckFilterW,"All Weapons","only")} <span style={{fontSize:9,opacity:0.7}}>{filtWOpen?"▲":"▼"}</span>
+                      </button>
+                      <button onClick={()=>setFiltSOpen(v=>!v)} style={tabBtn(filtSOpen, deckFilterS.size>0)}>
+                        {lab(deckFilterS,"All Sets","only")} <span style={{fontSize:9,opacity:0.7}}>{filtSOpen?"▲":"▼"}</span>
+                      </button>
+                      <button onClick={()=>setFiltTOpen(v=>!v)} style={tabBtn(filtTOpen, deckFilterT.size>0)}>
+                        {lab(deckFilterT,"All Treatments","only")} <span style={{fontSize:9,opacity:0.7}}>{filtTOpen?"▲":"▼"}</span>
+                      </button>
+                      {(deckFilterW.size>0||deckFilterS.size>0||deckFilterT.size>0) && (
+                        <button onClick={()=>{setDeckFilterW(new Set());setDeckFilterS(new Set());setDeckFilterT(new Set());}}
+                          style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Clear filters</button>
+                      )}
+                      {filtWOpen && (
+                        <div style={{width:"100%",marginTop:6,padding:"10px 12px",background:"rgba(0,0,0,0.25)",border:"1px solid var(--bz-line)",borderRadius:9,display:"flex",flexWrap:"wrap",gap:6}}>
+                          {weapons.map(w=><button key={w} onClick={()=>tW(w)} style={pill(deckFilterW.has(w))}>{w}</button>)}
+                        </div>
+                      )}
+                      {filtSOpen && (
+                        <div style={{width:"100%",marginTop:6,padding:"10px 12px",background:"rgba(0,0,0,0.25)",border:"1px solid var(--bz-line)",borderRadius:9,display:"flex",flexWrap:"wrap",gap:6}}>
+                          {sets.map(s=><button key={s} onClick={()=>tS(s)} style={pill(deckFilterS.has(s))}>{s}</button>)}
+                        </div>
+                      )}
+                      {filtTOpen && (
+                        <div style={{width:"100%",marginTop:6,padding:"10px 12px",background:"rgba(0,0,0,0.25)",border:"1px solid var(--bz-line)",borderRadius:9,display:"flex",flexWrap:"wrap",gap:6}}>
+                          {treatments.map(t=><button key={t} onClick={()=>tT(t)} style={pill(deckFilterT.has(t))}>{t}</button>)}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
                 {/* Card source — matches the quick builder's selector. One choice, no conflicting
                     toggles: All cards / My collection / Mine + family / Family only. */}
                 {(() => {
@@ -31434,10 +31477,10 @@ See you in there!
     const t = setTimeout(() => setDeckSearchDebounced(deckSearch), 60);
     return () => clearTimeout(t);
   }, [deckSearch]);
-  const [deckFilterW,   setDeckFilterW]   = useState("");
+  const [deckFilterW,   setDeckFilterW]   = useState(new Set());   // multi-select, like the quick builder
   const [deckFilterP,   setDeckFilterP]   = useState(new Set());
-  const [deckFilterS,   setDeckFilterS]   = useState("");
-  const [deckFilterT,   setDeckFilterT]   = useState("");
+  const [deckFilterS,   setDeckFilterS]   = useState(new Set());   // multi-select
+  const [deckFilterT,   setDeckFilterT]   = useState(new Set());   // multi-select
 
   // -- Marketplace --
   const [listings,      setListings]      = useState([]);
@@ -35890,10 +35933,10 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       const p = parseFloat(c.power)||0;
       if(p > F.coreCap && !F.highTiers[p]) return false;
     }
-    if(deckFilterW&&canonWeapon(c.weapon)!==canonWeapon(deckFilterW))return false;
+    if(deckFilterW.size&&!deckFilterW.has(canonWeapon(c.weapon)))return false;   // multi-select
     if(deckFilterP.size>0&&!deckFilterP.has(String(c.power||"")))return false;
-    if(deckFilterS&&c.setName!==deckFilterS)return false;
-    if(deckFilterT&&c.treatment!==deckFilterT)return false;
+    if(deckFilterS.size&&!deckFilterS.has(c.setName))return false;               // multi-select
+    if(deckFilterT.size&&!deckFilterT.has(c.treatment))return false;             // multi-select
     if(deckSearch&&!`${c.hero} ${c.cardNum} ${c.treatment}`.toLowerCase().includes(deckSearch.toLowerCase()))return false;
     const t=(c.treatment||"").toLowerCase();
     if(t==="plays"||t==="bonus plays"||t==="home team discount")return false;
