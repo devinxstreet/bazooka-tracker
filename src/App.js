@@ -191,6 +191,11 @@ const insertKey = (treatment) => {
 };
 // Display name for an insert key — "inspired ink" shows as a single combined insert.
 const insertLabel = (key, fallback) => key === "inspired ink" ? "Inspired Ink (all)" : (fallback || key);
+// Plain "Battlefoil" is the BASE foil parallel, not an insert — it earns no Apex unlock in Madness
+// and can't be one of the six inserts a core is built from. Named foils (Blue Battlefoil, Inspired
+// Ink Battlefoil, 80's Rad Battlefoil…) are real inserts and still count.
+const NON_INSERT_TREATMENTS = new Set(["battlefoil", "base", "paper", ""]);
+const isInsertTreatment = (treatment) => !NON_INSERT_TREATMENTS.has(insertKey(treatment));
 const INDIV_TYPES = ["First-Timer Cards","Chaser Cards"];  // individual tracking
 const BREAKERS = ["Dev","Dre","Krystal","BigU","Vinny","Stephen"];
 // Remote breakers front their own supplies/shipping and get reimbursed — same
@@ -28099,7 +28104,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const inDeckDupKeys = new Set(inDeck.map(dupKey));
   const powerCount = {}; inDeck.forEach(c=>{const p=c.power||"0"; powerCount[p]=(powerCount[p]||0)+1;});
   const treatCore={}, treatApex={};
-  if(isAM){inDeck.forEach(c=>{const t=insertKey(c.treatment),p=parseFloat(c.power||0);if(p>=115&&p<=160){treatCore[t]=(treatCore[t]||0)+1;}else if(p>160){treatApex[t]=(treatApex[t]||0)+1;}});}
+  if(isAM){inDeck.forEach(c=>{if(!isInsertTreatment(c.treatment))return;const t=insertKey(c.treatment),p=parseFloat(c.power||0);if(p>=115&&p<=160){treatCore[t]=(treatCore[t]||0)+1;}else if(p>160){treatApex[t]=(treatApex[t]||0)+1;}});}
   const dbTotalPower = inDeck.reduce((s,c)=>s+(parseFloat(c.power)||0),0);
   const dbAvgPower = inDeck.length>0 ? Math.round(dbTotalPower/inDeck.length) : 0;
   const dbHeroes = new Set(inDeck.map(c=>(c.hero||"").toLowerCase()).filter(Boolean)).size;
@@ -28923,6 +28928,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     const byKey = {};
                     inDeck.forEach(c => {
                       if (!c.treatment) return;
+                      if (!isInsertTreatment(c.treatment)) return;   // plain Battlefoil isn't an insert
                       const k = insertKey(c.treatment);
                       if (!byKey[k]) byKey[k] = c.treatment;   // first-seen name as the fallback label
                     });
@@ -35702,7 +35708,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
   const inDeckDupKeys = useMemo(()=>new Set(inDeck.map(dupKey)), [inDeck]);
   const powerCount = useMemo(()=>{ const m={}; inDeck.forEach(c=>{const p=c.power||"0"; m[p]=(m[p]||0)+1;}); return m; }, [inDeck]);
   const treatCore={},treatApex={};
-  if(isAM){inDeck.forEach(c=>{const t=insertKey(c.treatment),p=parseFloat(c.power||0);if(p>=115&&p<=160)treatCore[t]=(treatCore[t]||0)+1;if(p>160)treatApex[t]=(treatApex[t]||0)+1;});}
+  if(isAM){inDeck.forEach(c=>{if(!isInsertTreatment(c.treatment))return;const t=insertKey(c.treatment),p=parseFloat(c.power||0);if(p>=115&&p<=160)treatCore[t]=(treatCore[t]||0)+1;if(p>160)treatApex[t]=(treatApex[t]||0)+1;});}
   // -- Tournament rule: a physical copy can't be in two decks at once. --
   // Count how many of the user's OTHER saved decks already commit each cardId (excluding the
   // deck currently being edited). A card locks only when other decks have used up every copy
@@ -35921,7 +35927,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     // Inserts in the deck unlocks one (max 6), plus four different Foil Hot Dogs unlock four more.
     if(deckType==="apexmadness" && p > 160){
       const tally = {};
-      inDeck.filter(x=>(parseFloat(x.power)||0)<=160).forEach(x=>{ const t=insertKey(x.treatment)||"—"; tally[t]=(tally[t]||0)+1; });
+      inDeck.filter(x=>(parseFloat(x.power)||0)<=160 && isInsertTreatment(x.treatment)).forEach(x=>{ const t=insertKey(x.treatment)||"—"; tally[t]=(tally[t]||0)+1; });
       const insertUnlocks = Math.min(6, Object.values(tally).reduce((n,v)=>n+Math.floor(v/10), 0));
       const foilHotDogs = new Set(
         cards.filter(x => (x.treatment||"").toLowerCase().includes("hot dog") && owned[x.id+"::foil"]).map(x=>x.treatment)
@@ -36108,6 +36114,9 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       // Pool the eligible core cards and the apex heroes, both grouped by insert.
       const coreByIns = {}, apexByIns = {};
       base.forEach(c => {
+        // Plain "Battlefoil" is a base parallel, not an insert — it can't earn an unlock or be one
+        // of the six inserts the core is drawn from, so keep it out of the pools entirely.
+        if (!isInsertTreatment(c.treatment)) return;
         const k = insertKey(c.treatment) || "—";
         if (inRange(c)) (coreByIns[k] = coreByIns[k]||[]).push(c);
         else if (powerOf(c) > CORE_MAX) (apexByIns[k] = apexByIns[k]||[]).push(c);
