@@ -36115,65 +36115,104 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       Object.values(coreByIns).forEach(a => a.sort((x,y)=>(powerOf(y)-powerOf(x))||mineFirst(x,y)));
       Object.values(apexByIns).forEach(a => a.sort((x,y)=>(powerOf(y)-powerOf(x))||mineFirst(x,y)));
 
-      // Which inserts can actually yield an unlock? "Enough cards" is not the raw count: seating
-      // dedups by hero+power+weapon AND caps 6 per power level, so an insert with 14 cards can
-      // easily be unable to seat 10. Simulate the seating rules to get the REAL usable depth,
-      // otherwise the builder picks inserts it can never complete and the deck comes up short.
-      const seatableDepth = (k) => {
+      // THE REAL CONSTRAINT: the whole 60-card core must come from AT MOST 6 inserts, and every
+      // complete block of 10 within an insert unlocks one matching-insert Apex. So this is not
+      // "seat some blocks then fill from anywhere" — filling from anywhere scattered the core over
+      // a dozen inserts, most of which contributed nothing. Instead: pick the best <=6 inserts that
+      // can collectively seat 60, and draw the ENTIRE core from only those.
+      //
+      // How many cards can an insert really seat? Not its raw count — seating dedups by
+      // hero+power+weapon AND caps 6 per power level, so a 14-card insert may only seat 7.
+      const depthOf = (k) => {
         const seenK = new Set(), perP = {};
         let n = 0;
         for (const c of (coreByIns[k]||[])) {
-          const dk = dupKey(c); if (seenK.has(dk)) continue;      // no duplicate hero+power+weapon
+          const dk = dupKey(c); if (seenK.has(dk)) continue;
           const pk = String(c.power||"0");
-          if ((perP[pk]||0) >= (F.perPower||6)) continue;         // max 6 at any one power level
+          if ((perP[pk]||0) >= (F.perPower||6)) continue;
           seenK.add(dk); perP[pk] = (perP[pk]||0)+1; n++;
         }
         return n;
       };
-      const candidates = Object.keys(coreByIns)
-        .map(k => ({
-          insert: k,
-          coreAvail: seatableDepth(k),                             // REAL depth, not raw count
-          apexAvail: (apexByIns[k]||[]).length,
-          bestApex: (apexByIns[k]||[])[0] ? powerOf(apexByIns[k][0]) : 0,
-        }))
-        .filter(x => x.coreAvail >= BLOCK && x.apexAvail > 0)
-        // Rank by DEPTH first, then by the apex you'd win. Sorting by apex power alone chased one
-        // big hero into an insert with a barely-there core, which then blocked deeper inserts from
-        // seating and left the deck short on unlocks. Deepest-first completes the most blocks.
-        .sort((a,b)=>(b.coreAvail-a.coreAvail)||(b.bestApex-a.bestApex));
+      // Rank inserts by what they're worth to this deck: how many complete blocks of 10 they can
+      // yield (that's unlocks), then raw depth (fills the core), then the apex you'd win.
+      const ranked = Object.keys(coreByIns)
+        .map(k => {
+          const depth = depthOf(k);
+          const apexAvail = (apexByIns[k]||[]).length;
+          return {
+            insert: k, depth, apexAvail,
+            blocks: apexAvail > 0 ? Math.floor(depth / BLOCK) : 0,   // a block with no apex earns nothing
+            bestApex: (apexByIns[k]||[])[0] ? powerOf(apexByIns[k][0]) : 0,
+          };
+        })
+        .filter(x => x.depth > 0)
+        .sort((a,b)=>(b.blocks-a.blocks)||(b.depth-a.depth)||(b.bestApex-a.bestApex));
+
+      // Take up to 6 inserts, preferring ones that unlock, but keep adding until we can cover 60
+      // cards — a deck that can't reach 60 is illegal, so depth matters even without an unlock.
+      const picked = [];
+      let covered = 0;
+      for (const r of ranked) {
+        if (picked.length >= MAX_UNLOCKS) break;
+        picked.push(r); covered += r.depth;
+        if (covered >= 60 && picked.some(x=>x.blocks>0)) {
+          // Enough depth for a full core AND at least one unlock — keep going only while more
+          // inserts still add unlocks (blocks), since extra depth beyond 60 is wasted.
+          if (!ranked.slice(picked.length).some(x=>x.blocks>0)) break;
+        }
+      }
+      const pickedKeys = new Set(picked.map(x=>x.insert));
 
       const perPowerAM = {};
-      // Respect the per-power cap while seating a card.
       const seat = (c) => {
         const k = dupKey(c); if (usedKeys.has(k)) return false;
         const pk = String(c.power||"0"); if ((perPowerAM[pk]||0) >= (F.perPower||6)) return false;
         usedKeys.add(k); perPowerAM[pk] = (perPowerAM[pk]||0)+1; chosen.push(c); return true;
       };
 
-      // 2. Seat complete blocks of 10, best inserts first.
-      for (const cand of candidates) {
+      // 2. Seat complete blocks of 10 first, so unlocks are locked in before the core fills up.
+      //    Ordered by the apex won, so the best heroes are the ones that get claimed.
+      const blockOrder = picked.filter(x=>x.blocks>0).sort((a,b)=>b.bestApex-a.bestApex);
+      for (const cand of blockOrder) {
         if (completedInserts.length >= MAX_UNLOCKS) break;
-        if (chosen.length + BLOCK > 60) break;              // no room for a full block
-        const pool = coreByIns[cand.insert];
+        if (chosen.length + BLOCK > 60) break;
         const staged = [];
-        for (const c of pool) {
+        for (const c of (coreByIns[cand.insert]||[])) {
           if (staged.length >= BLOCK) break;
           const k = dupKey(c); if (usedKeys.has(k)) continue;
           const pk = String(c.power||"0");
           const projected = (perPowerAM[pk]||0) + staged.filter(x=>String(x.power||"0")===pk).length;
-          if (projected >= (F.perPower||6)) continue;       // would break max-6 at that power
+          if (projected >= (F.perPower||6)) continue;
           staged.push(c);
         }
-        if (staged.length < BLOCK) continue;                 // can't complete this block legally
+        if (staged.length < BLOCK) continue;
         staged.forEach(seat);
         const apex = (apexByIns[cand.insert]||[]).find(a => !apexUsed.has(dupKey(a)));
         completedInserts.push({ insert: insertLabel(cand.insert, cand.insert), apexPower: apex?powerOf(apex):0, apexCard: apex||null });
       }
 
-      // 3. Top the core up to 60 with the strongest remaining legal cards (any insert).
-      const restCore = base.filter(inRange).sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
+      // 3. Top the core up to 60 — but ONLY from the inserts we picked. This is the fix: pulling
+      //    from any insert here is what scattered the core and wasted slots.
+      const restCore = base
+        .filter(c => inRange(c) && pickedKeys.has(insertKey(c.treatment) || "—"))
+        .sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
       for (const c of restCore) { if (chosen.length >= 60) break; seat(c); }
+
+      // A late block can complete once the top-up lands more of an insert — sweep once more.
+      if (completedInserts.length < MAX_UNLOCKS) {
+        const tally = {};
+        chosen.filter(inRange).forEach(c => { const t = insertKey(c.treatment)||"—"; tally[t]=(tally[t]||0)+1; });
+        for (const [k,count] of Object.entries(tally)) {
+          if (completedInserts.length >= MAX_UNLOCKS) break;
+          if (count < BLOCK) continue;
+          if (completedInserts.some(ci => ci.insert === insertLabel(k,k))) continue;
+          const apex = (apexByIns[k]||[]).find(a => !apexUsed.has(dupKey(a)));
+          if (!apex) continue;
+          completedInserts.push({ insert: insertLabel(k,k), apexPower: powerOf(apex), apexCard: apex });
+        }
+      }
+
 
       // 4. Claim one matching-insert Apex Hero per completed block.
       completedInserts.forEach(ci => {
