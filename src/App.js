@@ -180,6 +180,17 @@ const DECK_FORMATS = {
                  coreCap:160, insertUnlock:10, maxInsertUnlocks:6, hotDogUnlocks:4 },
 };
 const fmtOf = t => DECK_FORMATS[t] || DECK_FORMATS.none;
+// Apex Madness counts "10 core unlocks 1 apex" PER INSERT. Most treatments are their own insert, but
+// Inspired Ink is a single insert with several finishes (Battlefoil, Metallic Battlefoil, Superfoil,
+// Bubble Gum, Magic Gum…). Counting those separately meant 6/10 + 4/10 instead of one unlocked 10/10.
+// This collapses every Inspired Ink variant to one key; everything else keeps its own treatment name.
+const insertKey = (treatment) => {
+  const t = String(treatment||"").toLowerCase().trim();
+  if (t.includes("inspired ink")) return "inspired ink";
+  return t;
+};
+// Display name for an insert key — "inspired ink" shows as a single combined insert.
+const insertLabel = (key, fallback) => key === "inspired ink" ? "Inspired Ink (all)" : (fallback || key);
 const INDIV_TYPES = ["First-Timer Cards","Chaser Cards"];  // individual tracking
 const BREAKERS = ["Dev","Dre","Krystal","BigU","Vinny","Stephen"];
 // Remote breakers front their own supplies/shipping and get reimbursed — same
@@ -28088,7 +28099,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const inDeckDupKeys = new Set(inDeck.map(dupKey));
   const powerCount = {}; inDeck.forEach(c=>{const p=c.power||"0"; powerCount[p]=(powerCount[p]||0)+1;});
   const treatCore={}, treatApex={};
-  if(isAM){inDeck.forEach(c=>{const t=(c.treatment||"").toLowerCase(),p=parseFloat(c.power||0);if(p>=115&&p<=160){treatCore[t]=(treatCore[t]||0)+1;}else if(p>160){treatApex[t]=(treatApex[t]||0)+1;}});}
+  if(isAM){inDeck.forEach(c=>{const t=insertKey(c.treatment),p=parseFloat(c.power||0);if(p>=115&&p<=160){treatCore[t]=(treatCore[t]||0)+1;}else if(p>160){treatApex[t]=(treatApex[t]||0)+1;}});}
   const dbTotalPower = inDeck.reduce((s,c)=>s+(parseFloat(c.power)||0),0);
   const dbAvgPower = inDeck.length>0 ? Math.round(dbTotalPower/inDeck.length) : 0;
   const dbHeroes = new Set(inDeck.map(c=>(c.hero||"").toLowerCase()).filter(Boolean)).size;
@@ -28105,7 +28116,8 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     // format-specific
     if(isAM){
       const treatments=[...new Set(inDeck.map(c=>c.treatment).filter(Boolean))];
-      treatments.forEach(t=>{ const tl=t.toLowerCase(),core=treatCore[tl]||0,apex=treatApex[tl]||0; if(apex>0&&core<10) tips.push({t:"warn",m:`${t}: apex card in deck but only ${core}/10 core cards — needs 10 core to be legal.`}); else if(core>=10&&apex===0) tips.push({t:"good",m:`${t} unlocked (${core} core) — you can add 1 apex card.`}); else if(core>0&&core<10){ const need=10-core; const ownedEligible = owned ? cards.filter(cc=>!deckSet.has(cc.id)&&(cc.treatment||"").toLowerCase()===tl&&((parseFloat(cc.power)||0)>=115)&&((parseFloat(cc.power)||0)<=160)&&owned[cc.id]).length : 0; tips.push({t:"info",m:`${t}: ${core}/10 core toward an apex unlock.${owned?(ownedEligible>=need?` You own ${ownedEligible} eligible — enough to finish!`:` You own ${ownedEligible} of ${need} more needed.`):""}`}); } });
+      // Iterate INSERTS (Inspired Ink variants collapse to one), not raw treatment strings.
+      Array.from(new Set(treatments.map(insertKey))).forEach(tl=>{ const t=insertLabel(tl, treatments.find(x=>insertKey(x)===tl)||tl),core=treatCore[tl]||0,apex=treatApex[tl]||0; if(apex>0&&core<10) tips.push({t:"warn",m:`${t}: apex card in deck but only ${core}/10 core cards — needs 10 core to be legal.`}); else if(core>=10&&apex===0) tips.push({t:"good",m:`${t} unlocked (${core} core) — you can add 1 apex card.`}); else if(core>0&&core<10){ const need=10-core; const ownedEligible = owned ? cards.filter(cc=>!deckSet.has(cc.id)&&insertKey(cc.treatment)===tl&&((parseFloat(cc.power)||0)>=115)&&((parseFloat(cc.power)||0)<=160)&&owned[cc.id]).length : 0; tips.push({t:"info",m:`${t}: ${core}/10 core toward an apex unlock.${owned?(ownedEligible>=need?` You own ${ownedEligible} eligible — enough to finish!`:` You own ${ownedEligible} of ${need} more needed.`):""}`}); } });
       if(treatments.length===0) tips.push({t:"info",m:"Apex Madness: build 10 core cards (115–160) of a treatment to unlock its apex card."});
     }
     if(isSpec){ const over=inDeck.filter(c=>(parseFloat(c.power)||0)>160).length; if(over>0) tips.push({t:"warn",m:`${over} card(s) over 160 power — not legal in a Spec deck.`}); }
@@ -28131,7 +28143,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     const needs=[];
     if(isAM){
       const treatments=[...new Set(inDeck.map(c=>c.treatment).filter(Boolean))];
-      treatments.forEach(t=>{ const tl=t.toLowerCase(),core=treatCore[tl]||0; if(core>0&&core<10){ const corePowers=["115","120","125","130","135","140","145","150","155","160"]; needs.push({ label:`Find core ${t} (${core}/10)`, t, p:corePowers }); } });
+      Array.from(new Set(treatments.map(insertKey))).forEach(tl=>{ const t=insertLabel(tl, treatments.find(x=>insertKey(x)===tl)||tl),core=treatCore[tl]||0; if(core>0&&core<10){ const corePowers=["115","120","125","130","135","140","145","150","155","160"]; needs.push({ label:`Find core ${t} (${core}/10)`, t, p:corePowers }); } });
     }
     return needs.slice(0,4);
   })();
@@ -28906,9 +28918,19 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               {isAM&&inDeck.length>0&&(
                 <div style={{marginBottom:14}}>
                   <div style={{fontSize:10,color:"#C084FC",fontWeight:700,textTransform:"uppercase",letterSpacing:1.2,marginBottom:9}}>Treatment Unlocks</div>
-                  {[...new Set(inDeck.map(c=>c.treatment).filter(Boolean))].sort().map(t=>{
-                    const tl=t.toLowerCase(),core=treatCore[tl]||0,apex=treatApex[tl]||0,unlocked=core>=10;
-                    return (
+                  {(() => {
+                    // Group the deck's treatments into INSERTS (Inspired Ink variants collapse into
+                    // one), then show one unlock row per insert rather than per treatment string.
+                    const byKey = {};
+                    inDeck.forEach(c => {
+                      if (!c.treatment) return;
+                      const k = insertKey(c.treatment);
+                      if (!byKey[k]) byKey[k] = c.treatment;   // first-seen name as the fallback label
+                    });
+                    return Object.keys(byKey).sort().map(tl => {
+                      const t = insertLabel(tl, byKey[tl]);
+                      const core=treatCore[tl]||0, apex=treatApex[tl]||0, unlocked=core>=10;
+                      return (
                       <div key={t} style={{marginBottom:7}}>
                         <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
                           <span style={{fontSize:11,color:unlocked?"#A855F7":"rgba(255,255,255,0.4)",fontWeight:unlocked?700:400}}>{unlocked?"\uD83D\uDD13":"\uD83D\uDD12"} {t}</span>
@@ -28919,7 +28941,8 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         </div>
                       </div>
                     );
-                  })}
+                    });
+                  })()}
                 </div>
               )}
               {(!isMobile || inDeck.length>0) && <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:3,marginBottom:10}}>
@@ -35680,7 +35703,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
   const inDeckDupKeys = useMemo(()=>new Set(inDeck.map(dupKey)), [inDeck]);
   const powerCount = useMemo(()=>{ const m={}; inDeck.forEach(c=>{const p=c.power||"0"; m[p]=(m[p]||0)+1;}); return m; }, [inDeck]);
   const treatCore={},treatApex={};
-  if(isAM){inDeck.forEach(c=>{const t=(c.treatment||"").toLowerCase(),p=parseFloat(c.power||0);if(p>=115&&p<=160)treatCore[t]=(treatCore[t]||0)+1;if(p>160)treatApex[t]=(treatApex[t]||0)+1;});}
+  if(isAM){inDeck.forEach(c=>{const t=insertKey(c.treatment),p=parseFloat(c.power||0);if(p>=115&&p<=160)treatCore[t]=(treatCore[t]||0)+1;if(p>160)treatApex[t]=(treatApex[t]||0)+1;});}
   // -- Tournament rule: a physical copy can't be in two decks at once. --
   // Count how many of the user's OTHER saved decks already commit each cardId (excluding the
   // deck currently being edited). A card locks only when other decks have used up every copy
