@@ -33415,6 +33415,10 @@ See you in there!
     "Power": ["power","power level","pwr"],
     "Quantity": ["quantity","qty","count","amount","# owned","owned","copies"],
     "Estimated Value": ["estimated value","value","fair market value","fmv","market value","price","est value","est. value","worth","comp"],
+    // Per-copy detail. Without these the columns were never mapped, so a typed note silently
+    // fell back to the default "Imported".
+    "Serial": ["serial","serial number","serial #","numbered","numbering","serial no"],
+    "Notes": ["notes","note","comment","comments","remarks","description"],
   };
   function autoDetectColumns(hdr) {
     const norm = s => String(s||"").replace(/[\s\-_.()/#]/g,"").toLowerCase();
@@ -38589,6 +38593,8 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 {key:"Power", label:"Power", required:false, hint:"Power level"},
                 {key:"Quantity", label:"Quantity", required:false, hint:"How many you own (defaults to 1)"},
                 {key:"Estimated Value", label:"Value", required:false, hint:"Market / estimated value"},
+                {key:"Serial", label:"Serial", required:false, hint:"e.g. 21/50 — goes on the first copy"},
+                {key:"Notes", label:"Notes", required:false, hint:"Your note about this copy"},
               ];
               const cm = importColMap || {};
               const nameOk = cm["Name"]>=0, setOk = cm["Set"]>=0;
