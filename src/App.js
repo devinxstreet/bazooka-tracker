@@ -28201,28 +28201,12 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               {user && deckProgress && (() => {
                 const pct = Math.min(100, Math.round((deckProgress.have/deckProgress.need)*100));
                 const done = deckProgress.have >= deckProgress.need;
-                // Apex Madness is too structured for a reliable one-tap auto-build (insert completeness,
-                // apex unlocks, foiled hot dogs). Point people to the manual builder + its rules tracker.
-                if (deckType === "apexmadness") {
-                  return (
-                    <div style={{background:"rgba(232,49,122,0.06)",border:"1px solid rgba(232,49,122,0.25)",borderRadius:14,padding:"14px 16px"}}>
-                      <div style={{fontSize:13,fontWeight:900,color:"#fff",marginBottom:6,display:"flex",alignItems:"center",gap:7,flexWrap:"wrap"}}>🔥 Apex Madness <span style={{fontSize:10,fontWeight:800,color:"#FBBF24",background:"rgba(251,191,36,0.12)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:6,padding:"2px 7px"}}>build manually</span></div>
-                      <div style={{fontSize:12,color:"#bbb",lineHeight:1.6,marginBottom:10}}>Apex Madness has too many moving parts (10 core per insert, apex unlocks, foiled Hot Dog slots) for a reliable one-tap build. Add cards below and the <strong>Apex Madness rules tracker</strong> will guide you — it shows which inserts you've unlocked and what each apex needs.</div>
-                      <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-                        <span style={{fontSize:11,color:"#a0a0a0",fontWeight:700}}>Goal:</span>
-                        <select value={deckType} onChange={e=>{ const v=e.target.value; setDeckType(v); if(!(v==="spec"||v==="vegasbaby"||v==="apex"||v==="apexmadness")) setDeckMaxMode(false); }} style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:"#E8317A"}}>
-                          {Object.entries(DECK_FORMATS).map(([k,f])=><option key={k} value={k}>{f.label}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                  );
-                }
                 const weapons = sortWeapons(Array.from(new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))));
                 const treatments = Array.from(new Set(cards.map(c=>c.treatment).filter(t=>t&&!["plays","bonus plays","home team discount"].includes(t.toLowerCase())))).sort();
                 // Sets, not strings: "Hex + Gum Prismatic" rather than "Hex Prismatic".
                 // Weapons are a PRIORITY order (first pick fills the deck first), so show them with › rather
-  // than "+", which reads as an unordered mix.
-  const goalLabel = [Array.from(deckGoalW).join(" › "), Array.from(deckGoalT).join(" + ")].filter(Boolean).join(" ");
+                // than "+", which reads as an unordered mix.
+                const goalLabel = [Array.from(deckGoalW).join(" › "), Array.from(deckGoalT).join(" + ")].filter(Boolean).join(" ");
                 const dtLabel = deckType==="spec"?"Spec (≤160)":deckType==="vegasbaby"?"Vegas Baby (≤160)":deckType==="apex"?"Apex":deckType==="apexmadness"?"Apex Madness":deckType==="none"?"":deckType;
                 return (
                   <div style={{background:done?"linear-gradient(135deg,rgba(74,222,128,0.12),rgba(34,197,94,0.06))":"rgba(255,255,255,0.02)",border:`1px solid ${done?"rgba(74,222,128,0.4)":"rgba(232,49,122,0.25)"}`,borderRadius:14,padding:"14px 16px"}}>
