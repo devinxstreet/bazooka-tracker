@@ -28056,7 +28056,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, familyOwnerByCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, giveDeckToFamily, familyList=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -28068,6 +28068,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const [sharedDeckId, setSharedDeckId] = useState(null);
   const [setsOpen, setSetsOpen] = useState(false);   // set picker collapsed by default
   const [goalWOpen, setGoalWOpen] = useState(false); // weapon picker — collapsed, like the sets one
+  const [giveDeckFor, setGiveDeckFor] = useState(null); // deck id whose "give to family" picker is open
   const [goalTOpen, setGoalTOpen] = useState(false); // treatment picker
   const [progressExpanded, setProgressExpanded] = useState(false);
   const [deckPage, setDeckPage] = useState(1);
@@ -28764,6 +28765,24 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                             style={{background:"none",border:"none",color: sharedDeckId===d.id ? "#4ade80" : "#8a8a8a",cursor:"pointer",fontSize:12,lineHeight:1,padding:"0 2px"}}>
                             {sharedDeckId===d.id ? "✓" : "🔗"}
                           </button>
+                          {familyList.length>0 && (
+                            <div style={{position:"relative"}}>
+                              <button onClick={()=>setGiveDeckFor(giveDeckFor===d.id?null:d.id)} title="Give this deck to a family member (moves it to their account)"
+                                style={{background:"none",border:"none",color: giveDeckFor===d.id ? "#C084FC" : "#8a8a8a",cursor:"pointer",fontSize:12,padding:"0 2px"}}>🎁</button>
+                              {giveDeckFor===d.id && (
+                                <div style={{position:"absolute",right:0,top:22,zIndex:50,background:"#1a1a1a",border:"1px solid #3a3a3a",borderRadius:8,padding:6,minWidth:150,boxShadow:"0 8px 24px rgba(0,0,0,0.5)"}}>
+                                  <div style={{fontSize:9.5,fontWeight:700,color:"var(--bz-ink-3)",textTransform:"uppercase",letterSpacing:0.6,padding:"3px 6px 5px"}}>Give deck to…</div>
+                                  {familyList.map(fm => (
+                                    <button key={fm.uid} onClick={()=>{ setGiveDeckFor(null); giveDeckToFamily && giveDeckToFamily(d, fm.uid, fm.name); }}
+                                      style={{display:"block",width:"100%",textAlign:"left",background:"none",border:"none",color:"var(--bz-ink)",fontSize:12,fontWeight:600,padding:"7px 8px",borderRadius:6,cursor:"pointer",fontFamily:"inherit"}}
+                                      onMouseEnter={e=>e.currentTarget.style.background="rgba(192,132,252,0.15)"} onMouseLeave={e=>e.currentTarget.style.background="none"}>
+                                      🎁 {fm.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
                           <button onClick={()=>deleteDeckTab(d.id)} style={{background:"none",border:"none",color:"#8a8a8a",cursor:"pointer",fontSize:13,lineHeight:1,padding:"0 1px"}}>×</button>
                         </div>
                       ))}
@@ -28866,6 +28885,41 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               if(pickSort==="treatment") return String(a.treatment||"").localeCompare(String(b.treatment||"")) || (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
               return 0;
             });
+            // Build clean printable HTML and open it in a popup window. Print vs Save PDF share this
+            // helper; "Print" auto-fires the dialog, "Save PDF" opens the window with a Save button.
+            const openPickPrint = (autoPrint) => {
+              const esc = s => String(s==null?"":s).replace(/[&<>"]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+              const dash = "\u2014", dot = "\u00b7";
+              const ownLabel = c => {
+                if (owned && owned[c.id]) return '<span style="color:#1a7a3a;font-weight:700">You</span>';
+                const fam = (familyOwnerByCard && familyOwnerByCard[c.id]) || (familyOwnsCard && familyOwnsCard[c.id]);
+                if (fam) return '<span style="color:#7B2FF7;font-weight:700">'+esc(fam.name||"Family")+'</span>';
+                return '<span style="color:#c0392b;font-weight:700">Not owned</span>';
+              };
+              const rows = sorted.map((c,i)=>('<tr><td class="num">'+(i+1)+'</td><td class="mono">'+esc(c.cardNum||dash)+'</td><td class="hero">'+esc(c.hero||dash)+'</td><td class="r">'+esc(c.power)+'</td><td>'+esc(c.weapon||dash)+'</td><td>'+esc(c.treatment||dash)+'</td><td class="set">'+esc(c.setName||dash)+'</td><td>'+ownLabel(c)+'</td></tr>')).join("");
+              const script = autoPrint ? '<scr'+'ipt>window.onload=function(){setTimeout(function(){window.print();},250);};</scr'+'ipt>' : '';
+              const html = '<!DOCTYPE html><html><head><title>'+esc(deckName||"My Deck")+' '+dash+' Pick List</title>'+
+                '<style>*{box-sizing:border-box;} body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:24px;color:#111;}'+
+                'h1{font-size:20px;font-weight:900;margin:0 0 2px;} .sub{font-size:12px;color:#888;margin-bottom:16px;}'+
+                'table{width:100%;border-collapse:collapse;font-size:12.5px;} thead{display:table-header-group;}'+
+                'th{text-align:left;background:#f3f3f3;border-bottom:2px solid #ccc;padding:7px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#555;}'+
+                'td{padding:6px;border-bottom:1px solid #e5e5e5;} tr{page-break-inside:avoid;}'+
+                'td.num{text-align:center;color:#999;} td.mono{font-family:monospace;color:#555;} td.hero{font-weight:700;}'+
+                'td.r{text-align:right;font-weight:800;} th.r{text-align:right;} td.set{color:#888;font-size:11.5px;}'+
+                '.foot{margin-top:16px;font-size:11px;color:#aaa;text-align:center;}'+
+                '.btns{margin-bottom:18px;} button{background:#111;color:#fff;border:none;border-radius:7px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;margin-right:8px;}'+
+                '@page{margin:14mm;} @media print{.btns{display:none;}}</style></head><body>'+
+                '<div class="btns"><button onclick="window.print()">Print</button><button onclick="window.print()">Save as PDF</button><button onclick="window.close()" style="background:#666">Close</button></div>'+
+                '<h1>'+esc(deckName||"My Deck")+' '+dash+' Pick List</h1>'+
+                '<div class="sub">'+sorted.length+' cards '+dot+' generated '+new Date().toLocaleDateString()+'</div>'+
+                '<table><thead><tr><th>#</th><th>Card #</th><th>Hero</th><th class="r">Power</th><th>Weapon</th><th>Treatment</th><th>Set</th><th>In Collection</th></tr></thead>'+
+                '<tbody>'+rows+'</tbody></table>'+
+                '<div class="foot">Bazooka Dash '+dot+' '+esc(deckName||"My Deck")+'</div>'+script+
+                '</body></html>';
+              const w = window.open("","_blank","width=900,height=1000");
+              if (!w) { alert("Please allow pop-ups for this site to print or save the pick list."); return; }
+              w.document.write(html); w.document.close();
+            };
             return (
             <div onClick={()=>setShowPickList(false)} className="pick-list-overlay" style={{position:"fixed",inset:0,zIndex:13000,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:24,overflowY:"auto"}}>
               <div onClick={e=>e.stopPropagation()} className="pick-list-sheet" style={{width:"100%",maxWidth:720,background:"#fff",color:"#111",borderRadius:12,padding:"28px 30px",boxShadow:"0 24px 80px rgba(0,0,0,0.6)",position:"relative",margin:"auto"}}>
@@ -28878,54 +28932,8 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     ))}
                   </div>
                   <div style={{display:"flex",gap:8}}>
-                    <button onClick={()=>{
-                      // Print via a CLEAN popup window (same approach as the weekly schedule print).
-                      // Printing the app in place kept duplicating page 1 because the pick list lives
-                      // in a fixed/flex/scrolling overlay that browsers mis-paginate. A standalone
-                      // window with just the table paginates correctly every time.
-                      const esc = s => String(s==null?"":s).replace(/[&<>"]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
-                      const ownLabel = c => {
-                        if (owned && owned[c.id]) return '<span style="color:#1a7a3a;font-weight:700">You</span>';
-                        const fam = familyOwnerByCard && familyOwnerByCard[c.id];
-                        if (fam) return '<span style="color:#7B2FF7;font-weight:700">'+esc(fam.name||"Family")+'</span>';
-                        return '<span style="color:#c0392b;font-weight:700">Not owned</span>';
-                      };
-                      const rows = sorted.map((c,i)=>(
-                        '<tr>'+
-                        '<td class="num">'+(i+1)+'</td>'+
-                        '<td class="mono">'+esc(c.cardNum||"—")+'</td>'+
-                        '<td class="hero">'+esc(c.hero||"—")+'</td>'+
-                        '<td class="r">'+esc(c.power)+'</td>'+
-                        '<td>'+esc(c.weapon||"—")+'</td>'+
-                        '<td>'+esc(c.treatment||"—")+'</td>'+
-                        '<td class="set">'+esc(c.setName||"—")+'</td>'+
-                        '<td>'+ownLabel(c)+'</td>'+
-                        '</tr>'
-                      )).join("");
-                      const html = '<!DOCTYPE html><html><head><title>'+esc(deckName||"My Deck")+' — Pick List</title>'+
-                        '<style>'+
-                        '*{box-sizing:border-box;} body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:24px;color:#111;}'+
-                        'h1{font-size:20px;font-weight:900;margin:0 0 2px;} .sub{font-size:12px;color:#888;margin-bottom:16px;}'+
-                        'table{width:100%;border-collapse:collapse;font-size:12.5px;} thead{display:table-header-group;}'+
-                        'th{text-align:left;background:#f3f3f3;border-bottom:2px solid #ccc;padding:7px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#555;}'+
-                        'td{padding:6px;border-bottom:1px solid #e5e5e5;} tr{page-break-inside:avoid;}'+
-                        'td.num{text-align:center;color:#999;} td.mono{font-family:monospace;color:#555;} td.hero{font-weight:700;}'+
-                        'td.r{text-align:right;font-weight:800;} th.r{text-align:right;} td.set{color:#888;font-size:11.5px;}'+
-                        '.foot{margin-top:16px;font-size:11px;color:#aaa;text-align:center;}'+
-                        '.btns{margin-bottom:18px;} button{background:#111;color:#fff;border:none;border-radius:7px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;margin-right:8px;}'+
-                        '@page{margin:14mm;} @media print{.btns{display:none;}}'+
-                        '</style></head><body>'+
-                        '<div class="btns"><button onclick="window.print()">🖨 Print / Save PDF</button><button onclick="window.close()" style="background:#666">Close</button></div>'+
-                        '<h1>'+esc(deckName||"My Deck")+' — Pick List</h1>'+
-                        '<div class="sub">'+sorted.length+' cards · generated '+new Date().toLocaleDateString()+'</div>'+
-                        '<table><thead><tr><th>#</th><th>Card #</th><th>Hero</th><th class="r">Power</th><th>Weapon</th><th>Treatment</th><th>Set</th><th>In Collection</th></tr></thead>'+
-                        '<tbody>'+rows+'</tbody></table>'+
-                        '<div class="foot">Bazooka Dash · '+esc(deckName||"My Deck")+'</div>'+
-                        '</body></html>';
-                      const w = window.open("","_blank","width=900,height=1000");
-                      if (!w) { alert("Please allow pop-ups for this site to print the pick list."); return; }
-                      w.document.write(html); w.document.close();
-                    }} style={{background:"#111",color:"#fff",border:"none",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🖨 Print / Save PDF</button>
+                    <button onClick={()=>openPickPrint(true)} style={{background:"#111",color:"#fff",border:"none",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🖨 Print</button>
+                    <button onClick={()=>openPickPrint(false)} style={{background:"#7B2FF7",color:"#fff",border:"none",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>📄 Save PDF</button>
                     <button onClick={()=>setShowPickList(false)} style={{background:"#f0f0f0",color:"#444",border:"none",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
                   </div>
                 </div>
@@ -28960,7 +28968,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         <td style={{padding:"6px",color:"#888",fontSize:12}}>{c.setName||"—"}</td>
                         <td style={{padding:"6px",fontSize:12,fontWeight:700}}>{(() => {
                           if (owned && owned[c.id]) return <span style={{color:"#1a7a3a"}}>You</span>;
-                          const fam = familyOwnerByCard && familyOwnerByCard[c.id];
+                          const fam = (familyOwnerByCard && familyOwnerByCard[c.id]) || (familyOwnsCard && familyOwnsCard[c.id]);
                           if (fam) return <span style={{color:"#7B2FF7"}}>{fam.name || "Family"}</span>;
                           return <span style={{color:"#c0392b"}}>Not owned</span>;
                         })()}</td>
@@ -31261,6 +31269,8 @@ See you in there!
 
   // -- Friends --
   const [friends,       setFriends]       = useState([]);
+  // Family members (mutual family link) — used for handing a deck over to their account.
+  const familyList = useMemo(() => (friends||[]).filter(f => f.isFamily).map(f => ({ uid: f.friendUid, name: f.friendName || "Family" })), [friends]);
   const [friendReqs,    setFriendReqs]    = useState([]);
   const [sentReqs,      setSentReqs]      = useState([]);
   const [addEmail,      setAddEmail]      = useState("");
@@ -31353,6 +31363,28 @@ See you in there!
     if (!window.confirm("Delete this deck?")) return;
     try { await deleteDoc(doc(db,"boba_decks",id)); } catch(e){ alert("Delete failed: "+(e?.message||e)); return; }
     if (deckLoadId === id) { setDeckLoadId(null); setDeckName("My Deck"); setDeckCards([]); }
+  }
+  // Hand a deck over to a family member's account. This MOVES the deck: it leaves your account and
+  // becomes theirs (only the deck LIST moves — card ownership is untouched). Works in one write
+  // because the boba_decks update rule checks the CURRENT owner (you) == you, and the new owner can
+  // be anyone. After this, you can't edit it and they can, load it, and share it as their own.
+  async function giveDeckToFamily(deck, toUid, toName) {
+    if (!deck || !toUid) return;
+    if (!window.confirm(`Give "${deck.name||"this deck"}" to ${toName||"them"}? It will move to their account and leave yours. (Your cards are not affected — only the deck list moves.)`)) return;
+    try {
+      await updateDoc(doc(db,"boba_decks",deck.id), {
+        userId: toUid,
+        transferredFrom: user.uid,
+        transferredFromName: (user.displayName || user.email || "A family member"),
+        transferredAt: new Date().toISOString(),
+      });
+      // It's no longer mine — drop it from my open editor if it was loaded, and from my list.
+      if (deckLoadId === deck.id) { setDeckLoadId(null); setDeckName("My Deck"); setDeckCards([]); }
+      setSavedDecks(list => (list||[]).filter(d => d.id !== deck.id));
+      setToast(`Deck given to ${toName||"them"} — it's on their account now.`);
+    } catch(e) {
+      alert("Couldn't give the deck: " + (e?.message||e));
+    }
   }
   function loadDeckTab(d) { setDeckLoadId(d.id); setDeckName(d.name||"My Deck"); setDeckCards(d.cardIds||[]); setDeckType(d.deckType||"none"); }
   function newDeckTab() { setDeckLoadId(null); setDeckName("My Deck"); setDeckCards([]); }
@@ -35691,6 +35723,19 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     });
     return { familyOwnerByCard: fam, deckOwnedMerged: merged };
   }, [owned, familyAvail, otherDeckUse, allDeckUse]);
+
+  // PROVENANCE (not availability): who OWNS each card, regardless of whether it's still free to lend.
+  // familyOwnerByCard drops a card once it's been borrowed into a deck (correct for availability), but
+  // the pick list needs to show "Derrik owns this" even after it's committed. This map never nets out
+  // borrows — it's purely "does a family member's collection contain this card id."
+  const familyOwnsCard = useMemo(() => {
+    const m = {};
+    Object.entries(familyAvail||{}).forEach(([famUid, info]) => {
+      const nm = info.ownerName || "Family";
+      Object.keys(info.cards||{}).forEach(cid => { if (!m[cid]) m[cid] = { uid: famUid, name: nm }; });
+    });
+    return m;
+  }, [familyAvail]);
   function canAddToDeck(c){
     const F = fmtOf(deckType);                    // this format's rules — see DECK_FORMATS
     const SIZE = F.size || 60;
@@ -40615,10 +40660,10 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             deckFilterT={deckFilterT} setDeckFilterT={setDeckFilterT}
             WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
             cards={cards} owned={owned} inp={inp}
-            familyOwnerByCard={familyOwnerByCard} deckOwnedMerged={deckOwnedMerged}
+            familyOwnerByCard={familyOwnerByCard} familyOwnsCard={familyOwnsCard} deckOwnedMerged={deckOwnedMerged}
             canAddToDeck={canAddToDeck} isMobile={isMobile}
             savedDecks={savedDecks} familyDecks={familyDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
-            saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} setFanDeck={setFanDeck} setFanMode={setFanMode}
+            saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} giveDeckToFamily={giveDeckToFamily} familyList={familyList} setFanDeck={setFanDeck} setFanMode={setFanMode}
             deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} deckSource={deckSource} setDeckSource={setDeckSource} computeDeckProgress={computeDeckProgress} listings={listings} setActiveTab={setActiveTab} deckLegality={deckLegality}
           />
         )}
