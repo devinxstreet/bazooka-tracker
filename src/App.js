@@ -17004,7 +17004,31 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
               </>}
             </div>
             <div>
-              {c.power && <div style={{ fontSize:isSmallCard?16:22, fontWeight:900, color:wc, marginBottom:8 }}>{c.power}{"\u26A1"}</div>}
+              {c.power && (
+                <div style={{ marginBottom:8 }}>
+                  <div style={{ fontSize:isSmallCard?16:22, fontWeight:900, color:wc }}>
+                    {c.power}{"\u26A1"}
+                    {/* Buff / nerf: show what the power WAS, so the change is visible rather than silent. */}
+                    {c.originalPower!=null && Number(c.originalPower)!==Number(c.power) && (
+                      <span style={{ fontSize:isSmallCard?10:12, fontWeight:800, marginLeft:7, color: Number(c.power)>Number(c.originalPower) ? "#4ade80" : "#E8317A" }}>
+                        {Number(c.power)>Number(c.originalPower) ? "\u25B2" : "\u25BC"} was {c.originalPower}
+                      </span>
+                    )}
+                  </div>
+                  {c.isError && (
+                    <div style={{ marginTop:6, display:"inline-flex", alignItems:"center", gap:5, background:"rgba(251,191,36,0.12)", border:"1px solid rgba(251,191,36,0.4)", borderRadius:6, padding:"3px 8px", fontSize:10, fontWeight:800, color:"#FBBF24" }}>
+                      {"\u26A0\uFE0F"} Error card
+                    </div>
+                  )}
+                  {c.errorNote && <div style={{ marginTop:5, fontSize:10.5, color:"var(--bz-ink-3)", lineHeight:1.45 }}>{c.errorNote}</div>}
+                  {/* Who changed the power and when — internal provenance, admins only. */}
+                  {isAdmin && c.powerEditedAt && (
+                    <div style={{ marginTop:5, fontSize:9.5, color:"rgba(255,255,255,0.3)" }}>
+                      power edited {String(c.powerEditedAt).split("T")[0]}{c.powerEditedBy?` by ${c.powerEditedBy}`:""}
+                    </div>
+                  )}
+                </div>
+              )}
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:6 }}>
                 {toggleWant && <button onClick={e=>{e.stopPropagation();toggleWant(c.id);}} style={{ background:isWanted?"#1a0f00":"rgba(255,255,255,0.03)", border:`1px solid ${isWanted?"#FBBF24":"#333"}`, color:isWanted?"#FBBF24":"#999", borderRadius:7, padding:"7px 8px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{isWanted?"\uD83C\uDFAF Wanted":"+ Want"}</button>}
                 {onComp && <button onClick={e=>{e.stopPropagation();onComp(c);}} style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:7, padding:"7px 8px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>📊 Comp</button>}
@@ -33686,6 +33710,11 @@ See you in there!
     { id:"inspiredBy", label:"Inspired By" },
     { id:"playName",   label:"Play Name" },
     { id:"power",      label:"Power" },
+    // Error / corrected cards. isError badges the card publicly (misprints, buffed or nerfed power);
+    // errorNote explains it in the card's own words. originalPower is captured automatically the
+    // first time power changes — see bulkEditCards — so nobody has to remember to type it.
+    { id:"isError",    label:"Error card (public badge)", isFlag:true },
+    { id:"errorNote",  label:"Error note (shown publicly)" },
     { id:"imageUrl",   label:"Image URL (placeholder)", isImage:true },
   ];
 
@@ -33699,19 +33728,41 @@ See you in there!
       const patch = {};
       fields.forEach(f => {
         const raw = String(bulkEdits[f] ?? "").trim();
-        patch[f] = f === "power" ? (raw === "" ? null : Number(raw)) : raw;
+        if (f === "power") { patch[f] = raw === "" ? null : Number(raw); }
+        else if (f === "isError") { patch[f] = raw === "true" || raw === "1" || raw === "yes"; }
+        else { patch[f] = raw; }
       });
 
       const ids = [...selectedIds];
+      const byId = new Map(cards.map(c=>[c.id,c]));
+      const now = new Date().toISOString();
+      const editor = user?.email || user?.displayName || "admin";
+      // Power edits get extra bookkeeping, PER CARD: remember what the power was before the very
+      // first change (so a buff/nerf can be shown as "was 150"), and stamp who changed it and when.
+      // originalPower is only ever written once — re-editing a card later must not overwrite the
+      // true original with an already-adjusted value.
+      const patchFor = (id) => {
+        if (!("power" in patch)) return patch;
+        const c = byId.get(id) || {};
+        const prev = c.power;
+        const extra = { powerEditedBy: editor, powerEditedAt: now };
+        if (c.originalPower === undefined || c.originalPower === null) {
+          if (prev !== undefined && prev !== null && Number(prev) !== Number(patch.power)) {
+            extra.originalPower = Number(prev);
+          }
+        }
+        return { ...patch, ...extra };
+      };
+
       for (let i=0; i<ids.length; i+=300) {
         const batch = writeBatch(db);
         ids.slice(i, i+300).forEach(id =>
-          batch.set(doc(db,"boba_checklist",id), patch, { merge:true })
+          batch.set(doc(db,"boba_checklist",id), patchFor(id), { merge:true })
         );
         await batch.commit();
       }
       // Reflect locally so the grid updates without a reload.
-      setCards(prev => prev.map(c => selectedIds.has(c.id) ? { ...c, ...patch } : c));
+      setCards(prev => prev.map(c => selectedIds.has(c.id) ? { ...c, ...patchFor(c.id) } : c));
       setToast(`\u2713 Updated ${fields.length} field${fields.length===1?"":"s"} on ${ids.length} card${ids.length===1?"":"s"}`);
       setBulkEditOpen(false); setBulkEdits({}); clearSelection();
     } catch(e) {
@@ -38132,6 +38183,15 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                       </label>
                       {on && (
                         <div style={{padding:"0 12px 11px 42px"}}>
+                          {f.isFlag ? (
+                            <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12.5,color:"var(--bz-ink)",cursor:"pointer"}}>
+                              <input type="checkbox" disabled={bulkEditing}
+                                checked={bulkEdits[f.id]==="true"}
+                                onChange={e=>setBulkEdits(prev=>({...prev,[f.id]: e.target.checked ? "true" : "false"}))}
+                                style={{accentColor:"#FBBF24",width:16,height:16}}/>
+                              {bulkEdits[f.id]==="true" ? "Flag these as error cards" : "Not an error card (unchecking clears the badge)"}
+                            </label>
+                          ) : (
                           <input
                             value={bulkEdits[f.id]}
                             onChange={e=>setBulkEdits(prev=>({...prev,[f.id]:e.target.value}))}
@@ -38139,6 +38199,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                             type={f.id==="power" ? "number" : "text"}
                             placeholder={f.id==="power" ? "e.g. 150 \u2014 blank to clear" : `New ${f.label.toLowerCase()}\u2026`}
                             style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:7,padding:"8px 11px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
+                          )}
                         {f.isImage && (
                           <div style={{marginTop:8,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                             <label style={{fontSize:11.5,fontWeight:700,color:"#7B9CFF",cursor:bulkImgUploading?"wait":"pointer",background:"rgba(123,156,255,0.1)",border:"1px solid rgba(123,156,255,0.35)",borderRadius:7,padding:"7px 12px"}}>
