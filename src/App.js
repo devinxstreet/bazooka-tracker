@@ -882,12 +882,6 @@ function GlobalStyles() {
       .boba-card-hover:hover .boba-flip-pill { opacity: 1; transform: translateY(0); }
       .boba-card-hover:hover .boba-quickadd { opacity: 1; }
       @media (hover: none) { .boba-flip-pill { opacity: 1; transform: none; } }
-      /* Owned badge: a short pop when it first appears, so acquiring a card registers as a win
-         rather than a state change. Deliberately brief — it fires on every grid render of a newly
-         owned card, and anything longer gets annoying on a big set. */
-      @keyframes bzOwnedPop { 0%{ transform:scale(0.4); opacity:0; } 60%{ transform:scale(1.18); opacity:1; } 100%{ transform:scale(1); opacity:1; } }
-      .boba-ownedbadge { animation: bzOwnedPop 0.32s cubic-bezier(0.34,1.56,0.64,1); }
-      .boba-ownedbadge:hover { filter: brightness(1.12); }
 
       /* Mobile */
       @media (max-width: 768px) {
@@ -16958,20 +16952,15 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
             {!_isScanImg && isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
             {isMetallicFoil && <div ref={metallicRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.08s ease", pointerEvents:"none", zIndex:3 }}/>}
             {!onExpand && <div className="boba-flip-pill" style={{ position:"absolute", bottom:6, right:6, display:"flex", alignItems:"center", gap:3, fontSize:10, color:"#fff", fontWeight:700, background:"rgba(0,0,0,0.6)", borderRadius:12, padding:"3px 8px", backdropFilter:"blur(4px)", border:"1px solid rgba(255,255,255,0.15)", pointerEvents:"none" }}>{"\uD83D\uDD04"} flip</div>}
-            {/* Owning a card should read as an ACHIEVEMENT, not a disabled state. Previously the + just
-                vanished when you owned something, so the card lost an element instead of gaining one \u2014
-                the opposite of a reward. Now it earns a green check (and a copy count when >1). */}
-            {toggleOwned && isOwned && (
-              <div className="boba-ownedbadge" title={qty>1?`You own ${qty}`:"In your collection"}
-                onClick={e=>{ e.stopPropagation(); toggleOwned(c.id); onCardActivity&&onCardActivity(); }}
-                style={{ position:"absolute", top:7, right:7, zIndex:6, cursor:"pointer",
-                  minWidth:isSmallCard?22:26, height:isSmallCard?22:26, padding:qty>1?"0 7px":0, borderRadius:999,
-                  display:"flex", alignItems:"center", justifyContent:"center", gap:3,
-                  background:"linear-gradient(135deg,#4ade80,#22c55e)", color:"#04220f",
-                  border:"1.5px solid rgba(255,255,255,0.85)",
-                  fontSize:isSmallCard?12:13, fontWeight:900, fontFamily:"inherit",
-                  boxShadow:"0 2px 10px rgba(74,222,128,0.55)", lineHeight:1 }}>
-                {qty>1 ? `\u00d7${qty}` : "\u2713"}
+            {/* Multiples only. A plain owned card needs no marker — the green border says it, and
+                anything sitting on the art competes with the card itself. A count is different:
+                you cannot infer "I have 3" from a border, so it earns the small footprint. */}
+            {isOwned && qty > 1 && (
+              <div title={`You own ${qty}`} style={{ position:"absolute", top:6, right:6, zIndex:6, pointerEvents:"none",
+                background:"rgba(4,34,15,0.82)", color:"#4ade80", border:"1px solid rgba(74,222,128,0.7)",
+                borderRadius:6, padding:"1px 6px", fontSize:isSmallCard?9.5:10.5, fontWeight:900,
+                fontFamily:"inherit", lineHeight:1.5, backdropFilter:"blur(3px)" }}>
+                {"\u00d7"}{qty}
               </div>
             )}
             {toggleOwned && (
@@ -38524,7 +38513,6 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
         .boba-flip-pill { opacity: 0; transform: translateY(4px); transition: opacity 0.18s ease, transform 0.18s ease; }
         .boba-card-hover:hover .boba-flip-pill { opacity: 1; transform: translateY(0); }
         .boba-card-hover:hover .boba-quickadd { opacity: 1 !important; }
-        .pub-card-grid > *:hover .boba-priv-dim { opacity: 0; }
         @media (hover: none) { .boba-quickadd { opacity: 1 !important; } }
         .deck-pb-cardlist > div > div:hover .deck-add-badge { opacity: 1; }
         .fan-card:hover { filter: brightness(1.12); z-index: 999 !important; box-shadow: 0 24px 70px rgba(0,0,0,0.85) !important; }
@@ -41458,8 +41446,13 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                     </div>
                   )}
                   {/* Owned cards are private by default — subtle dim + lock until made public */}
+                  {/* Private used to throw a 28% black wash over the whole card. Private is the DEFAULT,
+                      so in practice that dimmed a user's entire collection \u2014 the cards they worked for
+                      looked switched off. Convey it with a small lock instead and leave the art alone. */}
                   {owned[c.id]&&!publicCards[c.id]&&privacyAnim!==c.id&&(
-                    <div className="boba-priv-dim" style={{position:"absolute",inset:0,borderRadius:10,background:"rgba(0,0,0,0.28)",pointerEvents:"none",zIndex:5,transition:"opacity 0.2s ease"}}/>
+                    <div title="Private \u2014 only you can see this" style={{position:"absolute",bottom:6,right:6,zIndex:5,pointerEvents:"none",width:19,height:19,borderRadius:"50%",background:"rgba(0,0,0,0.55)",backdropFilter:"blur(3px)",border:"1px solid rgba(251,191,36,0.5)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9.5,lineHeight:1}}>
+                      {"\uD83D\uDD12"}
+                    </div>
                   )}
                   {/* In-transit indicator stays on the tile (at-a-glance, avoid double-buying).
                       Public/private toggle + list-for-sale moved to the expanded card modal. */}
