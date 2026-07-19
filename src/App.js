@@ -25786,11 +25786,16 @@ function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onRec
   );
 }
 
-function TradeOfferModal({ trader, cards, owned, tradeBait, myTrades = [], myUid, deckLocked = {}, onSend, onClose }) {
-  const [want, setWant] = useState(new Set());
+function TradeOfferModal({ trader, cards, owned, tradeBait, myTrades = [], myUid, deckLocked = {}, onSend, onClose, preselect = null, cashFirst = false }) {
+  // preselect: a card the user clicked on directly, so they don't have to hunt for it in the list.
+  const [want, setWant] = useState(() => new Set(preselect ? [preselect.id] : []));
   const [give, setGive] = useState(new Set());
   const [note, setNote] = useState("");
   const [sending, setSending] = useState(false);
+  // Cash can go EITHER WAY: you might add cash to sweeten what you're giving, or ask for cash on
+  // top of their card. A card being listed for trade doesn't mean the owner won't take money.
+  const [myCash, setMyCash] = useState("");
+  const [theirCash, setTheirCash] = useState("");
 
   const theirCards = trader.theirCards || [];
 
@@ -25832,6 +25837,8 @@ function TradeOfferModal({ trader, cards, owned, tradeBait, myTrades = [], myUid
       theirCards: theirCards.filter(c => want.has(c.id)),
       myCards: myOfferable.filter(c => give.has(c.id)),
       note,
+      cashFromSender: parseFloat(myCash)||0,
+      cashFromRecipient: parseFloat(theirCash)||0,
     });
     setSending(false);
     onClose();
@@ -25889,6 +25896,28 @@ function TradeOfferModal({ trader, cards, owned, tradeBait, myTrades = [], myUid
           </div>
         </div>
 
+        {/* Cash on either side. Listing a card for trade doesn't mean the owner won't take money,
+            and a straight cash offer is often the easiest deal to say yes to \u2014 previously there was
+            no way to make one from here at all. */}
+        <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+          <div style={{flex:1,minWidth:130}}>
+            <div style={{fontSize:10,color:"#a0a0a0",marginBottom:3,fontWeight:700}}>{"\uD83D\uDCB5"} Cash I'll add</div>
+            <input type="number" inputMode="decimal" min="0" value={myCash} onChange={e=>setMyCash(e.target.value)}
+              placeholder="0.00" autoFocus={cashFirst}
+              style={{width:"100%",background:"#0b0b0b",border:"1px solid "+(parseFloat(myCash)>0?"rgba(74,222,128,0.5)":"#333"),borderRadius:8,padding:"9px 11px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
+          </div>
+          <div style={{flex:1,minWidth:130}}>
+            <div style={{fontSize:10,color:"#a0a0a0",marginBottom:3,fontWeight:700}}>Cash they'll add</div>
+            <input type="number" inputMode="decimal" min="0" value={theirCash} onChange={e=>setTheirCash(e.target.value)}
+              placeholder="0.00"
+              style={{width:"100%",background:"#0b0b0b",border:"1px solid "+(parseFloat(theirCash)>0?"rgba(74,222,128,0.5)":"#333"),borderRadius:8,padding:"9px 11px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
+          </div>
+        </div>
+        {(parseFloat(myCash)>0 || parseFloat(theirCash)>0) && give.size===0 && want.size>0 && (
+          <div style={{fontSize:11,color:"#4ade80",marginBottom:10,lineHeight:1.5}}>
+            Straight cash offer {"\u2014"} no cards from your side.
+          </div>
+        )}
         <textarea value={note} onChange={e=>setNote(e.target.value)} rows={2}
           placeholder="Add a note (optional)\u2026"
           style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:12.5,color:"#fff",fontFamily:"inherit",resize:"vertical",marginBottom:14}}/>
@@ -25909,7 +25938,7 @@ function TradeOfferModal({ trader, cards, owned, tradeBait, myTrades = [], myUid
   );
 }
 
-function TradeView({ user, traders, matchCount, wantList, onViewProfile, setActiveTab, setSigningIn, WEAPON_COLORS, onZoom = ()=>{}, onOffer = ()=>{} }) {
+function TradeView({ user, traders, matchCount, wantList, onViewProfile, setActiveTab, setSigningIn, WEAPON_COLORS, onZoom = ()=>{}, onOffer = ()=>{}, onCashOffer = ()=>{} }) {
   const [expanded, setExpanded] = useState(null);
 
   if (!user) {
@@ -25943,20 +25972,42 @@ function TradeView({ user, traders, matchCount, wantList, onViewProfile, setActi
     );
   }
 
-  const CardChip = ({ c, isMatch }) => (
-    <div onClick={()=>c.imageUrl && onZoom({image:c.imageUrl, name:c.hero||c.playName||"", sub:[c.treatment,c.weapon,c.setName].filter(Boolean).join(" \u00b7 ")})}
-      title={c.imageUrl ? "Click to enlarge" : `${c.hero||c.playName||""}`}
-      style={{display:"flex",alignItems:"center",gap:7,cursor:c.imageUrl?"zoom-in":"default",background:isMatch?"rgba(74,222,128,0.1)":"rgba(255,255,255,0.03)",border:`1px solid ${isMatch?"rgba(74,222,128,0.35)":"rgba(255,255,255,0.07)"}`,borderRadius:8,padding:"5px 9px 5px 5px"}}>
-      {c.imageUrl
-        ? <img src={c.imageUrl} alt="" style={{width:26,height:35,objectFit:"cover",borderRadius:4,flexShrink:0}}/>
-        : <div style={{width:26,height:35,borderRadius:4,background:"rgba(255,255,255,0.05)",flexShrink:0}}/>}
-      <div style={{minWidth:0}}>
-        <div style={{fontSize:11.5,fontWeight:800,color:isMatch?"#4ade80":"#ddd",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:140}}>
+  // Trade cards were 26x35px thumbnails \u2014 far too small to judge a card you are considering
+  // trading for. Condition, centring and finish are the whole decision, so the art gets real
+  // estate and the actions sit on the card rather than only at the trader level.
+  const CardChip = ({ c, isMatch, trader }) => (
+    <div style={{width:112,background:isMatch?"rgba(74,222,128,0.08)":"rgba(255,255,255,0.03)",border:`1px solid ${isMatch?"rgba(74,222,128,0.4)":"rgba(255,255,255,0.08)"}`,borderRadius:10,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+      <div onClick={()=>c.imageUrl && onZoom({image:c.imageUrl, name:c.hero||c.playName||"", sub:[c.treatment,c.weapon,c.setName].filter(Boolean).join(" \u00b7 ")})}
+        title={c.imageUrl ? "Click to enlarge" : `${c.hero||c.playName||""}`}
+        style={{position:"relative",cursor:c.imageUrl?"zoom-in":"default",aspectRatio:"3/4",background:"rgba(255,255,255,0.04)"}}>
+        {c.imageUrl
+          ? <img src={c.imageUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
+          : <div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,color:"rgba(255,255,255,0.25)",textAlign:"center",padding:6}}>no image</div>}
+        {isMatch && (
+          <div style={{position:"absolute",top:4,left:4,background:"rgba(74,222,128,0.92)",color:"#04220f",fontSize:8.5,fontWeight:900,padding:"1px 5px",borderRadius:4}}>WANT</div>
+        )}
+      </div>
+      <div style={{padding:"5px 6px 6px"}}>
+        <div style={{fontSize:11,fontWeight:800,color:isMatch?"#4ade80":"#ddd",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
           {c.hero || c.playName || "\u2014"}
         </div>
-        <div style={{fontSize:9.5,color:"rgba(255,255,255,0.35)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:140}}>
-          {[c.treatment, c.weapon, c.cardNum].filter(Boolean).join(" \u00b7 ")}
+        <div style={{fontSize:9,color:"rgba(255,255,255,0.35)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginTop:1}}>
+          {[c.treatment, c.weapon].filter(Boolean).join(" \u00b7 ") || c.cardNum || ""}
         </div>
+        {/* Per-card actions. Wanting ONE specific card is the common case; making people open a
+            full trade builder just to ask about it was the friction. */}
+        {trader && (
+          <div style={{display:"flex",gap:4,marginTop:5}}>
+            <button onClick={e=>{ e.stopPropagation(); onOffer(trader, c); }} title="Offer a trade for this card"
+              style={{flex:1,background:"rgba(232,49,122,0.15)",border:"1px solid rgba(232,49,122,0.45)",color:"#E8317A",borderRadius:6,padding:"3px 0",fontSize:9.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+              {"\uD83D\uDD01"} Trade
+            </button>
+            <button onClick={e=>{ e.stopPropagation(); onCashOffer && onCashOffer(trader, c); }} title="Offer cash for this card"
+              style={{flex:1,background:"rgba(74,222,128,0.13)",border:"1px solid rgba(74,222,128,0.4)",color:"#4ade80",borderRadius:6,padding:"3px 0",fontSize:9.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+              $ Offer
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -26015,7 +26066,7 @@ function TradeView({ user, traders, matchCount, wantList, onViewProfile, setActi
               {/* Matches first — this is what you came for. */}
               {t.matches.length > 0 && (
                 <div style={{display:"flex",gap:7,flexWrap:"wrap",marginBottom:others.length>0?10:0}}>
-                  {t.matches.map(c => <CardChip key={c.id} c={c} isMatch/>)}
+                  {t.matches.map(c => <CardChip key={c.id} c={c} isMatch trader={t}/>)}
                 </div>
               )}
 
@@ -26028,7 +26079,7 @@ function TradeView({ user, traders, matchCount, wantList, onViewProfile, setActi
                   </button>
                   {open && (
                     <div style={{display:"flex",gap:7,flexWrap:"wrap",marginTop:9}}>
-                      {others.map(c => <CardChip key={c.id} c={c}/>)}
+                      {others.map(c => <CardChip key={c.id} c={c} trader={t}/>)}
                     </div>
                   )}
                 </>
@@ -26107,6 +26158,10 @@ function MarketTab({ onMarkTraded, onEditPackage, onAddSideToTrade, onUnacceptTr
   // card to see it properly.
   const [zoomCard, setZoomCard] = useState(null);   // {image, name, sub}
   const [offerTo,  setOfferTo]  = useState(null);   // trader we are building an offer for
+  // A card the user clicked directly, plus whether they came via the "$ Offer" button so the
+  // cash field can take focus. Saves hunting for the card in a long list.
+  const [offerPreselect, setOfferPreselect] = useState(null);
+  const [offerCashFirst, setOfferCashFirst] = useState(false);
 
   // ── Trade matching ──────────────────────────────────────────────────────────────────────────
   // For each person who opted in, which of their flagged cards are on MY want list? That intersection
@@ -26269,7 +26324,9 @@ function MarketTab({ onMarkTraded, onEditPackage, onAddSideToTrade, onUnacceptTr
                 onTracking={onTradeTracking} onReceived={onTradeReceived} cards={cards} owned={owned} onAddSide={onAddSideToTrade} onUnaccept={onUnacceptTrade} deckLockedForTrade={deckLockedForTrade}/>
             ) : mktView==="trade" ? (
               <TradeView user={user} traders={traders} matchCount={matchCount}
-                wantList={wantList} onViewProfile={onViewProfile} onZoom={setZoomCard} onOffer={setOfferTo}
+                wantList={wantList} onViewProfile={onViewProfile} onZoom={setZoomCard}
+                onOffer={(t,card)=>{ setOfferPreselect(card||null); setOfferCashFirst(false); setOfferTo(t); }}
+                onCashOffer={(t,card)=>{ setOfferPreselect(card||null); setOfferCashFirst(true); setOfferTo(t); }}
                 setActiveTab={setActiveTab} setSigningIn={setSigningIn} WEAPON_COLORS={WEAPON_COLORS}/>
             ) : (
             <>
@@ -26540,9 +26597,9 @@ function MarketTab({ onMarkTraded, onEditPackage, onAddSideToTrade, onUnacceptTr
             )}
       {/* Offer builder — opened from a trader row in For Trade. */}
       {offerTo && (
-        <TradeOfferModal trader={offerTo} cards={cards} owned={owned} tradeBait={tradeBait}
+        <TradeOfferModal trader={offerTo} cards={cards} owned={owned} tradeBait={tradeBait} preselect={offerPreselect} cashFirst={offerCashFirst}
           myTrades={tradeOffers} myUid={user?.uid} deckLocked={deckLockedForTrade}
-          onSend={onSendTrade} onClose={()=>setOfferTo(null)}/>
+          onSend={onSendTrade} onClose={()=>{ setOfferTo(null); setOfferPreselect(null); setOfferCashFirst(false); }}/>
       )}
 
 
