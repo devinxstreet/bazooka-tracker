@@ -28356,6 +28356,9 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const [giveDeckFor, setGiveDeckFor] = useState(null); // deck id whose "give to family" picker is open
   const [goalTOpen, setGoalTOpen] = useState(false); // treatment picker
   const [progressExpanded, setProgressExpanded] = useState(false);
+  // Quick Build starts collapsed: most time in this tab is manual building, and the card grid is
+  // the thing that needs the room. Expanding it is one click when you do want it.
+  const [quickOpen, setQuickOpen] = useState(false);
   const [deckPage, setDeckPage] = useState(1);
   const [showPickList, setShowPickList] = useState(false);   // printable pick-list modal
   const [pickSort, setPickSort] = useState("power");         // "power" | "cardnum" | "weapon"
@@ -28478,7 +28481,23 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
         <>
           <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column":"row",gap:16,alignItems:"stretch",height:isMobile?"auto":"calc(100vh - 150px)",minHeight:isMobile?"auto":520}}>
             <div style={{display:"flex",flexDirection:"column",gap:10,flex:1,minWidth:0,minHeight:0,overflowY:isMobile?"visible":"auto",paddingRight:isMobile?0:6}}>
-              {user && deckProgress && (() => {
+              {/* The quick builder and the manual builder are alternative MODES, not companions \u2014 you
+                  use one or the other. Leaving the quick panel permanently expanded left the manual
+                  card grid squeezed into whatever was left, which is no use when the whole point is
+                  looking at cards. Collapsing it hands the full page to the manual builder. */}
+              {user && deckProgress && (
+                <button onClick={()=>setQuickOpen(v=>!v)}
+                  style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,width:"100%",
+                    background:"rgba(255,255,255,0.03)",border:"1px solid var(--bz-line)",borderRadius:10,
+                    padding:"9px 12px",cursor:"pointer",fontFamily:"inherit",color:"var(--bz-ink)"}}>
+                  <span style={{fontSize:12.5,fontWeight:800,display:"flex",alignItems:"center",gap:7}}>
+                    {"\u26A1"} Quick Build
+                    {!quickOpen && <span style={{fontSize:10.5,fontWeight:600,color:"var(--bz-ink-3)"}}>build a deck from your collection automatically</span>}
+                  </span>
+                  <span style={{fontSize:11,fontWeight:700,color:"var(--bz-ink-3)"}}>{quickOpen ? "\u25B4 Hide" : "\u25BE Show"}</span>
+                </button>
+              )}
+              {quickOpen && user && deckProgress && (() => {
                 const pct = Math.min(100, Math.round((deckProgress.have/deckProgress.need)*100));
                 const done = deckProgress.have >= deckProgress.need;
                 const weapons = sortWeapons(Array.from(new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))));
@@ -29056,7 +29075,11 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                   limit, so picking a treatment shrank the list, the page got shorter, and the browser
                   clamped your scroll position back to the top \u2014 which reads as "it jumped me to the
                   top every time I select a filter". Owning the scroll keeps your place. */}
-              <div className="deck-pb-cardlist" style={{paddingRight:4,maxHeight:isMobile?"58vh":"calc(100vh - 300px)",overflowY:"auto",overflowX:"hidden",overscrollBehavior:"contain"}}>
+              {/* Generous cap so the cards are actually big enough to see. An earlier fix capped this
+                  at calc(100vh - 300px), but this list is in normal page flow with a tall filter panel
+                  above it, so on shorter windows almost nothing was left. minHeight guarantees a
+                  usable window regardless; the scroll still keeps filtering from moving the page. */}
+              <div className="deck-pb-cardlist" style={{paddingRight:4,minHeight:420,maxHeight:isMobile?"none":"78vh",overflowY:isMobile?"visible":"auto",overflowX:"hidden",overscrollBehavior:"contain"}}>
                 {deckAvail.length===0?<div style={{padding:40,textAlign:"center",color:"rgba(255,255,255,0.2)"}}>No cards match filters</div>:
                   <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(auto-fill,minmax(95px,1fr))":"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
                   {deckVisible.map((c)=>{
