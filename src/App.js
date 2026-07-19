@@ -29487,9 +29487,18 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
   }
   function shootCam() {
     const v = videoRef.current; if (!v || !v.videoWidth) return;
+    // Capture what the user actually FRAMED. The preview is a 4:5 window onto a 16:9 sensor
+    // (object-fit: cover), so grabbing the raw frame would hand the scanner a wide image full of
+    // desk either side of the card \u2014 more background for the OCR to wade through, and not what the
+    // guide box promised. Crop the centre to the same 4:5 the preview showed.
+    const TARGET = 4/5;
+    const sw = v.videoWidth, sh = v.videoHeight;
+    let cw = sw, ch = Math.round(sw / TARGET);
+    if (ch > sh) { ch = sh; cw = Math.round(sh * TARGET); }
+    const sx = Math.round((sw - cw) / 2), sy = Math.round((sh - ch) / 2);
     const cv = document.createElement("canvas");
-    cv.width = v.videoWidth; cv.height = v.videoHeight;
-    cv.getContext("2d").drawImage(v, 0, 0);
+    cv.width = cw; cv.height = ch;
+    cv.getContext("2d").drawImage(v, sx, sy, cw, ch, 0, 0, cw, ch);
     cv.toBlob(b => {
       if (!b) return;
       stopCam();
@@ -29573,10 +29582,14 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
             )}
             {camOn && (
               <div style={{marginTop:10}}>
-                <div style={{position:"relative",borderRadius:14,overflow:"hidden",background:"#000",border:"2px solid rgba(232,49,122,0.35)"}}>
-                  <video ref={videoRef} playsInline muted style={{width:"100%",display:"block",maxHeight:"46vh",objectFit:"cover"}}/>
+                {/* A webcam is 16:9 but a card is portrait, so filling the width gave a wide letterbox
+                    with the card tiny in the middle. Fix the FRAME to a card-ish 4:5 and let the video
+                    cover it \u2014 you lose the useless left/right edges, and the card fills the view.
+                    The capture still grabs the full sensor frame, so nothing is actually cropped away. */}
+                <div style={{position:"relative",width:"100%",maxWidth:340,aspectRatio:"4/5",margin:"0 auto",borderRadius:14,overflow:"hidden",background:"#000",border:"2px solid rgba(232,49,122,0.35)"}}>
+                  <video ref={videoRef} playsInline muted style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
                   <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
-                    <div style={{width:"58%",aspectRatio:"5/7",border:"2px dashed rgba(255,255,255,0.5)",borderRadius:10}}/>
+                    <div style={{height:"84%",aspectRatio:"5/7",border:"2px dashed rgba(255,255,255,0.55)",borderRadius:10}}/>
                   </div>
                 </div>
                 <div style={{display:"flex",gap:8,marginTop:10}}>
@@ -41360,17 +41373,31 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                         // Only on cards you've actually ticked — showing a stepper on every owned card
                         // clutters the grid and invites changing quantities you never meant to touch.
                         if (!selectedIds.has(c.id)) return null;
-                        const q = parseInt(owned[c.id]) || 0;
+                        // Show the count you'll END UP with, not the current one. Selecting a card is
+                        // already an implicit "+1" (Mark Owned takes it to 1), so a selected unowned
+                        // card must read 1 — showing 0 and silently becoming 1 later is confusing.
+                        const actual = parseInt(owned[c.id]) || 0;
+                        const q = actual || 1;
                         const btn = {background:"rgba(0,0,0,0.75)",border:"1px solid rgba(255,255,255,0.3)",color:"#fff",width:24,height:24,borderRadius:6,fontSize:15,fontWeight:900,cursor:"pointer",fontFamily:"inherit",lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",padding:0};
                         const stop = e => { e.preventDefault(); e.stopPropagation(); };
                         return (
                           <div onMouseDown={stop} onTouchStart={stop} onClick={stop}
                             style={{position:"absolute",top:"72%",left:"50%",transform:"translate(-50%,-50%)",display:"flex",alignItems:"center",gap:6,background:"rgba(0,0,0,0.72)",border:"1px solid rgba(255,255,255,0.18)",borderRadius:10,padding:"5px 7px",backdropFilter:"blur(4px)",boxShadow:"0 3px 10px rgba(0,0,0,0.5)"}}>
                             <button onMouseDown={stop} onTouchStart={stop}
-                              onClick={e=>{ stop(e); setOwnedQty(c.id, Math.max(0, q-1)); }} style={btn}>{"\u2212"}</button>
-                            <span style={{minWidth:22,textAlign:"center",fontSize:14,fontWeight:900,color:q>0?"#4ade80":"rgba(255,255,255,0.45)"}}>{q}</span>
+                              onClick={e=>{ stop(e);
+                                // Stepping below 1 on an unowned card means "I don't want this after all",
+                                // so drop the selection instead of leaving it ticked at 0.
+                                if (q <= 1) { if (actual) setOwnedQty(c.id, 0); toggleSelect(c.id); }
+                                else setOwnedQty(c.id, q-1);
+                              }} style={btn}>{"\u2212"}</button>
+                            <span style={{minWidth:22,textAlign:"center",fontSize:14,fontWeight:900,color:"#4ade80"}}>{q}</span>
                             <button onMouseDown={stop} onTouchStart={stop}
-                              onClick={e=>{ stop(e); setOwnedQty(c.id, q+1); }} style={btn}>+</button>
+                              onClick={e=>{ stop(e);
+                                // The displayed 1 on an unowned card is a PROMISE, not a stored value:
+                                // owned is still 0 until Mark Owned runs. So the first + must commit
+                                // that promised 1 rather than jumping straight to 2.
+                                setOwnedQty(c.id, actual ? actual+1 : 1);
+                              }} style={btn}>+</button>
                           </div>
                         );
                       })()}
