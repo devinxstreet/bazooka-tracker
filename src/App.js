@@ -882,6 +882,12 @@ function GlobalStyles() {
       .boba-card-hover:hover .boba-flip-pill { opacity: 1; transform: translateY(0); }
       .boba-card-hover:hover .boba-quickadd { opacity: 1; }
       @media (hover: none) { .boba-flip-pill { opacity: 1; transform: none; } }
+      /* Owned badge: a short pop when it first appears, so acquiring a card registers as a win
+         rather than a state change. Deliberately brief — it fires on every grid render of a newly
+         owned card, and anything longer gets annoying on a big set. */
+      @keyframes bzOwnedPop { 0%{ transform:scale(0.4); opacity:0; } 60%{ transform:scale(1.18); opacity:1; } 100%{ transform:scale(1); opacity:1; } }
+      .boba-ownedbadge { animation: bzOwnedPop 0.32s cubic-bezier(0.34,1.56,0.64,1); }
+      .boba-ownedbadge:hover { filter: brightness(1.12); }
 
       /* Mobile */
       @media (max-width: 768px) {
@@ -16943,7 +16949,7 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
       <div className="boba-card-hover" style={{ aspectRatio:"3/4", perspective:"1000px" }} onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter} onPointerLeave={onMouseLeave} onPointerCancel={onMouseLeave} onTouchEnd={onMouseLeave}>
         <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transition:"transform 0.2s ease, box-shadow 0.2s ease", borderRadius:10, cursor:"pointer", willChange:"transform" }} onClick={handleClick}>
          <div className="boba-flipper" style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.55s cubic-bezier(0.34,1.3,0.5,1)", transform:isFlipped?"rotateY(180deg)":"rotateY(0deg)", willChange:"transform" }}>
-          <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}` }}>
+          <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade80":"#1a1a1a"}`, boxShadow:isOwned?"0 0 0 1px rgba(74,222,128,0.35), 0 4px 18px rgba(74,222,128,0.22)":"none" }}>
             <img src={_displayImg} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
             {_isScanImg && <div style={{ position:"absolute", top:6, left:6, zIndex:4, background:"rgba(0,0,0,0.7)", border:"1px solid rgba(74,222,128,0.5)", color:"#4ade80", borderRadius:6, padding:"2px 7px", fontSize:9, fontWeight:800, letterSpacing:0.5, backdropFilter:"blur(3px)" }}>📸 Your scan</div>}
             {!_isScanImg && isFoilTreatment && !isIceFoil && <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", backgroundPosition:"var(--foilpos,50% 50%)", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>}
@@ -16952,6 +16958,22 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
             {!_isScanImg && isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
             {isMetallicFoil && <div ref={metallicRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.08s ease", pointerEvents:"none", zIndex:3 }}/>}
             {!onExpand && <div className="boba-flip-pill" style={{ position:"absolute", bottom:6, right:6, display:"flex", alignItems:"center", gap:3, fontSize:10, color:"#fff", fontWeight:700, background:"rgba(0,0,0,0.6)", borderRadius:12, padding:"3px 8px", backdropFilter:"blur(4px)", border:"1px solid rgba(255,255,255,0.15)", pointerEvents:"none" }}>{"\uD83D\uDD04"} flip</div>}
+            {/* Owning a card should read as an ACHIEVEMENT, not a disabled state. Previously the + just
+                vanished when you owned something, so the card lost an element instead of gaining one \u2014
+                the opposite of a reward. Now it earns a green check (and a copy count when >1). */}
+            {toggleOwned && isOwned && (
+              <div className="boba-ownedbadge" title={qty>1?`You own ${qty}`:"In your collection"}
+                onClick={e=>{ e.stopPropagation(); toggleOwned(c.id); onCardActivity&&onCardActivity(); }}
+                style={{ position:"absolute", top:7, right:7, zIndex:6, cursor:"pointer",
+                  minWidth:isSmallCard?22:26, height:isSmallCard?22:26, padding:qty>1?"0 7px":0, borderRadius:999,
+                  display:"flex", alignItems:"center", justifyContent:"center", gap:3,
+                  background:"linear-gradient(135deg,#4ade80,#22c55e)", color:"#04220f",
+                  border:"1.5px solid rgba(255,255,255,0.85)",
+                  fontSize:isSmallCard?12:13, fontWeight:900, fontFamily:"inherit",
+                  boxShadow:"0 2px 10px rgba(74,222,128,0.55)", lineHeight:1 }}>
+                {qty>1 ? `\u00d7${qty}` : "\u2713"}
+              </div>
+            )}
             {toggleOwned && (
               isOwned ? null : (
                 <button className="boba-quickadd" onClick={e=>{ e.stopPropagation(); toggleOwned(c.id); onCardActivity&&onCardActivity(); }}
@@ -16968,7 +16990,7 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
               )
             )}
           </div>
-          <div onPointerDown={()=>onCardActivity&&onCardActivity()} onPointerMove={()=>onCardActivity&&onCardActivity()} onKeyDown={()=>onCardActivity&&onCardActivity()} style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"var(--bz-s1)", border:`2px solid ${isOwned?"#4ade8044":"#2a2a2a"}`, borderRadius:10, padding:isSmallCard?"8px 9px":"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between", overflow:"hidden" }}>
+          <div onPointerDown={()=>onCardActivity&&onCardActivity()} onPointerMove={()=>onCardActivity&&onCardActivity()} onKeyDown={()=>onCardActivity&&onCardActivity()} style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"var(--bz-s1)", border:`2px solid ${isOwned?"#4ade80":"#2a2a2a"}`, borderRadius:10, padding:isSmallCard?"8px 9px":"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between", overflow:"hidden" }}>
             <div style={{ overflowY:"auto", overflowX:"hidden", flex:1, minHeight:0, display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
             <div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
@@ -17071,7 +17093,7 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
     );
   }
   return (
-    <div onClick={handleClick} style={{ aspectRatio:"3/4", background:isOwned?"#0a1a0a":"#111111", border:`2px solid ${isOwned?"#4ade8044":"#1a1a1a"}`, borderRadius:10, overflow:"hidden", display:"flex", flexDirection:"column", cursor:"pointer" }}>
+    <div onClick={handleClick} style={{ aspectRatio:"3/4", background:isOwned?"linear-gradient(160deg,#0d2416,#0a1a0a)":"#111111", border:`2px solid ${isOwned?"#4ade80":"#1a1a1a"}`, boxShadow:isOwned?"0 0 0 1px rgba(74,222,128,0.3), 0 4px 16px rgba(74,222,128,0.18)":"none", borderRadius:10, overflow:"hidden", display:"flex", flexDirection:"column", cursor:"pointer" }}>
       {/* "Image coming soon" art placeholder — fills the card-art area */}
       <div style={{ position:"relative", flex:"1 1 58%", minHeight:0, background:`linear-gradient(135deg, ${wc}18, #0a0a0a 70%)`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", borderBottom:`1px solid ${wc}22` }}>
         <div style={{ fontSize:30, opacity:0.35, marginBottom:6 }}>🃏</div>
@@ -38658,6 +38680,11 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
           {selectedIds.size===0 && <span style={{fontSize:10.5,color:"rgba(255,255,255,0.3)",whiteSpace:"nowrap",lineHeight:1.3}}>drag to sweep</span>}
           <button onClick={()=>{ const vis=visibleCards.map(c=>c.id); setSelectedIds(new Set(vis)); }} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.65)",borderRadius:8,padding:"6px 11px",fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Select shown</button>
           <button onClick={clearSelection} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.15)",color:"rgba(255,255,255,0.5)",borderRadius:8,padding:"6px 11px",fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Clear</button>
+          {/* Done lives here as well as up in the header. The header copy is often a long scroll away
+              once you have worked down a big set, and every other action you are using is in this
+              bar — having to scroll back to the top just to leave select mode was the whole gripe. */}
+          <button onClick={exitSelectMode} title="Leave select mode"
+            style={{background:"rgba(123,156,255,0.18)",border:"1px solid rgba(123,156,255,0.5)",color:"#7B9CFF",borderRadius:8,padding:"6px 13px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{"✕ Done"}</button>
           <div style={{width:1,height:24,background:"rgba(255,255,255,0.12)"}}/>
 
           {/* THE THREE EVERYDAY ACTIONS. Everything else lives in the More menu below — this bar had
