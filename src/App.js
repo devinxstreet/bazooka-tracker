@@ -41586,6 +41586,20 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                       onTouchStart={e=>{ e.stopPropagation(); toggleSelect(c.id); setDragAnchor(c.id); }}
                       style={{position:"absolute",inset:0,zIndex:30,borderRadius:10,cursor:"pointer",userSelect:"none",border:selectedIds.has(c.id)?"3px solid #7B9CFF":"3px solid transparent",background:selectedIds.has(c.id)?"rgba(123,156,255,0.18)":"rgba(0,0,0,0.15)",transition:"all 0.12s"}}>
                       <div style={{position:"absolute",top:8,left:8,width:26,height:26,borderRadius:"50%",background:selectedIds.has(c.id)?"#7B9CFF":"rgba(0,0,0,0.6)",border:"2px solid #fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:900,color:"#fff",boxShadow:"0 2px 6px rgba(0,0,0,0.5)"}}>{selectedIds.has(c.id)?"✓":""}</div>
+                      {/* Way into a card WITHOUT leaving select mode. The overlay swallows normal clicks
+                          (that is what makes drag-select work), so opening needs its own target that
+                          stops the event the same way the quantity stepper does. Selection survives. */}
+                      <button title="Open this card" aria-label="Open this card"
+                        onMouseDown={e=>{ e.preventDefault(); e.stopPropagation(); }}
+                        onTouchStart={e=>{ e.stopPropagation(); }}
+                        onClick={e=>{ e.preventDefault(); e.stopPropagation(); setExpandedCard(c); }}
+                        style={{position:"absolute",top:6,right:6,zIndex:6,width:26,height:26,borderRadius:"50%",
+                          background:"rgba(0,0,0,0.66)",border:"1.5px solid rgba(255,255,255,0.55)",color:"#fff",
+                          fontSize:13,fontWeight:900,cursor:"pointer",fontFamily:"inherit",lineHeight:1,padding:0,
+                          display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(3px)",
+                          boxShadow:"0 2px 6px rgba(0,0,0,0.5)"}}>
+                        {"\u2197"}
+                      </button>
                       {/* Quantity stepper, right on the card while selecting. Logging four of the same
                           card used to mean opening it, bumping the counter, backing out \u2014 per card.
                           stopPropagation everywhere so tapping \u2212/+ never toggles the selection. */}
