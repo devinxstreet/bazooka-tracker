@@ -41796,9 +41796,9 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                         // Only on cards you've actually ticked — showing a stepper on every owned card
                         // clutters the grid and invites changing quantities you never meant to touch.
                         if (!selectedIds.has(c.id)) return null;
-                        // Show the count you'll END UP with, not the current one. Selecting a card is
-                        // already an implicit "+1" (Mark Owned takes it to 1), so a selected unowned
-                        // card must read 1 — showing 0 and silently becoming 1 later is confusing.
+                        // Selecting a card implies at least one copy, so a selected unowned card reads 1
+                        // rather than 0. `actual` stays the stored value so the +/− handlers below can
+                        // tell "displayed 1 because selected" apart from "really own 1".
                         const actual = parseInt(owned[c.id]) || 0;
                         const q = actual || 1;
                         const btn = {background:"rgba(0,0,0,0.75)",border:"1px solid rgba(255,255,255,0.3)",color:"#fff",width:24,height:24,borderRadius:6,fontSize:15,fontWeight:900,cursor:"pointer",fontFamily:"inherit",lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",padding:0};
@@ -41813,7 +41813,10 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                                 if (q <= 1) { if (actual) setOwnedQty(c.id, 0); toggleSelect(c.id); }
                                 else setOwnedQty(c.id, q-1);
                               }} style={btn}>{"\u2212"}</button>
-                            <span style={{minWidth:22,textAlign:"center",fontSize:14,fontWeight:900,color:"#4ade80"}}>{q}</span>
+                            <span title={actual ? `You own ${actual}` : "Not owned yet — selecting implies 1"}
+                              style={{minWidth:22,textAlign:"center",fontSize:14,fontWeight:900,
+                                color: actual ? "#4ade80" : "rgba(255,255,255,0.45)",
+                                fontStyle: actual ? "normal" : "italic"}}>{q}</span>
                             <button onMouseDown={stop} onTouchStart={stop}
                               onClick={e=>{ stop(e);
                                 // The displayed 1 on an unowned card is a PROMISE, not a stored value:
