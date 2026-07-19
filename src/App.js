@@ -38350,11 +38350,11 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   <button onClick={()=>setCompCard(c)} style={{ width:"100%", marginTop:10, background:"rgba(123,156,255,0.12)", border:"1.5px solid rgba(123,156,255,0.45)", color:"#7B9CFF", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>📊 View Sold Comps (eBay + in-app)</button>
                   {owned[c.id] && (<>
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginTop:10 }}>
-                    <button onClick={()=>togglePrivate(c.id)} style={{ background:publicCards[c.id]?"rgba(74,222,128,0.12)":"rgba(255,255,255,0.04)", border:`1.5px solid ${publicCards[c.id]?"#4ade80":"#333"}`, color:publicCards[c.id]?"#4ade80":"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{publicCards[c.id]?"👁 Public":"🔒 Private"}</button>
+                    <button onClick={()=>togglePrivate(c.id)} title={publicCards[c.id]?"Shown on your public profile — click to hide":"Only you can see this — click to show it off"} style={{ background:publicCards[c.id]?"rgba(74,222,128,0.14)":"rgba(251,191,36,0.1)", border:`1.5px solid ${publicCards[c.id]?"#4ade80":"rgba(251,191,36,0.55)"}`, color:publicCards[c.id]?"#4ade80":"#FBBF24", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{publicCards[c.id]?"👁 Public":"🔒 Private"}</button>
                     {myListings.find(l=>l.cardId===c.id) ? (
                       <button disabled style={{ background:"rgba(74,222,128,0.08)", border:"1.5px solid rgba(74,222,128,0.3)", color:"#4ade80", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, fontFamily:"inherit", cursor:"default" }}>💰 Listed</button>
                     ) : (
-                      <button onClick={()=>setListModal(c)} style={{ background:"rgba(255,255,255,0.04)", border:"1.5px solid #333", color:"#ccc", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>💰 List for Sale</button>
+                      <button onClick={()=>setListModal(c)} style={{ background:"rgba(232,49,122,0.1)", border:"1.5px solid rgba(232,49,122,0.45)", color:"#E8317A", borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>💰 List for Sale</button>
                     )}
                   </div>
                   <div style={{ fontSize:10, color:"var(--bz-ink-3)", marginTop:6, textAlign:"center" }}>{publicCards[c.id]?"Shown on your public profile.":"Only you can see this card. Make it public to show it off."}</div>
