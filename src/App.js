@@ -33397,8 +33397,18 @@ See you in there!
     const next = {...owned};
     let changed = 0;
     if (add) {
+      // Cards whose quantity you already set with the on-card stepper are ALREADY saved — the
+      // stepper writes as you tap. So this only fills in the ones still at zero. Reporting just
+      // that number read as "1 card added" when the user had clearly queued up four copies, so
+      // report total copies across the selection instead of only the rows this call touched.
       selectedIds.forEach(id => { if (!next[id]) { next[id] = 1; changed++; } });
       if (changed === 0) { alert("You already own every card selected."); return; }
+      const totalCopies = [...selectedIds].reduce((s,id) => s + (parseInt(next[id])||0), 0);
+      const titles = selectedIds.size;
+      setOwned(next);
+      queueOwnedSave(next);
+      setToast(`Added ${totalCopies} cop${totalCopies===1?"y":"ies"} across ${titles} card${titles!==1?"s":""}.`);
+      return;
     } else {
       const have = [...selectedIds].filter(id => next[id]);
       if (have.length === 0) { alert("None of the selected cards are in your collection."); return; }
