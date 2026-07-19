@@ -26083,7 +26083,7 @@ function MarketTab({ onMarkTraded, onEditPackage, onAddSideToTrade, onUnacceptTr
   const [mktTradingId, setMktTradingId] = useState(null);
   async function mktMarkTraded(pk) {
     const count = (pk.items||[]).reduce((s,it)=>s+(parseInt(it.qty)||1),0);
-    if (!window.confirm(`Mark this package as traded?\n\nThis removes ${count} card${count===1?"":"s"} from your collection and logs them to your Ledger as traded. This can't be undone in bulk.`)) return;
+    if (!window.confirm(`Mark this package as traded?\n\nThis removes ${count} card${count===1?"":"s"} from your collection and logs them to your Vault Report as traded. This can't be undone in bulk.`)) return;
     setMktTradingId(pk.id);
     try {
       await onMarkTraded(pk);
@@ -30823,6 +30823,62 @@ function AccountingLedger({ lots=[], marketSales=[], user, cards=[] }) {
   const netProfit      = totalSales - totalPurchases;
   const currentValue   = lots.reduce((s,l)=>s+(l.value||0),0);
 
+  // ---- PORTFOLIO MATH -------------------------------------------------------------------
+  // The distinction that matters: REALISED gain is money you actually banked (sales minus what
+  // those cards cost you). UNREALISED is paper — what you hold is worth more than you paid, but
+  // you have not sold it. Lumping them together is how people fool themselves about performance.
+  const heldLots  = lots.filter(l => !l.soldAt && !l.sold);
+  const costBasis = heldLots.reduce((s,l)=>s+(Number(l.cost)||0),0);      // what the held cards cost
+  const heldValue = heldLots.reduce((s,l)=>s+(Number(l.value)||0),0);     // what they're worth now
+  const unrealised = heldValue - costBasis;
+  const unrealisedPct = costBasis > 0 ? (unrealised / costBasis) * 100 : null;
+
+  // Cost basis of things actually sold, so realised profit is real rather than "all sales are profit".
+  const soldCostById = {};
+  lots.filter(l => l.soldAt || l.sold).forEach(l => { soldCostById[l.cardId] = (soldCostById[l.cardId]||0) + (Number(l.cost)||0); });
+  const realisedCost = Object.values(soldCostById).reduce((s,n)=>s+n,0);
+  const realised = totalSales - realisedCost;
+  const realisedPct = realisedCost > 0 ? (realised / realisedCost) * 100 : null;
+
+  // Overall ROI on every dollar you have put in, banked and on paper together.
+  const totalIn  = costBasis + realisedCost;
+  const totalOut = heldValue + totalSales;
+  const roiPct   = totalIn > 0 ? ((totalOut - totalIn) / totalIn) * 100 : null;
+
+  // How much of the collection has a cost recorded. Without this the numbers look authoritative
+  // when they may be built on a fraction of the data — the single most misleading thing a
+  // financial screen can do.
+  const lotsWithCost = heldLots.filter(l => Number(l.cost) > 0).length;
+  const costCoverage = heldLots.length ? (lotsWithCost / heldLots.length) * 100 : 0;
+  const lotsWithValue = heldLots.filter(l => Number(l.value) > 0).length;
+  const valueCoverage = heldLots.length ? (lotsWithValue / heldLots.length) * 100 : 0;
+
+  // Per-card performance — the "positions" view. Group held lots by card.
+  const byCard = {};
+  heldLots.forEach(l => {
+    const k = l.cardId;
+    if (!byCard[k]) byCard[k] = { cardId:k, name:cardName(k), qty:0, cost:0, value:0 };
+    byCard[k].qty   += 1;
+    byCard[k].cost  += Number(l.cost)||0;
+    byCard[k].value += Number(l.value)||0;
+  });
+  const positions = Object.values(byCard).map(p => ({
+    ...p,
+    gain: p.value - p.cost,
+    pct: p.cost > 0 ? ((p.value - p.cost) / p.cost) * 100 : null,
+  }));
+  const movers = positions.filter(p => p.cost > 0).sort((a,b)=>b.gain-a.gain);
+  const topGainers = movers.slice(0,5);
+  const topLosers  = movers.slice(-5).reverse().filter(p => p.gain < 0);
+  const biggest = [...positions].sort((a,b)=>b.value-a.value).slice(0,5);
+
+  // Insurance view: replacement value, and the pieces significant enough to schedule individually
+  // (most policies want anything over a threshold listed by name rather than lumped in).
+  const INSURE_THRESHOLD = 250;
+  const scheduled = positions.filter(p => (p.value/Math.max(1,p.qty)) >= INSURE_THRESHOLD)
+                             .sort((a,b)=>b.value-a.value);
+  const scheduledValue = scheduled.reduce((s,p)=>s+p.value,0);
+
   // Monthly P&L
   const months = {};
   const monthKey = (d) => (d||"").slice(0,7); // YYYY-MM
@@ -30834,38 +30890,177 @@ function AccountingLedger({ lots=[], marketSales=[], user, cards=[] }) {
 
   const card = { background:"var(--bz-s1)", border:"1px solid var(--bz-line-2)", borderRadius:14, padding:"16px 18px" };
 
-  if (!user) return <div style={{textAlign:"center",padding:60,color:"rgba(255,255,255,0.4)"}}>Sign in to see your ledger.</div>;
+  if (!user) return <div style={{textAlign:"center",padding:60,color:"rgba(255,255,255,0.4)"}}>Sign in to see your Vault Report.</div>;
 
   return (
     <div style={{ maxWidth:820, margin:"0 auto" }}>
-      <div style={{ fontSize:22, fontWeight:900, color:"#fff", marginBottom:4 }}>📒 Your Ledger</div>
-      <div style={{ fontSize:13, color:"rgba(255,255,255,0.45)", marginBottom:20 }}>Lifetime buying & selling, pulled from your card costs and your marketplace sales.</div>
+      <div style={{ fontSize:22, fontWeight:900, color:"#fff", marginBottom:4 }}>📊 Vault Report</div>
+      <div style={{ fontSize:13, color:"rgba(255,255,255,0.45)", marginBottom:16 }}>What your collection cost, what it's worth, and how it's performing.</div>
+
+      {/* How complete the underlying data is. Every number below is only as good as the costs and
+          values entered, so say so up front rather than presenting confident-looking totals built
+          on a third of the collection. */}
+      {heldLots.length > 0 && (costCoverage < 95 || valueCoverage < 95) && (
+        <div style={{ background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.3)", borderRadius:12, padding:"11px 14px", marginBottom:16, fontSize:12, color:"#FBBF24", lineHeight:1.6 }}>
+          <strong>Based on partial data.</strong>{" "}
+          {Math.round(costCoverage)}% of your copies have a purchase price and {Math.round(valueCoverage)}% have a value.
+          Anything missing counts as $0, so the totals below understate reality. Add costs under {"\uD83D\uDCB0"} Details on a card.
+        </div>
+      )}
 
       {/* Top-line numbers */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:12, marginBottom:16 }}>
+      {/* HEADLINE: what it's worth, what it cost, and the gap between them. */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))", gap:12, marginBottom:12 }}>
+        <div style={{ ...card, borderColor:"rgba(123,156,255,0.3)" }}>
+          <div style={{ fontSize:11, color:"var(--bz-ink-2)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Vault Value</div>
+          <div style={{ fontSize:26, fontWeight:900, color:"#7B9CFF", marginTop:4 }}>{money(heldValue)}</div>
+          <div style={{ fontSize:11, color:"#999", marginTop:2 }}>{heldLots.length} cop{heldLots.length===1?"y":"ies"} held</div>
+        </div>
         <div style={{ ...card, borderColor:"rgba(232,49,122,0.25)" }}>
-          <div style={{ fontSize:11, color:"var(--bz-ink-2)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Lifetime Purchases</div>
-          <div style={{ fontSize:24, fontWeight:900, color:"#E8317A", marginTop:4 }}>{money(totalPurchases)}</div>
-          <div style={{ fontSize:11, color:"#999", marginTop:2 }}>{purchases.length} buy{purchases.length===1?"":"s"}</div>
+          <div style={{ fontSize:11, color:"var(--bz-ink-2)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Cost Basis</div>
+          <div style={{ fontSize:26, fontWeight:900, color:"#E8317A", marginTop:4 }}>{money(costBasis)}</div>
+          <div style={{ fontSize:11, color:"#999", marginTop:2 }}>what you paid for them</div>
         </div>
-        <div style={{ ...card, borderColor:"rgba(74,222,128,0.25)" }}>
-          <div style={{ fontSize:11, color:"var(--bz-ink-2)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Lifetime Sales</div>
-          <div style={{ fontSize:24, fontWeight:900, color:"#4ade80", marginTop:4 }}>{money(totalSales)}</div>
-          <div style={{ fontSize:11, color:"#999", marginTop:2 }}>{sales.length} sale{sales.length===1?"":"s"}</div>
+        <div style={{ ...card, borderColor:unrealised>=0?"rgba(74,222,128,0.3)":"rgba(239,68,68,0.3)" }}>
+          <div style={{ fontSize:11, color:"var(--bz-ink-2)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Unrealised</div>
+          <div style={{ fontSize:26, fontWeight:900, color:unrealised>=0?"#4ade80":"#EF4444", marginTop:4 }}>
+            {unrealised>=0?"+":""}{money(unrealised)}
+          </div>
+          <div style={{ fontSize:11, color:"#999", marginTop:2 }}>
+            {unrealisedPct==null ? "on paper \u2014 not sold" : `${unrealisedPct>=0?"+":""}${unrealisedPct.toFixed(1)}% on paper`}
+          </div>
         </div>
-        <div style={{ ...card, borderColor:netProfit>=0?"rgba(74,222,128,0.25)":"rgba(239,68,68,0.25)" }}>
-          <div style={{ fontSize:11, color:"var(--bz-ink-2)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Net Profit</div>
-          <div style={{ fontSize:24, fontWeight:900, color:netProfit>=0?"#4ade80":"#EF4444", marginTop:4 }}>{money(netProfit)}</div>
-          <div style={{ fontSize:11, color:"#999", marginTop:2 }}>sales − purchases</div>
-        </div>
-        <div style={{ ...card, borderColor:"rgba(123,156,255,0.25)" }}>
-          <div style={{ fontSize:11, color:"var(--bz-ink-2)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Est. Holdings</div>
-          <div style={{ fontSize:24, fontWeight:900, color:"#7B9CFF", marginTop:4 }}>{money(currentValue)}</div>
-          <div style={{ fontSize:11, color:"#999", marginTop:2 }}>current value owned</div>
+        <div style={{ ...card, borderColor:realised>=0?"rgba(74,222,128,0.3)":"rgba(239,68,68,0.3)" }}>
+          <div style={{ fontSize:11, color:"var(--bz-ink-2)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Realised</div>
+          <div style={{ fontSize:26, fontWeight:900, color:realised>=0?"#4ade80":"#EF4444", marginTop:4 }}>
+            {realised>=0?"+":""}{money(realised)}
+          </div>
+          <div style={{ fontSize:11, color:"#999", marginTop:2 }}>
+            {realisedPct==null ? "banked from sales" : `${realisedPct>=0?"+":""}${realisedPct.toFixed(1)}% banked`}
+          </div>
         </div>
       </div>
 
-      {/* Monthly P&L */}
+      {/* ROI across everything \u2014 held and sold together. */}
+      <div style={{ ...card, marginBottom:16, display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12,
+                    borderColor:(roiPct??0)>=0?"rgba(74,222,128,0.3)":"rgba(239,68,68,0.3)" }}>
+        <div>
+          <div style={{ fontSize:11, color:"var(--bz-ink-2)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Collection ROI</div>
+          <div style={{ fontSize:13, color:"#999", marginTop:3 }}>{money(totalIn)} in {"\u2192"} {money(totalOut)} out (held value + sales)</div>
+        </div>
+        <div style={{ fontSize:34, fontWeight:900, color:(roiPct??0)>=0?"#4ade80":"#EF4444", lineHeight:1 }}>
+          {roiPct==null ? <span style={{fontSize:15,color:"#999",fontWeight:700}}>Add purchase prices to see ROI</span>
+                        : `${roiPct>=0?"+":""}${roiPct.toFixed(1)}%`}
+        </div>
+      </div>
+
+      {/* POSITIONS \u2014 which cards are actually carrying the collection. */}
+      {positions.length > 0 && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:12, marginBottom:16 }}>
+          <div style={card}>
+            <div style={{ fontSize:14, fontWeight:800, color:"#fff", marginBottom:10 }}>{"\uD83D\uDCC8"} Biggest Movers</div>
+            {topGainers.length===0 ? (
+              <div style={{ fontSize:12, color:"#999" }}>Add purchase prices and values to see which cards are up.</div>
+            ) : topGainers.map(p=>(
+              <div key={p.cardId} style={{ display:"flex", justifyContent:"space-between", gap:10, padding:"6px 0", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
+                <div style={{ fontSize:12, color:"var(--bz-ink)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                  {p.name}{p.qty>1 && <span style={{color:"#666"}}> {"\u00d7"}{p.qty}</span>}
+                </div>
+                <div style={{ fontSize:12, fontWeight:800, color:p.gain>=0?"#4ade80":"#EF4444", whiteSpace:"nowrap" }}>
+                  {p.gain>=0?"+":""}{money(p.gain)}{p.pct!=null && <span style={{opacity:0.6,fontWeight:600}}> ({p.pct>=0?"+":""}{p.pct.toFixed(0)}%)</span>}
+                </div>
+              </div>
+            ))}
+            {topLosers.length>0 && (
+              <>
+                <div style={{ fontSize:11, fontWeight:800, color:"#EF4444", marginTop:12, marginBottom:6, textTransform:"uppercase", letterSpacing:0.5 }}>Down</div>
+                {topLosers.map(p=>(
+                  <div key={p.cardId} style={{ display:"flex", justifyContent:"space-between", gap:10, padding:"5px 0" }}>
+                    <div style={{ fontSize:12, color:"var(--bz-ink-2)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</div>
+                    <div style={{ fontSize:12, fontWeight:800, color:"#EF4444", whiteSpace:"nowrap" }}>
+                      {money(p.gain)}{p.pct!=null && <span style={{opacity:0.6,fontWeight:600}}> ({p.pct.toFixed(0)}%)</span>}
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+
+          <div style={card}>
+            <div style={{ fontSize:14, fontWeight:800, color:"#fff", marginBottom:10 }}>{"\uD83D\uDC8E"} Top Holdings</div>
+            {biggest.map(p=>{
+              const share = heldValue>0 ? (p.value/heldValue)*100 : 0;
+              return (
+                <div key={p.cardId} style={{ padding:"6px 0", borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", gap:10 }}>
+                    <div style={{ fontSize:12, color:"var(--bz-ink)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                      {p.name}{p.qty>1 && <span style={{color:"#666"}}> {"\u00d7"}{p.qty}</span>}
+                    </div>
+                    <div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF", whiteSpace:"nowrap" }}>{money(p.value)}</div>
+                  </div>
+                  {/* Concentration matters: if one card is a third of the vault, that is the risk. */}
+                  <div style={{ height:3, background:"rgba(255,255,255,0.07)", borderRadius:2, marginTop:4, overflow:"hidden" }}>
+                    <div style={{ height:"100%", width:`${Math.min(100,share)}%`, background:"#7B9CFF" }}/>
+                  </div>
+                  <div style={{ fontSize:10, color:"#666", marginTop:2 }}>{share.toFixed(1)}% of vault value</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* INSURANCE \u2014 what it would cost to replace, and what a policy will want listed by name. */}
+      {heldValue > 0 && (
+        <div style={{ ...card, marginBottom:16, borderColor:"rgba(251,191,36,0.25)" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10, marginBottom:10 }}>
+            <div style={{ fontSize:14, fontWeight:800, color:"#fff" }}>{"\uD83D\uDEE1"} Insurance Summary</div>
+            <div style={{ fontSize:20, fontWeight:900, color:"#FBBF24" }}>{money(heldValue)}</div>
+          </div>
+          <div style={{ fontSize:12, color:"var(--bz-ink-2)", lineHeight:1.6, marginBottom:10 }}>
+            Replacement value of {heldLots.length} cop{heldLots.length===1?"y":"ies"} across {positions.length} card{positions.length===1?"":"s"}.
+            {scheduled.length>0 && <> {scheduled.length} piece{scheduled.length===1?"":"s"} worth {money(INSURE_THRESHOLD)}+ each
+            {"("}{money(scheduledValue)} total) would usually need scheduling individually on a policy.</>}
+          </div>
+          {scheduled.length>0 && (
+            <div style={{ maxHeight:170, overflowY:"auto" }}>
+              {scheduled.map(p=>(
+                <div key={p.cardId} style={{ display:"flex", justifyContent:"space-between", gap:10, padding:"4px 0", fontSize:12 }}>
+                  <span style={{ color:"var(--bz-ink-2)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                    {p.name}{p.qty>1 && <span style={{color:"#666"}}> {"\u00d7"}{p.qty}</span>}
+                  </span>
+                  <span style={{ color:"#FBBF24", fontWeight:700, whiteSpace:"nowrap" }}>{money(p.value)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ fontSize:10.5, color:"#666", marginTop:10, lineHeight:1.5 }}>
+            Based on the values you've entered \u2014 not a professional appraisal. Insurers usually want
+            documented values and photos, both of which you can export from here.
+          </div>
+        </div>
+      )}
+
+      {/* Lifetime totals kept, but demoted \u2014 they are history, not position. */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:12, marginBottom:16 }}>
+        <div style={card}>
+          <div style={{ fontSize:11, color:"var(--bz-ink-2)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Lifetime Spent</div>
+          <div style={{ fontSize:20, fontWeight:900, color:"#E8317A", marginTop:4 }}>{money(totalPurchases)}</div>
+          <div style={{ fontSize:11, color:"#999", marginTop:2 }}>{purchases.length} buy{purchases.length===1?"":"s"}</div>
+        </div>
+        <div style={card}>
+          <div style={{ fontSize:11, color:"var(--bz-ink-2)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Lifetime Sales</div>
+          <div style={{ fontSize:20, fontWeight:900, color:"#4ade80", marginTop:4 }}>{money(totalSales)}</div>
+          <div style={{ fontSize:11, color:"#999", marginTop:2 }}>{sales.length} sale{sales.length===1?"":"s"}</div>
+        </div>
+        <div style={card}>
+          <div style={{ fontSize:11, color:"var(--bz-ink-2)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Cash Position</div>
+          <div style={{ fontSize:20, fontWeight:900, color:netProfit>=0?"#4ade80":"#EF4444", marginTop:4 }}>{money(netProfit)}</div>
+          <div style={{ fontSize:11, color:"#999", marginTop:2 }}>sales {"\u2212"} all purchases</div>
+        </div>
+      </div>
+
+      {/* Month-by-month cash flow. */}
       <div style={{ ...card, marginBottom:16 }}>
         <div style={{ fontSize:14, fontWeight:800, color:"#fff", marginBottom:12 }}>Month-by-Month P&L</div>
         {monthRows.length===0 ? (
@@ -39866,7 +40061,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   {label:"\u2b06\ufe0f Export Collection",act:exportCollection},
                   {label:"\uD83D\uDD17 Share Collection",act:()=>{ const url=`${window.location.origin}/showcase?uid=${user.uid}`; if(navigator.share){navigator.share({title:"My Bazooka Collection",url}).catch(()=>{});} else { navigator.clipboard.writeText(url).then(()=>showToast("Collection link copied!")).catch(()=>{}); } }},
                       {label:"👥 Friends",badge:(friendReqs.length+teamInvites.length),act:()=>setActiveTab("friends")},
-                      {label:"📒 Ledger",act:()=>setActiveTab("ledger")},
+                      {label:"📊 Vault Report",act:()=>setActiveTab("ledger")},
                       {label:"🧭 App Tour",act:()=>{ setActiveTab("cards"); setTimeout(()=>setTourStep(0),100); }},
                     ].map((it,idx)=>(
                       <button key={idx} onClick={()=>{it.act();setProfileMenuOpen(false);}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",gap:10,background:"transparent",border:"none",color:"#ddd",borderRadius:8,padding:"9px 12px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}
@@ -40140,7 +40335,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 { section:"More" },
                 { id:"market", label:"\uD83E\uDD1D Marketplace", badge:marketBadge },
                 { id:"leaderboard", label:"\uD83E\uDD47 Leaderboard", badge:0 },
-                ...(user?[{ id:"friends", label:"\uD83D\uDC65 Friends", badge:friendReqs.length+teamInvites.length }, { id:"ledger", label:"\uD83D\uDCD2 Ledger", badge:0 }]:[]),
+                ...(user?[{ id:"friends", label:"\uD83D\uDC65 Friends", badge:friendReqs.length+teamInvites.length }, { id:"ledger", label:"\uD83D\uDCCA Vault Report", badge:0 }]:[]),
               ];
               return items.map((it,idx) => it.section ? (
                 <div key={"s"+idx} style={{fontSize:10.5,fontWeight:800,letterSpacing:1.5,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",margin:"16px 0 6px",paddingLeft:4}}>{it.section}</div>
