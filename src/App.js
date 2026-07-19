@@ -21171,12 +21171,33 @@ function CardSetImporter({ userRole }) {
               const snap = await getDocs(collection(db,"boba_checklist"));
               const all = snap.docs.map(d=>({id:d.id,...d.data()}));
               const norm = s => String(s||"").toLowerCase().replace(/[\s\-_.]/g,"");
-              const inSet = all.filter(c => norm(c.setName)==="alphablast");
-              const hits  = inSet.filter(c => norm(c.cardNum).startsWith("bbfa"));
+              // CONTAINS, not equals: the set is really "2025 Alpha Blast", so an exact match on
+              // "alphablast" found nothing. Same for card numbers \u2014 a prefix test misses "BB-FA-12"
+              // or a set code in front, so look for the token anywhere in the number.
+              const inSet = all.filter(c => norm(c.setName).includes("alphablast"));
+              const hits  = inSet.filter(c => norm(c.cardNum).includes("bbfa"));
               const already = hits.filter(c => c.treatment==="Blast Auto").length;
               const byTreat = {};
               hits.forEach(c => { const t=c.treatment||"(blank)"; byTreat[t]=(byTreat[t]||0)+1; });
-              const bl = inSet.filter(c => norm(c.cardNum).startsWith("bl")).length;
+              const bl = inSet.filter(c => norm(c.cardNum).includes("bl") && !norm(c.cardNum).includes("bbfa")).length;
+              // If nothing matched, show what IS there rather than a bare zero.
+              const setNames = {};
+              all.filter(c=>norm(c.setName).includes("blast")).forEach(c=>{ const s=c.setName||"(blank)"; setNames[s]=(setNames[s]||0)+1; });
+              const sampleNums = inSet.slice(0,12).map(c=>c.cardNum||"(blank)").join(", ");
+              if (!hits.length) {
+                setProgress(null); setImporting(false);
+                alert(
+                  "No BBFA cards found \u2014 nothing has been changed.\n\n" +
+                  "Sets containing \u201cblast\u201d:\n" +
+                  (Object.keys(setNames).length
+                    ? Object.entries(setNames).sort((a,b)=>b[1]-a[1]).map(([s,n])=>"  \u2022 "+s+" \u00d7 "+n).join("\n")
+                    : "  (none)") +
+                  "\n\nMatched set rows: " + inSet.length +
+                  (inSet.length ? "\nExample card numbers: " + sampleNums : "") +
+                  "\n\nIf the card numbers look different from BBFA, tell me the real format."
+                );
+                return;
+              }
               setProgress(null); setImporting(false);
               alert(
                 "ALPHA BLAST PREVIEW — nothing has been changed.\n\n" +
@@ -21201,8 +21222,8 @@ function CardSetImporter({ userRole }) {
               const snap = await getDocs(collection(db,"boba_checklist"));
               const all = snap.docs.map(d=>({id:d.id,...d.data()}));
               const norm = s => String(s||"").toLowerCase().replace(/[\s\-_.]/g,"");
-              const todo = all.filter(c => norm(c.setName)==="alphablast"
-                                        && norm(c.cardNum).startsWith("bbfa")
+              const todo = all.filter(c => norm(c.setName).includes("alphablast")
+                                        && norm(c.cardNum).includes("bbfa")
                                         && c.treatment!=="Blast Auto");
               if (!todo.length) { setImporting(false); setProgress(null); alert("Nothing to change — every BBFA card in Alpha Blast is already Blast Auto."); return; }
               if (!window.confirm("Set treatment to \u201cBlast Auto\u201d on " + todo.length + " card" + (todo.length===1?"":"s") + " in Alpha Blast?\n\nBL… (Silver Blast) cards are not affected.\n\nThis rewrites the shared card database for everyone.")) { setImporting(false); setProgress(null); return; }
