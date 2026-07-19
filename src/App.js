@@ -22011,6 +22011,35 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
     }).catch(()=>{});
   }, []);
 
+  // Listen continuously while scanning. Everything heard becomes a hint for the NEXT photo, so the
+  // flow is "say what it is, then shoot" \u2014 no button juggling between the two.
+  function toggleScanHint() {
+    const SR = typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
+    if (!SR) { setScanHint("Voice isn't supported in this browser"); return; }
+    if (scanHintOn) {
+      try { scanHintRecRef.current && scanHintRecRef.current.stop(); } catch(_){}
+      scanHintRecRef.current = null; setScanHintOn(false);
+      return;
+    }
+    try {
+      const rec = new SR();
+      rec.lang = "en-US"; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
+      rec.onresult = (ev) => {
+        let txt = "";
+        for (let i = ev.resultIndex; i < ev.results.length; i++) txt += ev.results[i][0].transcript + " ";
+        txt = txt.trim();
+        if (txt) { scanHintRef.current = txt; setScanHint(txt); }
+      };
+      rec.onerror = (ev) => {
+        if (ev.error === "not-allowed") { setScanHint("Mic blocked \u2014 allow it for this site"); setScanHintOn(false); }
+      };
+      // Chrome stops continuous recognition after a silence; restart while the toggle is still on.
+      rec.onend = () => { if (scanHintRecRef.current === rec) { try { rec.start(); } catch(_){} } };
+      scanHintRecRef.current = rec; setScanHintOn(true);
+      rec.start();
+    } catch(e) { setScanHint("Couldn't start the mic"); setScanHintOn(false); }
+  }
+
   async function scanCardPhoto(file) {
     setPhotoScan({ status:"scanning", card:null });
     try {
@@ -29455,7 +29484,7 @@ function CounterModal({ counterModal, counterSent, setCounterModal, counterAmt, 
   );
 }
 
-function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSession, setScanSession, scanQty, setScanQty, user, db, owned, setOwned, cards, inp , confirmScan, scanCardPhoto, WEAPON_COLORS={}}) {
+function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSession, setScanSession, scanQty, setScanQty, user, db, owned, setOwned, cards, inp , confirmScan, scanCardPhoto, scanHint="", scanHintOn=false, toggleScanHint=()=>{}, WEAPON_COLORS={}}) {
   // LIVE CAMERA. On a phone, accept+capture opens the camera app, but on a laptop it does nothing —
   // you get a file picker. So for desktop we open the webcam inline with getUserMedia and grab a
   // frame to a canvas, which is the same JPEG the file path would have produced.
@@ -29468,6 +29497,9 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
     camStreamRef.current = null; setCamOn(false);
   };
   useEffect(() => () => stopCam(), []);   // always release the camera when the modal unmounts
+  // Stop the hint mic too when the scanner closes — a mic left listening is worse than a camera
+  // light left on, because there is no visible indicator on most machines.
+  useEffect(() => () => { if (scanHintOn) toggleScanHint(); }, []);
   async function startCam() {
     setCamErr("");
     try {
@@ -29547,6 +29579,25 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
               </button>
             )}
             {camErr && <div style={{marginTop:8,fontSize:11.5,color:"#E8317A",lineHeight:1.5}}>{camErr}</div>}
+            {/* Speak-while-you-scan. OCR is reliable on the hero and card number but loses the small
+                print (treatment, weapon) to glare — which is exactly what leaves variants tied. Saying
+                "moose 80's rad" narrows the pool before matching, so the photo only has to settle the
+                rest. The hint is consumed by the next scan, never carried to the one after. */}
+            {!photoScan && (
+              <div style={{marginTop:10,background:scanHintOn?"rgba(168,85,247,0.1)":"rgba(255,255,255,0.03)",border:"1px solid "+(scanHintOn?"rgba(168,85,247,0.45)":"rgba(255,255,255,0.1)"),borderRadius:12,padding:"10px 12px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:9}}>
+                  <button onClick={toggleScanHint} style={{background:scanHintOn?"rgba(168,85,247,0.25)":"transparent",border:"1px solid "+(scanHintOn?"rgba(168,85,247,0.6)":"rgba(255,255,255,0.2)"),color:scanHintOn?"#C084FC":"rgba(255,255,255,0.6)",borderRadius:9,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                    {scanHintOn ? "\uD83C\uDFA4 Listening" : "\uD83C\uDFA4 Say what it is"}
+                  </button>
+                  <div style={{fontSize:10.5,color:"rgba(255,255,255,0.4)",lineHeight:1.4,flex:1,minWidth:0}}>
+                    {scanHint
+                      ? <span style={{color:"#C084FC",fontWeight:700}}>heard: “{scanHint}”</span>
+                      : scanHintOn ? "Say the treatment or weapon, then take the photo."
+                      : "Optional — say e.g. “80’s rad” while you shoot to help it match."}
+                  </div>
+                </div>
+              </div>
+            )}
             {camOn && (
               <div style={{marginTop:10}}>
                 <div style={{position:"relative",borderRadius:14,overflow:"hidden",background:"#000",border:"2px solid rgba(232,49,122,0.35)"}}>
@@ -31706,6 +31757,12 @@ See you in there!
   const [voiceFilter, setVoiceFilter] = useState({ set:"", treatment:"", weapon:"" });
   const voiceRecRef = useRef(null);
   const scanInFlight = useRef(false);
+  // What the user said while the camera was open, e.g. "moose 80's rad". A ref, not state, because
+  // scanCardPhoto reads it mid-flight and must see the latest value without re-rendering.
+  const scanHintRef = useRef("");
+  const [scanHint, setScanHint] = useState("");        // mirrored for display
+  const [scanHintOn, setScanHintOn] = useState(false); // is the mic listening
+  const scanHintRecRef = useRef(null);
   const [scanSession,   setScanSession]   = useState([]);
   const [scanQty,       setScanQty]       = useState(1);
 
@@ -34851,8 +34908,26 @@ See you in there!
       const iPow=String(data.power||"").replace(/[^0-9]/g,"");
       let match=null;
 
+      // SPOKEN HINT. OCR reads the hero and card number reliably; what it loses is the small print —
+      // treatment and weapon — under glare or at an angle, which is exactly what leaves several
+      // variants of one hero tied. So if the user said something while scanning ("moose 80's rad"),
+      // use it to shrink the pool BEFORE matching. It applies at every stage below rather than as a
+      // late tie-break, and if the hint eliminates everything we ignore it rather than fail the scan.
+      const hintPool = (() => {
+        const h = String(scanHintRef.current||"").toLowerCase().replace(/[^a-z0-9\s]/g," ").replace(/\s+/g," ").trim();
+        if (!h) return null;
+        const squash = s => String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+        const hs = squash(h);
+        const hit = (v) => { const t=squash(v); return !!t && (hs.includes(t) || t.includes(hs)); };
+        const narrowed = cards.filter(c => hit(c.treatment) || hit(c.weapon) || hit(c.setName) || hit(c.hero));
+        return narrowed.length ? narrowed : null;
+      })();
+      const scanPool = hintPool || cards;
+      // Consume the hint: it described THIS card, not the next one.
+      scanHintRef.current = ""; setScanHint("");
+
       // HERO-FIRST: hero name is the most reliable read. Find all cards for this hero, then pin the variant.
-      const heroCards = iHero ? cards.filter(c=>heroMatch(c.hero,iHero)) : [];
+      const heroCards = iHero ? scanPool.filter(c=>heroMatch(c.hero,iHero)) : [];
 
       if(heroCards.length){
         // 1. Hero + exact card number. If several cards share this number (same
@@ -34914,7 +34989,7 @@ See you in there!
       }
 
       // Fallback: if hero wasn't read at all, exact number + (if present) hero agreement — never number-alone across heroes
-      if(!match&&!iHero&&iNum){const cands=cards.filter(c=>normNum(c.cardNum)===iNum);if(cands.length===1)match=cands[0];}
+      if(!match&&!iHero&&iNum){const cands=scanPool.filter(c=>normNum(c.cardNum)===iNum);if(cands.length===1)match=cands[0];}
 
       if(match){ return { match, candidates: [] }; }   // pure: no UI side-effects
 
@@ -39507,6 +39582,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       {/* Scan modal */}
       {scanModal&&<ScanModal scanModal={scanModal} setScanModal={setScanModal} photoScan={photoScan} setPhotoScan={setPhotoScan} scanSession={scanSession} setScanSession={setScanSession} scanQty={scanQty} setScanQty={setScanQty} user={user} db={db} owned={owned} setOwned={setOwned} cards={cards} inp={inp} confirmScan={confirmScan} WEAPON_COLORS={WEAPON_COLORS}
           scanCardPhoto={scanCardPhoto}
+          scanHint={scanHint} scanHintOn={scanHintOn} toggleScanHint={toggleScanHint}
           />}
       {/* HERO HEADER */}
       <div style={{
@@ -41234,6 +41310,27 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                       onTouchStart={e=>{ e.stopPropagation(); toggleSelect(c.id); setDragAnchor(c.id); }}
                       style={{position:"absolute",inset:0,zIndex:30,borderRadius:10,cursor:"pointer",userSelect:"none",border:selectedIds.has(c.id)?"3px solid #7B9CFF":"3px solid transparent",background:selectedIds.has(c.id)?"rgba(123,156,255,0.18)":"rgba(0,0,0,0.15)",transition:"all 0.12s"}}>
                       <div style={{position:"absolute",top:8,left:8,width:26,height:26,borderRadius:"50%",background:selectedIds.has(c.id)?"#7B9CFF":"rgba(0,0,0,0.6)",border:"2px solid #fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:900,color:"#fff",boxShadow:"0 2px 6px rgba(0,0,0,0.5)"}}>{selectedIds.has(c.id)?"✓":""}</div>
+                      {/* Quantity stepper, right on the card while selecting. Logging four of the same
+                          card used to mean opening it, bumping the counter, backing out \u2014 per card.
+                          stopPropagation everywhere so tapping \u2212/+ never toggles the selection. */}
+                      {(() => {
+                        // Only on cards you've actually ticked — showing a stepper on every owned card
+                        // clutters the grid and invites changing quantities you never meant to touch.
+                        if (!selectedIds.has(c.id)) return null;
+                        const q = parseInt(owned[c.id]) || 0;
+                        const btn = {background:"rgba(0,0,0,0.75)",border:"1px solid rgba(255,255,255,0.3)",color:"#fff",width:24,height:24,borderRadius:6,fontSize:15,fontWeight:900,cursor:"pointer",fontFamily:"inherit",lineHeight:1,display:"flex",alignItems:"center",justifyContent:"center",padding:0};
+                        const stop = e => { e.preventDefault(); e.stopPropagation(); };
+                        return (
+                          <div onMouseDown={stop} onTouchStart={stop} onClick={stop}
+                            style={{position:"absolute",top:"72%",left:"50%",transform:"translate(-50%,-50%)",display:"flex",alignItems:"center",gap:6,background:"rgba(0,0,0,0.72)",border:"1px solid rgba(255,255,255,0.18)",borderRadius:10,padding:"5px 7px",backdropFilter:"blur(4px)",boxShadow:"0 3px 10px rgba(0,0,0,0.5)"}}>
+                            <button onMouseDown={stop} onTouchStart={stop}
+                              onClick={e=>{ stop(e); setOwnedQty(c.id, Math.max(0, q-1)); }} style={btn}>{"\u2212"}</button>
+                            <span style={{minWidth:22,textAlign:"center",fontSize:14,fontWeight:900,color:q>0?"#4ade80":"rgba(255,255,255,0.45)"}}>{q}</span>
+                            <button onMouseDown={stop} onTouchStart={stop}
+                              onClick={e=>{ stop(e); setOwnedQty(c.id, q+1); }} style={btn}>+</button>
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                   <BobaCard c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
