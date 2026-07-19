@@ -26172,6 +26172,7 @@ function MarketTab({ onMarkTraded, onEditPackage, onAddSideToTrade, onUnacceptTr
   // A card the user clicked directly, plus whether they came via the "$ Offer" button so the
   // cash field can take focus. Saves hunting for the card in a long list.
   const [offerPreselect, setOfferPreselect] = useState(null);
+  const [bulkQty, setBulkQty] = useState(1);   // how many copies the bulk "+ Add" applies
   const [offerCashFirst, setOfferCashFirst] = useState(false);
 
   // ── Trade matching ──────────────────────────────────────────────────────────────────────────
@@ -33670,7 +33671,9 @@ See you in there!
     setSelectedIds(prev => { const n=new Set(prev); if(n.has(cardId)) n.delete(cardId); else n.add(cardId); return n; });
   }
   function clearSelection(){ setSelectedIds(new Set()); }
-  function exitSelectMode(){ setSelectMode(false); setSelectedIds(new Set()); setDragAnchor(null); }
+  function exitSelectMode(){
+    setBulkQty(1);   // do not carry a quantity into the next selection
+ setSelectMode(false); setSelectedIds(new Set()); setDragAnchor(null); }
 
   // ── Drag-select and shift-click ──────────────────────────────────────────────────────────────
   // Clicking 200 cards one at a time is nobody's idea of a good time. Two additions:
@@ -33767,6 +33770,21 @@ See you in there!
     setToast(qty === 0
       ? `Removed ${selectedIds.size} card${selectedIds.size!==1?"s":""} from your collection.`
       : `Set ${selectedIds.size} card${selectedIds.size!==1?"s":""} to ${qty} cop${qty===1?"y":"ies"} each.`);
+  }
+
+  // ADD n copies to every selected card. Additive rather than "set to n": with a mixed selection
+  // that is the predictable behaviour, and it can never silently reduce a card you already own
+  // more of. One write for the whole map regardless of how many cards are selected.
+  async function bulkAddCopies(n) {
+    if (!user) { setSigningIn(true); return; }
+    if (selectedIds.size === 0) return;
+    const add = Math.max(1, parseInt(n) || 1);
+    const next = { ...owned };
+    selectedIds.forEach(id => { next[id] = (parseInt(next[id]) || 0) + add; });
+    setOwned(next);
+    queueOwnedSave(next);
+    const titles = selectedIds.size;
+    setToast(`Added ${add} cop${add===1?"y":"ies"} to ${titles} card${titles!==1?"s":""}.`);
   }
 
   // Bulk make public / private — one write via the whole map.
@@ -39017,8 +39035,30 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
 
           {/* THE THREE EVERYDAY ACTIONS. Everything else lives in the More menu below — this bar had
               grown to 13 buttons at equal weight, which made the common case hard to find. */}
-          <button disabled={selectedIds.size===0} onClick={()=>bulkSetOwned(true)} title="Add every selected card to your collection"
-            style={{background:selectedIds.size?"rgba(74,222,128,0.18)":"rgba(255,255,255,0.04)",border:"1px solid "+(selectedIds.size?"rgba(74,222,128,0.5)":"rgba(255,255,255,0.08)"),color:selectedIds.size?"#4ade80":"rgba(255,255,255,0.25)",borderRadius:8,padding:"7px 13px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"default",fontFamily:"inherit",whiteSpace:"nowrap"}}>✅ Mark Owned</button>
+          {/* Replaces the old "Mark Owned" button. Clicking a card already takes it to 1, so a single
+              "own these" action was redundant; what was missing was adding SEVERAL copies at once.
+              This is additive on purpose \u2014 with a mixed selection "add 2 to each" is predictable,
+              whereas "set everything to 2" would quietly wipe a card you already had 5 of. */}
+          <div style={{display:"flex",alignItems:"center",gap:0,background:selectedIds.size?"rgba(74,222,128,0.14)":"rgba(255,255,255,0.04)",border:"1px solid "+(selectedIds.size?"rgba(74,222,128,0.5)":"rgba(255,255,255,0.08)"),borderRadius:8,overflow:"hidden"}}>
+            <button disabled={selectedIds.size===0 || bulkQty<=1}
+              onClick={()=>setBulkQty(q=>Math.max(1,q-1))}
+              title="Fewer copies"
+              style={{background:"transparent",border:"none",color:selectedIds.size&&bulkQty>1?"#4ade80":"rgba(255,255,255,0.25)",padding:"7px 10px",fontSize:15,fontWeight:900,cursor:selectedIds.size&&bulkQty>1?"pointer":"default",fontFamily:"inherit",lineHeight:1}}>
+              {"\u2212"}
+            </button>
+            <button disabled={selectedIds.size===0}
+              onClick={()=>bulkAddCopies(bulkQty)}
+              title={`Add ${bulkQty} cop${bulkQty===1?"y":"ies"} of every selected card`}
+              style={{background:"transparent",border:"none",color:selectedIds.size?"#4ade80":"rgba(255,255,255,0.25)",padding:"7px 6px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"default",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+              {"\u2795"} Add {bulkQty>1 ? `${bulkQty} each` : ""}
+            </button>
+            <button disabled={selectedIds.size===0}
+              onClick={()=>setBulkQty(q=>Math.min(99,q+1))}
+              title="More copies"
+              style={{background:"transparent",border:"none",color:selectedIds.size?"#4ade80":"rgba(255,255,255,0.25)",padding:"7px 10px",fontSize:15,fontWeight:900,cursor:selectedIds.size?"pointer":"default",fontFamily:"inherit",lineHeight:1}}>
+              +
+            </button>
+          </div>
           <button disabled={selectedIds.size===0} onClick={()=>bulkSetPublic(true)} title="Show these on your public profile"
             style={{background:selectedIds.size?"rgba(74,222,128,0.12)":"rgba(255,255,255,0.04)",border:"1px solid "+(selectedIds.size?"rgba(74,222,128,0.35)":"rgba(255,255,255,0.08)"),color:selectedIds.size?"#4ade80":"rgba(255,255,255,0.25)",borderRadius:8,padding:"7px 13px",fontSize:12,fontWeight:700,cursor:selectedIds.size?"pointer":"default",fontFamily:"inherit",whiteSpace:"nowrap"}}>👁 Make Public</button>
           <button disabled={selectedIds.size===0} onClick={()=>setBulkListModal(true)} title="List the selected cards for sale"
