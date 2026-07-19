@@ -22365,7 +22365,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
     await setOwnedQty(cardId, owned[cardId] ? 0 : 1);
   }
 
-  // Export collection to CSV
+
   function exportCollection() {
     const ownedCards = cards.filter(c => owned[c.id]);
     if (!ownedCards.length) { alert("No cards owned yet!"); return; }
@@ -34496,6 +34496,72 @@ See you in there!
     return m;
   }, [lots]);
 
+  // Export collection to CSV
+  // FULL BACKUP. The CSV export is for reading in a spreadsheet; this is for not losing anything.
+  // It captures the things that would actually hurt to lose and that no CSV column covers: decks you
+  // built, per-copy financial lots, scan photo URLs, want list, trade flags, in-transit, listings.
+  // JSON rather than CSV because this data is nested \u2014 flattening it would lose the structure that
+  // makes it restorable.
+  function exportFullBackup() {
+    if (!user) { setSigningIn(true); return; }
+    try {
+      // Card details are denormalised into each record on purpose. If this file is opened in five
+      // years, or the catalog has changed, the backup still says what the card WAS.
+      const cardInfo = id => {
+        const c = cards.find(x => x.id === id) || {};
+        return { id, hero:c.hero||"", setName:c.setName||"", treatment:c.treatment||"",
+                 weapon:c.weapon||"", cardNum:c.cardNum||"", power:c.power??null };
+      };
+      const ownedIds = Object.keys(owned).filter(id => owned[id]);
+
+      const backup = {
+        _format: "bazooka-dash-backup",
+        _version: 1,
+        exportedAt: new Date().toISOString(),
+        account: { uid: user.uid, email: user.email || "", displayName: user.displayName || "" },
+
+        // What you own, with quantities.
+        collection: ownedIds.map(id => ({ ...cardInfo(id), qty: parseInt(owned[id]) || 1 })),
+
+        // Per-copy records \u2014 cost, trade value, serial, grading, location, photos, locks.
+        copies: (lots || []).map(l => ({ ...l, card: cardInfo(l.cardId) })),
+
+        // Decks are hand-built and would be painful to reconstruct from memory.
+        decks: (savedDecks || []).map(d => ({
+          id: d.id, name: d.name, createdAt: d.createdAt ?? null, updatedAt: d.updatedAt ?? null,
+          cards: (d.cardIds || []).map(cardInfo),
+        })),
+
+        // Your own photos of your own cards. URLs only \u2014 the images live in storage, but without
+        // these you would not know which photo belonged to which card.
+        scanPhotos: Object.entries(scanPhotoByCard || {}).map(([id, url]) => ({ ...cardInfo(id), url })),
+
+        wantList:   Object.keys(wantList || {}).filter(k => wantList[k]).map(cardInfo),
+        tradeBait:  Object.keys(tradeBait || {}).filter(k => tradeBait[k]).map(cardInfo),
+        publicCards: Object.keys(publicCards || {}).filter(k => publicCards[k]),
+        inTransit:  Object.entries(inTransit || {}).map(([id, v]) => ({ ...cardInfo(id), ...v })),
+        listings:   (myListings || []).map(l => ({ ...l, card: cardInfo(l.cardId) })),
+        sales:      (marketSales || []).filter(s => s.sellerUid === user.uid),
+      };
+
+      const counts = {
+        cards: backup.collection.length, copies: backup.copies.length, decks: backup.decks.length,
+        photos: backup.scanPhotos.length, wants: backup.wantList.length,
+      };
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type:"application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `bazooka-backup-${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setToast(`Backed up ${counts.cards} cards, ${counts.copies} copies, ${counts.decks} decks, ${counts.photos} photos.`);
+    } catch(e) {
+      console.error("backup failed:", e);
+      alert("Backup failed: " + (e?.message || e));
+    }
+  }
+
   function exportCollection() {
     if (!user) { setSigningIn(true); return; }
     const csvEsc = v => { const s = v===null||v===undefined ? "" : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s; };
@@ -40262,6 +40328,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                       {label:"🖼️ My Collection",act:()=>{ window.open(`/showcase?uid=${user.uid}`,"_blank"); }},
                   {label:"\u2b07\ufe0f Import Cards",act:()=>{ setImportModal(true); setImportRows(null); setImportRaw(null); setImportSetMap({}); setImportColMap(null); setColMapConfirmed(false); }},
                   {label:"\u2b06\ufe0f Export Collection",act:exportCollection},
+                  {label:"\uD83D\uDCBE Full Backup (JSON)",act:exportFullBackup},
                   {label:"\uD83D\uDD17 Share Collection",act:()=>{ const url=`${window.location.origin}/showcase?uid=${user.uid}`; if(navigator.share){navigator.share({title:"My Bazooka Collection",url}).catch(()=>{});} else { navigator.clipboard.writeText(url).then(()=>showToast("Collection link copied!")).catch(()=>{}); } }},
                       {label:"👥 Friends",badge:(friendReqs.length+teamInvites.length),act:()=>setActiveTab("friends")},
                       {label:"📊 Vault Report",act:()=>setActiveTab("ledger")},
