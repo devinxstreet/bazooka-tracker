@@ -360,6 +360,20 @@ function canonWeapon(w) {
   return WEAPON_CANON[k] || (String(w).trim().charAt(0).toUpperCase() + String(w).trim().slice(1).toLowerCase());
 }
 // Preferred display order for weapon dropdowns
+// A card is a one-of-one if it says so, OR if it belongs to a category that is 1/1 by definition:
+// the Super weapon (Superfoil) and the Pink Battlefoil insert. Central so every counter agrees.
+function isOneOfOne(c) {
+  if (!c) return false;
+  const notation  = String(c.notation||"").toLowerCase();
+  const cardNum   = String(c.cardNum||"").toLowerCase();
+  const weapon    = String(canonWeapon(c.weapon)||"").toLowerCase().trim();  // "superfoil" also canonicalises to Super
+  const treatment = String(c.treatment||"").toLowerCase();
+  if (notation.includes("1/1") || cardNum.includes("1/1")) return true;
+  if (notation.includes("one of one") || notation.includes("1 of 1")) return true;
+  if (weapon === "super") return true;                       // Superfoil = one of one
+  if (treatment.includes("pink battlefoil")) return true;    // that insert is a 1/1
+  return false;
+}
 const WEAPON_ORDER = ["Brawl","Steel","Fire","Ice","Glow","Hex","Gum","Super","Alt","Cyber","Medal","Metallic"];
 function sortWeapons(list) {
   return [...list].sort((a,b) => {
@@ -20535,6 +20549,10 @@ function TreatmentChecker() {
 function CardSetImporter({ userRole }) {
   const isAdmin = ["Admin"].includes(userRole?.role);
   const [mode,      setMode]      = useState("data");   // "data" | "images" | "cleanup" | "single"
+  // Skipping cards that already have an image is a RESUME feature — it lets a huge upload be re-run
+  // without redoing work. But it also blocks replacing placeholder art, which is a real workflow:
+  // drop placeholders in now, upload the real scans later. So it has to be switchable.
+  const [imgOverwrite, setImgOverwrite] = useState(false);
   const [newCard, setNewCard] = useState({ hero:"", treatment:"", weapon:"", cardNum:"", setName:"", power:"", playName:"", athlete:"" });
   const [addingCard, setAddingCard] = useState(false);
   const [addCardMsg, setAddCardMsg] = useState(null);
@@ -20823,7 +20841,7 @@ function CardSetImporter({ userRole }) {
     async function uploadOne(item) {
       // VISION-FIRST: these filenames have no real card numbers, so read the card itself.
       let card = await visionMatch(item.file);
-      if (card && alreadyImaged.has(card.fsId)) { written++; return; } // already has image — resume
+      if (card && !imgOverwrite && alreadyImaged.has(card.fsId)) { written++; return; } // resume, unless overwriting
       if (card) {
         try {
           const ext = (item.file.name.split(".").pop()||"png").toLowerCase();
@@ -21027,6 +21045,17 @@ function CardSetImporter({ userRole }) {
           <div style={{ fontSize:11, color:"#4ade80", background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.25)", borderRadius:8, padding:"9px 12px", marginBottom:10, lineHeight:1.5 }}>
             ✅ <strong>Smart matching is ON.</strong> This first tries to match by the card number in the filename. If the filename doesn't have a real card number (e.g. "page-0001" or "set1-1"), it automatically <strong>reads the card number off the image itself</strong> and matches that. So just drop your images and hit Upload — it handles both cases. (Image-reading is slower, so a big batch with no filename numbers will take a while.)
           </div>
+          {/* Without this, placeholder art can never be replaced — the resume-skip treats a placeholder
+              as "already done" and refuses the real scan. */}
+          <label style={{ display:"flex", alignItems:"center", gap:9, cursor:"pointer", background:imgOverwrite?"rgba(232,49,122,0.1)":"rgba(255,255,255,0.03)", border:"1px solid "+(imgOverwrite?"rgba(232,49,122,0.45)":"#2a2a2a"), borderRadius:10, padding:"10px 12px", margin:"10px 0" }}>
+            <input type="checkbox" checked={imgOverwrite} onChange={e=>setImgOverwrite(e.target.checked)} style={{ accentColor:"#E8317A", width:16, height:16 }}/>
+            <span style={{ fontSize:12.5, fontWeight:800, color:imgOverwrite?"#E8317A":"rgba(255,255,255,0.65)" }}>
+              Replace images that already exist
+            </span>
+            <span style={{ fontSize:10.5, color:"rgba(255,255,255,0.35)" }}>
+              {imgOverwrite ? "every match is overwritten — use this to swap out placeholders" : "off: cards that already have an image are skipped (safe to re-run)"}
+            </span>
+          </label>
           <div style={{ fontSize:12, color:"var(--bz-ink-3)", lineHeight:1.8 }}>
             In Finder, <strong style={{ color:"var(--bz-ink)" }}>select all your image folders</strong> at once (Cmd+A or Cmd+click each one), then <strong style={{ color:"#E8317A" }}>drag them all onto the box below</strong>. All folders load in one go. Uploads 20 at a time.
           </div>
@@ -29427,6 +29456,42 @@ function CounterModal({ counterModal, counterSent, setCounterModal, counterAmt, 
 }
 
 function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSession, setScanSession, scanQty, setScanQty, user, db, owned, setOwned, cards, inp , confirmScan, scanCardPhoto, WEAPON_COLORS={}}) {
+  // LIVE CAMERA. On a phone, accept+capture opens the camera app, but on a laptop it does nothing —
+  // you get a file picker. So for desktop we open the webcam inline with getUserMedia and grab a
+  // frame to a canvas, which is the same JPEG the file path would have produced.
+  const [camOn, setCamOn] = useState(false);
+  const [camErr, setCamErr] = useState("");
+  const videoRef = useRef(null);
+  const camStreamRef = useRef(null);
+  const stopCam = () => {
+    try { camStreamRef.current && camStreamRef.current.getTracks().forEach(t=>t.stop()); } catch(_){}
+    camStreamRef.current = null; setCamOn(false);
+  };
+  useEffect(() => () => stopCam(), []);   // always release the camera when the modal unmounts
+  async function startCam() {
+    setCamErr("");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:"environment", width:{ideal:1920} }, audio:false });
+      camStreamRef.current = stream; setCamOn(true);
+      setTimeout(()=>{ if(videoRef.current){ videoRef.current.srcObject = stream; videoRef.current.play().catch(()=>{}); } }, 50);
+    } catch(e) {
+      setCamErr(e?.name === "NotAllowedError" ? "Camera access was blocked. Allow it for this site and try again."
+              : e?.name === "NotFoundError" ? "No camera found on this device."
+              : "Couldn't start the camera: " + (e?.message||e));
+    }
+  }
+  function shootCam() {
+    const v = videoRef.current; if (!v || !v.videoWidth) return;
+    const cv = document.createElement("canvas");
+    cv.width = v.videoWidth; cv.height = v.videoHeight;
+    cv.getContext("2d").drawImage(v, 0, 0);
+    cv.toBlob(b => {
+      if (!b) return;
+      stopCam();
+      setPhotoScan(null);
+      scanCardPhoto(new File([b], "camera.jpg", { type:"image/jpeg" }));
+    }, "image/jpeg", 0.92);
+  }
   const [keepPhoto, setKeepPhoto] = useState(true);
   const [acqMethod, setAcqMethod] = useState("break");
   const [acqCost, setAcqCost] = useState("");
@@ -29470,8 +29535,35 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
                     <div style={{fontSize:12,color:"rgba(255,255,255,0.55)",display:"flex",gap:8,alignItems:"flex-start"}}><span>🔢</span><span>Keep the card number (bottom corner) visible for the best match</span></div>
                   </div>
                 </div>
-                <input type="file" accept="image/*" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{position:"absolute",opacity:0,width:1,height:1,pointerEvents:"none"}}/>
+                <input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{position:"absolute",opacity:0,width:1,height:1,pointerEvents:"none"}}/>
               </label>
+            )}
+            {/* Laptop/desktop path: a live webcam view. capture="environment" only opens the camera
+                on mobile; on a laptop it just shows a file picker. Releasing the stream on unmount
+                matters, or the camera light stays on after the modal closes. */}
+            {!photoScan && !camOn && (
+              <button onClick={startCam} style={{width:"100%",marginTop:10,background:"rgba(123,156,255,0.1)",border:"1px solid rgba(123,156,255,0.4)",color:"#7B9CFF",borderRadius:12,padding:"11px 0",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                {"\uD83D\uDCF7"} Use my camera instead
+              </button>
+            )}
+            {camErr && <div style={{marginTop:8,fontSize:11.5,color:"#E8317A",lineHeight:1.5}}>{camErr}</div>}
+            {camOn && (
+              <div style={{marginTop:10}}>
+                <div style={{position:"relative",borderRadius:14,overflow:"hidden",background:"#000",border:"2px solid rgba(232,49,122,0.35)"}}>
+                  <video ref={videoRef} playsInline muted style={{width:"100%",display:"block",maxHeight:"46vh",objectFit:"cover"}}/>
+                  <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
+                    <div style={{width:"58%",aspectRatio:"5/7",border:"2px dashed rgba(255,255,255,0.5)",borderRadius:10}}/>
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:8,marginTop:10}}>
+                  <button onClick={shootCam} style={{flex:2,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",border:"none",color:"#fff",borderRadius:12,padding:"12px 0",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit"}}>
+                    {"\uD83D\uDCF8"} Capture
+                  </button>
+                  <button onClick={stopCam} style={{flex:1,background:"transparent",border:"1px solid rgba(255,255,255,0.2)",color:"rgba(255,255,255,0.6)",borderRadius:12,padding:"12px 0",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
             )}
             {photoScan?.status==="scanning"&&(
               <div style={{textAlign:"center",padding:"40px 20px"}}>
@@ -29569,7 +29661,7 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
                 </div>
                 <div style={{display:"flex",gap:10,justifyContent:"center"}}>
                   <label style={{background:"transparent",color:"rgba(255,255,255,0.5)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:12,padding:"10px 20px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",display:"inline-block"}}>
-                    None — Rescan<input type="file" accept="image/*" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
+                    None — Rescan<input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
                   </label>
                 </div>
               </div>
@@ -29580,7 +29672,7 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
                 <div style={{fontSize:16,fontWeight:800,color:"#E8317A",marginBottom:8}}>Card not recognized</div>
                 <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:16,lineHeight:1.6}}>Tip: fill the frame with the card, avoid glare,<br/>and keep the card number visible</div>
                 <label style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"inline-block",boxShadow:"0 4px 20px rgba(232,49,122,0.4)"}}>
-                  Try Again<input type="file" accept="image/*" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
+                  Try Again<input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
                 </label>
               </div>
             )}
@@ -29590,7 +29682,7 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
                 <div style={{fontSize:16,fontWeight:800,color:"#E8317A",marginBottom:6}}>Scan failed</div>
                 {photoScan.message&&<div style={{fontSize:11,color:"rgba(255,255,255,0.3)",marginBottom:16,fontFamily:"monospace"}}>{photoScan.message}</div>}
                 <label style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"12px 28px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",display:"inline-block"}}>
-                  Try Again<input type="file" accept="image/*" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
+                  Try Again<input type="file" accept="image/*" capture="environment" onChange={e=>{const f=e.target.files?.[0];if(f){setPhotoScan(null);scanCardPhoto(f);}e.target.value="";}} style={{display:"none"}}/>
                 </label>
               </div>
             )}
@@ -31608,6 +31700,10 @@ See you in there!
   const [pageGrid, setPageGrid] = useState({ rows:3, cols:3 });   // binder page layout (3x3 default)
   // Voice-to-add: speak a card, confirm the match, add it.
   const [voiceState, setVoiceState] = useState(null);  // { status:"listening"|"result"|"nomatch"|"error", transcript, matches, picked, message }
+  // Narrowing the pool before speaking is the single biggest accuracy win: "brawl 80's rad" as a
+  // filter turns 31k candidates into a few hundred, so a half-heard hero name still lands. It also
+  // means you can rattle off names without re-stating the treatment every time.
+  const [voiceFilter, setVoiceFilter] = useState({ set:"", treatment:"", weapon:"" });
   const voiceRecRef = useRef(null);
   const scanInFlight = useRef(false);
   const [scanSession,   setScanSession]   = useState([]);
@@ -32745,7 +32841,12 @@ See you in there!
         const ownedIds = Object.keys(owned).filter(id => cardById.has(baseCardId(id)));
         const collectionCount = ownedIds.reduce((s,id)=>s+(owned[id]||1),0);
         const uniqueCount = ownedIds.length;
-        const oneOfOneCount = ownedIds.filter(id => { const c=cardById.get(baseCardId(id)); return c && (String(c.notation||"").includes("1/1") || String(c.cardNum||"").includes("1/1")); }).length;
+        // What counts as a 1/1. This used to look only for "1/1" in the notation or card number,
+        // which missed two whole categories that are one-of-ones by definition:
+        //   • Super weapon — Superfoil is a one-of-one by design (see the weapon guide)
+        //   • Pink Battlefoil — that insert is a 1/1
+        // Kept as a named helper so the leaderboard and any future tracker agree on the rule.
+        const oneOfOneCount = ownedIds.filter(id => isOneOfOne(cardById.get(baseCardId(id)))).length;
         // rainbow groups fully owned (heroGroups is prebuilt once per card load — see above)
         let rainbowCount = 0;
         heroGroups.forEach(g => { if(g.length>=2 && g.every(c=>owned[c.id])) rainbowCount++; });
@@ -34019,6 +34120,7 @@ See you in there!
   // in BOTH hero and inspiredBy, so fixing one field at a time means running the same selection twice.
   const [bulkEdits,     setBulkEdits]     = useState({});
   const [bulkImgUploading, setBulkImgUploading] = useState(false);
+  const [bulkImgOverwrite, setBulkImgOverwrite] = useState(false);  // replace existing/placeholder art
   const [bulkEditing,   setBulkEditing]   = useState(false);
 
   const BULK_FIELDS = [
@@ -34568,7 +34670,7 @@ See you in there!
         let card = filenameFind(file.name, pool);
         if(!card) card = await visionFind(file, pool, fileTreatment);
         if(!card){ skipped++; skippedNames.push(file.name); done++; setBulkProg({done,total:list.length,matched,skipped,status:`No match: ${file.name}`}); return; }
-        if(alreadyImaged.has(card.id)){ matched++; done++; setBulkProg({done,total:list.length,matched,skipped,status:`⏭ Already had image: ${card.hero}`}); return; }
+        if(!bulkImgOverwrite && alreadyImaged.has(card.id)){ matched++; done++; setBulkProg({done,total:list.length,matched,skipped,status:`⏭ Already had image: ${card.hero}`}); return; }
         const fsId = card.fsId || card.id;
         const ext = (file.name.split(".").pop()||"png").toLowerCase();
         const storageRef2 = ref(storage, `boba_cards/${fsId}.${ext}`);
@@ -34870,7 +34972,13 @@ See you in there!
       return (hits / words.length) * weight;
     };
 
-    const scored = cards.map(c => {
+    // Respect the voice filter, if one is set. Empty entries mean "no restriction".
+    const pool = cards.filter(c =>
+      (!voiceFilter.set       || c.setName === voiceFilter.set) &&
+      (!voiceFilter.treatment || c.treatment === voiceFilter.treatment) &&
+      (!voiceFilter.weapon    || canonWeapon(c.weapon) === voiceFilter.weapon)
+    );
+    const scored = pool.map(c => {
       let s = 0;
       s += fieldScore(c.hero,      60);   // hero is the anchor
       s += fieldScore(c.weapon,    28);
@@ -37754,6 +37862,12 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
           <div onClick={()=>setBulkImg(null)} style={{position:"fixed",inset:0,zIndex:13000,background:"rgba(0,0,0,0.8)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
             <div onClick={e=>e.stopPropagation()} style={{background:"#16161f",border:"1px solid var(--bz-line-2)",borderRadius:16,padding:24,maxWidth:460,width:"100%",maxHeight:"90vh",overflowY:"auto"}}>
               <div style={{fontSize:18,fontWeight:900,color:"#fff",marginBottom:6}}>🖼 Import {bulkImg.files.length} Images</div>
+              {/* Same reason as the admin importer: without this, a placeholder blocks the real scan. */}
+              <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",background:bulkImgOverwrite?"rgba(232,49,122,0.1)":"rgba(255,255,255,0.03)",border:"1px solid "+(bulkImgOverwrite?"rgba(232,49,122,0.45)":"rgba(255,255,255,0.1)"),borderRadius:9,padding:"9px 11px",marginBottom:10}}>
+                <input type="checkbox" checked={bulkImgOverwrite} onChange={e=>setBulkImgOverwrite(e.target.checked)} style={{accentColor:"#E8317A",width:15,height:15}}/>
+                <span style={{fontSize:12,fontWeight:800,color:bulkImgOverwrite?"#E8317A":"rgba(255,255,255,0.65)"}}>Replace existing images</span>
+                <span style={{fontSize:10,color:"rgba(255,255,255,0.35)"}}>{bulkImgOverwrite?"overwrites placeholders":"skips cards that have one"}</span>
+              </label>
               {bulkImg.byFolder ? (
                 <div style={{fontSize:12,color:"#999",lineHeight:1.5,marginBottom:16}}>Detected <strong style={{color:"#4ade80"}}>{subFolders.length} treatment subfolder{subFolders.length!==1?"s":""}</strong>. Each image will be assigned the treatment of the subfolder it's in — just confirm the Set below.</div>
               ) : (
@@ -39629,6 +39743,46 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
               <div style={{fontSize:18,fontWeight:900,color:"#fff"}}>{"\uD83C\uDFA4"} Say a Card</div>
               <button onClick={()=>{ try{voiceRecRef.current&&voiceRecRef.current.abort();}catch(_){} setVoiceState(null); }} style={{background:"transparent",border:"none",color:"#888",fontSize:24,cursor:"pointer",lineHeight:1}}>{"\u00d7"}</button>
             </div>
+
+            {/* Narrow the pool before speaking. Set it once, then rattle off hero names without
+                repeating the treatment each time. */}
+            {(()=>{
+              const sets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
+              const tPool = voiceFilter.set ? cards.filter(c=>c.setName===voiceFilter.set) : cards;
+              const treatments = [...new Set(tPool.map(c=>c.treatment).filter(Boolean))].sort();
+              const weapons = [...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))].sort();
+              const poolSize = cards.filter(c =>
+                (!voiceFilter.set||c.setName===voiceFilter.set) &&
+                (!voiceFilter.treatment||c.treatment===voiceFilter.treatment) &&
+                (!voiceFilter.weapon||canonWeapon(c.weapon)===voiceFilter.weapon)).length;
+              const any = voiceFilter.set||voiceFilter.treatment||voiceFilter.weapon;
+              const sel = {background:"#0b0b0f",border:"1px solid rgba(255,255,255,0.15)",color:"#fff",borderRadius:8,padding:"6px 8px",fontSize:11.5,fontFamily:"inherit",cursor:"pointer",flex:1,minWidth:0};
+              return (
+                <div style={{marginBottom:14,background:any?"rgba(168,85,247,0.08)":"rgba(255,255,255,0.03)",border:"1px solid "+(any?"rgba(168,85,247,0.35)":"rgba(255,255,255,0.1)"),borderRadius:10,padding:"10px 11px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
+                    <span style={{fontSize:11,fontWeight:800,color:any?"#C084FC":"rgba(255,255,255,0.5)"}}>Narrow it down (optional)</span>
+                    {any && <button onClick={()=>setVoiceFilter({set:"",treatment:"",weapon:""})} style={{background:"none",border:"none",color:"rgba(255,255,255,0.4)",fontSize:10.5,cursor:"pointer",fontFamily:"inherit",textDecoration:"underline"}}>clear</button>}
+                  </div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    <select value={voiceFilter.set} onChange={e=>setVoiceFilter(f=>({...f,set:e.target.value,treatment:""}))} style={sel}>
+                      <option value="">Any set</option>
+                      {sets.map(s=><option key={s} value={s}>{s}</option>)}
+                    </select>
+                    <select value={voiceFilter.weapon} onChange={e=>setVoiceFilter(f=>({...f,weapon:e.target.value}))} style={sel}>
+                      <option value="">Any weapon</option>
+                      {weapons.map(w=><option key={w} value={w}>{w}</option>)}
+                    </select>
+                  </div>
+                  <select value={voiceFilter.treatment} onChange={e=>setVoiceFilter(f=>({...f,treatment:e.target.value}))} style={{...sel,width:"100%",marginTop:6}}>
+                    <option value="">Any treatment</option>
+                    {treatments.map(t=><option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginTop:6}}>
+                    {any ? `Listening against ${poolSize.toLocaleString()} cards \u2014 just say the hero name.` : "Searching all cards. Pick a set or treatment to make matching much more accurate."}
+                  </div>
+                </div>
+              );
+            })()}
 
             {voiceState.status==="listening" && (
               <div style={{padding:"30px 0",textAlign:"center"}}>
