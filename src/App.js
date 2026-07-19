@@ -26172,7 +26172,6 @@ function MarketTab({ onMarkTraded, onEditPackage, onAddSideToTrade, onUnacceptTr
   // A card the user clicked directly, plus whether they came via the "$ Offer" button so the
   // cash field can take focus. Saves hunting for the card in a long list.
   const [offerPreselect, setOfferPreselect] = useState(null);
-  const [bulkQty, setBulkQty] = useState(1);   // how many copies the bulk "+ Add" applies
   const [offerCashFirst, setOfferCashFirst] = useState(false);
 
   // ── Trade matching ──────────────────────────────────────────────────────────────────────────
@@ -32239,6 +32238,7 @@ See you in there!
     const t = setTimeout(() => document.addEventListener("click", close), 0);
     return () => { clearTimeout(t); document.removeEventListener("click", close); };
   }, [bulkMoreOpen]);
+  const [bulkQty, setBulkQty] = useState(1);   // how many copies the bulk "+ Add" applies
   const [selectedIds,   setSelectedIds]   = useState(()=>new Set());
   const [bulkListModal, setBulkListModal] = useState(false);
   const [importLockAll, setImportLockAll] = useState(false);  // lock every copy in this import
