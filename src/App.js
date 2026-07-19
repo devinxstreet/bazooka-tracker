@@ -16944,7 +16944,27 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
         <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transition:"transform 0.2s ease, box-shadow 0.2s ease", borderRadius:10, cursor:"pointer", willChange:"transform" }} onClick={handleClick}>
          <div className="boba-flipper" style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.55s cubic-bezier(0.34,1.3,0.5,1)", transform:isFlipped?"rotateY(180deg)":"rotateY(0deg)", willChange:"transform" }}>
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade80":"#1a1a1a"}`, boxShadow:isOwned?"0 0 0 1px rgba(74,222,128,0.35), 0 4px 18px rgba(74,222,128,0.22)":"none" }}>
-            <img src={_displayImg} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
+            <img src={_displayImg} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
+              onError={e=>{ e.currentTarget.style.visibility="hidden"; }}/>
+            {/* Name strip. Some official art is blank or fails to load, which left a card you could
+                not identify without opening it. This sits UNDER the foil and shine layers (they use
+                higher z-index) and is pointer-events:none, so hover tilt and the foil sweep are
+                untouched. Gradient rather than a solid bar so it reads as part of the art. */}
+            <div style={{ position:"absolute", left:0, right:0, bottom:0, zIndex:2, pointerEvents:"none",
+              padding:"14px 7px 5px",
+              background:"linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.6) 45%, transparent 100%)" }}>
+              <div style={{ fontSize:isSmallCard?9.5:11, fontWeight:900, color:"#fff", lineHeight:1.15,
+                whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
+                textShadow:"0 1px 3px rgba(0,0,0,0.9)" }}>
+                {c.hero || c.playName || "\u2014"}
+              </div>
+              {(c.treatment || c.cardNum) && (
+                <div style={{ fontSize:isSmallCard?7.5:8.5, fontWeight:700, color:"rgba(255,255,255,0.6)",
+                  lineHeight:1.2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", marginTop:1 }}>
+                  {[c.treatment, c.cardNum].filter(Boolean).join(" \u00b7 ")}
+                </div>
+              )}
+            </div>
             {_isScanImg && <div style={{ position:"absolute", top:6, left:6, zIndex:4, background:"rgba(0,0,0,0.7)", border:"1px solid rgba(74,222,128,0.5)", color:"#4ade80", borderRadius:6, padding:"2px 7px", fontSize:9, fontWeight:800, letterSpacing:0.5, backdropFilter:"blur(3px)" }}>📸 Your scan</div>}
             {!_isScanImg && isFoilTreatment && !isIceFoil && <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", backgroundPosition:"var(--foilpos,50% 50%)", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>}
             {!_isScanImg && isIceFoil && <div ref={iceRef} style={{ position:"absolute", inset:0, borderRadius:10, backgroundImage:_iceRest(), mixBlendMode:"screen", opacity:0.75, transition:"opacity 0.2s ease", pointerEvents:"none", zIndex:3 }}/>}
@@ -17972,6 +17992,14 @@ function InternalMessages({ user, userRole }) {
     return ()=>unsub();
   }, [meUid]);
 
+  // Opening a thread marks it read. Stamped per-user on the thread doc so it follows you between
+  // devices rather than living in local state.
+  useEffect(() => {
+    if (!activeId || !meUid) return;
+    setDoc(doc(db,"dm_threads",activeId), { lastReadBy: { [meUid]: new Date().toISOString() } }, { merge:true })
+      .catch(e => console.error("mark read failed:", e));
+  }, [activeId, meUid, messages.length]);
+
   // Load messages for the active thread
   useEffect(() => {
     if(!activeId) { setMessages([]); return; }
@@ -17982,6 +18010,17 @@ function InternalMessages({ user, userRole }) {
   }, [activeId]);
 
   const activeThread = threads.find(t=>t.id===activeId);
+
+  // A thread is unread when its last message is newer than your read stamp AND you did not send it.
+  // Falling back to "unread" when there is no stamp is deliberate: a thread you have never opened
+  // should announce itself rather than hide.
+  function isUnread(t) {
+    if (!t || !t.lastAt) return false;
+    if (t.lastBy && t.lastBy === meUid) return false;
+    const seen = (t.lastReadBy||{})[meUid];
+    return !seen || String(seen) < String(t.lastAt);
+  }
+  const unreadCount = threads.filter(isUnread).length;
 
   function threadTitle(t) {
     if(t.name) return t.name;
@@ -18021,7 +18060,9 @@ function InternalMessages({ user, userRole }) {
         participantUids:activeThread.participantUids||[],
         sentAt:now,
       });
-      await setDoc(doc(db,"dm_threads",activeId),{ lastAt:now, lastText:text.slice(0,80) },{merge:true});
+      await setDoc(doc(db,"dm_threads",activeId),{ lastAt:now, lastText:text.slice(0,80), lastBy:meUid,
+        // Sending is also reading: stamp yourself so your own message never shows as unread.
+        lastReadBy:{ ...(activeThread?.lastReadBy||{}), [meUid]: now } },{merge:true});
     } catch(e){ console.error("send failed:",e); setDraft(text); }
   }
 
@@ -18043,12 +18084,14 @@ function InternalMessages({ user, userRole }) {
           <div style={{ flex:1, overflowY:"auto" }}>
             {threads.length===0 ? <div style={{ padding:20, textAlign:"center", color:"var(--bz-ink-3)", fontSize:12 }}>No conversations yet.</div> :
               threads.map(t=>(
-                <div key={t.id} onClick={()=>{ setActiveId(t.id); setShowNew(false); }} style={{ padding:"12px 14px", cursor:"pointer", borderBottom:"1px solid var(--bz-line)", background:activeId===t.id?"var(--bz-pink-dim)":"transparent" }}>
+                <div key={t.id} onClick={()=>{ setActiveId(t.id); setShowNew(false); }} style={{ padding:"12px 14px", cursor:"pointer", borderBottom:"1px solid var(--bz-line)", background:activeId===t.id?"var(--bz-pink-dim)":(isUnread(t)?"rgba(232,49,122,0.07)":"transparent"), position:"relative" }}>
+                  {/* Unread dot. Bold text alone is easy to miss in a list you scan quickly. */}
+                  {isUnread(t) && <div style={{ position:"absolute", left:5, top:"50%", transform:"translateY(-50%)", width:7, height:7, borderRadius:"50%", background:"#E8317A", boxShadow:"0 0 6px rgba(232,49,122,0.8)" }}/>}
                   <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                     <span style={{ fontSize:13 }}>{t.name?"👥":"👤"}</span>
-                    <span style={{ fontSize:13, fontWeight:700, color:"var(--bz-ink)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{threadTitle(t)}</span>
+                    <span style={{ fontSize:13, fontWeight:isUnread(t)?900:700, color:isUnread(t)?"#fff":"var(--bz-ink)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{threadTitle(t)}</span>
                   </div>
-                  {t.lastText && <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginTop:3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.lastText}</div>}
+                  {t.lastText && <div style={{ fontSize:11, color:isUnread(t)?"rgba(255,255,255,0.7)":"var(--bz-ink-3)", fontWeight:isUnread(t)?700:400, marginTop:3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{t.lastText}</div>}
                 </div>
               ))
             }
@@ -32961,7 +33004,15 @@ See you in there!
             .map(d=>({...d.data(),id:d.id}))
             .sort((a,b)=>(b.lastMessageAt||"").localeCompare(a.lastMessageAt||""));
           setThreads(threads);
-          setUnreadThreads(threads.filter(t=>t.lastReadBy?.[uid2]<t.lastMessageAt&&t.lastSenderUid!==uid2).length);
+          // A thread never opened has NO read stamp, and `undefined < "2026-..."` is false in JS \u2014 so
+          // brand-new conversations, the ones you most need telling about, never counted as unread.
+          // Treat a missing stamp as "not read yet".
+          setUnreadThreads(threads.filter(t => {
+            if (!t.lastMessageAt) return false;
+            if (t.lastSenderUid === uid2) return false;      // your own message isn't news
+            const seen = t.lastReadBy?.[uid2];
+            return !seen || String(seen) < String(t.lastMessageAt);
+          }).length);
         }
       ),
       // Recent market sales (last 200)
