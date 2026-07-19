@@ -22011,34 +22011,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
     }).catch(()=>{});
   }, []);
 
-  // Listen continuously while scanning. Everything heard becomes a hint for the NEXT photo, so the
-  // flow is "say what it is, then shoot" \u2014 no button juggling between the two.
-  function toggleScanHint() {
-    const SR = typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
-    if (!SR) { setScanHint("Voice isn't supported in this browser"); return; }
-    if (scanHintOn) {
-      try { scanHintRecRef.current && scanHintRecRef.current.stop(); } catch(_){}
-      scanHintRecRef.current = null; setScanHintOn(false);
-      return;
-    }
-    try {
-      const rec = new SR();
-      rec.lang = "en-US"; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
-      rec.onresult = (ev) => {
-        let txt = "";
-        for (let i = ev.resultIndex; i < ev.results.length; i++) txt += ev.results[i][0].transcript + " ";
-        txt = txt.trim();
-        if (txt) { scanHintRef.current = txt; setScanHint(txt); }
-      };
-      rec.onerror = (ev) => {
-        if (ev.error === "not-allowed") { setScanHint("Mic blocked \u2014 allow it for this site"); setScanHintOn(false); }
-      };
-      // Chrome stops continuous recognition after a silence; restart while the toggle is still on.
-      rec.onend = () => { if (scanHintRecRef.current === rec) { try { rec.start(); } catch(_){} } };
-      scanHintRecRef.current = rec; setScanHintOn(true);
-      rec.start();
-    } catch(e) { setScanHint("Couldn't start the mic"); setScanHintOn(false); }
-  }
+
 
   async function scanCardPhoto(file) {
     setPhotoScan({ status:"scanning", card:null });
@@ -34914,17 +34887,58 @@ See you in there!
       // use it to shrink the pool BEFORE matching. It applies at every stage below rather than as a
       // late tie-break, and if the hint eliminates everything we ignore it rather than fail the scan.
       const hintPool = (() => {
-        const h = String(scanHintRef.current||"").toLowerCase().replace(/[^a-z0-9\s]/g," ").replace(/\s+/g," ").trim();
-        if (!h) return null;
+        const raw = String(scanHintRef.current||"").toLowerCase().replace(/[^a-z0-9\s]/g," ").replace(/\s+/g," ").trim();
+        if (!raw) return null;
         const squash = s => String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
-        const hs = squash(h);
-        const hit = (v) => { const t=squash(v); return !!t && (hs.includes(t) || t.includes(hs)); };
-        const narrowed = cards.filter(c => hit(c.treatment) || hit(c.weapon) || hit(c.setName) || hit(c.hero));
-        return narrowed.length ? narrowed : null;
+        // Match WORD BY WORD, not as one squashed blob. The old version glued the phrase into
+        // "moose80srad" and asked whether it contained the treatment — it never did, while the hero
+        // name alone let every Moose card through. So "moose 80s rad" kept Moose Red Battlefoil and
+        // the treatment did no narrowing at all.
+        const STOP = new Set(["the","a","an","and","of","card","battlefoil","foil"]);
+        const words = raw.split(" ").filter(w => w.length>1 && !STOP.has(w));
+        if (!words.length) return null;
+        // "80s" should match "80's", "1980s" etc. Compare on digits+letters with a loose contains.
+        const wordHitsField = (w, field) => {
+          const f = squash(field); if (!f) return false;
+          const s = squash(w);     if (!s) return false;
+          return f.includes(s) || s.includes(f);
+        };
+        // Score each card: how many spoken words it can account for, and where. Treatment and weapon
+        // matches are what we actually need (OCR loses those), so weight them above the hero.
+        const scored = cards.map(card => {
+          let score = 0, treatHits = 0;
+          for (const w of words) {
+            if (wordHitsField(w, card.treatment)) { score += 3; treatHits++; }
+            else if (wordHitsField(w, card.weapon)) score += 2;
+            else if (wordHitsField(w, card.setName)) score += 2;
+            else if (wordHitsField(w, card.hero)) score += 1;
+          }
+          return { card, score, treatHits };
+        }).filter(x => x.score > 0);
+        if (!scored.length) return null;
+        // Keep only the best-scoring cards. If anything matched on treatment, drop everything that
+        // didn't — that is the whole point of saying the treatment out loud.
+        const anyTreat = scored.some(x => x.treatHits > 0);
+        const pool = anyTreat ? scored.filter(x => x.treatHits > 0) : scored;
+        const top = Math.max(...pool.map(x => x.score));
+        const best = pool.filter(x => x.score === top).map(x => x.card);
+        return best.length ? best : null;
       })();
       const scanPool = hintPool || cards;
       // Consume the hint: it described THIS card, not the next one.
+      const spokenHint = scanHintRef.current;
       scanHintRef.current = ""; setScanHint("");
+      // If what you said pinned it to ONE card and the photo agrees on the hero, take it. Otherwise a
+      // bad treatment read can still drag the match onto the wrong variant even from a narrowed pool.
+      if (hintPool && hintPool.length === 1) {
+        const only = hintPool[0];
+        if (!iHero || heroMatch(only.hero, iHero)) {
+          setPhotoScan({ status:"matched", card:only, detected:{...data, viaHint:spokenHint}, scanPhoto:display });
+          setScanQty(1);
+          scanInFlight.current = false;
+          return;
+        }
+      }
 
       // HERO-FIRST: hero name is the most reliable read. Find all cards for this hero, then pin the variant.
       const heroCards = iHero ? scanPool.filter(c=>heroMatch(c.hero,iHero)) : [];
@@ -35071,6 +35085,35 @@ See you in there!
                  .slice(0, 6).map(x => x.card);
   }
 
+
+  // Listen continuously while scanning. Everything heard becomes a hint for the NEXT photo, so the
+  // flow is "say what it is, then shoot" \u2014 no button juggling between the two.
+  function toggleScanHint() {
+    const SR = typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
+    if (!SR) { setScanHint("Voice isn't supported in this browser"); return; }
+    if (scanHintOn) {
+      try { scanHintRecRef.current && scanHintRecRef.current.stop(); } catch(_){}
+      scanHintRecRef.current = null; setScanHintOn(false);
+      return;
+    }
+    try {
+      const rec = new SR();
+      rec.lang = "en-US"; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
+      rec.onresult = (ev) => {
+        let txt = "";
+        for (let i = ev.resultIndex; i < ev.results.length; i++) txt += ev.results[i][0].transcript + " ";
+        txt = txt.trim();
+        if (txt) { scanHintRef.current = txt; setScanHint(txt); }
+      };
+      rec.onerror = (ev) => {
+        if (ev.error === "not-allowed") { setScanHint("Mic blocked \u2014 allow it for this site"); setScanHintOn(false); }
+      };
+      // Chrome stops continuous recognition after a silence; restart while the toggle is still on.
+      rec.onend = () => { if (scanHintRecRef.current === rec) { try { rec.start(); } catch(_){} } };
+      scanHintRecRef.current = rec; setScanHintOn(true);
+      rec.start();
+    } catch(e) { setScanHint("Couldn't start the mic"); setScanHintOn(false); }
+  }
 
   async function scanCardPhoto(file) {
     if (scanInFlight.current) return; // prevent overlapping scans when scanning back-to-back
