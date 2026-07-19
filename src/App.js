@@ -25828,7 +25828,12 @@ function TradeOfferModal({ trader, cards, owned, tradeBait, myTrades = [], myUid
     const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n;
   });
 
-  const canSend = want.size > 0 && give.size > 0 && !sending;
+  // You must ask for something (a card and/or cash from them), and you must put something up
+  // (a card and/or cash). Requiring a CARD from your side made straight cash offers impossible,
+  // which was the whole point of adding the cash fields.
+  const iGive = give.size > 0 || (parseFloat(myCash)||0) > 0;
+  const iGet  = want.size > 0 || (parseFloat(theirCash)||0) > 0;
+  const canSend = iGive && iGet && !sending;
 
   async function send() {
     setSending(true);
@@ -25925,10 +25930,16 @@ function TradeOfferModal({ trader, cards, owned, tradeBait, myTrades = [], myUid
         <div style={{display:"flex",gap:8}}>
           <button disabled={!canSend} onClick={send}
             style={{flex:1,background:canSend?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#222",color:canSend?"#fff":"#666",border:"none",borderRadius:9,padding:"12px",fontSize:13,fontWeight:800,cursor:canSend?"pointer":"not-allowed",fontFamily:"inherit"}}>
-            {sending ? "Sending\u2026"
-              : want.size===0 ? "Pick what you want"
-              : give.size===0 ? "Pick what you'll give"
-              : `Offer ${give.size} for ${want.size}`}
+            {(() => {
+              if (sending) return "Sending\u2026";
+              const mc = parseFloat(myCash)||0, tc = parseFloat(theirCash)||0;
+              if (!iGet)  return "Pick what you want";
+              if (!iGive) return "Add a card or cash";
+              // Describe the actual shape of the offer rather than assuming cards on both sides.
+              const mine  = [give.size ? `${give.size} card${give.size!==1?"s":""}` : null, mc>0 ? `$${mc.toLocaleString()}` : null].filter(Boolean).join(" + ");
+              const yours = [want.size ? `${want.size} card${want.size!==1?"s":""}` : null, tc>0 ? `$${tc.toLocaleString()}` : null].filter(Boolean).join(" + ");
+              return `Offer ${mine} for ${yours}`;
+            })()}
           </button>
           <button disabled={sending} onClick={onClose}
             style={{flex:1,background:"transparent",border:"1px solid #333",color:"#999",borderRadius:9,padding:"12px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
@@ -33724,6 +33735,40 @@ See you in there!
       ? `Added ${changed} card${changed!==1?"s":""} to your collection.`
       : `Removed ${changed} card${changed!==1?"s":""} from your collection.`);
   }
+  // Set every selected card to the SAME quantity in one go. The on-card stepper is per-card, so
+  // putting fifty commons at 3 meant fifty separate interactions. Deliberately a "set to", not an
+  // "add" \u2014 "make these all 3" is the thing people actually mean, and it's predictable when some
+  // of the selection is already owned at different counts.
+  async function bulkSetQuantity() {
+    if (!user) { setSigningIn(true); return; }
+    if (selectedIds.size === 0) return;
+    const raw = window.prompt(
+      `Set quantity for ${selectedIds.size} selected card${selectedIds.size!==1?"s":""}.\n\n` +
+      `Every one of them will be set to this number \u2014 not added to what you already own.\n` +
+      `Enter 0 to remove them from your collection.`, "1");
+    if (raw === null) return;
+    const qty = parseInt(String(raw).trim(), 10);
+    if (isNaN(qty) || qty < 0) { alert("Enter a whole number of 0 or more."); return; }
+    if (qty > 999) { alert("That's higher than this is meant for \u2014 keep it under 1000."); return; }
+
+    // Flag the destructive direction explicitly rather than silently wiping counts.
+    const losing = [...selectedIds].filter(id => (parseInt(owned[id])||0) > qty);
+    if (qty === 0) {
+      if (!window.confirm(`Remove all ${selectedIds.size} selected card${selectedIds.size!==1?"s":""} from your collection?`)) return;
+    } else if (losing.length) {
+      if (!window.confirm(`${losing.length} of the selected card${losing.length!==1?"s are":" is"} currently at a HIGHER count and will be reduced to ${qty}.\n\nContinue?`)) return;
+    }
+
+    const next = { ...owned };
+    selectedIds.forEach(id => { if (qty <= 0) delete next[id]; else next[id] = qty; });
+    setOwned(next);
+    queueOwnedSave(next);
+    setBulkMoreOpen(false);
+    setToast(qty === 0
+      ? `Removed ${selectedIds.size} card${selectedIds.size!==1?"s":""} from your collection.`
+      : `Set ${selectedIds.size} card${selectedIds.size!==1?"s":""} to ${qty} cop${qty===1?"y":"ies"} each.`);
+  }
+
   // Bulk make public / private — one write via the whole map.
   async function bulkSetPublic(makePublic) {
     if (!user || selectedIds.size===0) return;
@@ -38997,6 +39042,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   return (
                     <>
                       {hdr("Collection")}
+                      {item("🔢 Set quantity…", bulkSetQuantity)}
                       {item("➖ Remove from collection", ()=>bulkSetOwned(false))}
                       {item("↗ Mark as sold", ()=>bulkSellSelected("sold"))}
                       {item("↗ Mark as traded", ()=>bulkSellSelected("traded"))}
