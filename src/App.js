@@ -16953,17 +16953,6 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
             {!_isScanImg && isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
             {isMetallicFoil && <div ref={metallicRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.08s ease", pointerEvents:"none", zIndex:3 }}/>}
             {!onExpand && <div className="boba-flip-pill" style={{ position:"absolute", bottom:6, right:6, display:"flex", alignItems:"center", gap:3, fontSize:10, color:"#fff", fontWeight:700, background:"rgba(0,0,0,0.6)", borderRadius:12, padding:"3px 8px", backdropFilter:"blur(4px)", border:"1px solid rgba(255,255,255,0.15)", pointerEvents:"none" }}>{"\uD83D\uDD04"} flip</div>}
-            {/* Multiples only. A plain owned card needs no marker — the green border says it, and
-                anything sitting on the art competes with the card itself. A count is different:
-                you cannot infer "I have 3" from a border, so it earns the small footprint. */}
-            {isOwned && qty > 1 && (
-              <div title={`You own ${qty}`} style={{ position:"absolute", top:6, right:6, zIndex:6, pointerEvents:"none",
-                background:"rgba(4,34,15,0.82)", color:"#4ade80", border:"1px solid rgba(74,222,128,0.7)",
-                borderRadius:6, padding:"1px 6px", fontSize:isSmallCard?9.5:10.5, fontWeight:900,
-                fontFamily:"inherit", lineHeight:1.5, backdropFilter:"blur(3px)" }}>
-                {"\u00d7"}{qty}
-              </div>
-            )}
             {toggleOwned && (
               isOwned ? null : (
                 <button className="boba-quickadd" onClick={e=>{ e.stopPropagation(); toggleOwned(c.id); onCardActivity&&onCardActivity(); }}
@@ -33477,21 +33466,36 @@ See you in there!
 
   async function toggleOwned(cardId) {
     if (!user) { setSigningIn(true); return; }
-    const next = {...owned};
-    const wasOwned = !!next[cardId];
-    if (next[cardId]) delete next[cardId]; else next[cardId]=1;
-    setOwned(next);
+    const wasOwned = !!owned[cardId];
+    // Functional update for the same reason as setOwnedQty: adding two cards in quick succession
+    // must not have the second write built from a snapshot taken before the first.
+    let saved = null;
+    setOwned(prev => {
+      const next = { ...prev };
+      if (next[cardId]) delete next[cardId]; else next[cardId] = 1;
+      saved = next;
+      return next;
+    });
     if (!wasOwned) { const card = cards.find(c=>c.id===cardId) || {id:cardId}; setCardFx({ type:"caught", card }); }
-    queueOwnedSave(next);
+    if (saved) queueOwnedSave(saved);
   }
   async function setOwnedQty(cardId, qty) {
     if (!user) return;
     const wasOwned = !!owned[cardId];
-    const next = {...owned};
-    if (qty<=0) delete next[cardId]; else next[cardId]=qty;
-    setOwned(next);
+    // FUNCTIONAL UPDATE, not `{...owned}`. Reading `owned` from the render closure meant two quick
+    // clicks on different cards both built from the SAME stale snapshot \u2014 so adding Ice right after
+    // Fire wrote a map that never had Fire in it, silently wiping the first card. Building from the
+    // previous state guarantees each write sees every earlier one.
+    let saved = null;
+    setOwned(prev => {
+      const next = { ...prev };
+      if (qty <= 0) delete next[cardId]; else next[cardId] = qty;
+      saved = next;
+      return next;
+    });
     if (!wasOwned && qty>0) { const card = cards.find(c=>c.id===cardId) || {id:cardId}; setCardFx({ type:"caught", card }); }
-    queueOwnedSave(next);
+    // saved is assigned synchronously by the updater above, so this persists the merged map.
+    if (saved) queueOwnedSave(saved);
   }
 
   // ── KID COLLECTIONS ────────────────────────────────────────────────────────────────────────
@@ -33544,10 +33548,14 @@ See you in there!
     const n = Math.min(Math.max(1, parseInt(qty)||1), have);
 
     // 1. Drop the quantity (or remove the card entirely when the last copy goes).
-    const nextOwned = {...owned};
-    if (have - n <= 0) delete nextOwned[cardId]; else nextOwned[cardId] = have - n;
-    setOwned(nextOwned);
-    queueOwnedSave(nextOwned);
+    let nextOwned = null;
+    setOwned(prev => {
+      const nx = { ...prev };
+      if (have - n <= 0) delete nx[cardId]; else nx[cardId] = have - n;
+      nextOwned = nx;
+      return nx;
+    });
+    if (nextOwned) queueOwnedSave(nextOwned);
 
     // 2. Keep the per-copy kid tags in step. Copies are indexed 0..qty-1, so when some leave we
     // drop the tags for the copies that no longer exist. (We remove from the end — the tags that
@@ -42217,9 +42225,20 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                       The select overlay above is inset:0 on the CARD, so this strip stays clickable
                       and readable in select mode too. */}
                   <div style={{ padding:"5px 2px 0", pointerEvents:"none" }}>
-                    <div style={{ fontSize:11, fontWeight:800, color:owned[c.id]?"#4ade80":"var(--bz-ink)",
-                      lineHeight:1.2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                      {c.hero || c.playName || "\u2014"}
+                    <div style={{ display:"flex", alignItems:"baseline", gap:5 }}>
+                      <div style={{ fontSize:11, fontWeight:800, color:owned[c.id]?"#4ade80":"var(--bz-ink)",
+                        lineHeight:1.2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", flex:1, minWidth:0 }}>
+                        {c.hero || c.playName || "\u2014"}
+                      </div>
+                      {/* Count lives here now instead of on the artwork. Only shown for multiples \u2014 the
+                          green name already tells you a single copy is yours. */}
+                      {(parseInt(owned[c.id])||0) > 1 && (
+                        <span title={`You own ${owned[c.id]}`} style={{ fontSize:10, fontWeight:900, color:"#4ade80",
+                          background:"rgba(74,222,128,0.13)", border:"1px solid rgba(74,222,128,0.4)",
+                          borderRadius:5, padding:"0 4px", lineHeight:1.5, flexShrink:0 }}>
+                          {"\u00d7"}{owned[c.id]}
+                        </span>
+                      )}
                     </div>
                     {(c.treatment || c.cardNum) && (
                       <div style={{ fontSize:9, fontWeight:600, color:"var(--bz-ink-3)", lineHeight:1.25,
