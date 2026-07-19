@@ -32238,7 +32238,16 @@ See you in there!
     const t = setTimeout(() => document.addEventListener("click", close), 0);
     return () => { clearTimeout(t); document.removeEventListener("click", close); };
   }, [bulkMoreOpen]);
-  const [bulkQty, setBulkQty] = useState(1);   // how many copies the bulk "+ Add" applies
+  const [bulkQty, setBulkQty] = useState(1);   // last value set from the bulk dial
+  // What the bulk dial displays. Derived from the selection rather than stored, so it can never
+  // drift out of step with the cards. Mixed counts show the highest, which is what you would then
+  // step up or down from.
+  const selQty = useMemo(() => {
+    if (!selectedIds.size) return bulkQty;
+    let max = 0;
+    selectedIds.forEach(id => { const q = parseInt(owned[id]) || 0; if (q > max) max = q; });
+    return max || 1;
+  }, [selectedIds, owned, bulkQty]);
   const [selectedIds,   setSelectedIds]   = useState(()=>new Set());
   const [bulkListModal, setBulkListModal] = useState(false);
   const [importLockAll, setImportLockAll] = useState(false);  // lock every copy in this import
@@ -33775,17 +33784,19 @@ See you in there!
   // ADD n copies to every selected card. Additive rather than "set to n": with a mixed selection
   // that is the predictable behaviour, and it can never silently reduce a card you already own
   // more of. One write for the whole map regardless of how many cards are selected.
-  async function bulkAddCopies(n) {
+  // SET every selected card to n. The bottom dial calls this on every tap so the on-card numbers
+  // track it live. It has to be "set", not "add": if it added on each tap, holding + would run the
+  // count away from what the dial reads and the two would disagree.
+  async function bulkApplyQty(n) {
     if (!user) { setSigningIn(true); return; }
     if (selectedIds.size === 0) return;
-    const add = Math.max(1, parseInt(n) || 1);
+    const qty = Math.max(0, parseInt(n) || 0);
     const next = { ...owned };
-    selectedIds.forEach(id => { next[id] = (parseInt(next[id]) || 0) + add; });
+    selectedIds.forEach(id => { if (qty <= 0) delete next[id]; else next[id] = qty; });
     setOwned(next);
     queueOwnedSave(next);
-    const titles = selectedIds.size;
-    setToast(`Added ${add} cop${add===1?"y":"ies"} to ${titles} card${titles!==1?"s":""}.`);
   }
+
 
   // Bulk make public / private — one write via the whole map.
   async function bulkSetPublic(makePublic) {
@@ -39035,27 +39046,26 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
 
           {/* THE THREE EVERYDAY ACTIONS. Everything else lives in the More menu below — this bar had
               grown to 13 buttons at equal weight, which made the common case hard to find. */}
-          {/* Replaces the old "Mark Owned" button. Clicking a card already takes it to 1, so a single
-              "own these" action was redundant; what was missing was adding SEVERAL copies at once.
-              This is additive on purpose \u2014 with a mixed selection "add 2 to each" is predictable,
-              whereas "set everything to 2" would quietly wipe a card you already had 5 of. */}
+          {(() => null)()}
+          {/* The dial IS the quantity. Moving it writes straight through to every selected card, so
+              the number on each card tracks it live \u2014 no separate "apply" press. Setting rather than
+              adding is what makes that possible: the dial has to mean one definite end state.
+              It reads from the SELECTION, not from its own memory, so it never disagrees with the
+              cards: if everything selected is at 3 it shows 3, and mixed counts show the highest. */}
           <div style={{display:"flex",alignItems:"center",gap:0,background:selectedIds.size?"rgba(74,222,128,0.14)":"rgba(255,255,255,0.04)",border:"1px solid "+(selectedIds.size?"rgba(74,222,128,0.5)":"rgba(255,255,255,0.08)"),borderRadius:8,overflow:"hidden"}}>
-            <button disabled={selectedIds.size===0 || bulkQty<=1}
-              onClick={()=>setBulkQty(q=>Math.max(1,q-1))}
-              title="Fewer copies"
-              style={{background:"transparent",border:"none",color:selectedIds.size&&bulkQty>1?"#4ade80":"rgba(255,255,255,0.25)",padding:"7px 10px",fontSize:15,fontWeight:900,cursor:selectedIds.size&&bulkQty>1?"pointer":"default",fontFamily:"inherit",lineHeight:1}}>
+            <button disabled={selectedIds.size===0}
+              onClick={()=>{ const v=Math.max(0,selQty-1); setBulkQty(v); bulkApplyQty(v); }}
+              title="One fewer copy of every selected card"
+              style={{background:"transparent",border:"none",color:selectedIds.size?"#4ade80":"rgba(255,255,255,0.25)",padding:"7px 12px",fontSize:16,fontWeight:900,cursor:selectedIds.size?"pointer":"default",fontFamily:"inherit",lineHeight:1}}>
               {"\u2212"}
             </button>
+            <span style={{color:selectedIds.size?"#4ade80":"rgba(255,255,255,0.25)",fontSize:12.5,fontWeight:800,fontFamily:"inherit",whiteSpace:"nowrap",padding:"0 4px",minWidth:60,textAlign:"center"}}>
+              {selQty} each
+            </span>
             <button disabled={selectedIds.size===0}
-              onClick={()=>bulkAddCopies(bulkQty)}
-              title={`Add ${bulkQty} cop${bulkQty===1?"y":"ies"} of every selected card`}
-              style={{background:"transparent",border:"none",color:selectedIds.size?"#4ade80":"rgba(255,255,255,0.25)",padding:"7px 6px",fontSize:12,fontWeight:800,cursor:selectedIds.size?"pointer":"default",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-              {"\u2795"} Add {bulkQty>1 ? `${bulkQty} each` : ""}
-            </button>
-            <button disabled={selectedIds.size===0}
-              onClick={()=>setBulkQty(q=>Math.min(99,q+1))}
-              title="More copies"
-              style={{background:"transparent",border:"none",color:selectedIds.size?"#4ade80":"rgba(255,255,255,0.25)",padding:"7px 10px",fontSize:15,fontWeight:900,cursor:selectedIds.size?"pointer":"default",fontFamily:"inherit",lineHeight:1}}>
+              onClick={()=>{ const v=Math.min(99,selQty+1); setBulkQty(v); bulkApplyQty(v); }}
+              title="One more copy of every selected card"
+              style={{background:"transparent",border:"none",color:selectedIds.size?"#4ade80":"rgba(255,255,255,0.25)",padding:"7px 12px",fontSize:16,fontWeight:900,cursor:selectedIds.size?"pointer":"default",fontFamily:"inherit",lineHeight:1}}>
               +
             </button>
           </div>
