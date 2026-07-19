@@ -28550,13 +28550,6 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         const toggleW = w => setDeckGoalW(prev => { const n=new Set(prev); n.has(w)?n.delete(w):n.add(w); return n; });
                         const toggleT = t => setDeckGoalT(prev => { const n=new Set(prev); n.has(t)?n.delete(t):n.add(t); return n; });
                         const label = (sel, none, one) => sel.size===0 ? none : sel.size===1 ? `${Array.from(sel)[0]} ${one}` : `${sel.size} ${none.split(" ")[1]}s`;
-                        const pill = (on) => ({
-                          background: on ? "rgba(232,49,122,0.18)" : "rgba(255,255,255,0.04)",
-                          border: `1px solid ${on ? "#E8317A" : "var(--bz-line-2)"}`,
-                          color: on ? "#fff" : "var(--bz-ink-2)",
-                          borderRadius: 7, padding: "4px 9px", fontSize: 11, fontWeight: on?800:600,
-                          cursor: "pointer", fontFamily: "inherit",
-                        });
                         return (
                           <>
                             <button onClick={()=>setGoalWOpen(v=>!v)} style={{...inp,width:"auto",fontSize:11,padding:"5px 10px",cursor:"pointer",textAlign:"left"}}>
@@ -28574,19 +28567,48 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                                 <div style={{width:"100%",fontSize:10,color:"var(--bz-ink-3)",marginBottom:4}}>
                             Tap in priority order — the deck fills from your first pick, then tops up with the next.
                           </div>
-                          {weapons.map(w=>{
-                            const rank = Array.from(deckGoalW).indexOf(w);   // Sets keep insertion order
-                            return (
-                              <button key={w} onClick={()=>toggleW(w)} style={pill(deckGoalW.has(w))}>
-                                {rank>=0 ? `${rank+1}. ` : ""}{w}
-                              </button>
-                            );
-                          })}
+                          <div style={{width:"100%",display:"flex",justifyContent:"flex-end",gap:6,marginBottom:4}}>
+                            <button onClick={()=>setDeckGoalW(new Set(weapons))} style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:6,padding:"3px 9px",fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Select all</button>
+                            <button onClick={()=>setDeckGoalW(new Set())} style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:6,padding:"3px 9px",fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>None</button>
+                          </div>
+                          <div style={{width:"100%",maxHeight:210,overflowY:"auto",overscrollBehavior:"contain",border:"1px solid var(--bz-line)",borderRadius:8}}>
+                            {weapons.map(w=>{
+                              const rank = Array.from(deckGoalW).indexOf(w);   // Sets keep insertion order
+                              const on = rank>=0;
+                              return (
+                                <label key={w} onClick={ev=>{ev.preventDefault(); toggleW(w);}}
+                                  style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",cursor:"pointer",background:on?"rgba(232,49,122,0.10)":"transparent",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                                  <span style={{width:16,height:16,flexShrink:0,borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",border:`1.5px solid ${on?"#E8317A":"var(--bz-line-2)"}`,background:on?"#E8317A":"transparent",color:"#fff",fontSize:9.5,fontWeight:900,lineHeight:1}}>{on?(rank+1):""}</span>
+                                  <span style={{fontSize:11.5,fontWeight:on?800:600,color:on?"#fff":"var(--bz-ink-2)"}}>{w}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
                               </div>
                             )}
                             {goalTOpen && (
-                              <div style={{width:"100%",marginTop:6,padding:"10px 12px",background:"rgba(0,0,0,0.25)",border:"1px solid var(--bz-line)",borderRadius:10,display:"flex",flexWrap:"wrap",gap:6}}>
-                                {treatments.map(t=><button key={t} onClick={()=>toggleT(t)} style={pill(deckGoalT.has(t))}>{t}</button>)}
+                              <div style={{width:"100%",marginTop:6,background:"rgba(0,0,0,0.25)",border:"1px solid var(--bz-line)",borderRadius:9,overflow:"hidden"}}>
+                                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"7px 10px",borderBottom:"1px solid var(--bz-line)",background:"rgba(255,255,255,0.03)"}}>
+                                  <span style={{fontSize:10.5,fontWeight:800,color:"var(--bz-ink-3)"}}>
+                                    {deckGoalT.size===0 ? "Any treatment" : `${deckGoalT.size} of ${treatments.length} selected`}
+                                  </span>
+                                  <span style={{display:"flex",gap:6}}>
+                                    <button onClick={()=>setDeckGoalT(new Set(treatments))} style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:6,padding:"3px 9px",fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Select all</button>
+                                    <button onClick={()=>setDeckGoalT(new Set())} style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:6,padding:"3px 9px",fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>None</button>
+                                  </span>
+                                </div>
+                                <div style={{maxHeight:210,overflowY:"auto",overscrollBehavior:"contain"}}>
+                                  {treatments.map(t=>{
+                                    const on = deckGoalT.has(t);
+                                    return (
+                                      <label key={t} onClick={ev=>{ev.preventDefault(); toggleT(t);}}
+                                        style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",cursor:"pointer",background:on?"rgba(232,49,122,0.10)":"transparent",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                                        <span style={{width:14,height:14,flexShrink:0,borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",border:`1.5px solid ${on?"#E8317A":"var(--bz-line-2)"}`,background:on?"#E8317A":"transparent",color:"#fff",fontSize:10,fontWeight:900,lineHeight:1}}>{on?"\u2713":""}</span>
+                                        <span style={{fontSize:11.5,fontWeight:on?800:600,color:on?"#fff":"var(--bz-ink-2)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{t}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
                               </div>
                             )}
                           </>
@@ -28821,14 +28843,45 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 {(() => {
                   const toggleIn = (setter) => (v) => setter(prev => { const n=new Set(prev); n.has(v)?n.delete(v):n.add(v); return n; });
                   const tW = toggleIn(setDeckFilterW), tS = toggleIn(setDeckFilterS), tT = toggleIn(setDeckFilterT);
+                  // Checkbox rows, not pills. "Select everything, then untick the one I don't want"
+                  // is the actual workflow, and pills make that a hunt \u2014 you cannot tell selected from
+                  // unselected at a glance across 30 of them, and there is no way to select all.
+                  const filterPanel = (items, sel, setter, toggle) => (
+                    <div style={{width:"100%",marginTop:6,background:"rgba(0,0,0,0.25)",border:"1px solid var(--bz-line)",borderRadius:9,overflow:"hidden"}}>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"7px 10px",borderBottom:"1px solid var(--bz-line)",background:"rgba(255,255,255,0.03)"}}>
+                        <span style={{fontSize:10.5,fontWeight:800,color:"var(--bz-ink-3)"}}>
+                          {sel.size===0 ? "Showing all" : `${sel.size} of ${items.length} selected`}
+                        </span>
+                        <span style={{display:"flex",gap:6}}>
+                          <button onClick={()=>setter(new Set(items))}
+                            style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:6,padding:"3px 9px",fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                            Select all
+                          </button>
+                          <button onClick={()=>setter(new Set())}
+                            style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:6,padding:"3px 9px",fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                            None
+                          </button>
+                        </span>
+                      </div>
+                      <div style={{maxHeight:210,overflowY:"auto",overscrollBehavior:"contain"}}>
+                        {items.map(v => {
+                          const on = sel.has(v);
+                          return (
+                            <label key={v} onClick={e=>{e.preventDefault(); toggle(v);}}
+                              style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",cursor:"pointer",
+                                background:on?"rgba(232,49,122,0.10)":"transparent",
+                                borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                              <span style={{width:14,height:14,flexShrink:0,borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",
+                                border:`1.5px solid ${on?"#E8317A":"var(--bz-line-2)"}`,background:on?"#E8317A":"transparent",
+                                color:"#fff",fontSize:10,fontWeight:900,lineHeight:1}}>{on?"\u2713":""}</span>
+                              <span style={{fontSize:11.5,fontWeight:on?800:600,color:on?"#fff":"var(--bz-ink-2)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
                   const lab = (sel, none, one) => sel.size===0 ? none : sel.size===1 ? `${Array.from(sel)[0]} ${one}` : `${sel.size} ${none.replace(/^All /,"")}`;
-                  const pill = (on) => ({
-                    background: on ? "rgba(232,49,122,0.18)" : "rgba(255,255,255,0.04)",
-                    border: `1px solid ${on ? "#E8317A" : "var(--bz-line-2)"}`,
-                    color: on ? "#fff" : "var(--bz-ink-2)",
-                    borderRadius: 7, padding: "4px 9px", fontSize: 11, fontWeight: on?800:600,
-                    cursor: "pointer", fontFamily: "inherit",
-                  });
                   const tabBtn = (open, active) => ({...inp, width:"auto", cursor:"pointer", textAlign:"left",
                     color: active ? "#fff" : "rgba(255,255,255,0.4)"});
                   return (
@@ -28846,21 +28899,9 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         <button onClick={()=>{setDeckFilterW(new Set());setDeckFilterS(new Set());setDeckFilterT(new Set());}}
                           style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Clear filters</button>
                       )}
-                      {filtWOpen && (
-                        <div style={{width:"100%",marginTop:6,padding:"10px 12px",background:"rgba(0,0,0,0.25)",border:"1px solid var(--bz-line)",borderRadius:9,display:"flex",flexWrap:"wrap",gap:6}}>
-                          {weapons.map(w=><button key={w} onClick={()=>tW(w)} style={pill(deckFilterW.has(w))}>{w}</button>)}
-                        </div>
-                      )}
-                      {filtSOpen && (
-                        <div style={{width:"100%",marginTop:6,padding:"10px 12px",background:"rgba(0,0,0,0.25)",border:"1px solid var(--bz-line)",borderRadius:9,display:"flex",flexWrap:"wrap",gap:6}}>
-                          {sets.map(s=><button key={s} onClick={()=>tS(s)} style={pill(deckFilterS.has(s))}>{s}</button>)}
-                        </div>
-                      )}
-                      {filtTOpen && (
-                        <div style={{width:"100%",marginTop:6,padding:"10px 12px",background:"rgba(0,0,0,0.25)",border:"1px solid var(--bz-line)",borderRadius:9,display:"flex",flexWrap:"wrap",gap:6}}>
-                          {treatments.map(t=><button key={t} onClick={()=>tT(t)} style={pill(deckFilterT.has(t))}>{t}</button>)}
-                        </div>
-                      )}
+                      {filtWOpen && filterPanel(weapons, deckFilterW, setDeckFilterW, tW)}
+                      {filtSOpen && filterPanel(sets, deckFilterS, setDeckFilterS, tS)}
+                      {filtTOpen && filterPanel(treatments, deckFilterT, setDeckFilterT, tT)}
                     </>
                   );
                 })()}
@@ -29011,7 +29052,11 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                   </select>
                 );
               })()}
-              <div className="deck-pb-cardlist" style={{paddingRight:4}}>
+              {/* The card list scrolls ITSELF rather than growing the page. It used to have no height
+                  limit, so picking a treatment shrank the list, the page got shorter, and the browser
+                  clamped your scroll position back to the top \u2014 which reads as "it jumped me to the
+                  top every time I select a filter". Owning the scroll keeps your place. */}
+              <div className="deck-pb-cardlist" style={{paddingRight:4,maxHeight:isMobile?"58vh":"calc(100vh - 300px)",overflowY:"auto",overflowX:"hidden",overscrollBehavior:"contain"}}>
                 {deckAvail.length===0?<div style={{padding:40,textAlign:"center",color:"rgba(255,255,255,0.2)"}}>No cards match filters</div>:
                   <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(auto-fill,minmax(95px,1fr))":"repeat(auto-fill,minmax(120px,1fr))",gap:10}}>
                   {deckVisible.map((c)=>{
