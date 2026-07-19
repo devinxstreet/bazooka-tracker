@@ -19434,8 +19434,12 @@ function CardDeduper() {
         // power, so the name is nearly all the identity they have; reading it from the wrong field
         // meant they never matched.
         const nameOf = x => n(x.playName) || n(x.hero);
+        // LOOSE deliberately still separates treatment. Some sets (Tecmo inserts, for one) reuse a
+        // card number across genuinely different cards \u2014 Silver Battlefoil and Glow Skyline can both
+        // be S130. Ignoring treatment made those look like duplicates and deleted real cards. Loose
+        // now forgives drift in weapon and power only, which is what re-imports actually mangle.
         const key = mode === "loose"
-          ? [n(c.setName), nNum(c.cardNum), nameOf(c)].join("|")
+          ? [n(c.setName), nNum(c.cardNum), nameOf(c), n(c.treatment)].join("|")
           : [n(c.setName), nNum(c.cardNum), nameOf(c), n(c.treatment), n(c.weapon), nNum(c.power)].join("|");
         // Identifiable = a card number and SOME name (play name or hero).
         if (!nNum(c.cardNum) || !nameOf(c)) return;
@@ -19550,7 +19554,7 @@ function CardDeduper() {
           strict can never match — loose ignores treatment/weapon/power and groups on identity alone. */}
       <div style={{display:"flex",gap:8,marginBottom:12}}>
         {[["strict","Exact match","Same set, number, name, treatment, weapon and power."],
-          ["loose","Same card, any variant","Same set, number and name \u2014 ignores treatment, weapon and power. Use this after a bad re-import."]].map(([m,label,help])=>(
+          ["loose","Same card, drifted data","Same set, number, name AND treatment \u2014 forgives weapon and power drift only. Treatment is never ignored: some sets reuse a card number across different inserts."]].map(([m,label,help])=>(
           <button key={m} onClick={()=>{setMode(m); setGroups(null); setDone(null);}} title={help}
             style={{flex:1,textAlign:"left",background:mode===m?"rgba(123,156,255,0.12)":"transparent",border:`1px solid ${mode===m?"#7B9CFF":"#2a2a2a"}`,borderRadius:10,padding:"10px 12px",cursor:"pointer",fontFamily:"inherit"}}>
             <div style={{fontSize:12.5,fontWeight:800,color:mode===m?"#7B9CFF":"#ccc",marginBottom:2}}>{label}</div>
@@ -32239,6 +32243,7 @@ See you in there!
     return () => { clearTimeout(t); document.removeEventListener("click", close); };
   }, [bulkMoreOpen]);
   const [bulkQty, setBulkQty] = useState(1);   // last value set from the bulk dial
+  const [selectedIds,   setSelectedIds]   = useState(()=>new Set());
   // What the bulk dial displays. Derived from the selection rather than stored, so it can never
   // drift out of step with the cards. Mixed counts show the highest, which is what you would then
   // step up or down from.
@@ -32248,7 +32253,6 @@ See you in there!
     selectedIds.forEach(id => { const q = parseInt(owned[id]) || 0; if (q > max) max = q; });
     return max || 1;
   }, [selectedIds, owned, bulkQty]);
-  const [selectedIds,   setSelectedIds]   = useState(()=>new Set());
   const [bulkListModal, setBulkListModal] = useState(false);
   const [importLockAll, setImportLockAll] = useState(false);  // lock every copy in this import
   const [importFaqOpen, setImportFaqOpen] = useState(false);
