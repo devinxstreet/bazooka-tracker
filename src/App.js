@@ -30571,6 +30571,10 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp, onUploa
   const [draft, setDraft] = useState(blank);
   const [editId, setEditId] = useState(null);
   const [busySide, setBusySide] = useState(null);   // "front" | "back" while uploading
+  // Optional sections start closed. They open automatically when editing a copy that already has
+  // those details, so nothing you saved is hidden from you.
+  const [showGrading, setShowGrading] = useState(false);
+  const [showWhere,   setShowWhere]   = useState(false);
   const CONDITIONS = ["", "Mint", "Near Mint", "Excellent", "Very Good", "Good", "Played", "Damaged"];
   const GRADERS    = ["", "PSA", "BGS", "SGC", "CGC", "TAG", "Other"];
 
@@ -30594,7 +30598,10 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp, onUploa
   }
   function startEdit(l) { setEditId(l.id); setDraft({ cost:l.cost??"", tradeValue:l.tradeValue??"", value:l.value??"", method:l.method||"purchased", date:l.date||blank.date, notes:l.notes||"", serial:l.serial||"",
       purchaseDate:l.purchaseDate||"", condition:l.condition||"", grade:l.grade||"", gradeCompany:l.gradeCompany||"",
-      certNum:l.certNum||"", location:l.location||"", locked:!!l.locked }); }
+      certNum:l.certNum||"", location:l.location||"", locked:!!l.locked });
+    // Reveal whatever this copy already has, so editing never hides saved data behind a collapse.
+    setShowGrading(!!(l.gradeCompany || l.grade || l.certNum || l.condition));
+    setShowWhere(!!l.location); }
 
   // Total cost must include trade value or the summary contradicts the per-copy total above it.
   const totalCash  = lots.reduce((s,l)=>s+(Number(l.cost)||0),0);
@@ -30725,60 +30732,77 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp, onUploa
             </div>
           </div>
           </div>
+          {/* Everything below the money row is optional detail. It was thirteen fields in one flat
+              stack, which made the common case (log what I paid) feel like paperwork. Essentials stay
+              visible; grading, storage and provenance collapse until wanted. */}
           <div style={{ display:"flex", gap:8, marginBottom:10 }}>
             <div style={{ flex:1 }}>
-              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Date</div>
-              <input type="date" value={draft.date} onChange={e=>setDraft({...draft,date:e.target.value})} style={{...inp,width:"100%"}}/>
+              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Date acquired</div>
+              <input type="date" value={draft.date} onChange={e=>setDraft({...draft,date:e.target.value,purchaseDate:e.target.value})} style={{...inp,width:"100%"}}/>
             </div>
             <div style={{ flex:1 }}>
-              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Serial (optional)</div>
-              <input value={draft.serial} onChange={e=>setDraft({...draft,serial:e.target.value})} placeholder="e.g. 21/50" style={{...inp,width:"100%"}}/>
-            </div>
-            <div style={{ flex:2 }}>
-              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Notes (optional)</div>
-              <input value={draft.notes} onChange={e=>setDraft({...draft,notes:e.target.value})} placeholder="e.g. from John's break" style={{...inp,width:"100%"}}/>
+              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Serial</div>
+              <input value={draft.serial} onChange={e=>setDraft({...draft,serial:e.target.value})} placeholder="21/50" style={{...inp,width:"100%"}}/>
             </div>
           </div>
-          {/* --- Per-copy detail: acquisition, condition, grading, where it physically lives --- */}
-          <div style={{ display:"flex", gap:8, marginBottom:9, flexWrap:"wrap" }}>
-            <div style={{ flex:1, minWidth:120 }}>
-              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Purchase date</div>
-              <input type="date" value={draft.purchaseDate} onChange={e=>setDraft({...draft,purchaseDate:e.target.value})} style={{...inp,width:"100%"}}/>
-            </div>
-            <div style={{ flex:1, minWidth:120 }}>
-              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Condition</div>
-              <select value={draft.condition} onChange={e=>setDraft({...draft,condition:e.target.value})} style={{...inp,width:"100%",cursor:"pointer"}}>
-                {CONDITIONS.map(x=><option key={x} value={x}>{x||"\u2014"}</option>)}
-              </select>
-            </div>
+          <div style={{ marginBottom:10 }}>
+            <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Notes</div>
+            <input value={draft.notes} onChange={e=>setDraft({...draft,notes:e.target.value})} placeholder="e.g. from John's break" style={{...inp,width:"100%"}}/>
           </div>
-          <div style={{ display:"flex", gap:8, marginBottom:9, flexWrap:"wrap" }}>
-            <div style={{ flex:1, minWidth:110 }}>
-              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Grading co.</div>
-              <select value={draft.gradeCompany} onChange={e=>setDraft({...draft,gradeCompany:e.target.value})} style={{...inp,width:"100%",cursor:"pointer"}}>
-                {GRADERS.map(x=><option key={x} value={x}>{x||"Raw / ungraded"}</option>)}
-              </select>
-            </div>
-            <div style={{ flex:1, minWidth:80 }}>
-              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Grade</div>
-              <input value={draft.grade} onChange={e=>setDraft({...draft,grade:e.target.value})} placeholder="e.g. 9.5" style={{...inp,width:"100%"}}/>
-            </div>
-            <div style={{ flex:1, minWidth:110 }}>
-              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Cert #</div>
-              <input value={draft.certNum} onChange={e=>setDraft({...draft,certNum:e.target.value})} placeholder="cert number" style={{...inp,width:"100%"}}/>
-            </div>
-          </div>
-          <div style={{ display:"flex", gap:8, marginBottom:9, flexWrap:"wrap", alignItems:"flex-end" }}>
-            <div style={{ flex:2, minWidth:150 }}>
-              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Where is it?</div>
-              <input value={draft.location} onChange={e=>setDraft({...draft,location:e.target.value})} placeholder="e.g. Binder 3 page 12, safe, slab case" style={{...inp,width:"100%"}}/>
-            </div>
-            {/* Locking is per copy on purpose \u2014 you might trade one copy of a card and keep another. */}
-            <label style={{ flex:1, minWidth:150, display:"flex", alignItems:"center", gap:7, cursor:"pointer", fontSize:12, fontWeight:700, color: draft.locked ? "#FBBF24" : "rgba(255,255,255,0.55)", paddingBottom:8 }}>
-              <input type="checkbox" checked={!!draft.locked} onChange={e=>setDraft({...draft,locked:e.target.checked})} style={{ accentColor:"#FBBF24", width:16, height:16 }}/>
-              {"\uD83D\uDD12"} Never trade or sell
-            </label>
-          </div>
+
+          {/* Locking is a decision, not paperwork \u2014 it stays where you can't miss it. */}
+          <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer", fontSize:12, fontWeight:700, color: draft.locked ? "#FBBF24" : "rgba(255,255,255,0.5)", marginBottom:10, background: draft.locked ? "rgba(251,191,36,0.08)" : "transparent", border:"1px solid "+(draft.locked?"rgba(251,191,36,0.35)":"rgba(255,255,255,0.08)"), borderRadius:8, padding:"8px 10px" }}>
+            <input type="checkbox" checked={!!draft.locked} onChange={e=>setDraft({...draft,locked:e.target.checked})} style={{ accentColor:"#FBBF24", width:15, height:15 }}/>
+            {"\uD83D\uDD12"} Never trade or sell
+          </label>
+
+          {(() => {
+            const anyGrade = draft.gradeCompany || draft.grade || draft.certNum || draft.condition;
+            const anyWhere = draft.location;
+            const sec = (open, set, label, filled) => (
+              <button onClick={()=>set(v=>!v)} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", background:"transparent", border:"none", borderTop:"1px solid rgba(255,255,255,0.07)", color:"rgba(255,255,255,0.55)", padding:"9px 2px", fontSize:11.5, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+                <span>{label}{filled && <span style={{ color:"#4ade80", marginLeft:6, fontSize:10 }}>{"\u2713"}</span>}</span>
+                <span style={{ opacity:0.5 }}>{open ? "\u25B4" : "\u25BE"}</span>
+              </button>
+            );
+            return (
+              <>
+                {sec(showGrading, setShowGrading, "Condition & grading", anyGrade)}
+                {showGrading && (
+                  <div style={{ paddingBottom:8 }}>
+                    <div style={{ marginBottom:8 }}>
+                      <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Condition</div>
+                      <select value={draft.condition} onChange={e=>setDraft({...draft,condition:e.target.value})} style={{...inp,width:"100%",cursor:"pointer"}}>
+                        {CONDITIONS.map(x=><option key={x} value={x}>{x||"\u2014"}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                      <div style={{ flex:1, minWidth:110 }}>
+                        <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Grader</div>
+                        <select value={draft.gradeCompany} onChange={e=>setDraft({...draft,gradeCompany:e.target.value})} style={{...inp,width:"100%",cursor:"pointer"}}>
+                          {GRADERS.map(x=><option key={x} value={x}>{x||"Raw"}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ flex:1, minWidth:70 }}>
+                        <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Grade</div>
+                        <input value={draft.grade} onChange={e=>setDraft({...draft,grade:e.target.value})} placeholder="9.5" style={{...inp,width:"100%"}}/>
+                      </div>
+                      <div style={{ flex:1, minWidth:110 }}>
+                        <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Cert #</div>
+                        <input value={draft.certNum} onChange={e=>setDraft({...draft,certNum:e.target.value})} placeholder="cert number" style={{...inp,width:"100%"}}/>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {sec(showWhere, setShowWhere, "Storage location", anyWhere)}
+                {showWhere && (
+                  <div style={{ paddingBottom:10 }}>
+                    <input value={draft.location} onChange={e=>setDraft({...draft,location:e.target.value})} placeholder="e.g. Binder 3 page 12, safe, slab case" style={{...inp,width:"100%"}}/>
+                  </div>
+                )}
+              </>
+            );
+          })()}
           <div style={{ display:"flex", gap:8 }}>
             <button onClick={commit} style={{ flex:1, background:"linear-gradient(135deg,#E8317A,#FBBF24)", border:"none", color:"#fff", borderRadius:8, padding:"10px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>{editId?"Save changes":"Add copy"}</button>
             {editId && <button onClick={()=>{setEditId(null);setDraft(blank);}} style={{ background:"transparent", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:8, padding:"10px 16px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>}
@@ -32243,6 +32267,7 @@ See you in there!
     return () => { clearTimeout(t); document.removeEventListener("click", close); };
   }, [bulkMoreOpen]);
   const [bulkQty, setBulkQty] = useState(1);   // last value set from the bulk dial
+  const [restoreModal, setRestoreModal] = useState(null); // {file, preview} | {busy} | {report}
   const [selectedIds,   setSelectedIds]   = useState(()=>new Set());
   // What the bulk dial displays. Derived from the selection rather than stored, so it can never
   // drift out of step with the cards. Mixed counts show the highest, which is what you would then
@@ -34502,6 +34527,121 @@ See you in there!
   // built, per-copy financial lots, scan photo URLs, want list, trade flags, in-transit, listings.
   // JSON rather than CSV because this data is nested \u2014 flattening it would lose the structure that
   // makes it restorable.
+  // RESTORE FROM BACKUP. An export nobody can import is not a backup, it is a document about a loss.
+  //
+  // Two rules shape this: it MERGES rather than overwrites by default, and it shows you exactly what
+  // will change before writing anything. A restore that silently wipes what you already have is a
+  // second disaster, and people reach for this while already panicking.
+  //
+  // Cards are re-matched by IDENTITY (set + number + treatment + hero), never by stored id, because
+  // catalog ids can change between export and restore \u2014 which is exactly when you would need this.
+  async function restoreFromBackup(file, mode) {
+    if (!user) { setSigningIn(true); return null; }
+    const text = await file.text();
+    let data;
+    try { data = JSON.parse(text); }
+    catch { throw new Error("That file isn't valid JSON. Pick the .json backup file."); }
+    if (data._format !== "bazooka-dash-backup") {
+      throw new Error("That doesn't look like a Bazooka backup. Expected a file exported by \u201cFull Backup\u201d.");
+    }
+
+    // Re-match every backed-up card against the CURRENT catalog.
+    const norm = s => String(s||"").toLowerCase().replace(/[\s\-_.]/g,"");
+    const idIndex = new Map(cards.map(c => [c.id, c]));
+    const identIndex = new Map();
+    cards.forEach(c => {
+      identIndex.set([norm(c.setName),norm(c.cardNum),norm(c.treatment),norm(c.hero)].join("|"), c);
+    });
+    const resolve = (rec) => {
+      if (!rec) return null;
+      const byIdent = identIndex.get([norm(rec.setName),norm(rec.cardNum),norm(rec.treatment),norm(rec.hero)].join("|"));
+      if (byIdent) return byIdent;
+      return idIndex.get(rec.id) || null;   // fall back to the raw id
+    };
+
+    const report = { cards:0, copies:0, decks:0, wants:0, tradeBait:0, missing:[], mode };
+
+    // ---- collection ----
+    const nextOwned = mode === "replace" ? {} : { ...owned };
+    (data.collection || []).forEach(rec => {
+      const c = resolve(rec);
+      if (!c) { report.missing.push(`${rec.hero||"?"} ${rec.cardNum||""} (${rec.setName||"?"})`.trim()); return; }
+      const qty = parseInt(rec.qty) || 1;
+      // Merge keeps the HIGHER count: restoring must never reduce a collection you have since grown.
+      nextOwned[c.id] = mode === "replace" ? qty : Math.max(parseInt(nextOwned[c.id])||0, qty);
+      report.cards++;
+    });
+
+    // ---- per-copy lots ----
+    const existingLotIds = new Set((lots||[]).map(l => l.id));
+    const restoredLots = [];
+    (data.copies || []).forEach(rec => {
+      const c = resolve(rec.card) || (rec.cardId ? idIndex.get(rec.cardId) : null);
+      if (!c) return;
+      if (mode !== "replace" && existingLotIds.has(rec.id)) return;   // already there, don't duplicate
+      const { card, ...lot } = rec;
+      restoredLots.push({ ...lot, id: lot.id || uid(), cardId: c.id });
+      report.copies++;
+    });
+    const nextLots = mode === "replace" ? restoredLots : [...(lots||[]), ...restoredLots];
+
+    // ---- flags ----
+    const nextWants = mode === "replace" ? {} : { ...wantList };
+    (data.wantList || []).forEach(rec => { const c = resolve(rec); if (c) { nextWants[c.id] = true; report.wants++; } });
+    const nextBait = mode === "replace" ? {} : { ...tradeBait };
+    (data.tradeBait || []).forEach(rec => { const c = resolve(rec); if (c) { nextBait[c.id] = true; report.tradeBait++; } });
+
+    // ---- write ----
+    setOwned(nextOwned);
+    queueOwnedSave(nextOwned);
+    setLots(nextLots);
+    try { await setDoc(doc(db,"boba_lots",user.uid), { lots: nextLots }); } catch(e){ console.error("restore lots failed:", e); }
+    setWantList(nextWants);
+    try { await setDoc(doc(db,"boba_wants",user.uid), nextWants); } catch(e){ console.error("restore wants failed:", e); }
+    setTradeBait(nextBait);
+    try { await setDoc(doc(db,"boba_tradebait",user.uid), nextBait); } catch(e){ console.error("restore bait failed:", e); }
+
+    // ---- decks (each its own document) ----
+    for (const d of (data.decks || [])) {
+      const ids = (d.cards || []).map(resolve).filter(Boolean).map(c => c.id);
+      if (!ids.length) continue;
+      const did = d.id || `deck_${Date.now()}_${Math.random().toString(36).slice(2,7)}`;
+      try {
+        await setDoc(doc(db,"boba_decks",did), {
+          id: did, userId: user.uid, name: d.name || "Restored deck",
+          cardIds: ids, updatedAt: Date.now(), restoredAt: Date.now(),
+        }, { merge: true });
+        report.decks++;
+      } catch(e){ console.error("restore deck failed:", e); }
+    }
+    return report;
+  }
+
+  // Read a backup WITHOUT writing anything, so the user can see what they're about to do.
+  async function previewBackup(file) {
+    const text = await file.text();
+    let data;
+    try { data = JSON.parse(text); }
+    catch { throw new Error("That file isn't valid JSON."); }
+    if (data._format !== "bazooka-dash-backup") throw new Error("Not a Bazooka backup file.");
+    const norm = s => String(s||"").toLowerCase().replace(/[\s\-_.]/g,"");
+    const identIndex = new Set(cards.map(c => [norm(c.setName),norm(c.cardNum),norm(c.treatment),norm(c.hero)].join("|")));
+    let matched = 0, missing = 0;
+    (data.collection || []).forEach(rec => {
+      identIndex.has([norm(rec.setName),norm(rec.cardNum),norm(rec.treatment),norm(rec.hero)].join("|")) ? matched++ : missing++;
+    });
+    return {
+      exportedAt: data.exportedAt || "unknown",
+      account: data.account?.email || data.account?.uid || "unknown",
+      cards: (data.collection||[]).length,
+      copies: (data.copies||[]).length,
+      decks: (data.decks||[]).length,
+      photos: (data.scanPhotos||[]).length,
+      wants: (data.wantList||[]).length,
+      matched, missing,
+    };
+  }
+
   function exportFullBackup() {
     if (!user) { setSigningIn(true); return; }
     try {
@@ -39650,6 +39790,101 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
           </div>
         </div>
       )}
+      {/* RESTORE. Deliberately a three-step flow: pick a file, SEE what's in it, then choose merge or
+          replace. People reach for this while panicking, and a restore that silently wipes their
+          current data would be a second disaster on top of the first. */}
+      {restoreModal && (
+        <div onClick={()=>!restoreModal.busy && setRestoreModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#111",border:"1px solid #2a2a2a",borderRadius:16,padding:20,maxWidth:460,width:"100%",maxHeight:"85vh",overflowY:"auto"}}>
+            <div style={{fontSize:17,fontWeight:900,color:"#fff",marginBottom:6}}>{"\u267B\uFE0F"} Restore from Backup</div>
+
+            {restoreModal.report ? (
+              <>
+                <div style={{fontSize:13,color:"#4ade80",fontWeight:800,marginBottom:10}}>Restore complete.</div>
+                <div style={{fontSize:12.5,color:"var(--bz-ink-2)",lineHeight:1.9,marginBottom:12}}>
+                  {restoreModal.report.cards} cards{"\u00b7"} {restoreModal.report.copies} copies{"\u00b7"} {restoreModal.report.decks} decks<br/>
+                  {restoreModal.report.wants} want-list{"\u00b7"} {restoreModal.report.tradeBait} trade flags
+                </div>
+                {restoreModal.report.missing.length > 0 && (
+                  <div style={{background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:10,padding:"10px 12px",marginBottom:12}}>
+                    <div style={{fontSize:11.5,color:"#FBBF24",fontWeight:800,marginBottom:4}}>
+                      {restoreModal.report.missing.length} card{restoreModal.report.missing.length===1?"":"s"} couldn't be matched
+                    </div>
+                    <div style={{fontSize:10.5,color:"rgba(255,255,255,0.5)",lineHeight:1.6,maxHeight:110,overflowY:"auto"}}>
+                      {restoreModal.report.missing.slice(0,25).join(", ")}
+                      {restoreModal.report.missing.length>25 && ` \u2026and ${restoreModal.report.missing.length-25} more`}
+                    </div>
+                    <div style={{fontSize:10,color:"rgba(255,255,255,0.35)",marginTop:6}}>
+                      These aren't in the card database any more, so there was nothing to restore them onto.
+                    </div>
+                  </div>
+                )}
+                <button onClick={()=>setRestoreModal(null)} style={{width:"100%",background:"linear-gradient(135deg,#4ade80,#22c55e)",color:"#04220f",border:"none",borderRadius:10,padding:"12px",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
+              </>
+            ) : restoreModal.preview ? (
+              <>
+                <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:10,padding:"12px 14px",marginBottom:14,fontSize:12.5,color:"var(--bz-ink-2)",lineHeight:1.9}}>
+                  <div style={{color:"#fff",fontWeight:800,marginBottom:4}}>This backup contains</div>
+                  {restoreModal.preview.cards} cards{"\u00b7"} {restoreModal.preview.copies} copies{"\u00b7"} {restoreModal.preview.decks} decks{"\u00b7"} {restoreModal.preview.wants} wants<br/>
+                  <span style={{color:"rgba(255,255,255,0.4)",fontSize:11}}>
+                    From {restoreModal.preview.account} {"\u00b7"} {String(restoreModal.preview.exportedAt).slice(0,10)}
+                  </span>
+                  {restoreModal.preview.missing > 0 && (
+                    <div style={{color:"#FBBF24",fontSize:11,marginTop:6}}>
+                      {restoreModal.preview.missing} card{restoreModal.preview.missing===1?"":"s"} in this file are no longer in the database and will be skipped.
+                    </div>
+                  )}
+                </div>
+                <div style={{fontSize:12,color:"var(--bz-ink-2)",marginBottom:8,fontWeight:700}}>How should this be applied?</div>
+                <button disabled={restoreModal.busy}
+                  onClick={async()=>{
+                    setRestoreModal(m=>({...m,busy:true}));
+                    try { const rep = await restoreFromBackup(restoreModal.file,"merge"); setRestoreModal({report:rep}); }
+                    catch(e){ alert("Restore failed: "+(e?.message||e)); setRestoreModal(null); }
+                  }}
+                  style={{width:"100%",background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.5)",color:"#4ade80",borderRadius:10,padding:"11px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",marginBottom:8,textAlign:"left"}}>
+                  {restoreModal.busy ? "Restoring\u2026" : "\u2795 Merge (recommended)"}
+                  <div style={{fontSize:10.5,color:"rgba(255,255,255,0.45)",fontWeight:600,marginTop:2}}>
+                    Adds what's missing. Keeps anything you own more of. Nothing is removed.
+                  </div>
+                </button>
+                <button disabled={restoreModal.busy}
+                  onClick={async()=>{
+                    if (!window.confirm("REPLACE wipes your current collection, copies, wants and trade flags, then restores this file.\n\nThis cannot be undone. Continue?")) return;
+                    setRestoreModal(m=>({...m,busy:true}));
+                    try { const rep = await restoreFromBackup(restoreModal.file,"replace"); setRestoreModal({report:rep}); }
+                    catch(e){ alert("Restore failed: "+(e?.message||e)); setRestoreModal(null); }
+                  }}
+                  style={{width:"100%",background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.4)",color:"#EF4444",borderRadius:10,padding:"11px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit",marginBottom:10,textAlign:"left"}}>
+                  {"\u26A0"} Replace everything
+                  <div style={{fontSize:10.5,color:"rgba(255,255,255,0.4)",fontWeight:600,marginTop:2}}>
+                    Wipes what you have now first. Only for a true from-scratch restore.
+                  </div>
+                </button>
+                <button disabled={restoreModal.busy} onClick={()=>setRestoreModal(null)} style={{width:"100%",background:"transparent",border:"1px solid #333",color:"#999",borderRadius:10,padding:"10px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+              </>
+            ) : (
+              <>
+                <div style={{fontSize:12.5,color:"var(--bz-ink-2)",lineHeight:1.7,marginBottom:14}}>
+                  Pick a <strong style={{color:"#fff"}}>Full Backup</strong> .json file. You'll see what's in it before anything changes.
+                </div>
+                <label style={{display:"block",background:"rgba(123,156,255,0.1)",border:"1px dashed rgba(123,156,255,0.45)",borderRadius:12,padding:"22px 14px",textAlign:"center",cursor:"pointer",marginBottom:10}}>
+                  <div style={{fontSize:13,fontWeight:800,color:"#7B9CFF"}}>Choose backup file</div>
+                  <div style={{fontSize:10.5,color:"rgba(255,255,255,0.35)",marginTop:3}}>bazooka-backup-....json</div>
+                  <input type="file" accept="application/json,.json" style={{display:"none"}}
+                    onChange={async e=>{
+                      const f = e.target.files?.[0]; e.target.value="";
+                      if (!f) return;
+                      try { const pv = await previewBackup(f); setRestoreModal({ file:f, preview:pv }); }
+                      catch(err){ alert(err?.message || String(err)); }
+                    }}/>
+                </label>
+                <button onClick={()=>setRestoreModal(null)} style={{width:"100%",background:"transparent",border:"1px solid #333",color:"#999",borderRadius:10,padding:"10px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       {lotModal && <LotModal card={lotModal.card} lots={lotsForCard(lotModal.card.id)} onAdd={addLot} onUpdate={updateLot} onRemove={removeLot} onClose={()=>setLotModal(null)} inp={inp} onUploadPhoto={uploadLotPhoto} />}
       {reviewModal && <ReviewModal sale={reviewModal.sale} onSubmit={submitReview} onClose={()=>setReviewModal(null)} inp={inp} />}
       <BackToTop />
@@ -40329,6 +40564,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   {label:"\u2b07\ufe0f Import Cards",act:()=>{ setImportModal(true); setImportRows(null); setImportRaw(null); setImportSetMap({}); setImportColMap(null); setColMapConfirmed(false); }},
                   {label:"\u2b06\ufe0f Export Collection",act:exportCollection},
                   {label:"\uD83D\uDCBE Full Backup (JSON)",act:exportFullBackup},
+                  {label:"\u267B\uFE0F Restore from Backup",act:()=>setRestoreModal({pick:true})},
                   {label:"\uD83D\uDD17 Share Collection",act:()=>{ const url=`${window.location.origin}/showcase?uid=${user.uid}`; if(navigator.share){navigator.share({title:"My Bazooka Collection",url}).catch(()=>{});} else { navigator.clipboard.writeText(url).then(()=>showToast("Collection link copied!")).catch(()=>{}); } }},
                       {label:"👥 Friends",badge:(friendReqs.length+teamInvites.length),act:()=>setActiveTab("friends")},
                       {label:"📊 Vault Report",act:()=>setActiveTab("ledger")},
