@@ -22380,7 +22380,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
     const csv = [
       // Kept in step with downloadImportTemplate() — the live importer. Two templates drifting apart
       // is how someone ends up with a file whose columns the importer no longer recognises.
-      ["Name","Set","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value","Purchase Price","Serial","Notes","Legacy ID"],
+      ["Name","Set","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value","Purchase Price","Trade Value","Serial","Notes","Legacy ID"],
       ["Bojax","Alpha Edition","RAD-1","80's Rad Battlefoil","Hex","150",1,"","",""],
       ["Maverick","Alpha Edition","1","Base","Fire","120",2,"","21/50","on-card auto"],
     ].map(r => r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
@@ -30490,7 +30490,10 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp, onUploa
   // Everything here is a fact about YOUR PARTICULAR COPY rather than about the card, which is why it
   // lives on the lot: purchase date, condition, grading, where the card physically is, whether it's
   // locked from trade, and front/back photos.
-  const blank = { cost:"", value:"", method:"purchased", date:todayLocal(), notes:"", serial:"",
+  // cost = CASH actually paid. tradeValue = what the cards you gave up were worth to you. Real
+  // acquisition cost is the two together — recording only cash understates what a card cost and
+  // quietly inflates every ROI number built on top of it.
+  const blank = { cost:"", tradeValue:"", value:"", method:"purchased", date:todayLocal(), notes:"", serial:"",
                   purchaseDate:"", condition:"", grade:"", gradeCompany:"", certNum:"",
                   location:"", locked:false };
   const [draft, setDraft] = useState(blank);
@@ -30505,6 +30508,7 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp, onUploa
       value: draft.value==="" ? null : parseFloat(draft.value),
       method: draft.method, date: draft.date, notes: draft.notes.trim(),
       serial: (draft.serial||"").trim(),   // e.g. "21/50" — which numbered copy this is
+      tradeValue: draft.tradeValue===""||draft.tradeValue==null ? null : (parseFloat(draft.tradeValue)||0),
       purchaseDate: draft.purchaseDate||"",
       condition: draft.condition||"",
       grade: (draft.grade||"").trim(),
@@ -30516,11 +30520,14 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp, onUploa
     if (editId) { onUpdate(editId, data); } else { onAdd(card.id, data); }
     setDraft(blank); setEditId(null);
   }
-  function startEdit(l) { setEditId(l.id); setDraft({ cost:l.cost??"", value:l.value??"", method:l.method||"purchased", date:l.date||blank.date, notes:l.notes||"", serial:l.serial||"",
+  function startEdit(l) { setEditId(l.id); setDraft({ cost:l.cost??"", tradeValue:l.tradeValue??"", value:l.value??"", method:l.method||"purchased", date:l.date||blank.date, notes:l.notes||"", serial:l.serial||"",
       purchaseDate:l.purchaseDate||"", condition:l.condition||"", grade:l.grade||"", gradeCompany:l.gradeCompany||"",
       certNum:l.certNum||"", location:l.location||"", locked:!!l.locked }); }
 
-  const totalCost = lots.reduce((s,l)=>s+(l.cost||0),0);
+  // Total cost must include trade value or the summary contradicts the per-copy total above it.
+  const totalCash  = lots.reduce((s,l)=>s+(Number(l.cost)||0),0);
+  const totalTrade = lots.reduce((s,l)=>s+(Number(l.tradeValue)||0),0);
+  const totalCost  = totalCash + totalTrade;
   const totalVal  = lots.reduce((s,l)=>s+(l.value||0),0);
 
   return (
@@ -30540,6 +30547,7 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp, onUploa
             <div style={{ flex:1, background:"rgba(232,49,122,0.08)", border:"1px solid rgba(232,49,122,0.2)", borderRadius:8, padding:"8px 10px" }}>
               <div style={{ fontSize:9, color:"var(--bz-ink-2)", fontWeight:700, textTransform:"uppercase" }}>Total Cost</div>
               <div style={{ fontSize:18, fontWeight:900, color:"#E8317A" }}>${totalCost.toLocaleString(undefined,{maximumFractionDigits:2})}</div>
+              {totalTrade > 0 && <div style={{ fontSize:9, color:"#888", marginTop:2 }}>${totalCash.toLocaleString(undefined,{maximumFractionDigits:0})} cash + ${totalTrade.toLocaleString(undefined,{maximumFractionDigits:0})} trade</div>}
             </div>
             <div style={{ flex:1, background:"rgba(74,222,128,0.08)", border:"1px solid rgba(74,222,128,0.2)", borderRadius:8, padding:"8px 10px" }}>
               <div style={{ fontSize:9, color:"var(--bz-ink-2)", fontWeight:700, textTransform:"uppercase" }}>Total Value</div>
@@ -30615,13 +30623,35 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp, onUploa
           </div>
           <div style={{ display:"flex", gap:8, marginBottom:8 }}>
             <div style={{ flex:1 }}>
-              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Cost paid ($)</div>
+              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Cash paid ($)</div>
               <input type="number" inputMode="decimal" value={draft.cost} onChange={e=>setDraft({...draft,cost:e.target.value})} placeholder={draft.method==="purchased"||draft.method==="break"||draft.method==="pull"?"0.00":"—"} style={{...inp,width:"100%"}}/>
             </div>
             <div style={{ flex:1 }}>
               <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Est. value ($)</div>
               <input type="number" inputMode="decimal" value={draft.value} onChange={e=>setDraft({...draft,value:e.target.value})} placeholder="0.00" style={{...inp,width:"100%"}}/>
             </div>
+          {/* Cards given in trade are not free — you paid for them once already. Recording only the
+              cash makes a $1,600-plus-three-cards deal look like a $1,600 card, which throws off every
+              average built on it. This is your own estimate; nothing here tries to derive it, because
+              in a real negotiation the credited value is never actually stated. */}
+          <div style={{ display:"flex", gap:8, marginBottom:8, alignItems:"flex-end" }}>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Trade value ($)</div>
+              <input type="number" inputMode="decimal" value={draft.tradeValue}
+                onChange={e=>setDraft({...draft,tradeValue:e.target.value})}
+                placeholder="cards you gave" style={{...inp,width:"100%"}}/>
+            </div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Total cost</div>
+              <div style={{ ...inp, width:"100%", display:"flex", alignItems:"center", background:"rgba(232,49,122,0.08)", borderColor:"rgba(232,49,122,0.3)", color:"#E8317A", fontWeight:800 }}>
+                {(() => {
+                  const cash = parseFloat(draft.cost)||0, tr = parseFloat(draft.tradeValue)||0;
+                  const t = cash + tr;
+                  return t > 0 ? `$${t.toLocaleString(undefined,{maximumFractionDigits:2})}` : "\u2014";
+                })()}
+              </div>
+            </div>
+          </div>
           </div>
           <div style={{ display:"flex", gap:8, marginBottom:10 }}>
             <div style={{ flex:1 }}>
@@ -30828,14 +30858,20 @@ function AccountingLedger({ lots=[], marketSales=[], user, cards=[] }) {
   // those cards cost you). UNREALISED is paper — what you hold is worth more than you paid, but
   // you have not sold it. Lumping them together is how people fool themselves about performance.
   const heldLots  = lots.filter(l => !l.soldAt && !l.sold);
-  const costBasis = heldLots.reduce((s,l)=>s+(Number(l.cost)||0),0);      // what the held cards cost
+  // Cost basis = cash + the value of cards traded away. Cash is a hard fact; trade value is the
+  // user's own estimate of what they gave up, because in a real negotiation the credited value is
+  // never formally stated. Both are kept separately so a cash-only figure stays available \u2014 one is
+  // measured, the other estimated, and blending them silently would hide that.
+  const heldCash  = heldLots.reduce((s,l)=>s+(Number(l.cost)||0),0);
+  const heldTrade = heldLots.reduce((s,l)=>s+(Number(l.tradeValue)||0),0);
+  const costBasis = heldCash + heldTrade;
   const heldValue = heldLots.reduce((s,l)=>s+(Number(l.value)||0),0);     // what they're worth now
   const unrealised = heldValue - costBasis;
   const unrealisedPct = costBasis > 0 ? (unrealised / costBasis) * 100 : null;
 
   // Cost basis of things actually sold, so realised profit is real rather than "all sales are profit".
   const soldCostById = {};
-  lots.filter(l => l.soldAt || l.sold).forEach(l => { soldCostById[l.cardId] = (soldCostById[l.cardId]||0) + (Number(l.cost)||0); });
+  lots.filter(l => l.soldAt || l.sold).forEach(l => { soldCostById[l.cardId] = (soldCostById[l.cardId]||0) + (Number(l.cost)||0) + (Number(l.tradeValue)||0); });
   const realisedCost = Object.values(soldCostById).reduce((s,n)=>s+n,0);
   const realised = totalSales - realisedCost;
   const realisedPct = realisedCost > 0 ? (realised / realisedCost) * 100 : null;
@@ -30848,7 +30884,7 @@ function AccountingLedger({ lots=[], marketSales=[], user, cards=[] }) {
   // How much of the collection has a cost recorded. Without this the numbers look authoritative
   // when they may be built on a fraction of the data — the single most misleading thing a
   // financial screen can do.
-  const lotsWithCost = heldLots.filter(l => Number(l.cost) > 0).length;
+  const lotsWithCost = heldLots.filter(l => (Number(l.cost)||0) + (Number(l.tradeValue)||0) > 0).length;
   const costCoverage = heldLots.length ? (lotsWithCost / heldLots.length) * 100 : 0;
   const lotsWithValue = heldLots.filter(l => Number(l.value) > 0).length;
   const valueCoverage = heldLots.length ? (lotsWithValue / heldLots.length) * 100 : 0;
@@ -30859,7 +30895,7 @@ function AccountingLedger({ lots=[], marketSales=[], user, cards=[] }) {
     const k = l.cardId;
     if (!byCard[k]) byCard[k] = { cardId:k, name:cardName(k), qty:0, cost:0, value:0 };
     byCard[k].qty   += 1;
-    byCard[k].cost  += Number(l.cost)||0;
+    byCard[k].cost  += (Number(l.cost)||0) + (Number(l.tradeValue)||0);
     byCard[k].value += Number(l.value)||0;
   });
   const positions = Object.values(byCard).map(p => ({
@@ -30919,7 +30955,11 @@ function AccountingLedger({ lots=[], marketSales=[], user, cards=[] }) {
         <div style={{ ...card, borderColor:"rgba(232,49,122,0.25)" }}>
           <div style={{ fontSize:11, color:"var(--bz-ink-2)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Cost Basis</div>
           <div style={{ fontSize:26, fontWeight:900, color:"#E8317A", marginTop:4 }}>{money(costBasis)}</div>
-          <div style={{ fontSize:11, color:"#999", marginTop:2 }}>what you paid for them</div>
+          <div style={{ fontSize:11, color:"#999", marginTop:2 }}>
+            {heldTrade > 0
+              ? <>{money(heldCash)} cash + {money(heldTrade)} trade</>
+              : "what you paid for them"}
+          </div>
         </div>
         <div style={{ ...card, borderColor:unrealised>=0?"rgba(74,222,128,0.3)":"rgba(239,68,68,0.3)" }}>
           <div style={{ fontSize:11, color:"var(--bz-ink-2)", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Unrealised</div>
@@ -33963,6 +34003,8 @@ See you in there!
     // What YOU paid, as distinct from Estimated Value (what it's worth). Both matter: cost drives
     // profit/loss, value drives collection worth. Strip currency symbols and thousands commas.
     const cost = parseFloat(String(cell("Purchase Price")).replace(/[^0-9.]/g,"")) || null;
+    // Value of cards given in trade as part of the same deal — added to cash for true cost basis.
+    const tradeValue = parseFloat(String(cell("Trade Value")).replace(/[^0-9.]/g,"")) || null;
     // Opaque pointer back to whatever system this row came from. Never shown to collectors and
     // never used for matching — it exists so a migration can be audited, re-run or reconciled
     // later without guessing which imported copy corresponds to which source record.
@@ -33991,7 +34033,7 @@ See you in there!
     const setMatches = c => !setName || norm(c.setName)===norm(setName) || norm(c.setName).includes(norm(setName)) || norm(setName).includes(norm(c.setName));
 
     let match = null;
-    if (forceSkip) { return { csv:{hero:heroRaw,setName:csvSet,csvSet,cardNum,parallel,weapon,power,qty,value,cost,serial,notes,legacyId,purchaseDate,condition,grade,gradeCompany,certNum,location,locked}, match:null }; }
+    if (forceSkip) { return { csv:{hero:heroRaw,setName:csvSet,csvSet,cardNum,parallel,weapon,power,qty,value,cost,tradeValue,serial,notes,legacyId,purchaseDate,condition,grade,gradeCompany,certNum,location,locked}, match:null }; }
     // With sets explicitly mapped, the set MUST match — card numbers repeat across sets,
     // so a set-blind match would grab the wrong card. Every tier below requires the set.
     // 1) cardNum + set (most precise — number is unique within a set)
@@ -34004,7 +34046,7 @@ See you in there!
     if (!match && cardNum) match = cards.find(c => heroMatches(c) && norm(c.cardNum)===norm(cardNum) && setMatches(c));
     // No set-blind fallback — if the set doesn't match, we'd rather report "not found"
     // than import the wrong card. The user mapped the set, so this stays strict.
-    return { csv:{hero:heroRaw,setName,csvSet,cardNum,parallel,weapon,power,qty,value,cost,serial,notes,legacyId,purchaseDate,condition,grade,gradeCompany,certNum,location,locked}, match:match||null };
+    return { csv:{hero:heroRaw,setName,csvSet,cardNum,parallel,weapon,power,qty,value,cost,tradeValue,serial,notes,legacyId,purchaseDate,condition,grade,gradeCompany,certNum,location,locked}, match:match||null };
   }
 
   // Common column-name aliases from other collection tools (CardLadder, eBay, COMC, Collectr, custom sheets, etc.)
@@ -34022,6 +34064,7 @@ See you in there!
     "Serial": ["serial","serial number","serial #","numbered","numbering","serial no"],
     "Notes": ["notes","note","comment","comments","remarks","description"],
     "Legacy ID": ["legacy id","external id","external card id","source id","legacy card id","old id","record id","import id"],
+    "Trade Value": ["trade value","trade","trade comps","comps","traded value","trade credit","cards given"],
     "Purchase Price": ["purchase price","cost","paid","price paid","buy price","acquisition cost","cost basis"],
     "Purchase Date": ["purchase date","date purchased","bought","date acquired","acquired"],
     "Condition": ["condition","cond","card condition"],
@@ -34120,7 +34163,7 @@ See you in there!
         // the same row get the note but no serial, and can be edited individually afterwards.
         for (let i=0;i<q;i++) {
           newLots.push({
-            id: uid(), cardId:id, cost: r.csv.cost, value: r.csv.value||null,
+            id: uid(), cardId:id, cost: r.csv.cost, tradeValue: r.csv.tradeValue, value: r.csv.value||null,
             method: r.csv.cost!=null ? "purchased" : "other",
             date:todayLocal(),
             serial: i===0 ? (r.csv.serial||"") : "",
@@ -34179,10 +34222,10 @@ See you in there!
   }
 
   function downloadImportTemplate() {
-    const headers = ["Name","Set","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value","Purchase Price","Serial","Notes","Legacy ID","Purchase Date","Condition","Grading Company","Grade","Cert #","Location","Locked"];
+    const headers = ["Name","Set","Card Number","Parallel","Weapon","Power","Quantity","Estimated Value","Purchase Price","Trade Value","Serial","Notes","Legacy ID","Purchase Date","Condition","Grading Company","Grade","Cert #","Location","Locked"];
     // Set is REQUIRED — the same hero can appear in multiple sets
-    const ex1 = ["Bo Jackson","Tecmo Bowl Edition","TB1","Tecmo Bowl","","250","1","500","320","","first pull of the box","V1-00412","2026-03-14","Near Mint","","","","Binder 1 page 4",""];
-    const ex2 = ["Cutback","Alpha Update","BFA-5","Inspired Ink Battlefoil","Hex","200","1","2500","1800","21/50","on-card auto","V1-00877","2026-05-02","Mint","PSA","10","82736451","Slab case","YES"];
+    const ex1 = ["Bo Jackson","Tecmo Bowl Edition","TB1","Tecmo Bowl","","250","1","500","320","","","first pull of the box","V1-00412","2026-03-14","Near Mint","","","","Binder 1 page 4",""];
+    const ex2 = ["Cutback","Alpha Update","BFA-5","Inspired Ink Battlefoil","Hex","200","1","2500","1800","700","21/50","on-card auto","V1-00877","2026-05-02","Mint","PSA","10","82736451","Slab case","YES"];
     const csv = headers.join(",") + "\n" + ex1.join(",") + "\n" + ex2.join(",") + "\n";
     const blob = new Blob([csv], { type:"text/csv" });
     const url = URL.createObjectURL(blob);
@@ -39511,6 +39554,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 {key:"Quantity", label:"Quantity", required:false, hint:"How many you own (defaults to 1)"},
                 {key:"Estimated Value", label:"Value", required:false, hint:"Market / estimated value"},
                 {key:"Purchase Price", label:"Purchase price", required:false, hint:"What you paid"},
+                {key:"Trade Value", label:"Trade value", required:false, hint:"Value of cards you gave in the deal"},
                 {key:"Serial", label:"Serial", required:false, hint:"e.g. 21/50 — goes on the first copy"},
                 {key:"Notes", label:"Notes", required:false, hint:"Your note about this copy"},
                 {key:"Legacy ID", label:"Legacy ID", required:false, hint:"Your old system’s record id — stored, never shown"},
@@ -39653,6 +39697,8 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                        "YES, Y, TRUE, 1, X, LOCK or LOCKED (any case) all lock the copy. Blank, NO, FALSE or 0 leave it unlocked. There's also a toggle on the import screen to lock the whole batch without touching the spreadsheet."],
                       ["Can Quantity be more than 1 if I've filled in notes, condition or price?",
                        "Yes, but everything on that row is copied to every copy \u2014 same condition, same location, same price, same notes. Only Serial and Cert # are treated as unique to one card, landing on the first copy. If your copies genuinely differ, give each its own row with Quantity 1."],
+                      ["I paid cash AND traded cards. How do I record that?",
+                       "Put the cash in Purchase Price and your estimate of the cards you gave up in Trade Value. Cost basis is the two added together. Pay $1,600 plus three cards you'd value at $600, and the card cost you $2,200 \u2014 recording only the cash would make it look like a $1,600 card and throw off every average built on it. Nobody formally states what trade cards were credited at, so this is your call; a rough number beats leaving it blank."],
                       ["Purchase Price vs Estimated Value \u2014 what's the difference?",
                        "Purchase Price is what you paid; Estimated Value is what it's worth now. Both import, and both matter \u2014 cost drives profit and loss, value drives what your collection is worth. A row with a purchase price is logged as a purchase automatically."],
                       ["What's Legacy ID for?",
@@ -39667,7 +39713,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                     ))}
                   </div>
                 )}
-                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:10}}>Columns: Name, Set, Card Number, Parallel, Weapon, Power, Quantity, Estimated Value, Purchase Price, Serial, Notes, Legacy ID, Purchase Date, Condition, Grading Company, Grade, Cert #, Location, Locked</div>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.3)",textAlign:"center",marginTop:10}}>Columns: Name, Set, Card Number, Parallel, Weapon, Power, Quantity, Estimated Value, Purchase Price, Trade Value, Serial, Notes, Legacy ID, Purchase Date, Condition, Grading Company, Grade, Cert #, Location, Locked</div>
               </>
             )}
           </div>
