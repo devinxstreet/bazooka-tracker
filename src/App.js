@@ -42190,6 +42190,10 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             <div className={animsOn?"pub-card-grid":"pub-card-grid no-anim"} style={{display:"grid",gridTemplateColumns:`repeat(auto-fill,minmax(${cardSize}px,1fr))`,gap:10}}>
               {visibleCards.map(c=>(
                 <div key={c.id} style={{position:"relative"}}>
+                  {/* Everything that pins to the ARTWORK lives in here. Without this the cell is the
+                      positioning context, and since the cell now includes the name strip below the card,
+                      a bottom-anchored badge (the privacy lock) landed on the quantity instead of the art. */}
+                  <div style={{position:"relative", aspectRatio:"3/4"}}>
                   {selectMode && (
                     <div
                       onMouseDown={e=>{ e.preventDefault(); e.stopPropagation();
@@ -42275,8 +42279,10 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   {/* Private used to throw a 28% black wash over the whole card. Private is the DEFAULT,
                       so in practice that dimmed a user's entire collection \u2014 the cards they worked for
                       looked switched off. Convey it with a small lock instead and leave the art alone. */}
+                  {/* Anchored to the card wrapper above, not the grid cell — the cell now includes the
+                      name strip, so bottom:6 was landing on the quantity instead of the artwork. */}
                   {owned[c.id]&&!publicCards[c.id]&&privacyAnim!==c.id&&(
-                    <div title="Private \u2014 only you can see this" style={{position:"absolute",bottom:6,right:6,zIndex:5,pointerEvents:"none",width:19,height:19,borderRadius:"50%",background:"rgba(0,0,0,0.55)",backdropFilter:"blur(3px)",border:"1px solid rgba(251,191,36,0.5)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9.5,lineHeight:1}}>
+                    <div title="Private \u2014 only you can see this" style={{position:"absolute",left:6,bottom:6,zIndex:5,pointerEvents:"none",width:19,height:19,borderRadius:"50%",background:"rgba(0,0,0,0.55)",backdropFilter:"blur(3px)",border:"1px solid rgba(251,191,36,0.5)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9.5,lineHeight:1}}>
                       {"\uD83D\uDD12"}
                     </div>
                   )}
@@ -42287,6 +42293,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                       <div title={`${inTransit[c.id].qty||1} on the way — don't double-buy`} style={{background:"rgba(96,165,250,0.92)",borderRadius:6,padding:"3px 6px",fontSize:11,color:"#fff",fontWeight:800,backdropFilter:"blur(4px)"}}>🚚{inTransit[c.id].qty>1?inTransit[c.id].qty:""}</div>
                     </div>
                   )}
+                  </div>
                   {/* Name BELOW the card rather than over it. Some art is blank or fails to load, which
                       left tiles you could not identify without opening them. Putting it outside the
                       card means nothing covers the artwork and the foil/hover effects are untouched.
