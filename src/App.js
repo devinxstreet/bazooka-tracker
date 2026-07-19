@@ -16946,25 +16946,6 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade80":"#1a1a1a"}`, boxShadow:isOwned?"0 0 0 1px rgba(74,222,128,0.35), 0 4px 18px rgba(74,222,128,0.22)":"none" }}>
             <img src={_displayImg} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
               onError={e=>{ e.currentTarget.style.visibility="hidden"; }}/>
-            {/* Name strip. Some official art is blank or fails to load, which left a card you could
-                not identify without opening it. This sits UNDER the foil and shine layers (they use
-                higher z-index) and is pointer-events:none, so hover tilt and the foil sweep are
-                untouched. Gradient rather than a solid bar so it reads as part of the art. */}
-            <div style={{ position:"absolute", left:0, right:0, bottom:0, zIndex:2, pointerEvents:"none",
-              padding:"14px 7px 5px",
-              background:"linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.6) 45%, transparent 100%)" }}>
-              <div style={{ fontSize:isSmallCard?9.5:11, fontWeight:900, color:"#fff", lineHeight:1.15,
-                whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
-                textShadow:"0 1px 3px rgba(0,0,0,0.9)" }}>
-                {c.hero || c.playName || "\u2014"}
-              </div>
-              {(c.treatment || c.cardNum) && (
-                <div style={{ fontSize:isSmallCard?7.5:8.5, fontWeight:700, color:"rgba(255,255,255,0.6)",
-                  lineHeight:1.2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", marginTop:1 }}>
-                  {[c.treatment, c.cardNum].filter(Boolean).join(" \u00b7 ")}
-                </div>
-              )}
-            </div>
             {_isScanImg && <div style={{ position:"absolute", top:6, left:6, zIndex:4, background:"rgba(0,0,0,0.7)", border:"1px solid rgba(74,222,128,0.5)", color:"#4ade80", borderRadius:6, padding:"2px 7px", fontSize:9, fontWeight:800, letterSpacing:0.5, backdropFilter:"blur(3px)" }}>📸 Your scan</div>}
             {!_isScanImg && isFoilTreatment && !isIceFoil && <div ref={foilRef} style={{ position:"absolute", inset:0, borderRadius:10, background:"linear-gradient(115deg, transparent 20%, rgba(255,255,255,0.14) 30%, rgba(255,220,100,0.22) 40%, rgba(100,200,255,0.24) 50%, rgba(200,100,255,0.20) 60%, rgba(255,100,150,0.18) 70%, transparent 80%)", backgroundSize:"200% 200%", backgroundPosition:"var(--foilpos,50% 50%)", mixBlendMode:"screen", opacity:0, transition:"opacity 0.2s ease", pointerEvents:"none" }}/>}
             {!_isScanImg && isIceFoil && <div ref={iceRef} style={{ position:"absolute", inset:0, borderRadius:10, backgroundImage:_iceRest(), mixBlendMode:"screen", opacity:0.75, transition:"opacity 0.2s ease", pointerEvents:"none", zIndex:3 }}/>}
@@ -42141,7 +42122,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                       }}
                       onMouseEnter={()=>{ if (dragging) setSelectedIds(prev => prev.has(c.id) ? prev : new Set(prev).add(c.id)); }}
                       onTouchStart={e=>{ e.stopPropagation(); toggleSelect(c.id); setDragAnchor(c.id); }}
-                      style={{position:"absolute",inset:0,zIndex:30,borderRadius:10,cursor:"pointer",userSelect:"none",border:selectedIds.has(c.id)?"3px solid #7B9CFF":"3px solid transparent",background:selectedIds.has(c.id)?"rgba(123,156,255,0.18)":"rgba(0,0,0,0.15)",transition:"all 0.12s"}}>
+                      style={{position:"absolute",top:0,left:0,right:0,aspectRatio:"3/4",zIndex:30,borderRadius:10,cursor:"pointer",userSelect:"none",border:selectedIds.has(c.id)?"3px solid #7B9CFF":"3px solid transparent",background:selectedIds.has(c.id)?"rgba(123,156,255,0.18)":"rgba(0,0,0,0.15)",transition:"all 0.12s"}}>
                       <div style={{position:"absolute",top:8,left:8,width:26,height:26,borderRadius:"50%",background:selectedIds.has(c.id)?"#7B9CFF":"rgba(0,0,0,0.6)",border:"2px solid #fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:900,color:"#fff",boxShadow:"0 2px 6px rgba(0,0,0,0.5)"}}>{selectedIds.has(c.id)?"✓":""}</div>
                       {/* Way into a card WITHOUT leaving select mode. The overlay swallows normal clicks
                           (that is what makes drag-select work), so opening needs its own target that
@@ -42230,6 +42211,23 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                       <div title={`${inTransit[c.id].qty||1} on the way — don't double-buy`} style={{background:"rgba(96,165,250,0.92)",borderRadius:6,padding:"3px 6px",fontSize:11,color:"#fff",fontWeight:800,backdropFilter:"blur(4px)"}}>🚚{inTransit[c.id].qty>1?inTransit[c.id].qty:""}</div>
                     </div>
                   )}
+                  {/* Name BELOW the card rather than over it. Some art is blank or fails to load, which
+                      left tiles you could not identify without opening them. Putting it outside the
+                      card means nothing covers the artwork and the foil/hover effects are untouched.
+                      The select overlay above is inset:0 on the CARD, so this strip stays clickable
+                      and readable in select mode too. */}
+                  <div style={{ padding:"5px 2px 0", pointerEvents:"none" }}>
+                    <div style={{ fontSize:11, fontWeight:800, color:owned[c.id]?"#4ade80":"var(--bz-ink)",
+                      lineHeight:1.2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                      {c.hero || c.playName || "\u2014"}
+                    </div>
+                    {(c.treatment || c.cardNum) && (
+                      <div style={{ fontSize:9, fontWeight:600, color:"var(--bz-ink-3)", lineHeight:1.25,
+                        whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", marginTop:1 }}>
+                        {[c.treatment, c.cardNum].filter(Boolean).join(" \u00b7 ")}
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
