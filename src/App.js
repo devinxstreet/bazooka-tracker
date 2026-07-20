@@ -234,6 +234,26 @@ function locationForBreaker(name){
 const WOTF_SETS = ["Dragon Box","Collector Booster","Play Booster","Wonders of The First"];
 const BOBA_SETS = ["Alpha Edition","Alpha Update","Griffey 2026","Tecmo Bowl"];
 
+// Some cards were printed in more than one release with the SAME card number, so the checklist
+// cannot tell them apart on its own. Alpha Blast Hot Dogs are the known case: an original Alpha
+// print and an Alpha Update reprint share a number, and collectors care which they hold.
+//
+// Rather than fork the catalog into near-duplicate documents, the version is recorded PER COPY.
+// You can own two originals and one update under a single card, and the detail view shows the
+// split. Deliberately a narrow list \u2014 prompting on every card would make adding cards a chore.
+const CARD_VERSIONS = [
+  {
+    match: c => /alpha blast/i.test(c?.setName||"") && /hot dog/i.test(c?.treatment||""),
+    label: "Which print is it?",
+    options: ["Alpha", "Alpha Update"],
+    help: "Alpha Blast Hot Dogs were printed twice with the same card number.",
+  },
+];
+function versionSpecFor(card) {
+  if (!card) return null;
+  return CARD_VERSIONS.find(v => { try { return v.match(card); } catch { return false; } }) || null;
+}
+
 // ── SINGLE CANONICAL STREAM CALC ─────────────────────────────────────────────
 // A stream is "singles" (100% pass-through) if flagged either way — via the
 // isSinglesShow boolean or the sessionType dropdown. Keep these in sync.
@@ -22516,6 +22536,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
     if (activeTrackerId === id) setActiveTrackerId(null);
   }
 
+
   async function setOwnedQty(cardId, qty) {
     const next = { ...owned };
     if (qty <= 0) delete next[cardId];
@@ -30797,7 +30818,7 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp, onUploa
   // cost = CASH actually paid. tradeValue = what the cards you gave up were worth to you. Real
   // acquisition cost is the two together — recording only cash understates what a card cost and
   // quietly inflates every ROI number built on top of it.
-  const blank = { cost:"", tradeValue:"", value:"", method:"purchased", date:todayLocal(), notes:"", serial:"",
+  const blank = { cost:"", tradeValue:"", value:"", version:"", method:"purchased", date:todayLocal(), notes:"", serial:"",
                   purchaseDate:"", condition:"", grade:"", gradeCompany:"", certNum:"",
                   location:"", locked:false };
   const [draft, setDraft] = useState(blank);
@@ -30817,6 +30838,7 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp, onUploa
       method: draft.method, date: draft.date, notes: draft.notes.trim(),
       serial: (draft.serial||"").trim(),   // e.g. "21/50" — which numbered copy this is
       tradeValue: draft.tradeValue===""||draft.tradeValue==null ? null : (parseFloat(draft.tradeValue)||0),
+      version: (draft.version||"").trim() || null,
       purchaseDate: draft.purchaseDate||"",
       condition: draft.condition||"",
       grade: (draft.grade||"").trim(),
@@ -30828,7 +30850,7 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp, onUploa
     if (editId) { onUpdate(editId, data); } else { onAdd(card.id, data); }
     setDraft(blank); setEditId(null);
   }
-  function startEdit(l) { setEditId(l.id); setDraft({ cost:l.cost??"", tradeValue:l.tradeValue??"", value:l.value??"", method:l.method||"purchased", date:l.date||blank.date, notes:l.notes||"", serial:l.serial||"",
+  function startEdit(l) { setEditId(l.id); setDraft({ cost:l.cost??"", tradeValue:l.tradeValue??"", value:l.value??"", version:l.version||"", method:l.method||"purchased", date:l.date||blank.date, notes:l.notes||"", serial:l.serial||"",
       purchaseDate:l.purchaseDate||"", condition:l.condition||"", grade:l.grade||"", gradeCompany:l.gradeCompany||"",
       certNum:l.certNum||"", location:l.location||"", locked:!!l.locked });
     // Reveal whatever this copy already has, so editing never hides saved data behind a collapse.
@@ -30967,6 +30989,20 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp, onUploa
           {/* Everything below the money row is optional detail. It was thirteen fields in one flat
               stack, which made the common case (log what I paid) feel like paperwork. Essentials stay
               visible; grading, storage and provenance collapse until wanted. */}
+          {(() => {
+            // Only for cards printed more than once \u2014 everyone else never sees this field.
+            const vspec = versionSpecFor(card);
+            if (!vspec) return null;
+            return (
+              <div style={{ marginBottom:10 }}>
+                <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>{vspec.label}</div>
+                <select value={draft.version||""} onChange={e=>setDraft({...draft,version:e.target.value})} style={{...inp,width:"100%",cursor:"pointer"}}>
+                  <option value="">{"\u2014 not recorded"}</option>
+                  {vspec.options.map(o=><option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+            );
+          })()}
           <div style={{ display:"flex", gap:8, marginBottom:10 }}>
             <div style={{ flex:1 }}>
               <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Date acquired</div>
@@ -32011,6 +32047,8 @@ See you in there!
   const [onboarding,    setOnboarding]    = useState(false);
   const [reviewModal,   setReviewModal]   = useState(null); // { sale } when rating a seller
   const [lotModal,      setLotModal]      = useState(null); // { card } when open
+  // Asked when adding a card that exists in more than one print (see CARD_VERSIONS).
+  const [versionAsk,    setVersionAsk]    = useState(null); // { card, spec, qty }
   const [ownedDocId,    setOwnedDocId]    = useState(null);
   // Cache the owned collection locally so it paints INSTANTLY on next load instead of
   // waiting for Firestore. Keyed by uid so a different account never sees stale data.
@@ -33639,6 +33677,31 @@ See you in there!
     ownedSaveRef.current = setTimeout(() => { flushOwnedSave(); }, 500);
   }
 
+  // Record the chosen print, then add the card. The version lives on a per-copy LOT rather than on
+  // the card, so one card can hold two originals and an update at the same time.
+  async function confirmVersion(version) {
+    const ask = versionAsk;
+    if (!ask) return;
+    setVersionAsk(null);
+    const cardId = ask.card.id;
+    let saved = null;
+    setOwned(prev => {
+      const next = { ...prev };
+      next[cardId] = (parseInt(next[cardId]) || 0) + 1;
+      saved = next;
+      return next;
+    });
+    if (saved) queueOwnedSave(saved);
+    // A lot carries the version. Everything else is left blank so this stays a one-tap add \u2014 cost
+    // and condition can be filled in later from Details if the person cares.
+    const lot = { id: uid(), cardId, version, cost:null, value:null, method:"purchased",
+                  date: todayLocal(), notes:"", serial:"" };
+    const nextLots = [...(lots||[]), lot];
+    setLots(nextLots);
+    if (user) { try { await setDoc(doc(db,"boba_lots",user.uid), { lots: nextLots }); } catch(e){ console.error("save version lot failed:", e); } }
+    setCardFx({ type:"caught", card: ask.card });
+  }
+
   // Write whatever's pending, right now. Safe to call repeatedly — it no-ops when there's nothing
   // queued. Retries once on failure so a flaky mobile connection doesn't silently eat a card.
   async function flushOwnedSave(attempt = 0) {
@@ -33686,6 +33749,13 @@ See you in there!
   async function toggleOwned(cardId) {
     if (!user) { setSigningIn(true); return; }
     const wasOwned = !!owned[cardId];
+    // Adding a card that was printed twice? Ask which one before recording it. Only on the way IN \u2014
+    // removing never needs a prompt, and asking again on every later copy would be tedious.
+    if (!wasOwned) {
+      const card = cards.find(x=>x.id===cardId);
+      const spec = versionSpecFor(card);
+      if (spec) { setVersionAsk({ card, spec }); return; }
+    }
     // Functional update for the same reason as setOwnedQty: adding two cards in quick succession
     // must not have the second write built from a snapshot taken before the first.
     let saved = null;
@@ -39097,6 +39167,34 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 {/* Error-card flag. This existed only on the small card's BACK face, so opening the
                     full detail view \u2014 the place you go precisely to check a card \u2014 showed nothing. If a
                     card is a known misprint or has had its power corrected, that belongs here. */}
+                {(() => {
+                  // Version breakdown for multi-print cards: the grid shows one tile, so this is the
+                  // only place the Alpha / Alpha Update split is visible.
+                  const vspec = versionSpecFor(c);
+                  if (!vspec || !owned[c.id]) return null;
+                  const mine = (lots||[]).filter(l => l.cardId === c.id);
+                  const counts = {};
+                  vspec.options.forEach(o => counts[o] = 0);
+                  let unknown = 0;
+                  mine.forEach(l => { if (l.version && counts[l.version]!=null) counts[l.version]++; else unknown++; });
+                  const untracked = Math.max(0, (parseInt(owned[c.id])||0) - mine.length) + unknown;
+                  return (
+                    <div style={{ background:"rgba(123,156,255,0.08)", border:"1px solid rgba(123,156,255,0.3)", borderRadius:10, padding:"9px 12px" }}>
+                      <div style={{ fontSize:11, fontWeight:800, color:"#7B9CFF", marginBottom:5 }}>{vspec.label}</div>
+                      <div style={{ display:"flex", gap:14, flexWrap:"wrap", fontSize:12.5, color:"var(--bz-ink)" }}>
+                        {vspec.options.map(o=>(
+                          <span key={o}><strong style={{color:counts[o]?"#fff":"rgba(255,255,255,0.35)"}}>{counts[o]}</strong> {o}</span>
+                        ))}
+                        {untracked>0 && <span style={{color:"rgba(255,255,255,0.4)"}}>{untracked} not recorded</span>}
+                      </div>
+                      {untracked>0 && (
+                        <div style={{ fontSize:10.5, color:"rgba(255,255,255,0.35)", marginTop:4 }}>
+                          Set the print on each copy under {"\uD83D\uDCB0"} Details.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 {c.isError && (
                   <div style={{ display:"flex", alignItems:"flex-start", gap:8, background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.4)", borderRadius:10, padding:"9px 12px" }}>
                     <span style={{ fontSize:14, lineHeight:1.3 }}>{"\u26A0\uFE0F"}</span>
@@ -40181,6 +40279,32 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 <button onClick={()=>setRestoreModal(null)} style={{width:"100%",background:"transparent",border:"1px solid #333",color:"#999",borderRadius:10,padding:"10px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
               </>
             )}
+          </div>
+        </div>
+      )}
+      {/* Which print is it? Shown only for cards that genuinely have two, so it never becomes noise
+          on a normal add. Cancel backs out without recording anything. */}
+      {versionAsk && (
+        <div onClick={()=>setVersionAsk(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:12500,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#111",border:"1px solid #2a2a2a",borderRadius:16,padding:20,maxWidth:380,width:"100%"}}>
+            <div style={{fontSize:16,fontWeight:900,color:"#fff",marginBottom:4}}>{versionAsk.spec.label}</div>
+            <div style={{fontSize:12.5,color:"var(--bz-ink-2)",lineHeight:1.6,marginBottom:14}}>
+              <strong style={{color:"#fff"}}>{versionAsk.card.hero || versionAsk.card.playName}</strong>
+              {versionAsk.card.cardNum ? ` \u00b7 ${versionAsk.card.cardNum}` : ""}
+              {versionAsk.spec.help ? <> {"\u2014"} {versionAsk.spec.help}</> : null}
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {versionAsk.spec.options.map(opt => (
+                <button key={opt} onClick={()=>confirmVersion(opt)}
+                  style={{width:"100%",background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.45)",color:"#4ade80",borderRadius:10,padding:"12px",fontSize:13.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                  {opt}
+                </button>
+              ))}
+              <button onClick={()=>setVersionAsk(null)}
+                style={{width:"100%",background:"transparent",border:"1px solid #333",color:"#999",borderRadius:10,padding:"10px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginTop:2}}>
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
