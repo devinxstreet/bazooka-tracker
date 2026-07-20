@@ -16769,6 +16769,25 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
   const isFoilTreatment = !_isPaperBase && /foil|linoleum|metallic|holo|prizm|refractor|chrome|sparkle|shimmer|rainbow|gold|silver|inspired ink|battlefoil|bonus play/.test(treatment);
   // Drag an image file straight onto the card to set its art. Admin-only, same as the button.
   const [dragOver, setDragOver] = useState(false);
+  // True whenever a FILE is being dragged anywhere over the window. Used to arm the per-card drop
+  // layers only during a drag, so they never interfere with normal mouse use.
+  const [dragActive, setDragActive] = useState(false);
+  useEffect(()=>{
+    if(!(isAdmin && onImageUpload)) return;
+    let depth = 0;
+    const isFile = e => [...(e.dataTransfer?.types||[])].includes("Files");
+    const onEnter = e => { if(!isFile(e)) return; depth++; setDragActive(true); };
+    const onLeave = e => { if(!isFile(e)) return; depth = Math.max(0, depth-1); if(depth===0) setDragActive(false); };
+    const onDrop  = () => { depth = 0; setDragActive(false); };
+    window.addEventListener("dragenter", onEnter);
+    window.addEventListener("dragleave", onLeave);
+    window.addEventListener("drop", onDrop);
+    return () => {
+      window.removeEventListener("dragenter", onEnter);
+      window.removeEventListener("dragleave", onLeave);
+      window.removeEventListener("drop", onDrop);
+    };
+  },[isAdmin, onImageUpload]);
   const pixelRef = useRef(null);
   const pixelAnim = useRef(null);
   const mousePos = useRef({ x:0.5, y:0.5 });
@@ -16989,15 +17008,56 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
         onDrop={isAdmin && onImageUpload ? (e=>{
           e.preventDefault(); e.stopPropagation();
           setDragOver(false);
-          const f = [...(e.dataTransfer?.files||[])].find(x=>x.type.startsWith("image/"));
-          if(f) onImageUpload(c, f);
+          // Surface what actually arrived. A silent no-op here is indistinguishable from the drop
+          // never reaching this handler at all, which is exactly the ambiguity that made this hard
+          // to pin down: some sources (another browser tab, a preview pane, a URL) carry NO file
+          // at all, only a text/uri-list, so files[] is empty and nothing happens.
+          const dt = e.dataTransfer;
+          const files = [...(dt?.files||[])];
+          const f = files.find(x=>x.type.startsWith("image/"));
+          if(f){ onImageUpload(c, f); return; }
+          const kinds = dt ? [...(dt.items||[])].map(i=>`${i.kind}:${i.type}`).join(", ") : "none";
+          alert(
+            "Nothing was uploaded \u2014 that drop carried no image FILE.\n\n" +
+            `What arrived: ${kinds || "(nothing)"}\n\n` +
+            "Dragging a picture out of another browser tab usually sends a link, not a file. " +
+            "Save the image to your computer first, then drag it from there."
+          );
         }) : undefined}>
-        {dragOver && (
-          <div style={{ position:"absolute", inset:0, zIndex:40, borderRadius:10, pointerEvents:"none",
-            border:"2px dashed #4ade80", background:"rgba(74,222,128,0.18)",
+        {/* A dedicated drop layer ABOVE the 3D flipper. The card body lives inside a
+            transform-style:preserve-3d container that is rotated in space, and hit-testing drag
+            events against transformed 3D surfaces is unreliable across browsers \u2014 the drop can
+            land on nothing. A flat, untransformed overlay is a dependable target. It stays
+            transparent and only lights up once a drag is actually over the card. */}
+        {isAdmin && onImageUpload && (
+          <div style={{ position:"absolute", inset:0, zIndex:45, borderRadius:10,
+            border: dragOver ? "2px dashed #4ade80" : "none",
+            background: dragOver ? "rgba(74,222,128,0.18)" : "transparent",
             display:"flex", alignItems:"center", justifyContent:"center",
-            fontSize:11, fontWeight:900, color:"#4ade80", textAlign:"center", padding:8 }}>
-            Drop image
+            fontSize:11, fontWeight:900, color:"#4ade80", textAlign:"center", padding:8,
+            // Only becomes a real hit target while a file is being dragged over the page. The rest of
+            // the time it is pointerEvents:none, so clicking, flipping and hovering the card are
+            // untouched. dragActive is driven by a window-level dragenter, which fires regardless of
+            // what is underneath \u2014 unlike the card's own handlers, which the 3D-transformed flipper
+            // can swallow.
+            pointerEvents: dragActive ? "auto" : "none" }}
+            onDragOver={e=>{ e.preventDefault(); e.stopPropagation(); if(!dragOver) setDragOver(true); }}
+            onDragLeave={e=>{ if(e.currentTarget.contains(e.relatedTarget)) return; setDragOver(false); }}
+            onDrop={e=>{
+              e.preventDefault(); e.stopPropagation();
+              setDragOver(false);
+              const dt = e.dataTransfer;
+              const f = [...(dt?.files||[])].find(x=>x.type.startsWith("image/"));
+              if(f){ onImageUpload(c, f); return; }
+              const kinds = dt ? [...(dt.items||[])].map(i=>`${i.kind}:${i.type}`).join(", ") : "none";
+              alert(
+                "Nothing was uploaded \u2014 that drop carried no image FILE.\n\n" +
+                `What arrived: ${kinds || "(nothing)"}\n\n` +
+                "Dragging a picture out of another browser tab usually sends a link, not a file. " +
+                "Save the image to your computer first, then drag it from there."
+              );
+            }}>
+            {dragOver ? "Drop image" : null}
           </div>
         )}
         <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transition:"transform 0.2s ease, box-shadow 0.2s ease", borderRadius:10, cursor:"pointer", willChange:"transform" }} onClick={handleClick}>
