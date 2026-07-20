@@ -565,15 +565,6 @@ function useWindowWidth() {
   const [w, setW] = useState(window.innerWidth);
   useEffect(()=>{ const h=()=>setW(window.innerWidth); window.addEventListener("resize",h); return()=>window.removeEventListener("resize",h); },[]);
 
-  // Without this, an image dropped anywhere except exactly on a card makes the BROWSER navigate to
-  // that file, which looks like the app crashed and loses whatever you were doing. Cards call
-  // stopPropagation on their own drop, so this only catches the misses.
-  useEffect(()=>{
-    const stop = e => { e.preventDefault(); };
-    window.addEventListener("dragover", stop);
-    window.addEventListener("drop", stop);
-    return () => { window.removeEventListener("dragover", stop); window.removeEventListener("drop", stop); };
-  },[]);
   return w;
 }
 
@@ -46773,6 +46764,21 @@ export default function App() {
 }
 
 function AppInner() {
+  // Stop the browser navigating away when an image is dropped anywhere OUTSIDE a card. Without it
+  // a missed drop replaces the page with the raw image file, which reads as a crash and loses
+  // whatever you were in the middle of. Cards stopPropagation on their own drop, so this only ever
+  // sees the misses. Capture phase, so it runs before anything else can let the default through.
+  useEffect(()=>{
+    // preventDefault ONLY. Setting dropEffect here would also suppress the copy cursor over the
+    // cards, and stopPropagation would stop their handlers firing at all.
+    const stop = e => { e.preventDefault(); };
+    window.addEventListener("dragover", stop, true);
+    window.addEventListener("drop", stop, true);
+    return () => {
+      window.removeEventListener("dragover", stop, true);
+      window.removeEventListener("drop", stop, true);
+    };
+  },[]);
   const [tab,           setTab]           = useState("dashboard");
   const [gSearch,       setGSearch]       = useState("");
   const [gOpen,         setGOpen]         = useState(false);
