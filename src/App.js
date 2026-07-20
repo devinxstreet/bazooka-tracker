@@ -16750,7 +16750,9 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
   const isIceFoil = (_setLower.includes("alpha blast") || _setLower.includes("blast")) && !_iceIsPaper;
   // Base / paper cards have NO foil shine — only true foil treatments shimmer
   const _isPaperBase = /\b(paper|base)\b/.test(treatment) && !treatment.includes("battlefoil") && !treatment.includes("foil");
-  const isFoilTreatment = !_isPaperBase && /foil|linoleum|metallic|holo|prizm|refractor|chrome|sparkle|shimmer|rainbow|gold|silver|inspired ink|battlefoil/.test(treatment);
+  // "bonus play" is named for what the card does, not what it is made of, so it matched none of
+  // the material words below even though the insert is foil stock like the battlefoils.
+  const isFoilTreatment = !_isPaperBase && /foil|linoleum|metallic|holo|prizm|refractor|chrome|sparkle|shimmer|rainbow|gold|silver|inspired ink|battlefoil|bonus play/.test(treatment);
   const pixelRef = useRef(null);
   const pixelAnim = useRef(null);
   const mousePos = useRef({ x:0.5, y:0.5 });
@@ -35205,6 +35207,10 @@ See you in there!
   const [bulkEdits,     setBulkEdits]     = useState({});
   const [bulkImgUploading, setBulkImgUploading] = useState(false);
   const [bulkImgOverwrite, setBulkImgOverwrite] = useState(false);  // replace existing/placeholder art
+  // Match on hero name when the card number in the filename does not line up with the checklist.
+  // On by default: a wrong card number is common, and a skipped file is more annoying than a
+  // match you can undo.
+  const [bulkImgHeroMatch, setBulkImgHeroMatch] = useState(true);
   const [bulkEditing,   setBulkEditing]   = useState(false);
 
   const BULK_FIELDS = [
@@ -35746,12 +35752,37 @@ See you in there!
       return best;
     }
 
+    // Fall back to the HERO NAME in the filename. Card numbers in the checklist are not always
+    // right, and when they are wrong a number-only match silently skips the file \u2014 which is why
+    // whole folders of images import as "no match". Once the set (and usually the treatment) is
+    // pinned by the picker, the hero name on its own is enough to identify a card.
+    //
+    // Only accepts an UNAMBIGUOUS hit: if two cards in the pool could match the filename, it
+    // returns nothing rather than guessing and attaching art to the wrong card.
+    function heroFind(filename, pool){
+      const flat = filename.replace(/\.[^.]+$/,"").toLowerCase().replace(/[^a-z0-9]/g,"");
+      if(!flat) return null;
+      const hits = [];
+      for(const c of pool){
+        const h = String(c.hero || c.playName || "").toLowerCase().replace(/[^a-z0-9]/g,"");
+        if(h.length < 3) continue;             // too short to be a safe signal
+        if(flat.includes(h)) hits.push({ card:c, len:h.length });
+      }
+      if(!hits.length) return null;
+      // Longest hero name wins ("bojackson" beats "bo"), but only if nothing else ties it.
+      hits.sort((a,b)=>b.len-a.len);
+      if(hits.length > 1 && hits[1].len === hits[0].len) return null;  // genuinely ambiguous
+      return hits[0].card;
+    }
+
     async function one(file){
       try {
         const fileTreatment = treatmentForFile(file);
         const pool = poolFor(fileTreatment);
         // Try filename FIRST — it usually contains the exact card number (e.g. "2026-Griffey-BBF-1.jpg" → BBF-1).
         let card = filenameFind(file.name, pool);
+        // Hero name next \u2014 cheap, offline, and correct even when the checklist's card number is wrong.
+        if(!card && bulkImgHeroMatch) card = heroFind(file.name, pool);
         if(!card) card = await visionFind(file, pool, fileTreatment);
         if(!card){ skipped++; skippedNames.push(file.name); done++; setBulkProg({done,total:list.length,matched,skipped,status:`No match: ${file.name}`}); return; }
         if(!bulkImgOverwrite && alreadyImaged.has(card.id)){ matched++; done++; setBulkProg({done,total:list.length,matched,skipped,status:`⏭ Already had image: ${card.hero}`}); return; }
@@ -39042,6 +39073,14 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 <input type="checkbox" checked={bulkImgOverwrite} onChange={e=>setBulkImgOverwrite(e.target.checked)} style={{accentColor:"#E8317A",width:15,height:15}}/>
                 <span style={{fontSize:12,fontWeight:800,color:bulkImgOverwrite?"#E8317A":"rgba(255,255,255,0.65)"}}>Replace existing images</span>
                 <span style={{fontSize:10,color:"rgba(255,255,255,0.35)"}}>{bulkImgOverwrite?"overwrites placeholders":"skips cards that have one"}</span>
+              </label>
+              {/* Card numbers in the checklist are not always right, and a number-only match skips the
+                  file silently when they are wrong. With the set pinned above, the hero name in the
+                  filename is enough to place the card. Ambiguous filenames are still skipped. */}
+              <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",background:bulkImgHeroMatch?"rgba(74,222,128,0.1)":"rgba(255,255,255,0.03)",border:"1px solid "+(bulkImgHeroMatch?"rgba(74,222,128,0.45)":"rgba(255,255,255,0.1)"),borderRadius:9,padding:"9px 11px",marginBottom:10}}>
+                <input type="checkbox" checked={bulkImgHeroMatch} onChange={e=>setBulkImgHeroMatch(e.target.checked)} style={{width:15,height:15,accentColor:"#4ade80",cursor:"pointer"}}/>
+                <span style={{fontSize:12,fontWeight:800,color:bulkImgHeroMatch?"#4ade80":"rgba(255,255,255,0.65)"}}>Match on hero name</span>
+                <span style={{fontSize:10,color:"rgba(255,255,255,0.35)"}}>{bulkImgHeroMatch?"used when the card number does not match":"card number only"}</span>
               </label>
               {bulkImg.byFolder ? (
                 <div style={{fontSize:12,color:"#999",lineHeight:1.5,marginBottom:16}}>Detected <strong style={{color:"#4ade80"}}>{subFolders.length} treatment subfolder{subFolders.length!==1?"s":""}</strong>. Each image will be assigned the treatment of the subfolder it's in — just confirm the Set below.</div>
