@@ -35759,20 +35759,49 @@ See you in there!
     //
     // Only accepts an UNAMBIGUOUS hit: if two cards in the pool could match the filename, it
     // returns nothing rather than guessing and attaching art to the wrong card.
+    // Match on the HERO NAME in the filename, using treatment and weapon to break ties.
+    //
+    // The hero alone is often NOT unique: Skyline exists as Fire, Ice and Glow on the same card
+    // number with the same hero, so "does this filename contain a hero name" matches three cards
+    // at once. Rejecting every tie meant a whole folder matched nothing. Instead, when several
+    // cards share the hero, the filename's other words (weapon, treatment) pick between them, and
+    // only a tie that survives THAT is refused.
     function heroFind(filename, pool){
       const flat = filename.replace(/\.[^.]+$/,"").toLowerCase().replace(/[^a-z0-9]/g,"");
       if(!flat) return null;
-      const hits = [];
+      const norm = s => String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
+
+      let hits = [];
       for(const c of pool){
-        const h = String(c.hero || c.playName || "").toLowerCase().replace(/[^a-z0-9]/g,"");
-        if(h.length < 3) continue;             // too short to be a safe signal
+        const h = norm(c.hero || c.playName);
+        if(h.length < 3) continue;              // too short to be a safe signal
         if(flat.includes(h)) hits.push({ card:c, len:h.length });
       }
       if(!hits.length) return null;
-      // Longest hero name wins ("bojackson" beats "bo"), but only if nothing else ties it.
-      hits.sort((a,b)=>b.len-a.len);
-      if(hits.length > 1 && hits[1].len === hits[0].len) return null;  // genuinely ambiguous
-      return hits[0].card;
+
+      // Keep only the longest hero match ("bojackson" beats a card merely named "bo").
+      const maxLen = Math.max(...hits.map(x=>x.len));
+      hits = hits.filter(x=>x.len === maxLen);
+      if(hits.length === 1) return hits[0].card;
+
+      // Several cards share that hero. Score each by how much of the REST of its identity also
+      // appears in the filename \u2014 weapon first, since that is what distinguishes Skyline Fire from
+      // Skyline Ice, then treatment, then card number.
+      const scored = hits.map(({card}) => {
+        let score = 0;
+        const w = norm(card.weapon);
+        const t = norm(card.treatment);
+        const n = norm(card.cardNum);
+        if(w && w.length >= 3 && flat.includes(w)) score += 3;
+        if(t && t.length >= 3 && flat.includes(t)) score += 2;
+        if(n && n.length >= 2 && flat.includes(n)) score += 1;
+        return { card, score };
+      }).sort((a,b)=>b.score-a.score);
+
+      // Still tied, or nothing in the filename distinguishes them -> refuse rather than guess.
+      if(scored[0].score === 0) return null;
+      if(scored.length > 1 && scored[1].score === scored[0].score) return null;
+      return scored[0].card;
     }
 
     async function one(file){
