@@ -28521,6 +28521,11 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const [deckMineOnly, setDeckMineOnly] = useState(false);
   const [sharedDeckId, setSharedDeckId] = useState(null);
   const [setsOpen, setSetsOpen] = useState(false);   // set picker collapsed by default
+  // Which filter picker is expanded in the manual builder. One flag each so opening weapons
+  // does not collapse treatments.
+  const [filtWOpen, setFiltWOpen] = useState(false); // weapons
+  const [filtSOpen, setFiltSOpen] = useState(false); // sets
+  const [filtTOpen, setFiltTOpen] = useState(false); // treatments
   const [filtPOpen, setFiltPOpen] = useState(false); // manual builder: power multi-select picker
   const [goalTOpen, setGoalTOpen] = useState(false); // treatment picker
   const [progressExpanded, setProgressExpanded] = useState(false);
