@@ -16978,7 +16978,7 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
 
   if (_displayImg) {
     return (
-      <div className="boba-card-hover" style={{ aspectRatio:"3/4", perspective:"1000px", position:"relative" }} onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter} onPointerLeave={onMouseLeave} onPointerCancel={onMouseLeave} onTouchEnd={onMouseLeave}
+      <div className="boba-card-hover" data-card-drop={isAdmin && onImageUpload ? "1" : undefined} style={{ aspectRatio:"3/4", perspective:"1000px", position:"relative" }} onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter} onPointerLeave={onMouseLeave} onPointerCancel={onMouseLeave} onTouchEnd={onMouseLeave}
         onDragOver={isAdmin && onImageUpload ? (e=>{ e.preventDefault(); e.stopPropagation(); if(!dragOver) setDragOver(true); }) : undefined}
         onDragLeave={isAdmin && onImageUpload ? (e=>{
           // Only clear when the pointer genuinely leaves the card \u2014 moving across a child element
@@ -46764,19 +46764,22 @@ export default function App() {
 }
 
 function AppInner() {
-  // Stop the browser navigating away when an image is dropped anywhere OUTSIDE a card. Without it
-  // a missed drop replaces the page with the raw image file, which reads as a crash and loses
-  // whatever you were in the middle of. Cards stopPropagation on their own drop, so this only ever
-  // sees the misses. Capture phase, so it runs before anything else can let the default through.
+  // Stop the browser navigating away when an image is dropped anywhere OUTSIDE a card \u2014 a missed
+  // drop otherwise replaces the page with the raw image file, which reads as a crash.
+  //
+  // This must NOT blanket-preventDefault. React dispatches its synthetic events from the root
+  // container, so a capture-phase preventDefault on window marks the drop handled before the
+  // card's own onDrop ever runs, and the upload silently never happens. Instead, check whether
+  // the drop landed on a card and leave those alone; only cancel the genuine misses. Bubble
+  // phase, so the card handler has already had its turn by the time this runs.
   useEffect(()=>{
-    // preventDefault ONLY. Setting dropEffect here would also suppress the copy cursor over the
-    // cards, and stopPropagation would stop their handlers firing at all.
-    const stop = e => { e.preventDefault(); };
-    window.addEventListener("dragover", stop, true);
-    window.addEventListener("drop", stop, true);
+    const onCard = e => !!(e.target && e.target.closest && e.target.closest("[data-card-drop]"));
+    const stop = e => { if (!onCard(e)) e.preventDefault(); };
+    window.addEventListener("dragover", stop);
+    window.addEventListener("drop", stop);
     return () => {
-      window.removeEventListener("dragover", stop, true);
-      window.removeEventListener("drop", stop, true);
+      window.removeEventListener("dragover", stop);
+      window.removeEventListener("drop", stop);
     };
   },[]);
   const [tab,           setTab]           = useState("dashboard");
