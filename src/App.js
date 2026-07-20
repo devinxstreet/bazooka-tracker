@@ -196,6 +196,19 @@ const insertLabel = (key, fallback) => key === "inspired ink" ? "Inspired Ink (a
 // Ink Battlefoil, 80's Rad Battlefoil…) are real inserts and still count.
 const NON_INSERT_TREATMENTS = new Set(["battlefoil", "base", "paper", ""]);
 const isInsertTreatment = (treatment) => !NON_INSERT_TREATMENTS.has(insertKey(treatment));
+
+// Only Plays and Bonus Plays actually have a play cost. The DBS checklist import writes a cost
+// column for every row, so ordinary heroes ended up carrying playCost:0 and rendering a stray
+// "Cost: 0" chip that means nothing. Gate the display on BOTH the treatment and a real value.
+function hasPlayCost(card) {
+  if (!card) return false;
+  const v = card.playCost;
+  if (v === undefined || v === null || v === "") return false;
+  const t = String(card.treatment || "").toLowerCase();
+  if (!/\bplay\b|\bplays\b/.test(t)) return false;   // "Play", "Bonus Play", "Bonus Plays"
+  const n = parseFloat(v);
+  return !(isNaN(n) && String(v).trim() === "");
+}
 const INDIV_TYPES = ["First-Timer Cards","Chaser Cards"];  // individual tracking
 const BREAKERS = ["Dev","Dre","Krystal","BigU","Vinny","Stephen"];
 // Remote breakers front their own supplies/shipping and get reimbursed — same
@@ -16222,7 +16235,7 @@ function PublicPlaybookBuilder() {
                         <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginBottom:2, fontSize:10 }}>
                           <span style={{ color:"var(--bz-ink-3)" }}>#{c.cardNum}</span>
                           {c.setName&&<span style={{ color:"#8a8a8a", fontStyle:"italic" }}>{c.setName}</span>}
-                          {c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}
+                          {hasPlayCost(c)&&<span style={{ color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}
                           {_pbAdmin
                             ? <span style={{ display:"inline-flex", alignItems:"center", gap:3, color:"#A855F7", fontWeight:700 }}>DBS:
                                 <input
@@ -16282,8 +16295,8 @@ function PublicPlaybookBuilder() {
             </div>
             {pbResolved.length>0 && (
               <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
-                {pbResolved.filter(e=>e.type==="play").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>{"\u2694\uFE0F Plays ("}{pbResolved.filter(e=>e.type==="play").length})</div>{pbResolved.filter(e=>e.type==="play").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"var(--bz-ink-3)", width:18, textAlign:"center", flexShrink:0 }}>{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"var(--bz-ink)" }}>{c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#8a8a8a",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const arr=[...pbCards]; const idx=arr.findIndex((x,j)=>x.type==="play"&&j===pbCards.filter((y,k)=>k<=j&&y.type==="play").length-1+pbCards.slice(0,pbCards.findIndex((y,k)=>{ let pi=0; for(let l=0;l<k;l++) if(pbCards[l].type==="play") pi++; return pi===i&&pbCards[k].type==="play"; })).length-1); const playArr=pbCards.filter(x=>x.type==="play"); const target=playArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"var(--bz-ink-3)", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>{"\u00D7"}</button></div>); })}</div>}
-                {pbResolved.filter(e=>e.type==="bonus").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#7B9CFF", textTransform:"uppercase", letterSpacing:1, borderTop:"1px solid var(--bz-line)" }}>{"\u2B50 Bonus Plays ("}{pbResolved.filter(e=>e.type==="bonus").length})</div>{pbResolved.filter(e=>e.type==="bonus").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"var(--bz-ink-3)", width:18, flexShrink:0 }}>B{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF" }}>{c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{c.playCost!==undefined&&c.playCost!==""&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#8a8a8a",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const bonusArr=pbCards.filter(x=>x.type==="bonus"); const target=bonusArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"var(--bz-ink-3)", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>{"\u00D7"}</button></div>); })}</div>}
+                {pbResolved.filter(e=>e.type==="play").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>{"\u2694\uFE0F Plays ("}{pbResolved.filter(e=>e.type==="play").length})</div>{pbResolved.filter(e=>e.type==="play").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"var(--bz-ink-3)", width:18, textAlign:"center", flexShrink:0 }}>{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"var(--bz-ink)" }}>{c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{hasPlayCost(c)&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#8a8a8a",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const arr=[...pbCards]; const idx=arr.findIndex((x,j)=>x.type==="play"&&j===pbCards.filter((y,k)=>k<=j&&y.type==="play").length-1+pbCards.slice(0,pbCards.findIndex((y,k)=>{ let pi=0; for(let l=0;l<k;l++) if(pbCards[l].type==="play") pi++; return pi===i&&pbCards[k].type==="play"; })).length-1); const playArr=pbCards.filter(x=>x.type==="play"); const target=playArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"var(--bz-ink-3)", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>{"\u00D7"}</button></div>); })}</div>}
+                {pbResolved.filter(e=>e.type==="bonus").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#7B9CFF", textTransform:"uppercase", letterSpacing:1, borderTop:"1px solid var(--bz-line)" }}>{"\u2B50 Bonus Plays ("}{pbResolved.filter(e=>e.type==="bonus").length})</div>{pbResolved.filter(e=>e.type==="bonus").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"var(--bz-ink-3)", width:18, flexShrink:0 }}>B{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF" }}>{c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{hasPlayCost(c)&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#8a8a8a",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const bonusArr=pbCards.filter(x=>x.type==="bonus"); const target=bonusArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"var(--bz-ink-3)", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>{"\u00D7"}</button></div>); })}</div>}
                 <div style={{ padding:"10px 14px" }}><button onClick={()=>{ if(window.confirm("Clear playbook?")) setPbCards([]); }} style={{ background:"transparent", border:"1px solid #E8317A22", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>{"\u2715 Clear"}</button></div>
               </div>
             )}
@@ -16975,21 +16988,6 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
             {!_isScanImg && isPixelFoil    && <div ref={pixelRef}    style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.1s ease", pointerEvents:"none", zIndex:3 }}/>}
             {isMetallicFoil && <div ref={metallicRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.08s ease", pointerEvents:"none", zIndex:3 }}/>}
             {!onExpand && <div className="boba-flip-pill" style={{ position:"absolute", bottom:6, right:6, display:"flex", alignItems:"center", gap:3, fontSize:10, color:"#fff", fontWeight:700, background:"rgba(0,0,0,0.6)", borderRadius:12, padding:"3px 8px", backdropFilter:"blur(4px)", border:"1px solid rgba(255,255,255,0.15)", pointerEvents:"none" }}>{"\uD83D\uDD04"} flip</div>}
-            {toggleOwned && (
-              isOwned ? null : (
-                <button className="boba-quickadd" onClick={e=>{ e.stopPropagation(); toggleOwned(c.id); onCardActivity&&onCardActivity(); }}
-                  title="Add to your collection"
-                  style={{ position:"absolute", top:7, right:7, zIndex:6, cursor:"pointer",
-                    width:isSmallCard?22:26, height:isSmallCard?22:26, borderRadius:"50%",
-                    display:"flex", alignItems:"center", justifyContent:"center",
-                    background:"rgba(0,0,0,0.6)", color:"#fff", border:"1.5px solid rgba(255,255,255,0.6)",
-                    fontSize:isSmallCard?14:16, fontWeight:700, fontFamily:"inherit",
-                    backdropFilter:"blur(3px)", WebkitBackdropFilter:"blur(3px)",
-                    boxShadow:"0 2px 6px rgba(0,0,0,0.5)", lineHeight:1 }}>
-                  +
-                </button>
-              )
-            )}
           </div>
           <div onPointerDown={()=>onCardActivity&&onCardActivity()} onPointerMove={()=>onCardActivity&&onCardActivity()} onKeyDown={()=>onCardActivity&&onCardActivity()} style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"var(--bz-s1)", border:`2px solid ${isOwned?"#4ade80":"#2a2a2a"}`, borderRadius:10, padding:isSmallCard?"8px 9px":"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between", overflow:"hidden" }}>
             <div style={{ overflowY:"auto", overflowX:"hidden", flex:1, minHeight:0, display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
@@ -19442,6 +19440,8 @@ function CardDeduper() {
     // missing playName/text is the junk import.
     if (c.playName) s += 60;
     if (c.text)     s += 40;
+    // Raw presence, NOT hasPlayCost: this is choosing which duplicate to keep, so any stored cost
+    // is evidence the row carried import data \u2014 even on a card that should not display one.
     if (c.playCost !== undefined && c.playCost !== "") s += 20;
     // Prefer the clean card number. An import can leave Excel's float artifact ("100.0") where the
     // real number is "100" — when both exist, the clean one is the keeper.
@@ -25253,7 +25253,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                             <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center", marginBottom:c.playAbility?3:0 }}>
                               <span style={{ fontSize:10, color:"var(--bz-ink-3)" }}>#{c.cardNum}</span>
                               {c.setName && <span style={{ fontSize:10, color:"#8a8a8a", fontStyle:"italic" }}>{c.setName}</span>}
-                              {c.playCost !== undefined && c.playCost !== "" && <span style={{ fontSize:10, color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}
+                              {hasPlayCost(c) && <span style={{ fontSize:10, color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}
                               {c.dbs !== undefined && <span style={{ fontSize:10, color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}
                               {c.weapon && <span style={{ fontSize:10, color:wc, fontWeight:700 }}>{c.weapon}</span>}
                             </div>
@@ -25353,7 +25353,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                               {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}
                               <div style={{ flex:1, minWidth:0 }}>
                                 <div style={{ fontSize:12, fontWeight:800, color:"var(--bz-ink)" }}>{c.hero}</div>
-                                <div style={{ display:"flex", gap:8, marginTop:2 }}>{c.playCost !== undefined && c.playCost !== "" && <span style={{ fontSize:10, color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}{c.dbs !== undefined && <span style={{ fontSize:10, color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}{c.setName && <span style={{ fontSize:10, color:"#8a8a8a", fontStyle:"italic" }}>{c.setName}</span>}</div>
+                                <div style={{ display:"flex", gap:8, marginTop:2 }}>{hasPlayCost(c) && <span style={{ fontSize:10, color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}{c.dbs !== undefined && <span style={{ fontSize:10, color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}{c.setName && <span style={{ fontSize:10, color:"#8a8a8a", fontStyle:"italic" }}>{c.setName}</span>}</div>
                                 {c.playAbility && <div style={{ fontSize:10, color:"#999", fontStyle:"italic", lineHeight:1.3, marginTop:2 }}>{c.playAbility}</div>}
                               </div>
                               <button onClick={()=>{ const playEntries=pbCards.filter(x=>x.type==="play"); const globalIdx=pbCards.indexOf(playEntries[i]); const arr=[...pbCards]; arr.splice(globalIdx,1); setPbCards(arr); }}
@@ -25377,7 +25377,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                               {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}
                               <div style={{ flex:1, minWidth:0 }}>
                                 <div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF" }}>{c.hero}</div>
-                                <div style={{ display:"flex", gap:8, marginTop:2 }}>{c.playCost !== undefined && c.playCost !== "" && <span style={{ fontSize:10, color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}{c.dbs !== undefined && <span style={{ fontSize:10, color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}{c.setName && <span style={{ fontSize:10, color:"#8a8a8a", fontStyle:"italic" }}>{c.setName}</span>}</div>
+                                <div style={{ display:"flex", gap:8, marginTop:2 }}>{hasPlayCost(c) && <span style={{ fontSize:10, color:"#FBBF24", fontWeight:700 }}>Cost: {c.playCost}</span>}{c.dbs !== undefined && <span style={{ fontSize:10, color:"#A855F7", fontWeight:700 }}>DBS: {c.dbs}</span>}{c.setName && <span style={{ fontSize:10, color:"#8a8a8a", fontStyle:"italic" }}>{c.setName}</span>}</div>
                                 {c.playAbility && <div style={{ fontSize:10, color:"#999", fontStyle:"italic", lineHeight:1.3, marginTop:2 }}>{c.playAbility}</div>}
                               </div>
                               <button onClick={()=>{ const entries=[...pbCards]; const bonusEntries=entries.filter(x=>x.type==="bonus"); const target=bonusEntries[i]; const idx=entries.findIndex((x,j)=>x===target); entries.splice(idx,1); setPbCards(entries); }}
@@ -28348,7 +28348,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                             {c.playAbility&&<div style={{fontSize:10,color:"rgba(255,255,255,0.45)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginTop:2}}>{c.playAbility}</div>}
                           </div>
                           <span style={{textAlign:"center",fontSize:10,fontWeight:800,color:bonus?"#7B9CFF":"#E8317A"}}>{bonus?"BPL":"PLAY"}</span>
-                          <span style={{textAlign:"center",fontSize:12,color:"#FBBF24",fontWeight:700}}>{c.playCost!==undefined&&c.playCost!==""?c.playCost:"—"}</span>
+                          <span style={{textAlign:"center",fontSize:12,color:"#FBBF24",fontWeight:700}}>{hasPlayCost(c)?c.playCost:"—"}</span>
                           <div style={{textAlign:"center"}}>
                             {_pbAdmin
                               ? <input type="number" value={dbsEdits[c.id]!==undefined?dbsEdits[c.id]:(c.dbs!==undefined&&c.dbs!==""?c.dbs:"")}
@@ -28385,7 +28385,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                         <div style={{position:"absolute",left:0,right:0,bottom:0,padding:"7px 8px",pointerEvents:"none"}}>
                           <div style={{fontSize:11,fontWeight:800,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textShadow:"0 1px 3px rgba(0,0,0,0.8)"}}>{c.playName||c.hero}</div>
                           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:2,gap:4}}>
-                            <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:7.5,fontWeight:800,color:"#fff",background:(bonus?"#7B9CFF":"#E8317A")+"dd",borderRadius:3,padding:"1px 5px",letterSpacing:0.3}}>{bonus?"BPL":"PLAY"}</span>{c.playCost!==undefined&&c.playCost!==""?<span style={{fontSize:9,color:"#FBBF24",fontWeight:700}}>Cost {c.playCost}</span>:<span/>}</span>
+                            <span style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:7.5,fontWeight:800,color:"#fff",background:(bonus?"#7B9CFF":"#E8317A")+"dd",borderRadius:3,padding:"1px 5px",letterSpacing:0.3}}>{bonus?"BPL":"PLAY"}</span>{hasPlayCost(c)?<span style={{fontSize:9,color:"#FBBF24",fontWeight:700}}>Cost {c.playCost}</span>:<span/>}</span>
                             {_pbAdmin
                               ? <input type="number"
                                   value={dbsEdits[c.id]!==undefined ? dbsEdits[c.id] : (c.dbs!==undefined&&c.dbs!==""?c.dbs:"")}
@@ -28426,7 +28426,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                       {c.playName || c.hero || "\u2014"}
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:9,flexWrap:"wrap"}}>
-                      {c.playCost!==undefined && c.playCost!=="" && (
+                      {hasPlayCost(c) && (
                         <span style={{fontSize:11,fontWeight:800,color:"#FBBF24"}}>Cost {c.playCost}</span>
                       )}
                       {c.dbs!==undefined && c.dbs!=="" && (
@@ -39587,7 +39587,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                   {c.power && <div style={{ fontSize:15, fontWeight:900, color:wc, background:wc+"18", border:`1px solid ${wc}44`, borderRadius:8, padding:"4px 12px" }}>{c.power}⚡ POWER</div>}
                   {c.dbs!==undefined && c.dbs!=="" && <div style={{ fontSize:15, fontWeight:900, color:"#C084FC", background:"rgba(192,132,252,0.12)", border:"1px solid #C084FC44", borderRadius:8, padding:"4px 12px" }}>DBS {c.dbs}</div>}
-                  {c.playCost!==undefined && c.playCost!=="" && <div style={{ fontSize:15, fontWeight:900, color:"#FBBF24", background:"rgba(251,191,36,0.12)", border:"1px solid #FBBF2444", borderRadius:8, padding:"4px 12px" }}>Cost {c.playCost}</div>}
+                  {hasPlayCost(c) && <div style={{ fontSize:15, fontWeight:900, color:"#FBBF24", background:"rgba(251,191,36,0.12)", border:"1px solid #FBBF2444", borderRadius:8, padding:"4px 12px" }}>Cost {c.playCost}</div>}
                   {c.cardNum && <div style={{ fontSize:13, fontWeight:700, color:"#aaa", background:"#1a1a1a", borderRadius:8, padding:"5px 12px" }}>#{c.cardNum}</div>}
                 </div>
                 <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
@@ -43065,20 +43065,38 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                       card means nothing covers the artwork and the foil/hover effects are untouched.
                       The select overlay above is inset:0 on the CARD, so this strip stays clickable
                       and readable in select mode too. */}
+                  {/* pointerEvents:none keeps the strip from stealing clicks meant for the card, but the
+                      + button inside re-enables them on itself. */}
                   <div style={{ padding:"5px 2px 0", pointerEvents:"none" }}>
                     <div style={{ display:"flex", alignItems:"baseline", gap:5 }}>
                       <div style={{ fontSize:11, fontWeight:800, color:owned[c.id]?"#4ade80":"var(--bz-ink)",
                         lineHeight:1.2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", flex:1, minWidth:0 }}>
                         {c.hero || c.playName || "\u2014"}
                       </div>
-                      {/* Count lives here now instead of on the artwork. Only shown for multiples \u2014 the
-                          green name already tells you a single copy is yours. */}
-                      {(parseInt(owned[c.id])||0) > 1 && (
+                      {/* Count lives here now instead of on the artwork. Shown from 1 upward: it sits
+                          beside the + button, so hiding it at exactly one copy left the row looking
+                          like nothing was owned right after you added a card. */}
+                      {(parseInt(owned[c.id])||0) >= 1 && (
                         <span title={`You own ${owned[c.id]}`} style={{ fontSize:10, fontWeight:900, color:"#4ade80",
                           background:"rgba(74,222,128,0.13)", border:"1px solid rgba(74,222,128,0.4)",
                           borderRadius:5, padding:"0 4px", lineHeight:1.5, flexShrink:0 }}>
                           {"\u00d7"}{owned[c.id]}
                         </span>
+                      )}
+                      {/* Quick-add lives here, off the artwork. On the card it had to vanish once you
+                          owned a copy (it sat where the count needed to go), which meant adding a
+                          second copy required opening the card. Down here it can simply stay. */}
+                      {user && (
+                        <button onClick={e=>{ e.stopPropagation(); setOwnedQty(c.id, (parseInt(owned[c.id])||0) + 1); }}
+                          title={owned[c.id] ? "Add another copy" : "Add to your collection"}
+                          style={{ pointerEvents:"auto", flexShrink:0, cursor:"pointer", fontFamily:"inherit",
+                            width:17, height:17, borderRadius:5, lineHeight:1, fontSize:12, fontWeight:900,
+                            display:"flex", alignItems:"center", justifyContent:"center",
+                            background: owned[c.id] ? "rgba(74,222,128,0.13)" : "rgba(255,255,255,0.06)",
+                            border: "1px solid " + (owned[c.id] ? "rgba(74,222,128,0.4)" : "var(--bz-line-2)"),
+                            color: owned[c.id] ? "#4ade80" : "var(--bz-ink-2)", padding:0 }}>
+                          +
+                        </button>
                       )}
                     </div>
                     {(c.treatment || c.cardNum) && (
