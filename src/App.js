@@ -18629,8 +18629,15 @@ function GenerateMissing8s() {
     for (let i=0; i<preview.toCreate.length; i+=CHUNK) {
       const batch = writeBatch(db);
       preview.toCreate.slice(i,i+CHUNK).forEach(card => {
-        const key = `${card.setName||""}${card.cardNum}${card.hero}${card.treatment}`.toLowerCase().replace(/[^a-z0-9]/g,"").slice(0,20);
-        const id = key + "_" + Math.abs(key.split("").reduce((h,c)=>((h<<5)-h)+c.charCodeAt(0)|0,0)).toString(16).slice(0,6);
+        // The FULL identity is hashed, then a readable prefix is bolted on. The old version sliced
+        // the key to 20 chars BEFORE hashing \u2014 and a set name like "2025 Tecmo Bowl" eats 17 of them,
+        // so the treatment never survived. Silver Battlefoil and Glow Skyline (both S130) produced
+        // the SAME id and collided into one document, silently destroying one of the two cards.
+        const fullKey = `${card.setName||""}|${card.cardNum}|${card.hero}|${card.treatment}|${card.weapon||""}`.toLowerCase().replace(/[^a-z0-9|]/g,"");
+        const h1 = Math.abs(fullKey.split("").reduce((h,ch)=>((h<<5)-h)+ch.charCodeAt(0)|0,0)).toString(16);
+        // Second pass over the reversed string: one 32-bit hash collides too easily across ~31k cards.
+        const h2 = Math.abs(fullKey.split("").reverse().reduce((h,ch)=>((h<<5)-h)+ch.charCodeAt(0)|0,0)).toString(16);
+        const id = fullKey.replace(/\|/g,"").slice(0,20) + "_" + h1.slice(0,8) + h2.slice(0,4);
         batch.set(doc(db,"boba_checklist",id), {...card, id}, {merge:true});
       });
       await batch.commit();
@@ -20574,6 +20581,20 @@ function TreatmentChecker() {
 }
 
 // ── CARD SET IMPORTER ─────────────────────────────────────────────────────────
+// The one place a catalog card's document id is decided. Identity is set + number + hero +
+// treatment + WEAPON \u2014 weapon matters because Skyline exists as Fire, Ice and Glow on the same card
+// number, and leaving it out hashed all three onto a single document, so importing the set wrote
+// them over each other and only one survived.
+// Normalise first, then derive slug and hash from the SAME normalised string, so a stray space or
+// capital in a CSV can never fork a card into a second document.
+function checklistCardId(card) {
+  const nrm = v => String(v==null?"":v).trim().toLowerCase().replace(/\s+/g," ");
+  const key = [nrm(card.setName), nrm(card.cardNum), nrm(card.hero||card.playName), nrm(card.treatment), nrm(card.weapon)].join("|");
+  const slug = key.replace(/[^a-z0-9]/g,"").slice(0,20);
+  const hash = Math.abs(key.split("").reduce((h,ch)=>((h<<5)-h)+ch.charCodeAt(0)|0,0)).toString(16).slice(0,6);
+  return slug + "_" + hash;
+}
+
 function CardSetImporter({ userRole }) {
   const isAdmin = ["Admin"].includes(userRole?.role);
   const [mode,      setMode]      = useState("data");   // "data" | "images" | "cleanup" | "single"
@@ -20582,6 +20603,93 @@ function CardSetImporter({ userRole }) {
   // drop placeholders in now, upload the real scans later. So it has to be switchable.
   const [imgOverwrite, setImgOverwrite] = useState(false);
   const [newCard, setNewCard] = useState({ hero:"", treatment:"", weapon:"", cardNum:"", setName:"", power:"", playName:"", athlete:"" });
+  // Bulk-add a whole insert. Paste rows, preview which are genuinely new, then write only those.
+  const [bulkText, setBulkText] = useState("");
+  const [bulkPreview, setBulkPreview] = useState(null);   // {create:[], existing:[], bad:[]}
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkMsg, setBulkMsg] = useState(null);
+
+  // Read pasted rows WITHOUT writing anything, and check each id against the database. This is the
+  // whole safety story: you see exactly what will be created before it happens, and cards that
+  // already exist are listed separately rather than silently overwritten.
+  async function previewBulkInsert() {
+    setBulkBusy(true); setBulkMsg(null); setBulkPreview(null);
+    try {
+      const lines = bulkText.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+      if (!lines.length) { setBulkMsg({ok:false,text:"Nothing pasted."}); setBulkBusy(false); return; }
+      const split = l => l.includes("\t") ? l.split("\t") : l.split(",");
+      const head = split(lines[0]).map(h=>h.trim().toLowerCase().replace(/[^a-z]/g,""));
+      const known = ["set","setname","cardnum","cardnumber","number","hero","treatment","weapon","power","playname","athlete"];
+      const hasHeader = head.some(h=>known.includes(h));
+      const cols = hasHeader ? head : null;
+      const at = (parts, names) => {
+        if (!cols) return null;
+        for (const n of names) { const i = cols.indexOf(n); if (i>=0) return (parts[i]||"").trim(); }
+        return null;
+      };
+      const rows = (hasHeader ? lines.slice(1) : lines).map(split);
+      const create = [], existing = [], bad = [];
+      for (const parts of rows) {
+        const card = cols ? {
+          setName:   at(parts,["setname","set"]) || "",
+          cardNum:   at(parts,["cardnum","cardnumber","number"]) || "",
+          hero:      at(parts,["hero"]) || "",
+          treatment: at(parts,["treatment"]) || "",
+          weapon:    at(parts,["weapon"]) || "",
+          power:     at(parts,["power"]) || "",
+          playName:  at(parts,["playname"]) || "",
+          athlete:   at(parts,["athlete"]) || "",
+        } : {
+          // Positional fallback: Set, CardNum, Hero, Treatment, Weapon, Power
+          setName:(parts[0]||"").trim(), cardNum:(parts[1]||"").trim(), hero:(parts[2]||"").trim(),
+          treatment:(parts[3]||"").trim(), weapon:(parts[4]||"").trim(), power:(parts[5]||"").trim(),
+          playName:"", athlete:"",
+        };
+        if (!card.hero || !card.setName || !card.cardNum) { bad.push({ card, why:"needs Set, Card #, and Hero" }); continue; }
+        card.id = checklistCardId(card);
+        if (create.some(x=>x.id===card.id)) { bad.push({ card, why:"duplicate row in your paste" }); continue; }
+        create.push(card);
+      }
+      // Check what's already in the database, in chunks so a big paste doesn't hammer Firestore.
+      const stillNew = [];
+      for (let i=0;i<create.length;i+=25) {
+        const batch = create.slice(i,i+25);
+        const snaps = await Promise.all(batch.map(x=>getDoc(doc(db,"boba_checklist",x.id)).catch(()=>null)));
+        snaps.forEach((s,k)=>{ if (s && s.exists()) existing.push({...batch[k], _was:s.data()}); else stillNew.push(batch[k]); });
+      }
+      setBulkPreview({ create: stillNew, existing, bad });
+    } catch(e) {
+      setBulkMsg({ok:false,text:"Couldn't read that: "+(e?.message||e)});
+    }
+    setBulkBusy(false);
+  }
+
+  async function applyBulkInsert() {
+    if (!bulkPreview?.create?.length) return;
+    setBulkBusy(true); setBulkMsg(null);
+    try {
+      const list = bulkPreview.create;
+      const CHUNK = 400;
+      for (let i=0;i<list.length;i+=CHUNK) {
+        const batch = writeBatch(db);
+        list.slice(i,i+CHUNK).forEach(card => {
+          const { _was, ...data } = card;
+          batch.set(doc(db,"boba_checklist",card.id), {
+            ...data,
+            power: data.power===""||data.power==null ? 0 : (parseInt(data.power)||0),
+            treatment: data.treatment || "Base Set",
+            imageUrl: "",
+          }, { merge:true });
+        });
+        await batch.commit();
+      }
+      setBulkMsg({ok:true,text:`Added ${list.length} card${list.length===1?"":"s"}. Rebuild the card snapshot to see them in the app.`});
+      setBulkPreview(null); setBulkText("");
+    } catch(e) {
+      setBulkMsg({ok:false,text:"Insert failed: "+(e?.message||e)});
+    }
+    setBulkBusy(false);
+  }
   const [addingCard, setAddingCard] = useState(false);
   const [addCardMsg, setAddCardMsg] = useState(null);
   const [files,     setFiles]     = useState([]);
@@ -20603,11 +20711,7 @@ function CardSetImporter({ userRole }) {
     if (!c.hero.trim() || !c.setName.trim()) { setAddCardMsg({ ok:false, text:"Hero and Set are required." }); return; }
     setAddingCard(true); setAddCardMsg(null);
     try {
-      const nrm = v => String(v==null?"":v).trim().toLowerCase().replace(/\s+/g," ");
-      const key = [nrm(c.setName), nrm(c.cardNum), nrm(c.hero), nrm(c.treatment)].join("|");
-      const slug = key.replace(/[^a-z0-9]/g,"").slice(0,20);
-      const hash = Math.abs(key.split("").reduce((h,ch)=>((h<<5)-h)+ch.charCodeAt(0)|0,0)).toString(16).slice(0,6);
-      const id = slug + "_" + hash;
+      const id = checklistCardId(c);
       // Don't clobber an existing card — if this id already exists, tell the admin.
       const existing = await getDoc(doc(db,"boba_checklist",id));
       if (existing.exists()) { setAddCardMsg({ ok:false, text:`That card already exists in the database (${existing.data().hero||"?"} ${existing.data().cardNum||""}).` }); setAddingCard(false); return; }
@@ -20662,24 +20766,8 @@ function CardSetImporter({ userRole }) {
         try {
           const batch = writeBatch(db);
           chunk.forEach(card => {
-            if (!card.id) {
-              // The doc id must be IDEMPOTENT: the same card, imported twice, has to land on the
-              // same id or the re-import silently creates a second copy of every card.
-              //
-              // The old key hashed the RAW field values while slugging the normalized ones, so
-              // "Showtime" and "showtime " produced the same slug but a DIFFERENT hash — i.e. a
-              // different document. One trailing space in a CSV cell was enough to fork a card,
-              // and because the importer strips imageUrl (below) the forked copy came out with no
-              // image. That is exactly the "duped cards, some with no images" failure.
-              //
-              // Normalize FIRST, then derive both the slug and the hash from the same normalized
-              // string. Whitespace, case and punctuation can no longer change a card's identity.
-              const nrm = v => String(v==null?"":v).trim().toLowerCase().replace(/\s+/g," ");
-              const key = [nrm(card.setName), nrm(card.cardNum), nrm(card.hero||card.playName), nrm(card.treatment)].join("|");
-              const slug = key.replace(/[^a-z0-9]/g,"").slice(0,20);
-              const hash = Math.abs(key.split("").reduce((h,c)=>((h<<5)-h)+c.charCodeAt(0)|0,0)).toString(16).slice(0,6);
-              card.id = slug + "_" + hash;
-            }
+            // One shared definition of card identity — see checklistCardId.
+            if (!card.id) card.id = checklistCardId(card);
             // Never overwrite imageUrl or mktValue — preserve existing data
             const { imageUrl, mktValue, ...cardData } = card;
             batch.set(doc(db,"boba_checklist",card.id), cardData, {merge:true});
@@ -21040,7 +21128,70 @@ function CardSetImporter({ userRole }) {
               style={{alignSelf:"flex-start",background:addingCard?"#333":"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"11px 22px",fontSize:14,fontWeight:800,cursor:addingCard?"wait":"pointer",fontFamily:"inherit"}}>
               {addingCard?"Adding…":"➕ Add Card to Database"}
             </button>
+          {/* ── Bulk add a whole insert ──────────────────────────────────────────────────────
+              Adding a 100-card insert one card at a time is not realistic. This takes a paste,
+              shows exactly what is new versus what already exists, and writes ONLY the new ones —
+              so it is safe to run against a set that is partly there, which is the situation when
+              recovering cards lost to the old id collision. */}
+          <div style={{marginTop:18,paddingTop:16,borderTop:"1px solid #2a2a2a"}}>
+            <div style={{fontSize:13,fontWeight:900,color:"#fff",marginBottom:4}}>{"\uD83D\uDCE5"} Add a whole insert</div>
+            <div style={{fontSize:11.5,color:"#888",lineHeight:1.6,marginBottom:10}}>
+              Paste rows from a spreadsheet (tab or comma separated). Include a header row with
+              <strong style={{color:"#bbb"}}> Set, Card #, Hero, Treatment, Weapon, Power</strong> — or paste in that order without one.
+              Weapon matters: Skyline Fire, Skyline Ice and Skyline Glow are three different cards.
+            </div>
+            <textarea value={bulkText} onChange={e=>{setBulkText(e.target.value); setBulkPreview(null);}}
+              rows={7} placeholder={"Set\tCard #\tHero\tTreatment\tWeapon\tPower\n2025 Tecmo Bowl\tS130\tMajik Man\tSkyline\tGlow\t80"}
+              style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:12,color:"#fff",fontFamily:"ui-monospace,monospace",lineHeight:1.5}}/>
+            <div style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}>
+              <button onClick={previewBulkInsert} disabled={bulkBusy||!bulkText.trim()}
+                style={{background:bulkBusy?"#333":"rgba(123,156,255,0.15)",border:"1px solid rgba(123,156,255,0.5)",color:"#7B9CFF",borderRadius:8,padding:"9px 14px",fontSize:12.5,fontWeight:800,cursor:bulkBusy?"default":"pointer",fontFamily:"inherit"}}>
+                {bulkBusy ? "Checking\u2026" : "\uD83D\uDD0D Preview"}
+              </button>
+              {bulkPreview?.create?.length > 0 && (
+                <button onClick={applyBulkInsert} disabled={bulkBusy}
+                  style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",border:"none",color:"#fff",borderRadius:8,padding:"9px 14px",fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                  Add {bulkPreview.create.length} new card{bulkPreview.create.length===1?"":"s"}
+                </button>
+              )}
+            </div>
+
+            {bulkMsg && (
+              <div style={{marginTop:10,fontSize:12,fontWeight:700,color:bulkMsg.ok?"#4ade80":"#EF4444",lineHeight:1.6}}>{bulkMsg.text}</div>
+            )}
+
+            {bulkPreview && (
+              <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:10}}>
+                <div style={{display:"flex",gap:14,flexWrap:"wrap",fontSize:12,fontWeight:800}}>
+                  <span style={{color:"#4ade80"}}>{bulkPreview.create.length} new</span>
+                  <span style={{color:"#888"}}>{bulkPreview.existing.length} already in database</span>
+                  {bulkPreview.bad.length>0 && <span style={{color:"#EF4444"}}>{bulkPreview.bad.length} unusable</span>}
+                </div>
+                {bulkPreview.create.length>0 && (
+                  <div style={{background:"rgba(74,222,128,0.06)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:8,padding:"9px 11px",maxHeight:170,overflowY:"auto"}}>
+                    {bulkPreview.create.slice(0,60).map((x,n)=>(
+                      <div key={n} style={{fontSize:11,color:"#ddd",lineHeight:1.7,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+                        {x.cardNum} {x.hero} {"\u00b7"} {x.treatment||"Base Set"}{x.weapon?` \u00b7 ${x.weapon}`:""}
+                      </div>
+                    ))}
+                    {bulkPreview.create.length>60 && <div style={{fontSize:10.5,color:"#666",marginTop:3}}>{"\u2026"}and {bulkPreview.create.length-60} more</div>}
+                  </div>
+                )}
+                {bulkPreview.bad.length>0 && (
+                  <div style={{background:"rgba(239,68,68,0.06)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"9px 11px",maxHeight:120,overflowY:"auto"}}>
+                    {bulkPreview.bad.slice(0,20).map((b,n)=>(
+                      <div key={n} style={{fontSize:11,color:"#f88",lineHeight:1.7}}>
+                        {b.card.cardNum||"?"} {b.card.hero||"?"} {"\u2014"} {b.why}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
+          </div>
+
+
         )}
 
 
@@ -38790,7 +38941,10 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             <div onClick={e=>e.stopPropagation()} style={{ display:"flex", flexWrap:"wrap", gap:24, maxWidth:980, width:"100%", maxHeight:"90vh", background:"linear-gradient(160deg,#16161f,#0d0d12)", border:`1.5px solid ${wc}44`, borderRadius:18, padding:24, boxShadow:`0 24px 80px rgba(0,0,0,0.7)`, overflowY:"auto", position:"relative" }}>
               <button onClick={()=>setExpandedCard(null)} style={{ position:"absolute", top:14, right:16, background:"rgba(255,255,255,0.06)", border:"1px solid rgba(255,255,255,0.12)", color:"#fff", borderRadius:8, width:34, height:34, fontSize:18, cursor:"pointer", fontFamily:"inherit", zIndex:2 }}>×</button>
               {/* Big image */}
-              <div style={{ flex:"1 1 320px", minWidth:280, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:12 }}>
+              {/* Top-aligned, not centred. The columns are a wrapping flex row, so when the right
+                  side grows (per-copy rows, deck notes, kid assignment) the row gets taller and a
+                  CENTRED image drifts down — which reads as "the image moved because I own more". */}
+              <div style={{ flex:"1 1 320px", minWidth:280, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"flex-start", gap:12 }}>
                 {showMyPhoto ? (
                   <div style={{ position:"relative", width:"100%", maxWidth:420, borderRadius:14, overflow:"hidden", boxShadow:`0 12px 50px ${wc}33` }}>
                     <img src={myPhotos[safePhotoIdx]} alt={c.hero} style={{ width:"100%", display:"block", aspectRatio:"3/4", objectFit:"cover" }}/>
@@ -38824,6 +38978,26 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                     <div style={{ fontSize:12, fontWeight:800, letterSpacing:1.5, textTransform:"uppercase" }}>Image coming soon</div>
                   </div>
                 )}
+                {/* Physical copy count. A stack of card edges under the art conveys "you hold four of
+                    these" instantly, in a way a number does not. Capped at 5 edges because beyond that
+                    the stack stops being readable; the exact count is spelled out below anyway. */}
+                {(() => {
+                  const q = parseInt(owned[c.id]) || 0;
+                  if (q < 2) return null;
+                  const edges = Math.min(q - 1, 5);
+                  return (
+                    <div style={{ position:"relative", width:"100%", maxWidth:420, height:0, order:2 }}>
+                      {Array.from({length:edges}).map((_,k)=>(
+                        <div key={k} aria-hidden="true" style={{
+                          position:"absolute", left:(k+1)*5, right:-(k+1)*5, top:(k+1)*4,
+                          height:7, borderRadius:"0 0 14px 14px",
+                          background:`rgba(74,222,128,${0.22 - k*0.035})`,
+                          border:"1px solid rgba(74,222,128,0.3)", borderTop:"none",
+                        }}/>
+                      ))}
+                    </div>
+                  );
+                })()}
                 {c.imageUrl && hasMyPhotos && (
                   <div style={{ display:"flex", gap:6, background:"rgba(0,0,0,0.4)", borderRadius:12, padding:5, border:"1px solid rgba(255,255,255,0.1)" }}>
                     <button onClick={()=>setViewMyScan(false)} style={{ background:!viewMyScan?"linear-gradient(135deg,#E8317A,#7B2FF7)":"transparent", color:!viewMyScan?"#fff":"rgba(255,255,255,0.55)", border:"none", borderRadius:8, padding:"8px 18px", fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>🖼 Official</button>
