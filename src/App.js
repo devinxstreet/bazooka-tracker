@@ -20627,6 +20627,12 @@ function CardSetImporter({ userRole }) {
   const [newCard, setNewCard] = useState({ hero:"", treatment:"", weapon:"", cardNum:"", setName:"", power:"", playName:"", athlete:"" });
   // Bulk-add a whole insert. Paste rows, preview which are genuinely new, then write only those.
   const [bulkText, setBulkText] = useState("");
+  // Checklists copied from the BoBA site have no Set column \u2014 the page already knows which set you
+  // are looking at. Rather than make people hand-add a column to every paste, the set can be
+  // chosen here and applied to any row that does not carry one.
+  const [bulkSetName, setBulkSetName] = useState("");
+  const [bulkTreatment, setBulkTreatment] = useState("");
+  const [bulkWeapon, setBulkWeapon] = useState("");
   const [bulkPreview, setBulkPreview] = useState(null);   // {create:[], existing:[], bad:[]}
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkMsg, setBulkMsg] = useState(null);
@@ -20690,6 +20696,11 @@ function CardSetImporter({ userRole }) {
         };
         // Say WHICH field is missing. "needs Set, Card # and Hero" on all 133 rows does not tell you
         // whether the header was misread or one column is genuinely blank.
+        // Fall back to the pickers above for anything the paste does not carry. A value IN the row
+        // always wins \u2014 the picker only fills gaps, so a mixed file still imports correctly.
+        if (!card.setName)   card.setName   = bulkSetName;
+        if (!card.treatment) card.treatment = bulkTreatment;
+        if (!card.weapon)    card.weapon    = bulkWeapon;
         if (!card.hero || !card.setName || !card.cardNum) {
           const miss = [];
           if (!card.setName) miss.push("Set");
@@ -21191,6 +21202,40 @@ function CardSetImporter({ userRole }) {
               Paste rows from a spreadsheet (tab or comma separated). Include a header row with
               <strong style={{color:"#bbb"}}> Set, Card #, Hero, Treatment, Weapon, Power</strong> — or paste in that order without one.
               Weapon matters: Skyline Fire, Skyline Ice and Skyline Glow are three different cards.
+            </div>
+            {/* Apply-to-all pickers. A checklist copied from the BoBA site lists card numbers and
+                heroes but no Set column, because the page you copied it from already implied it.
+                Anything set here fills only the gaps \u2014 a value present in the row always wins. */}
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
+              <div style={{flex:"1 1 160px",minWidth:150}}>
+                <div style={{fontSize:10.5,fontWeight:800,color:bulkSetName?"#4ade80":"#FBBF24",marginBottom:4}}>
+                  {bulkSetName ? "\u2705 Set" : "\u26a0\ufe0f Set (if not in the file)"}
+                </div>
+                <input value={bulkSetName} onChange={e=>{setBulkSetName(e.target.value); setBulkPreview(null);}}
+                  list="bulk-set-list" placeholder="e.g. 2025 Alpha Update"
+                  style={{width:"100%",background:"#0b0b0b",border:"1px solid "+(bulkSetName?"rgba(74,222,128,0.5)":"rgba(251,191,36,0.5)"),borderRadius:8,padding:"8px 10px",fontSize:12,color:"#fff",fontFamily:"inherit"}}/>
+                <datalist id="bulk-set-list">
+                  {[...new Set(cards.map(c=>c.setName).filter(Boolean))].sort().map(s=><option key={s} value={s}/>)}
+                </datalist>
+              </div>
+              <div style={{flex:"1 1 150px",minWidth:140}}>
+                <div style={{fontSize:10.5,fontWeight:800,color:"var(--bz-ink-3)",marginBottom:4}}>Treatment (optional)</div>
+                <input value={bulkTreatment} onChange={e=>{setBulkTreatment(e.target.value); setBulkPreview(null);}}
+                  list="bulk-treat-list" placeholder="e.g. Skyline"
+                  style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"8px 10px",fontSize:12,color:"#fff",fontFamily:"inherit"}}/>
+                <datalist id="bulk-treat-list">
+                  {[...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort().map(t=><option key={t} value={t}/>)}
+                </datalist>
+              </div>
+              <div style={{flex:"1 1 130px",minWidth:120}}>
+                <div style={{fontSize:10.5,fontWeight:800,color:"var(--bz-ink-3)",marginBottom:4}}>Weapon (optional)</div>
+                <input value={bulkWeapon} onChange={e=>{setBulkWeapon(e.target.value); setBulkPreview(null);}}
+                  list="bulk-weap-list" placeholder="e.g. Fire"
+                  style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"8px 10px",fontSize:12,color:"#fff",fontFamily:"inherit"}}/>
+                <datalist id="bulk-weap-list">
+                  {[...new Set(cards.map(c=>c.weapon).filter(Boolean))].sort().map(w=><option key={w} value={w}/>)}
+                </datalist>
+              </div>
             </div>
             {/* Upload the CSV directly. Pasting a large export into a textarea is where rows get
                 mangled \u2014 truncated, re-wrapped, or stripped of quoting by the clipboard \u2014 so reading
