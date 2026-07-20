@@ -564,6 +564,16 @@ const CAN_VIEW_LOT_COMP = ["Admin","Procurement","Streamer","Shipping","Viewer"]
 function useWindowWidth() {
   const [w, setW] = useState(window.innerWidth);
   useEffect(()=>{ const h=()=>setW(window.innerWidth); window.addEventListener("resize",h); return()=>window.removeEventListener("resize",h); },[]);
+
+  // Without this, an image dropped anywhere except exactly on a card makes the BROWSER navigate to
+  // that file, which looks like the app crashed and loses whatever you were doing. Cards call
+  // stopPropagation on their own drop, so this only catches the misses.
+  useEffect(()=>{
+    const stop = e => { e.preventDefault(); };
+    window.addEventListener("dragover", stop);
+    window.addEventListener("drop", stop);
+    return () => { window.removeEventListener("dragover", stop); window.removeEventListener("drop", stop); };
+  },[]);
   return w;
 }
 
@@ -16766,6 +16776,8 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
   // "bonus play" is named for what the card does, not what it is made of, so it matched none of
   // the material words below even though the insert is foil stock like the battlefoils.
   const isFoilTreatment = !_isPaperBase && /foil|linoleum|metallic|holo|prizm|refractor|chrome|sparkle|shimmer|rainbow|gold|silver|inspired ink|battlefoil|bonus play/.test(treatment);
+  // Drag an image file straight onto the card to set its art. Admin-only, same as the button.
+  const [dragOver, setDragOver] = useState(false);
   const pixelRef = useRef(null);
   const pixelAnim = useRef(null);
   const mousePos = useRef({ x:0.5, y:0.5 });
@@ -16975,7 +16987,28 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
 
   if (_displayImg) {
     return (
-      <div className="boba-card-hover" style={{ aspectRatio:"3/4", perspective:"1000px" }} onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter} onPointerLeave={onMouseLeave} onPointerCancel={onMouseLeave} onTouchEnd={onMouseLeave}>
+      <div className="boba-card-hover" style={{ aspectRatio:"3/4", perspective:"1000px", position:"relative" }} onMouseMove={onMouseMove} onMouseLeave={onMouseLeave} onMouseEnter={onMouseEnter} onPointerLeave={onMouseLeave} onPointerCancel={onMouseLeave} onTouchEnd={onMouseLeave}
+        onDragOver={isAdmin && onImageUpload ? (e=>{ e.preventDefault(); e.stopPropagation(); if(!dragOver) setDragOver(true); }) : undefined}
+        onDragLeave={isAdmin && onImageUpload ? (e=>{
+          // Only clear when the pointer genuinely leaves the card \u2014 moving across a child element
+          // fires dragleave too, which would make the highlight flicker.
+          if(e.currentTarget.contains(e.relatedTarget)) return;
+          setDragOver(false);
+        }) : undefined}
+        onDrop={isAdmin && onImageUpload ? (e=>{
+          e.preventDefault(); e.stopPropagation();
+          setDragOver(false);
+          const f = [...(e.dataTransfer?.files||[])].find(x=>x.type.startsWith("image/"));
+          if(f) onImageUpload(c, f);
+        }) : undefined}>
+        {dragOver && (
+          <div style={{ position:"absolute", inset:0, zIndex:40, borderRadius:10, pointerEvents:"none",
+            border:"2px dashed #4ade80", background:"rgba(74,222,128,0.18)",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            fontSize:11, fontWeight:900, color:"#4ade80", textAlign:"center", padding:8 }}>
+            Drop image
+          </div>
+        )}
         <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transition:"transform 0.2s ease, box-shadow 0.2s ease", borderRadius:10, cursor:"pointer", willChange:"transform" }} onClick={handleClick}>
          <div className="boba-flipper" style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.55s cubic-bezier(0.34,1.3,0.5,1)", transform:isFlipped?"rotateY(180deg)":"rotateY(0deg)", willChange:"transform" }}>
           <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade80":"#1a1a1a"}`, boxShadow:isOwned?"0 0 0 1px rgba(74,222,128,0.35), 0 4px 18px rgba(74,222,128,0.22)":"none" }}>
