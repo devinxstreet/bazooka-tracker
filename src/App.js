@@ -15776,7 +15776,7 @@ function PublicDeckBuilder() {
   useEffect(() => {
     if (!user) { setSavedDecks([]); return; }
     const unsub = onSnapshot(collection(db, "boba_decks"), snap => {
-      setSavedDecks(snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.userId===user.uid).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")));
+      setSavedDecks(snap.docs.map(d=>({...d.data(), id:d.id})).filter(d=>d.userId===user.uid).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")));
     }, e=>console.error("load decks failed:", e));
     return unsub;
   }, [user]);
@@ -15825,7 +15825,7 @@ function PublicDeckBuilder() {
     }
     setLoading(true);
     const snap = await getDocs(collection(db, "boba_checklist"));
-    const all = snap.docs.map(d=>({id:d.id,...d.data()}));
+    const all = snap.docs.map(d=>({...d.data(), id:d.id}));
     try { localStorage.setItem(CACHE_KEY, JSON.stringify({ cards: all, ts: Date.now() })); } catch(e) {}
     setCards(all.filter(c=>{ const t=(c.treatment||"").toLowerCase(); return t!=="plays"&&t!=="bonus plays"&&t!=="home team discount"; }));
     setLoading(false);
@@ -16062,7 +16062,7 @@ function PublicPlaybookBuilder() {
   useEffect(() => {
     if (!user) { setSavedPlaybooks([]); return; }
     const unsub = onSnapshot(collection(db, "boba_playbooks"), snap => {
-      setSavedPlaybooks(snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.userId===user.uid).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")));
+      setSavedPlaybooks(snap.docs.map(d=>({...d.data(), id:d.id})).filter(d=>d.userId===user.uid).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")));
     }, e=>console.error("load playbooks failed:", e));
     return unsub;
   }, [user]);
@@ -16128,7 +16128,7 @@ function PublicPlaybookBuilder() {
         }
       } catch(e) {}
       const snap = await getDocs(collection(db, "boba_checklist"));
-      const all = snap.docs.map(d=>({id:d.id,...d.data()}));
+      const all = snap.docs.map(d=>({...d.data(), id:d.id}));
       try { localStorage.setItem(CACHE_KEY, JSON.stringify({ cards: all, ts: Date.now() })); } catch(e) {}
       setCards(all.filter(c=>{ const t=(c.treatment||"").toLowerCase(); return t==="plays"||t==="bonus plays"||t==="home team discount"; }));
       setLoading(false);
@@ -16350,7 +16350,7 @@ function BobaShowcase({ uid }) {
           setLoading(false);
           // Refresh cache in background
           getDocs(collection(db, "boba_checklist")).then(snap => {
-            const fresh = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.imageUrl);
+            const fresh = snap.docs.map(d => ({...d.data(), id:d.id})).filter(c => c.imageUrl);
             try { localStorage.setItem(CACHE_KEY, JSON.stringify({ cards: fresh, ts: Date.now() })); } catch(e) {}
           });
           return;
@@ -16358,7 +16358,7 @@ function BobaShowcase({ uid }) {
 
         // 3. No cache -- fetch all, filter to image-only
         const cardSnap = await getDocs(collection(db, "boba_checklist"));
-        const allImageCards = cardSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(c => c.imageUrl);
+        const allImageCards = cardSnap.docs.map(d => ({...d.data(), id:d.id})).filter(c => c.imageUrl);
         try { localStorage.setItem(CACHE_KEY, JSON.stringify({ cards: allImageCards, ts: Date.now() })); } catch(e) {}
         setCards(allImageCards.filter(c => ownedData[c.id]));
       } catch(e) { console.error(e); }
@@ -17872,7 +17872,7 @@ function SupplyLinks({ user, userRole }) {
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db,"supply_links"), snap => {
-      setLinks(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")));
+      setLinks(snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")));
       setLoading(false);
     });
     return ()=>unsub();
@@ -17979,7 +17979,7 @@ function InternalMessages({ user, userRole }) {
   useEffect(() => {
     if(!meUid) return;
     const unsub = onSnapshot(query(collection(db,"dm_threads"), where("participantUids","array-contains",meUid)),
-      snap => setThreads(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.lastAt||"").localeCompare(a.lastAt||"")))
+      snap => setThreads(snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>(b.lastAt||"").localeCompare(a.lastAt||"")))
     );
     return ()=>unsub();
   }, [meUid]);
@@ -17996,7 +17996,7 @@ function InternalMessages({ user, userRole }) {
   useEffect(() => {
     if(!activeId) { setMessages([]); return; }
     const unsub = onSnapshot(query(collection(db,"dm_messages"), where("threadId","==",activeId)),
-      snap => setMessages(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.sentAt||"").localeCompare(b.sentAt||"")))
+      snap => setMessages(snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>(a.sentAt||"").localeCompare(b.sentAt||"")))
     );
     return ()=>unsub();
   }, [activeId]);
@@ -18172,7 +18172,7 @@ function CompanyDirectory({ userRole }) {
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db,"directory"), snap => {
-      setPeople(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.name||"").localeCompare(b.name||"")));
+      setPeople(snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>(a.name||"").localeCompare(b.name||"")));
       setLoading(false);
     });
     return ()=>unsub();
@@ -18315,7 +18315,7 @@ function ManualCardImage() {
     if (!query.trim()) return;
     const q = query.trim().toLowerCase();
     const snap = await getDocs(collection(db,"boba_checklist"));
-    const hits = snap.docs.map(d=>({fsId:d.id,...d.data()})).filter(c =>
+    const hits = snap.docs.map(d=>({...d.data(), fsId:d.id})).filter(c =>
       [c.hero||"",c.cardNum||"",c.treatment||"",c.setName||""].join(" ").toLowerCase().includes(q)
     ).slice(0,20);
     setResults(hits);
@@ -18599,7 +18599,7 @@ function GenerateMissing8s() {
   async function scan() {
     setScanning(true); setPreview(null); setResult(null);
     const snap = await getDocs(collection(db,"boba_checklist"));
-    const all = snap.docs.map(d=>({fsId:d.id,...d.data()}));
+    const all = snap.docs.map(d=>({...d.data(), fsId:d.id}));
 
     // Find all cards whose cardNum ends with a digit 1-7 (auto variants)
     // Group by prefix (e.g. "DBA" from "DBA3")
@@ -18765,7 +18765,7 @@ function PlaysFixButton() {
     if (!window.confirm("This will update treatment fields for all PL and BPL cards in Firestore. Continue?")) return;
     setRunning(true); setResult(null);
     const snap = await getDocs(collection(db,"boba_checklist"));
-    const toFix = snap.docs.map(d=>({fsId:d.id,...d.data()})).filter(c => {
+    const toFix = snap.docs.map(d=>({...d.data(), fsId:d.id})).filter(c => {
       const cn = String(c.cardNum||"").toUpperCase();
       return cn.startsWith("BPL") || (cn.startsWith("PL") && !cn.startsWith("BPL"));
     });
@@ -18848,7 +18848,7 @@ function SwanCityBulkImport() {
   // Load the checklist once (this tool is self-contained).
   async function loadCards() {
     const snap = await getDocs(collection(db, "boba_checklist"));
-    setCards(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setCards(snap.docs.map(d => ({...d.data(), id:d.id})));
     setCardsLoaded(true);
   }
 
@@ -19145,7 +19145,7 @@ function TreatmentMerge() {
     (async () => {
       try {
         const snap = await getDocs(collection(db,"boba_checklist"));
-        setAllCards(snap.docs.map(d=>({id:d.id,...d.data()})));
+        setAllCards(snap.docs.map(d=>({...d.data(), id:d.id})));
       } catch(e) { setErr(e.message); }
       setLoading(false);
     })();
@@ -19200,7 +19200,7 @@ function TreatmentMerge() {
       setDone(n);
       // Refresh so the counts reflect reality.
       const snap = await getDocs(collection(db,"boba_checklist"));
-      setAllCards(snap.docs.map(d=>({id:d.id,...d.data()})));
+      setAllCards(snap.docs.map(d=>({...d.data(), id:d.id})));
       setSources(new Set());
     } catch(e) { setErr(e.message); }
     setRunning(false);
@@ -19298,7 +19298,7 @@ function JunkPlayCleanup() {
     (async () => {
       try {
         const snap = await getDocs(collection(db,"boba_checklist"));
-        setCards(snap.docs.map(d=>({id:d.id,...d.data()})));
+        setCards(snap.docs.map(d=>({...d.data(), id:d.id})));
       } catch(e) { setErr(e.message); }
       setLoading(false);
     })();
@@ -19347,7 +19347,7 @@ function JunkPlayCleanup() {
       }
       setDone(n);
       const snap = await getDocs(collection(db,"boba_checklist"));
-      setCards(snap.docs.map(d=>({id:d.id,...d.data()})));
+      setCards(snap.docs.map(d=>({...d.data(), id:d.id})));
     } catch(e) { setErr(e.message); }
     setRunning(false);
   }
@@ -19454,7 +19454,7 @@ function CardDeduper() {
     setLoading(true); setErr(""); setGroups(null); setDone(null);
     try {
       const snap = await getDocs(collection(db,"boba_checklist"));
-      const all = snap.docs.map(d=>({id:d.id,...d.data()}));
+      const all = snap.docs.map(d=>({...d.data(), id:d.id}));
       const by = {};
       all.forEach(c => {
         // A card's true identity. Card number ALONE is not unique — in Tecmo Bowl (and others)
@@ -19566,7 +19566,7 @@ function CardDeduper() {
       }
       // Rebuild the snapshot so the app reflects the cleanup.
       const snap2 = await getDocs(collection(db,"boba_checklist"));
-      const all2 = snap2.docs.map(d=>({id:d.id,...d.data()}));
+      const all2 = snap2.docs.map(d=>({...d.data(), id:d.id}));
       try {
         const blob = new Blob([JSON.stringify(all2)], { type:"application/json" });
         await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, { contentType:"application/json", cacheControl:"public,max-age=86400" });
@@ -19700,7 +19700,7 @@ function FoundInEditor() {
           getDocs(collection(db,"boba_checklist")),
           getDoc(doc(db,"config","found_in")),
         ]);
-        setAllCards(snap.docs.map(d=>({id:d.id,...d.data()})));
+        setAllCards(snap.docs.map(d=>({...d.data(), id:d.id})));
         setMap(cfg.exists() ? (cfg.data().map || {}) : {});
       } catch(e){ setErr(e.message||String(e)); }
       setLoading(false);
@@ -19845,7 +19845,7 @@ function PrefixMapper() {
     (async () => {
       try {
         const snap = await getDocs(collection(db,"boba_checklist"));
-        setAllCards(snap.docs.map(d=>({id:d.id,...d.data()})));
+        setAllCards(snap.docs.map(d=>({...d.data(), id:d.id})));
       } catch(e){ setErr(e.message||String(e)); }
       setLoading(false);
     })();
@@ -19947,7 +19947,7 @@ function PrefixMapper() {
       }
       // Republish so the change reaches everyone, and clear the local caches.
       const snap2 = await getDocs(collection(db,"boba_checklist"));
-      const all2 = snap2.docs.map(d=>({id:d.id,...d.data()}));
+      const all2 = snap2.docs.map(d=>({...d.data(), id:d.id}));
       try { await writeCardSnapshot(all2, 86400); } catch(e){}
       try { await setDoc(doc(db,"meta","cards_version"), { ts: Date.now(), count: all2.length }); } catch(e){}
       try { localStorage.removeItem("boba_checklist_cache"); localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
@@ -20078,7 +20078,7 @@ function SetMerger() {
     (async () => {
       try {
         const snap = await getDocs(collection(db,"boba_checklist"));
-        setAllCards(snap.docs.map(d=>({id:d.id,...d.data()})));
+        setAllCards(snap.docs.map(d=>({...d.data(), id:d.id})));
       } catch(e){
         console.error("merge: load failed", e);
         setLoadErr(e.message || String(e));
@@ -20135,7 +20135,7 @@ function SetMerger() {
       setPreview(null);
       // reload
       const snap = await getDocs(collection(db,"boba_checklist"));
-      setAllCards(snap.docs.map(d=>({id:d.id,...d.data()})));
+      setAllCards(snap.docs.map(d=>({...d.data(), id:d.id})));
     } catch(e){ console.error(e); alert("Merge failed: "+e.message); }
     setRunning(false);
   }
@@ -20464,7 +20464,7 @@ function ImageCopier() {
     if (!window.confirm(`Copy all imageUrls from "${from}" → "${to}"?\n\nThis overwrites existing images on ${to} cards.`)) return;
     setRunning(true); setResult(null);
     const snap = await getDocs(collection(db,"boba_checklist"));
-    const all = snap.docs.map(d=>({fsId:d.id,...d.data()}));
+    const all = snap.docs.map(d=>({...d.data(), fsId:d.id}));
     const fromCards = all.filter(c=>c.treatment===from && c.imageUrl);
     const toCards   = all.filter(c=>c.treatment===to);
 
@@ -20812,7 +20812,7 @@ function CardSetImporter({ userRole }) {
       try {
         setProgress({ done:0, total:1, label:"Rebuilding card snapshot (this is what the app reads)..." });
         const snap2 = await getDocs(collection(db,"boba_checklist"));
-        const all = snap2.docs.map(d=>({id:d.id,...d.data()}));
+        const all = snap2.docs.map(d=>({...d.data(), id:d.id}));
 
         try {
           const blob = new Blob([JSON.stringify(all)], { type:"application/json" });
@@ -20892,7 +20892,7 @@ function CardSetImporter({ userRole }) {
 
     setProgress({ done:0, total:imgFiles.length, label:"Loading card index from Firestore..." });
     const snap = await getDocs(collection(db,"boba_checklist"));
-    const allCardsRaw = snap.docs.map(d=>({fsId:d.id,...d.data()}));
+    const allCardsRaw = snap.docs.map(d=>({...d.data(), fsId:d.id}));
     // If a target set is chosen, only match within it (prevents cross-set hero collisions)
     const allCards = importSet ? allCardsRaw.filter(c => c.setName === importSet) : allCardsRaw;
     // RESUME: skip cards that already have an image so re-runs don't re-scan/re-pay.
@@ -21094,7 +21094,7 @@ function CardSetImporter({ userRole }) {
       try {
         setProgress({ done:0, total:1, label:"Updating public card data (so images show on /cards)..." });
         const snap2 = await getDocs(collection(db,"boba_checklist"));
-        const all = snap2.docs.map(d=>({id:d.id,...d.data()}));
+        const all = snap2.docs.map(d=>({...d.data(), id:d.id}));
         const blob = new Blob([JSON.stringify(all)], { type:"application/json" });
         const snapRef = ref(storage, "card_data/boba_checklist.json");
         await uploadBytes(snapRef, blob, { contentType:"application/json", cacheControl:"public,max-age=300" });
@@ -21399,7 +21399,7 @@ function CardSetImporter({ userRole }) {
             try {
               setProgress({ done:0, total:1, label:"Scanning Alpha Blast\u2026" });
               const snap = await getDocs(collection(db,"boba_checklist"));
-              const all = snap.docs.map(d=>({id:d.id,...d.data()}));
+              const all = snap.docs.map(d=>({...d.data(), id:d.id}));
               const norm = s => String(s||"").toLowerCase().replace(/[\s\-_.]/g,"");
               // CONTAINS, not equals: the set is really "2025 Alpha Blast", so an exact match on
               // "alphablast" found nothing. Same for card numbers \u2014 a prefix test misses "BB-FA-12"
@@ -21450,7 +21450,7 @@ function CardSetImporter({ userRole }) {
             try {
               setProgress({ done:0, total:1, label:"Scanning Alpha Blast\u2026" });
               const snap = await getDocs(collection(db,"boba_checklist"));
-              const all = snap.docs.map(d=>({id:d.id,...d.data()}));
+              const all = snap.docs.map(d=>({...d.data(), id:d.id}));
               const norm = s => String(s||"").toLowerCase().replace(/[\s\-_.]/g,"");
               const todo = all.filter(c => norm(c.setName).includes("alphablast")
                                         && norm(c.cardNum).includes("bbfa")
@@ -21466,7 +21466,7 @@ function CardSetImporter({ userRole }) {
               // The app serves a prebuilt snapshot, so the edit is invisible until this is rebuilt.
               setProgress({ done:todo.length, total:todo.length, label:"Rebuilding snapshot\u2026" });
               const fresh = await getDocs(collection(db,"boba_checklist"));
-              const all2 = fresh.docs.map(d=>({id:d.id,...d.data()}));
+              const all2 = fresh.docs.map(d=>({...d.data(), id:d.id}));
               try {
                 const blob = new Blob([JSON.stringify(all2)], { type:"application/json" });
                 await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, { contentType:"application/json", cacheControl:"public,max-age=86400" });
@@ -21504,7 +21504,7 @@ function CardSetImporter({ userRole }) {
           try {
             setProgress({ done:0, total:1, label:"Reading all cards from the database..." });
             const snap = await getDocs(collection(db,"boba_checklist"));
-            const all = snap.docs.map(d=>({id:d.id,...d.data()}));
+            const all = snap.docs.map(d=>({...d.data(), id:d.id}));
             setProgress({ done:0, total:1, label:`Writing snapshot (${all.length.toLocaleString()} cards)...` });
             try {
               const blob = new Blob([JSON.stringify(all)], { type:"application/json" });
@@ -21746,17 +21746,17 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
     });
     const u4 = onSnapshot(collection(db,"boba_decks"), snap => {
       const uid = user?.uid || "shared";
-      setSavedDecks(snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.userId===uid).sort((a,b)=>b.savedAt?.localeCompare(a.savedAt)));
+      setSavedDecks(snap.docs.map(d=>({...d.data(), id:d.id})).filter(d=>d.userId===uid).sort((a,b)=>b.savedAt?.localeCompare(a.savedAt)));
     });
     const u5 = onSnapshot(collection(db,"boba_playbooks"), snap => {
       const uid = user?.uid || "shared";
-      setSavedPlaybooks(snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.userId===uid).sort((a,b)=>b.savedAt?.localeCompare(a.savedAt)));
+      setSavedPlaybooks(snap.docs.map(d=>({...d.data(), id:d.id})).filter(d=>d.userId===uid).sort((a,b)=>b.savedAt?.localeCompare(a.savedAt)));
     });
     const uSuper = onSnapshot(collection(db,"super_claims"), snap => {
-      setSuperClaims(snap.docs.map(d=>({id:d.id,...d.data()})));
+      setSuperClaims(snap.docs.map(d=>({...d.data(), id:d.id})));
     });
     const uOne = onSnapshot(collection(db,"oneof1_claims"), snap => {
-      setOneOfOneClaims(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt)));
+      setOneOfOneClaims(snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt)));
     });
     return ()=>{ u2(); u3(); u4(); u5(); uWants(); uSuper(); uOne(); uTrackers(); };
   }, []);
@@ -22795,7 +22795,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
       // Bust cache and reload
       try { localStorage.removeItem("boba_checklist_cache_v3"); } catch(e2) {}
       const freshSnap = await getDocs(collection(db, "boba_checklist"));
-      const freshCards = freshSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => String(a.cardNum||"").localeCompare(String(b.cardNum||""), undefined, { numeric:true }));
+      const freshCards = freshSnap.docs.map(d => ({...d.data(), id:d.id})).sort((a,b) => String(a.cardNum||"").localeCompare(String(b.cardNum||""), undefined, { numeric:true }));
       setCards(freshCards);
       try { localStorage.setItem("boba_checklist_cache_v3", JSON.stringify({ cards: freshCards, ts: Date.now() })); } catch(e2) {}
       setDbsStatus({ msg:`\u2705 Done! Updated ${updated} cards, skipped ${skipped}.`, ok:true });
@@ -23008,7 +23008,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                 }
                 try { localStorage.removeItem("boba_checklist_cache_v3"); } catch(e){}
                 const snap = await getDocs(collection(db,"boba_checklist"));
-                const fresh = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true}));
+                const fresh = snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>String(a.cardNum||"").localeCompare(String(b.cardNum||""),undefined,{numeric:true}));
                 setCards(fresh);
                 try { localStorage.setItem("boba_checklist_cache_v3", JSON.stringify({ cards:fresh, ts:Date.now() })); } catch(e){}
                 setDbsStatus({ msg:`\u2705 Wiped ${playcards.length} play cards -- re-import DBS CSV now`, ok:true });
@@ -26322,7 +26322,7 @@ function MarketTab({ onMarkTraded, onEditPackage, onAddSideToTrade, onUnacceptTr
     (async () => {
       try {
         const snap = await getDocs(query(collection(db,"boba_trade_packages"), where("ownerUid","==",user.uid)));
-        const rows = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>{ const ac=a.status==="completed"?1:0, bc=b.status==="completed"?1:0; if(ac!==bc) return ac-bc; return String(b.createdAt||"").localeCompare(String(a.createdAt||"")); });
+        const rows = snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>{ const ac=a.status==="completed"?1:0, bc=b.status==="completed"?1:0; if(ac!==bc) return ac-bc; return String(b.createdAt||"").localeCompare(String(a.createdAt||"")); });
         setMktPkgs(rows);
       } catch(e){ console.error("load packages (market) failed:", e); setMktPkgs([]); }
       setMktPkgsBusy(false);
@@ -27692,7 +27692,7 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
     const unsub = onSnapshot(
       query(collection(db,"boba_decks"), where("userId","==",viewingFriend)),
       snap => {
-        setFamDecks(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")));
+        setFamDecks(snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")));
         setFamDecksLoading(false);
       },
       e => { console.error("family decks load failed:", e); setFamDecksLoading(false); }
@@ -30650,7 +30650,7 @@ function PublicHomepage() {
     (async () => {
       try {
         const snap = await getDocs(query(collection(db,"marketplace"), where("status","==","active")));
-        const items = snap.docs.map(d=>({id:d.id,...d.data()}))
+        const items = snap.docs.map(d=>({...d.data(), id:d.id}))
           .sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""))
           .slice(0,8);
         setLiveListings(items);
@@ -31906,7 +31906,7 @@ function ProfileModal({ profileUid, onClose, currentUser, cards=[], onAddFriend,
         if (!alive) return;
         setData(uSnap.exists() ? uSnap.data() : {});
         setPubCards(pubSnap.exists() ? pubSnap.data() : {});
-        setReviews(revSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")));
+        setReviews(revSnap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")));
       } catch(e) { if(alive){ setData({}); } }
       if (alive) setLoading(false);
     })();
@@ -32337,7 +32337,7 @@ See you in there!
   useEffect(() => {
     if (!user) { setSavedPlaybooks([]); return; }
     const unsub = onSnapshot(collection(db, "boba_playbooks"), snap => {
-      setSavedPlaybooks(snap.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.userId===user.uid).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")));
+      setSavedPlaybooks(snap.docs.map(d=>({...d.data(), id:d.id})).filter(d=>d.userId===user.uid).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")));
     }, e=>console.error("load playbooks failed:", e));
     return unsub;
   }, [user]);
@@ -32438,7 +32438,7 @@ See you in there!
   useEffect(() => {
     if (!user) { setSavedDecks([]); return; }
     const unsub = onSnapshot(collection(db, "boba_decks"), snap => {
-      const all = snap.docs.map(d=>({id:d.id,...d.data()}));
+      const all = snap.docs.map(d=>({...d.data(), id:d.id}));
       const mine = all.filter(d=>d.userId===user.uid).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||""));
       setSavedDecks(mine);
       // Decks I handed to a family member and could still take back. boba_decks is public-read, so
@@ -32621,7 +32621,7 @@ See you in there!
     try {
       const q = query(collection(db, "boba_trade_packages"), where("ownerUid", "==", user.uid));
       const snap = await getDocs(q);
-      const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      const rows = snap.docs.map(d => ({...d.data(), id:d.id}))
         .sort((a,b) => String(b.createdAt||"").localeCompare(String(a.createdAt||"")));
       setTpList(rows);
     } catch(e) { console.error("load trade packages failed:", e); alert("Couldn't load your trade packages: " + (e?.message||e)); setTpList([]); }
@@ -32798,7 +32798,7 @@ See you in there!
   // -- Super claims (public, no auth needed) --
   useEffect(() => {
     const unsub = onSnapshot(collection(db,"super_claims"), snap => {
-      setSuperClaims(snap.docs.map(d=>({id:d.id,...d.data()})));
+      setSuperClaims(snap.docs.map(d=>({...d.data(), id:d.id})));
     });
     return ()=>unsub();
   }, []);
@@ -32834,7 +32834,7 @@ See you in there!
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db,"oneof1_claims"), snap => {
-      setOneOfOneClaims(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||"")));
+      setOneOfOneClaims(snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>b.createdAt?.localeCompare(a.createdAt||"")));
     });
     return ()=>unsub();
   }, []);
@@ -32842,7 +32842,7 @@ See you in there!
   // -- /34 BoJax claims (public) — TBJ-B serialized 1/34..34/34 --
   useEffect(() => {
     const unsub = onSnapshot(collection(db,"bojax34_claims"), snap => {
-      setBojax34Claims(snap.docs.map(d=>({id:d.id,...d.data()})));
+      setBojax34Claims(snap.docs.map(d=>({...d.data(), id:d.id})));
     });
     return ()=>unsub();
   }, []);
@@ -32956,7 +32956,7 @@ See you in there!
       // 5. Firestore direct (last resort).
       try {
         const snap = await getDocs(collection(db,"boba_checklist"));
-        const all = snap.docs.map(d=>({id:d.id,...d.data()}));
+        const all = snap.docs.map(d=>({...d.data(), id:d.id}));
         if (all.length>0) { clearTimeout(hardStop); finish(all); idbSetCards(all, Date.now()); return; }
       } catch(e) {}
       clearTimeout(hardStop); finish(cacheHasCards ? null : []); // ensure spinner stops
@@ -33021,7 +33021,7 @@ See you in there!
       // Last resort: read Firestore directly (slow, but correct).
       try {
         const snap = await getDocs(collection(db,"boba_checklist"));
-        const all = snap.docs.map(d=>({id:d.id,...d.data()}));
+        const all = snap.docs.map(d=>({...d.data(), id:d.id}));
         if (all.length>0) {
           setCards(all); setLoading(false);
           try { localStorage.setItem(CACHE_KEY, JSON.stringify({cards:all, ts:Date.now()})); } catch(e) {}
@@ -33438,7 +33438,7 @@ See you in there!
     const unsubs = fam.map(f =>
       onSnapshot(query(collection(db,"boba_decks"), where("userId","==",f.friendUid)), snap => {
         byUid[f.friendUid] = { friendUid:f.friendUid, friendName:f.friendName||"Family",
-          decks: snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")) };
+          decks: snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")) };
         setFamilyDecks(Object.values(byUid).filter(g => g.decks.length > 0));
       }, e => console.error("family decks listen failed:", e))
     );
@@ -33451,7 +33451,7 @@ See you in there!
   useEffect(() => {
     if(!user) return;
     const unsub = onSnapshot(query(collection(db,"borrow_ledger"), where("participantUids","array-contains",user.uid)),
-      snap => setBorrowLedger(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.borrowedAt||"").localeCompare(a.borrowedAt||"")))
+      snap => setBorrowLedger(snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>(b.borrowedAt||"").localeCompare(a.borrowedAt||"")))
     );
     return ()=>unsub();
   }, [user]);
@@ -34201,7 +34201,7 @@ See you in there!
       let snapNote = "";
       try {
         const snap2 = await getDocs(collection(db,"boba_checklist"));
-        const all2 = snap2.docs.map(d=>({id:d.id,...d.data()}));
+        const all2 = snap2.docs.map(d=>({...d.data(), id:d.id}));
         try {
           const blob = new Blob([JSON.stringify(all2)], { type:"application/json" });
           await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, { contentType:"application/json", cacheControl:"public,max-age=86400" });
@@ -34511,7 +34511,7 @@ See you in there!
   const [mktInitView,  setMktInitView]  = useState(null);   // which marketplace view to open on
   useEffect(() => {
     const unsub = onSnapshot(collection(db,"trade_index"),
-      snap => setTradeIndex(snap.docs.map(d => ({ id:d.id, ...d.data() }))),
+      snap => setTradeIndex(snap.docs.map(d => ({...d.data(), id:d.id}))),
       e => console.error("trade index listen failed:", e));
     return () => { try{unsub();}catch(e){} };
   }, []);
@@ -34739,7 +34739,7 @@ See you in there!
   async function loadMissingCards() {
     try {
       const snap = await getDocs(collection(db,"missing_cards"));
-      const rows = snap.docs.map(d=>({ id:d.id, ...d.data() }))
+      const rows = snap.docs.map(d=>({...d.data(), id:d.id}))
         .sort((a,b)=>(b.lastRequestedAt||"").localeCompare(a.lastRequestedAt||""));
       setMissingCards(rows);
     } catch(e) { console.error("load missing cards failed:", e); setMissingCards([]); }
@@ -35367,7 +35367,7 @@ See you in there!
       const snapProblems = [];
       try {
         const snap2 = await getDocs(collection(db,"boba_checklist"));
-        const all = snap2.docs.map(d=>({id:d.id,...d.data()}));
+        const all = snap2.docs.map(d=>({...d.data(), id:d.id}));
         const blob = new Blob([JSON.stringify(all)],{type:"application/json"});
         try { await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, {contentType:"application/json",cacheControl:"public,max-age=300"}); }
         catch(e){ snapProblems.push("plain JSON snapshot: "+(e?.message||e)); }
@@ -35399,7 +35399,7 @@ See you in there!
       const snapProblems = [];
       try {
         const snap2 = await getDocs(collection(db,"boba_checklist"));
-        const all = snap2.docs.map(d=>({id:d.id,...d.data()}));
+        const all = snap2.docs.map(d=>({...d.data(), id:d.id}));
         const blob = new Blob([JSON.stringify(all)],{type:"application/json"});
         try { await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, {contentType:"application/json",cacheControl:"public,max-age=300"}); }
         catch(e){ snapProblems.push("plain JSON snapshot: "+(e?.message||e)); }
@@ -35485,7 +35485,7 @@ See you in there!
       const snapProblems = [];
       try {
         const snap2 = await getDocs(collection(db,"boba_checklist"));
-        const all = snap2.docs.map(d=>({id:d.id,...d.data()}));
+        const all = snap2.docs.map(d=>({...d.data(), id:d.id}));
         const blob = new Blob([JSON.stringify(all)],{type:"application/json"});
         try { await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, {contentType:"application/json",cacheControl:"public,max-age=300"}); }
         catch(e){ snapProblems.push("plain JSON snapshot: "+(e?.message||e)); }
@@ -35680,7 +35680,7 @@ See you in there!
       return t || "";
     }
     const alreadyImaged = new Set(cards.filter(c=>c.imageUrl&&String(c.imageUrl).startsWith("http")).map(c=>c.id));
-    let matched=0, skipped=0, done=0;
+    let matched=0, skipped=0, done=0, kept=0;   // kept = already had art, left alone
     window._bulkErrShown = false;
     const skippedNames=[];
     setBulkProg({done:0,total:list.length,matched:0,skipped:0,status:"Starting…"});
@@ -35785,7 +35785,9 @@ See you in there!
         if(!card && bulkImgHeroMatch) card = heroFind(file.name, pool);
         if(!card) card = await visionFind(file, pool, fileTreatment);
         if(!card){ skipped++; skippedNames.push(file.name); done++; setBulkProg({done,total:list.length,matched,skipped,status:`No match: ${file.name}`}); return; }
-        if(!bulkImgOverwrite && alreadyImaged.has(card.id)){ matched++; done++; setBulkProg({done,total:list.length,matched,skipped,status:`⏭ Already had image: ${card.hero}`}); return; }
+        // Counting these as "matched" made the summary claim success while nothing was written —
+        // the report said it worked and the images never changed. Tracked separately now.
+        if(!bulkImgOverwrite && alreadyImaged.has(card.id)){ kept++; done++; setBulkProg({done,total:list.length,matched,skipped,kept,status:`⏭ Already had image: ${card.hero}`}); return; }
         const fsId = card.fsId || card.id;
         const ext = (file.name.split(".").pop()||"png").toLowerCase();
         const storageRef2 = ref(storage, `boba_cards/${fsId}.${ext}`);
@@ -35805,7 +35807,7 @@ See you in there!
     setBulkProg({done:list.length,total:list.length,matched,skipped,status:"Saving & refreshing…"});
     try {
       const snap2 = await getDocs(collection(db,"boba_checklist"));
-      const all = snap2.docs.map(d=>({id:d.id,...d.data()}));
+      const all = snap2.docs.map(d=>({...d.data(), id:d.id}));
       const blob = new Blob([JSON.stringify(all)],{type:"application/json"});
       await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, {contentType:"application/json",cacheControl:"public,max-age=300"});
       try { await writeCardSnapshot(all, 300); } catch(e) {}
@@ -41029,7 +41031,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                     </>
                   )}
                 </div>
-                  <button onClick={async ()=>{ if(_cardAdmin){ try{ setToast("Regenerating fast snapshot…"); const snap2=await getDocs(collection(db,"boba_checklist")); const all=snap2.docs.map(d=>({id:d.id,...d.data()})); await writeCardSnapshot(all,300); const blob=new Blob([JSON.stringify(all)],{type:"application/json"}); await uploadBytes(ref(storage,"card_data/boba_checklist.json"),blob,{contentType:"application/json",cacheControl:"public,max-age=300"}); try{await setDoc(doc(db,"meta","cards_version"),{ts:Date.now(),count:all.length});}catch(e){} }catch(e){} } try{localStorage.removeItem("boba_checklist_cache_v3");}catch(e){} await idbClearCards(); window.location.reload(); }} title={_cardAdmin?"Regenerate fast snapshot & refresh":"Refresh"}
+                  <button onClick={async ()=>{ if(_cardAdmin){ try{ setToast("Regenerating fast snapshot…"); const snap2=await getDocs(collection(db,"boba_checklist")); const all=snap2.docs.map(d=>({...d.data(), id:d.id})); await writeCardSnapshot(all,300); const blob=new Blob([JSON.stringify(all)],{type:"application/json"}); await uploadBytes(ref(storage,"card_data/boba_checklist.json"),blob,{contentType:"application/json",cacheControl:"public,max-age=300"}); try{await setDoc(doc(db,"meta","cards_version"),{ts:Date.now(),count:all.length});}catch(e){} }catch(e){} } try{localStorage.removeItem("boba_checklist_cache_v3");}catch(e){} await idbClearCards(); window.location.reload(); }} title={_cardAdmin?"Regenerate fast snapshot & refresh":"Refresh"}
                     style={{background:"rgba(255,255,255,0.05)",color:"rgba(255,255,255,0.6)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:12,padding:isMobile?"9px 13px":"8px 14px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(10px)",whiteSpace:"nowrap"}}>
                     {"\uD83D\uDD04"}</button>
                   {_cardAdmin && (
@@ -43614,14 +43616,14 @@ function PublicChaseTracker() {
   useEffect(() => {
     // Load chases
     const u1 = onSnapshot(collection(db,"chases"), snap => {
-      const all = snap.docs.map(d=>({id:d.id,...d.data()}))
+      const all = snap.docs.map(d=>({...d.data(), id:d.id}))
         .filter(c=>c.active!==false && (c.cards||[]).some(x=>!x.owned));
       setChases(all.sort((a,b)=>(a.breaker||"").localeCompare(b.breaker||"")));
       setLoading(false);
     });
     // Load card database for live treatment/image lookup
     getDocs(collection(db,"boba_checklist")).then(snap => {
-      setBobaCards(snap.docs.map(d=>({id:d.id,...d.data()})));
+      setBobaCards(snap.docs.map(d=>({...d.data(), id:d.id})));
     }).catch(()=>{});
     return ()=>u1();
   }, []);
@@ -43955,10 +43957,10 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
 
   useEffect(() => {
     const u1 = onSnapshot(collection(db,"chases"), snap =>
-      setChases(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.breaker||"").localeCompare(b.breaker||"")))
+      setChases(snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>(a.breaker||"").localeCompare(b.breaker||"")))
     );
     const u2 = onSnapshot(collection(db,"chase_submissions"), snap =>
-      setSubmissions(snap.docs.map(d=>({id:d.id,...d.data()})))
+      setSubmissions(snap.docs.map(d=>({...d.data(), id:d.id})))
     );
     return ()=>{ u1(); u2(); };
   }, []);
@@ -44442,7 +44444,7 @@ function PublicSellPage() {
 
   useEffect(() => {
     getDocs(collection(db, "boba_checklist")).then(snap => {
-      setBobaCards(snap.docs.map(d=>({id:d.id,...d.data()})));
+      setBobaCards(snap.docs.map(d=>({...d.data(), id:d.id})));
     }).catch(()=>{});
   }, []);
 
@@ -45908,7 +45910,7 @@ function BugAdmin({ user }) {
   useEffect(() => {
     if (!isAdmin) return;
     const unsub = onSnapshot(collection(db,"bug_reports"), snap => {
-      setBugs(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")));
+      setBugs(snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")));
     });
     return ()=>unsub();
   }, [isAdmin]);
@@ -46249,7 +46251,7 @@ function PublicProfilePage({ username }) {
           getDoc(doc(db,"boba_intransit",uid)).catch(()=>null),
         ]);
         const transitData = (transitSnap && transitSnap.exists) ? (transitSnap.exists() ? transitSnap.data() : {}) : {};
-        const listings = listSnap.docs.map(d=>({id:d.id,...d.data()}));
+        const listings = listSnap.docs.map(d=>({...d.data(), id:d.id}));
         const allTrackers = (trkSnap.exists() && Array.isArray(trkSnap.data().trackers)) ? trkSnap.data().trackers : [];
         const publicTrackers = allTrackers.filter(t => t.public);
         const pubData = pubSnap.exists() ? pubSnap.data() : {};
@@ -46269,7 +46271,7 @@ function PublicProfilePage({ username }) {
           loading:false, uid,
           data: userSnap.exists() ? userSnap.data() : {},
           pubCards: pubData,
-          reviews: revSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")),
+          reviews: revSnap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")),
           cards: enrichedCards,
           transit: transitData,
           fullCards,
@@ -46590,7 +46592,7 @@ function AppInner() {
       // 3. Firestore fallback
       try {
         const snap = await getDocs(collection(db, "boba_checklist"));
-        const cards = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const cards = snap.docs.map(d => ({...d.data(), id:d.id}));
         setBobaCards(cards);
         try { localStorage.setItem(BOBA_CACHE_KEY, JSON.stringify({ cards, ts: Date.now() })); } catch(e) {}
       } catch(e) {}
@@ -46639,24 +46641,24 @@ function AppInner() {
 
     const unsubs = [
       onSnapshot(query(collection(db,"inventory"), orderBy("dateAdded","asc")), snap => {
-        const data = snap.docs.map(d=>({id:d.id,...d.data()}));
+        const data = snap.docs.map(d=>({...d.data(), id:d.id}));
         setInventory(data);
         try { localStorage.setItem(INV_CACHE, JSON.stringify(data)); } catch(e) {}
       }),
       onSnapshot(query(collection(db,"breaks"), orderBy("dateAdded","asc")), snap => {
-        const data = snap.docs.map(d=>({id:d.id,...d.data()}));
+        const data = snap.docs.map(d=>({...d.data(), id:d.id}));
         setBreaks(data);
         try { localStorage.setItem(BRK_CACHE, JSON.stringify(data)); } catch(e) {}
       }),
       onSnapshot(query(collection(db,"streams"), orderBy("date","asc")), snap => {
-        const data = snap.docs.map(d=>({id:d.id,...d.data()}));
+        const data = snap.docs.map(d=>({...d.data(), id:d.id}));
         setStreams(data);
         try { localStorage.setItem(STR_CACHE, JSON.stringify(data)); } catch(e) {}
       }),
       // Load all quotes
-      onSnapshot(collection(db,"quotes"), snap => setQuotes(snap.docs.map(d=>({id:d.id,...d.data()})))),
+      onSnapshot(collection(db,"quotes"), snap => setQuotes(snap.docs.map(d=>({...d.data(), id:d.id})))),
       // historical_data at startup so Dashboard YTD is correct immediately
-      onSnapshot(collection(db,"historical_data"), snap => { const hd = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.yearMonth||"").localeCompare(b.yearMonth||"")); setHistoricalData(hd); try { localStorage.setItem("bz_histdata_v1", JSON.stringify(hd)); } catch(e) {} }),
+      onSnapshot(collection(db,"historical_data"), snap => { const hd = snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>(a.yearMonth||"").localeCompare(b.yearMonth||"")); setHistoricalData(hd); try { localStorage.setItem("bz_histdata_v1", JSON.stringify(hd)); } catch(e) {} }),
       onSnapshot(doc(db,"config","skuPrices"), snap => { if(snap.exists()){ setSkuPrices(snap.data()); try { localStorage.setItem("bz_skuprices_v1", JSON.stringify(snap.data())); } catch(e) {} } }),
       onSnapshot(doc(db,"config","imcAdjustments"), snap => { if(snap.exists()){ setImcAdjustmentsData(snap.data()); try { localStorage.setItem("bz_imcadj_v1", JSON.stringify(snap.data())); } catch(e) {} } }),
     ];
@@ -46670,27 +46672,27 @@ function AppInner() {
 
     if ((tab === "comp" || tab === "dashboard" || tab === "history") && !dataLoaded.comp) {
       setDataLoaded(p=>({...p, comp:true}));
-      unsubs.push(onSnapshot(collection(db,"comps"), snap => setComps(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>new Date(b.dateAdded||0)-new Date(a.dateAdded||0)))));
-      unsubs.push(onSnapshot(collection(db,"card_pools"), snap => setCardPools(snap.docs.map(d=>({id:d.id,...d.data()})))));
-      unsubs.push(onSnapshot(collection(db,"planned_streams"), snap => setPlannedStreams(snap.docs.map(d=>({id:d.id,...d.data()})))));
+      unsubs.push(onSnapshot(collection(db,"comps"), snap => setComps(snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>new Date(b.dateAdded||0)-new Date(a.dateAdded||0)))));
+      unsubs.push(onSnapshot(collection(db,"card_pools"), snap => setCardPools(snap.docs.map(d=>({...d.data(), id:d.id})))));
+      unsubs.push(onSnapshot(collection(db,"planned_streams"), snap => setPlannedStreams(snap.docs.map(d=>({...d.data(), id:d.id})))));
     }
 
     if ((tab === "buyers" || tab === "performance" || tab === "streams" || tab === "campaigns") && !dataLoaded.buyers) {
       setDataLoaded(p=>({...p, buyers:true}));
-      unsubs.push(onSnapshot(collection(db,"buyers"), snap => setBuyers(snap.docs.map(d=>({id:d.id,...d.data()})))));
-      unsubs.push(onSnapshot(collection(db,"csv_imports"), snap => setCsvImports(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.importedAt||"").localeCompare(a.importedAt||"")))));
+      unsubs.push(onSnapshot(collection(db,"buyers"), snap => setBuyers(snap.docs.map(d=>({...d.data(), id:d.id})))));
+      unsubs.push(onSnapshot(collection(db,"csv_imports"), snap => setCsvImports(snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>(b.importedAt||"").localeCompare(a.importedAt||"")))));
     }
 
     if (tab === "shipping" && !dataLoaded.shipping) {
       setDataLoaded(p=>({...p, shipping:true}));
-      unsubs.push(onSnapshot(collection(db,"shipping_issues"), snap => setShippingIssues?.(snap.docs.map(d=>({id:d.id,...d.data()})))));
+      unsubs.push(onSnapshot(collection(db,"shipping_issues"), snap => setShippingIssues?.(snap.docs.map(d=>({...d.data(), id:d.id})))));
     }
 
     if (tab === "inventory" && !dataLoaded.inventory) {
       setDataLoaded(p=>({...p, inventory:true}));
-      unsubs.push(onSnapshot(collection(db,"shipments"), snap => setShipments(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>new Date(b.date||0)-new Date(a.date||0)))));
-      unsubs.push(onSnapshot(collection(db,"product_usage"), snap => setProductUsage(snap.docs.map(d=>({id:d.id,...d.data()})))));
-      unsubs.push(onSnapshot(collection(db,"sku_price_history"), snap => setSkuPriceHistory(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.date||"").localeCompare(b.date||"")))));
+      unsubs.push(onSnapshot(collection(db,"shipments"), snap => setShipments(snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>new Date(b.date||0)-new Date(a.date||0)))));
+      unsubs.push(onSnapshot(collection(db,"product_usage"), snap => setProductUsage(snap.docs.map(d=>({...d.data(), id:d.id})))));
+      unsubs.push(onSnapshot(collection(db,"sku_price_history"), snap => setSkuPriceHistory(snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>(a.date||"").localeCompare(b.date||"")))));
       unsubs.push(onSnapshot(doc(db,"config","lotTracking"), snap => { if(snap.exists()) setLotTracking(snap.data()); }));
       unsubs.push(onSnapshot(doc(db,"config","lotNotes"), snap => { if(snap.exists()) setLotNotes(snap.data()); }));
     }
@@ -46699,7 +46701,7 @@ function AppInner() {
       setDataLoaded(p=>({...p, streams:true}));
       // historical_data already loaded at startup
       unsubs.push(onSnapshot(doc(db,"config","imcFormUrl"), snap => { if(snap.exists()) setImcFormUrl(snap.data().url||""); }));
-      unsubs.push(onSnapshot(collection(db,"pay_stubs"), snap => setPayStubs(snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")))));
+      unsubs.push(onSnapshot(collection(db,"pay_stubs"), snap => setPayStubs(snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||"")))));
     }
 
     if (unsubs.length === 0) return;
@@ -46993,7 +46995,7 @@ function AppInner() {
   function handleOnChecklistUpdated() {
     try { localStorage.removeItem(BOBA_CACHE_KEY); } catch(e) {}
     getDocs(collection(db,"boba_checklist")).then(snap => {
-      const cards = snap.docs.map(d=>({id:d.id,...d.data()}));
+      const cards = snap.docs.map(d=>({...d.data(), id:d.id}));
       setBobaCards(cards);
       try { localStorage.setItem(BOBA_CACHE_KEY, JSON.stringify({cards,ts:Date.now()})); } catch(e) {}
     });
