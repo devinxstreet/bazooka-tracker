@@ -35658,7 +35658,7 @@ See you in there!
     }
   }
 
-  async function runBulkImageImport(files, setName, treatment) {
+  async function runBulkImageImport(files, setName, treatment, weapon) {
     const list = Array.from(files||[]);
     if (!list.length) return;
     const firstWord = s => (s||"").toLowerCase().trim().split(" ")[0];
@@ -35690,6 +35690,10 @@ See you in there!
     function poolFor(fileTreatment){
       let pool = setName ? cards.filter(c=>c.setName===setName) : cards;
       if (fileTreatment) pool = pool.filter(c=>(c.treatment||"")===fileTreatment);
+      // Weapon is part of a card's identity here: Fire, Ice and Glow share a card number, a hero
+      // and a treatment, so without this the matcher has three indistinguishable candidates and
+      // will attach the art to whichever it happens to rank first.
+      if (weapon) pool = pool.filter(c=>(c.weapon||"")===weapon);
       return pool;
     }
 
@@ -35848,7 +35852,7 @@ See you in there!
         const url = await getDownloadURL(storageRef2);
         await setDoc(doc(db,"boba_checklist",fsId), { imageUrl:url }, { merge:true });
         matched++; done++;
-        setBulkProg({done,total:list.length,matched,skipped,status:`✅ ${card.hero} #${card.cardNum} (${matched} done)`});
+        setBulkProg({done,total:list.length,matched,skipped,status:`✅ ${card.hero}${card.weapon?` · ${card.weapon}`:""} #${card.cardNum} (${matched} done)`});
       } catch(e){ skipped++; done++; const msg=(e&&e.code)?e.code:(e&&e.message)?e.message:String(e); skippedNames.push(file.name+" (err: "+msg+")"); setBulkProg({done,total:list.length,matched,skipped,status:`⚠️ ${msg.includes("permission")?"PERMISSION DENIED — check Firestore rules / login":"Error"}: ${file.name}`}); if(!window._bulkErrShown && msg.toLowerCase().includes("permission")){ window._bulkErrShown=true; alert("Write blocked by Firestore rules.\n\nThe import can't save images because the database is rejecting the write (permission-denied).\n\nThis usually means you're not logged in as an @bazookabreaks.com admin in THIS browser, or the security rules need updating. Error: "+msg); } }
     }
 
@@ -39182,9 +39186,33 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 {treatments.map(t=><option key={t} value={t}>{t}</option>)}
               </select>
               </>)}
+              {/* Weapon picker. Skyline and Grandma's Linoleum both exist as Fire / Ice / Glow on the
+                  SAME card number with the same hero, so set+treatment alone leaves three identical
+                  candidates and the importer has to guess between them \u2014 which is how a folder of
+                  Fire images ended up attached to the Glow cards. Pinning the weapon removes the
+                  guess entirely. */}
+              {(() => {
+                const pool = cards.filter(c =>
+                  (!bulkImg.setName   || c.setName === bulkImg.setName) &&
+                  (!bulkImg.treatment || c.treatment === bulkImg.treatment));
+                const weapons = [...new Set(pool.map(c=>c.weapon).filter(Boolean))].sort();
+                if (weapons.length < 2) return null;   // nothing to disambiguate
+                return (
+                  <>
+                    <div style={{fontSize:11,fontWeight:800,color:bulkImg.weapon?"#4ade80":"#FBBF24",marginBottom:6}}>
+                      {bulkImg.weapon ? `\u2705 Weapon: ${bulkImg.weapon}` : `\u26a0\ufe0f Weapon \u2014 ${weapons.length} variants share these card numbers`}
+                    </div>
+                    <select value={bulkImg.weapon||""} onChange={e=>setBulkImg(b=>({...b,weapon:e.target.value}))}
+                      style={{width:"100%",background:"var(--bz-bg)",color:"var(--bz-ink)",border:"1px solid "+(bulkImg.weapon?"rgba(74,222,128,0.5)":"rgba(251,191,36,0.5)"),borderRadius:8,padding:"10px 12px",fontSize:13,fontFamily:"inherit",cursor:"pointer",marginBottom:14}}>
+                      <option value="">{"\u2014 Any weapon (may pick the wrong variant) \u2014"}</option>
+                      {weapons.map(w=><option key={w} value={w}>{w}</option>)}
+                    </select>
+                  </>
+                );
+              })()}
               <div style={{display:"flex",gap:10}}>
                 <button onClick={()=>setBulkImg(null)} style={{flex:1,background:"transparent",border:"1px solid var(--bz-line-2)",color:"#999",borderRadius:10,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-                <button onClick={()=>{ const {files,setName,treatment,byFolder}=bulkImg; setBulkImg(null); runBulkImageImport(files,setName,byFolder?"":(treatment||"")); }} style={{flex:2,background:"linear-gradient(135deg,#4ade80,#22c55e)",border:"none",color:"#000",borderRadius:10,padding:"11px",fontSize:13,fontWeight:900,cursor:"pointer",fontFamily:"inherit"}}>Start Import{bulkImg.byFolder?` → ${subFolders.length} treatments`:bulkImg.treatment?` → ${bulkImg.treatment}`:bulkImg.setName?` → ${bulkImg.setName}`:""}</button>
+                <button onClick={()=>{ const {files,setName,treatment,weapon,byFolder}=bulkImg; setBulkImg(null); runBulkImageImport(files,setName,byFolder?"":(treatment||""),weapon||""); }} style={{flex:2,background:"linear-gradient(135deg,#4ade80,#22c55e)",border:"none",color:"#000",borderRadius:10,padding:"11px",fontSize:13,fontWeight:900,cursor:"pointer",fontFamily:"inherit"}}>Start Import{bulkImg.byFolder?` → ${subFolders.length} treatments`:bulkImg.treatment?` → ${bulkImg.treatment}${bulkImg.weapon?` · ${bulkImg.weapon}`:""}`:bulkImg.setName?` → ${bulkImg.setName}`:""}</button>
               </div>
             </div>
           </div>
