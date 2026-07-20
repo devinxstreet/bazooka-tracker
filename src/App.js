@@ -34162,6 +34162,60 @@ See you in there!
   // putting fifty commons at 3 meant fifty separate interactions. Deliberately a "set to", not an
   // "add" \u2014 "make these all 3" is the thing people actually mean, and it's predictable when some
   // of the selection is already owned at different counts.
+  // Clear artwork on every selected card in one pass. The per-card clear rebuilds the whole
+  // checklist snapshot each time, which is fine for one card and unusable for fifty \u2014 so this
+  // writes all the deletes in batches and rebuilds the snapshot ONCE at the end.
+  async function bulkClearImages() {
+    if (!_cardAdmin) return;
+    const chosen = cards.filter(c => selectedIds.has(c.id) && c.imageUrl);
+    if (!chosen.length) { alert("None of the selected cards have an image to clear."); return; }
+    if (!window.confirm(
+      `Clear artwork on ${chosen.length} card${chosen.length===1?"":"s"}?\n\n` +
+      `This removes the image from the database so you can re-import the right ones. ` +
+      `Ownership, values and notes are untouched.\n\nThis cannot be undone.`
+    )) return;
+
+    setBulkMoreOpen(false);
+    try {
+      const CHUNK = 400;
+      for (let i=0; i<chosen.length; i+=CHUNK) {
+        const batch = writeBatch(db);
+        chosen.slice(i, i+CHUNK).forEach(card => {
+          batch.set(doc(db,"boba_checklist", card.fsId || card.id), { imageUrl: deleteField() }, { merge:true });
+        });
+        await batch.commit();
+      }
+      const cleared = new Set(chosen.map(c=>c.id));
+      setCards(cs => cs.map(c => cleared.has(c.id) ? { ...c, imageUrl:null } : c));
+
+      // One snapshot rebuild for the whole operation, not one per card. Mirrors the rebuild the
+      // other admin tools do: plain JSON, the gzipped copy the app actually reads, the version
+      // stamp, and the local caches \u2014 miss any of those and the change appears not to have saved.
+      let snapNote = "";
+      try {
+        const snap2 = await getDocs(collection(db,"boba_checklist"));
+        const all2 = snap2.docs.map(d=>({id:d.id,...d.data()}));
+        try {
+          const blob = new Blob([JSON.stringify(all2)], { type:"application/json" });
+          await uploadBytes(ref(storage,"card_data/boba_checklist.json"), blob, { contentType:"application/json", cacheControl:"public,max-age=86400" });
+        } catch(e){}
+        await writeCardSnapshot(all2, 86400);
+        try { await setDoc(doc(db,"meta","cards_version"), { ts: Date.now(), count: all2.length }); } catch(e){}
+        try { localStorage.removeItem("boba_checklist_cache"); localStorage.removeItem("boba_checklist_cache_v3"); } catch {}
+        try { await idbClearCards(); } catch(e){}
+      } catch(e) {
+        console.error("snapshot rebuild failed:", e);
+        snapNote = "\n\nThe images were cleared, but the shared snapshot did not rebuild \u2014 run " +
+                   "\u201cRebuild Card Snapshot\u201d in Admin so everyone sees the change.";
+      }
+      clearSelection();
+      alert(`Cleared artwork on ${chosen.length} card${chosen.length===1?"":"s"}.${snapNote}`);
+    } catch(e) {
+      console.error("bulk clear images failed:", e);
+      alert("Couldn't clear the images: " + (e?.message || e));
+    }
+  }
+
   async function bulkSetQuantity() {
     if (!user) { setSigningIn(true); return; }
     if (selectedIds.size === 0) return;
@@ -39780,6 +39834,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                       {_cardAdmin && <>
                         {hdr("Admin")}
                         {item("✏️ Bulk edit cards", ()=>{setBulkEdits({});setBulkEditOpen(true);})}
+                        {item("🧹 Clear artwork", bulkClearImages)}
                         {item("🗑 Delete from database", ()=>{setBulkDelText("");setBulkDelOpen(true);}, {danger:true})}
                       </>}
                     </>
