@@ -28521,11 +28521,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const [deckMineOnly, setDeckMineOnly] = useState(false);
   const [sharedDeckId, setSharedDeckId] = useState(null);
   const [setsOpen, setSetsOpen] = useState(false);   // set picker collapsed by default
-  const [goalWOpen, setGoalWOpen] = useState(false); // weapon picker — collapsed, like the sets one
-  const [filtWOpen, setFiltWOpen] = useState(false); // manual builder: weapon multi-select picker
-  const [filtSOpen, setFiltSOpen] = useState(false); // manual builder: set multi-select picker
-  const [filtTOpen, setFiltTOpen] = useState(false); // manual builder: treatment multi-select picker
-  const [giveDeckFor, setGiveDeckFor] = useState(null); // deck id whose "give to family" picker is open
+  const [filtPOpen, setFiltPOpen] = useState(false); // manual builder: power multi-select picker
   const [goalTOpen, setGoalTOpen] = useState(false); // treatment picker
   const [progressExpanded, setProgressExpanded] = useState(false);
   // Quick Build starts collapsed: most time in this tab is manual building, and the card grid is
@@ -29227,20 +29223,46 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                   </div>
                 );
               })()}
-              {/* Power as a dropdown, matching the Set/Weapon/Treatment controls beside it. The
-                  filter model stays a Set so nothing downstream changes — the dropdown just writes a
-                  one-value Set (or clears it for "All"). */}
+              {/* Power is multi-select. It was a <select>, which can only hold ONE value \u2014 but the
+                  filter has always been a Set, and building a deck means wanting several tiers at
+                  once (115 through 160, say). Same checkbox pattern as the filters beside it. */}
               {(() => {
                 const powers = [...new Set(cards.map(c=>c.power!=null&&c.power!==""?String(c.power):null).filter(Boolean))]
                   .sort((a,b)=>parseFloat(b)-parseFloat(a));
-                const current = deckFilterP.size ? [...deckFilterP][0] : "";
+                const label = deckFilterP.size===0 ? "All Power"
+                            : deckFilterP.size===1 ? `Power ${[...deckFilterP][0]}`
+                            : `${deckFilterP.size} powers`;
                 return (
-                  <select value={current}
-                    onChange={e=>setDeckFilterP(e.target.value ? new Set([e.target.value]) : new Set())}
-                    style={{...inp,width:"auto",cursor:"pointer"}}>
-                    <option value="">All Power</option>
-                    {powers.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
+                  <>
+                    <button onClick={()=>setFiltPOpen(v=>!v)} style={tabBtn(filtPOpen, deckFilterP.size>0)}>
+                      {label} <span style={{fontSize:9,opacity:0.7}}>{filtPOpen?"\u25B2":"\u25BC"}</span>
+                    </button>
+                    {filtPOpen && (
+                      <div style={{width:"100%",marginTop:6,background:"rgba(0,0,0,0.25)",border:"1px solid var(--bz-line)",borderRadius:9,overflow:"hidden"}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"7px 10px",borderBottom:"1px solid var(--bz-line)",background:"rgba(255,255,255,0.03)"}}>
+                          <span style={{fontSize:10.5,fontWeight:800,color:"var(--bz-ink-3)"}}>
+                            {deckFilterP.size===0 ? "Showing all" : `${deckFilterP.size} of ${powers.length} selected`}
+                          </span>
+                          <span style={{display:"flex",gap:6}}>
+                            <button onClick={()=>setDeckFilterP(new Set(powers))} style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:6,padding:"3px 9px",fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Select all</button>
+                            <button onClick={()=>setDeckFilterP(new Set())} style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:6,padding:"3px 9px",fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>None</button>
+                          </span>
+                        </div>
+                        <div style={{maxHeight:210,overflowY:"auto",overscrollBehavior:"contain"}}>
+                          {powers.map(pw=>{
+                            const on = deckFilterP.has(pw);
+                            return (
+                              <label key={pw} onClick={ev=>{ev.preventDefault(); setDeckFilterP(prev=>{const n=new Set(prev); n.has(pw)?n.delete(pw):n.add(pw); return n;});}}
+                                style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",cursor:"pointer",background:on?"rgba(232,49,122,0.10)":"transparent",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
+                                <span style={{width:14,height:14,flexShrink:0,borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",border:`1.5px solid ${on?"#E8317A":"var(--bz-line-2)"}`,background:on?"#E8317A":"transparent",color:"#fff",fontSize:10,fontWeight:900,lineHeight:1}}>{on?"\u2713":""}</span>
+                                <span style={{fontSize:11.5,fontWeight:on?800:600,color:on?"#fff":"var(--bz-ink-2)"}}>{pw}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 );
               })()}
               {/* The card list scrolls ITSELF rather than growing the page. It used to have no height
@@ -33679,31 +33701,40 @@ See you in there!
 
   // Record the chosen print, then add the card. The version lives on a per-copy LOT rather than on
   // the card, so one card can hold two originals and an update at the same time.
-  async function confirmVersion(version) {
+  // Takes a map of {version: howMany}, so one prompt can record "4 Alpha and 3 Update" in a single
+  // pass. Each copy gets its own lot carrying its version, which is what lets the detail view show
+  // the split later.
+  async function confirmVersion(counts) {
     const ask = versionAsk;
     if (!ask) return;
+    const opts = ask.spec.options;
+    const picked = opts
+      .map(o => ({ version:o, n: Math.max(0, parseInt(counts?.[o]) || 0) }))
+      .filter(x => x.n > 0);
+    const adding = picked.reduce((s,x)=>s+x.n, 0);
+    if (!adding) return;
     setVersionAsk(null);
+
     const cardId = ask.card.id;
-    const prevQty = parseInt(owned[cardId]) || 0;
-    const target  = Math.max(prevQty + 1, parseInt(ask.targetQty) || prevQty + 1);
-    const adding  = target - prevQty;
     let saved = null;
     setOwned(prev => {
       const next = { ...prev };
-      next[cardId] = target;
+      next[cardId] = (parseInt(next[cardId]) || 0) + adding;
       saved = next;
       return next;
     });
     if (saved) queueOwnedSave(saved);
-    // A lot carries the version. Everything else is left blank so this stays a one-tap add \u2014 cost
-    // and condition can be filled in later from Details if the person cares.
-    const newLots = Array.from({length: adding}, () => ({
-      id: uid(), cardId, version, cost:null, value:null, method:"purchased",
-      date: todayLocal(), notes:"", serial:"",
-    }));
+
+    const newLots = [];
+    picked.forEach(({version, n}) => {
+      for (let i=0; i<n; i++) {
+        newLots.push({ id: uid(), cardId, version, cost:null, value:null,
+                       method:"purchased", date: todayLocal(), notes:"", serial:"" });
+      }
+    });
     const nextLots = [...(lots||[]), ...newLots];
     setLots(nextLots);
-    if (user) { try { await setDoc(doc(db,"boba_lots",user.uid), { lots: nextLots }); } catch(e){ console.error("save version lot failed:", e); } }
+    if (user) { try { await setDoc(doc(db,"boba_lots",user.uid), { lots: nextLots }); } catch(e){ console.error("save version lots failed:", e); } }
     setCardFx({ type:"caught", card: ask.card });
   }
 
@@ -33759,7 +33790,7 @@ See you in there!
     if (!wasOwned) {
       const card = cards.find(x=>x.id===cardId);
       const spec = versionSpecFor(card);
-      if (spec) { setVersionAsk({ card, spec, targetQty: 1 }); return; }
+      if (spec) { setVersionAsk({ card, spec, counts:{} }); return; }
     }
     // Functional update for the same reason as setOwnedQty: adding two cards in quick succession
     // must not have the second write built from a snapshot taken before the first.
@@ -33784,7 +33815,9 @@ See you in there!
       const card = cards.find(x=>x.id===cardId);
       const spec = versionSpecFor(card);
       // Carry the target so a jump from 1 to 3 records the right number of copies, not just one.
-      if (spec) { setVersionAsk({ card, spec, targetQty: qty }); return; }
+      // The stepper may be jumping several at once; the prompt decides the split, so it just
+      // opens empty rather than pre-filling a guess.
+      if (spec) { setVersionAsk({ card, spec, counts:{} }); return; }
     }
     // FUNCTIONAL UPDATE, not `{...owned}`. Reading `owned` from the render closure meant two quick
     // clicks on different cards both built from the SAME stale snapshot \u2014 so adding Ice right after
@@ -37694,8 +37727,11 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       const tally = {};
       inDeck.filter(x=>(parseFloat(x.power)||0)<=160 && isInsertTreatment(x.treatment)).forEach(x=>{ const t=insertKey(x.treatment)||"—"; tally[t]=(tally[t]||0)+1; });
       const insertUnlocks = Math.min(6, Object.values(tally).reduce((n,v)=>n+Math.floor(v/10), 0));
+      // Foil Hot Dogs must be IN THE DECK to grant a slot, exactly like the 10-insert rule above.
+      // This used to scan your whole COLLECTION, so owning four foil Hot Dogs anywhere unlocked four
+      // apex slots on a completely empty deck \u2014 cards showed as unlocked that had not been earned.
       const foilHotDogs = new Set(
-        cards.filter(x => (x.treatment||"").toLowerCase().includes("hot dog") && owned[x.id+"::foil"]).map(x=>x.treatment)
+        inDeck.filter(x => (x.treatment||"").toLowerCase().includes("hot dog")).map(x=>x.treatment)
       ).size;
       const slots = insertUnlocks + Math.min(4, foilHotDogs);
       const apexIn = inDeck.filter(x=>(parseFloat(x.power)||0)>160).length;
@@ -40297,11 +40333,12 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
           </div>
         </div>
       )}
-      {/* Which print is it? Shown only for cards that genuinely have two, so it never becomes noise
-          on a normal add. Cancel backs out without recording anything. */}
+      {/* Which print, and how many of each. Entering a stack means "4 Alpha and 3 Update" in one
+          go \u2014 forcing one card at a time through a two-button prompt would be worse than no prompt.
+          Quantities start at 0 so nothing is recorded that you didn't ask for. */}
       {versionAsk && (
         <div onClick={()=>setVersionAsk(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:12500,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"#111",border:"1px solid #2a2a2a",borderRadius:16,padding:20,maxWidth:380,width:"100%"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#111",border:"1px solid #2a2a2a",borderRadius:16,padding:20,maxWidth:400,width:"100%"}}>
             <div style={{fontSize:16,fontWeight:900,color:"#fff",marginBottom:4}}>{versionAsk.spec.label}</div>
             <div style={{fontSize:12.5,color:"var(--bz-ink-2)",lineHeight:1.6,marginBottom:14}}>
               <strong style={{color:"#fff"}}>{versionAsk.card.hero || versionAsk.card.playName}</strong>
@@ -40309,16 +40346,40 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
               {versionAsk.spec.help ? <> {"\u2014"} {versionAsk.spec.help}</> : null}
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {versionAsk.spec.options.map(opt => (
-                <button key={opt} onClick={()=>confirmVersion(opt)}
-                  style={{width:"100%",background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.45)",color:"#4ade80",borderRadius:10,padding:"12px",fontSize:13.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
-                  {opt}
-                </button>
-              ))}
-              <button onClick={()=>setVersionAsk(null)}
-                style={{width:"100%",background:"transparent",border:"1px solid #333",color:"#999",borderRadius:10,padding:"10px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",marginTop:2}}>
-                Cancel
-              </button>
+              {versionAsk.spec.options.map(opt => {
+                const n = versionAsk.counts?.[opt] || 0;
+                const bump = d => setVersionAsk(v => ({ ...v, counts: { ...(v.counts||{}), [opt]: Math.max(0, (v.counts?.[opt]||0) + d) } }));
+                return (
+                  <div key={opt} style={{display:"flex",alignItems:"center",gap:10,background:n>0?"rgba(74,222,128,0.1)":"rgba(255,255,255,0.03)",border:"1px solid "+(n>0?"rgba(74,222,128,0.45)":"#2a2a2a"),borderRadius:10,padding:"8px 10px"}}>
+                    <span style={{flex:1,fontSize:13.5,fontWeight:800,color:n>0?"#4ade80":"var(--bz-ink-2)"}}>{opt}</span>
+                    <button onClick={()=>bump(-1)} disabled={n===0}
+                      style={{background:"transparent",border:"none",color:n>0?"#4ade80":"rgba(255,255,255,0.2)",fontSize:19,fontWeight:900,cursor:n>0?"pointer":"default",padding:"2px 10px",fontFamily:"inherit",lineHeight:1}}>
+                      {"\u2212"}
+                    </button>
+                    <span style={{minWidth:22,textAlign:"center",fontSize:15,fontWeight:900,color:n>0?"#fff":"rgba(255,255,255,0.3)"}}>{n}</span>
+                    <button onClick={()=>bump(1)}
+                      style={{background:"transparent",border:"none",color:"#4ade80",fontSize:19,fontWeight:900,cursor:"pointer",padding:"2px 10px",fontFamily:"inherit",lineHeight:1}}>
+                      +
+                    </button>
+                  </div>
+                );
+              })}
+              {(() => {
+                const counts = versionAsk.counts || {};
+                const total = versionAsk.spec.options.reduce((s,o)=>s+(counts[o]||0), 0);
+                return (
+                  <>
+                    <button onClick={()=>confirmVersion(counts)} disabled={total===0}
+                      style={{width:"100%",marginTop:4,background:total?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#222",color:total?"#fff":"#666",border:"none",borderRadius:10,padding:"12px",fontSize:13.5,fontWeight:900,cursor:total?"pointer":"default",fontFamily:"inherit"}}>
+                      {total===0 ? "Choose how many" : `Add ${total} card${total===1?"":"s"}`}
+                    </button>
+                    <button onClick={()=>setVersionAsk(null)}
+                      style={{width:"100%",background:"transparent",border:"1px solid #333",color:"#999",borderRadius:10,padding:"10px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                      Cancel
+                    </button>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -42351,6 +42412,56 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                     <MultiFilter label="All Treatments" options={treatments} sel={filterTreat}  setSel={setFilterTreat}  openKey="treat"/>
                     <MultiFilter label="All Weapons"    options={weapons}    sel={filterWeapon} setSel={setFilterWeapon} openKey="weapon"/>
                   </>
+                );
+              })()}
+              {/* Per-print set progress. Alpha Blast Hot Dogs are two 30-card runs that share card
+                  numbers, so "how many Hot Dogs do I have" is ambiguous \u2014 you can hold 30 cards and
+                  still be missing half of each print. Counts DISTINCT names per version, because the
+                  goal is completing a run, not stacking duplicates. */}
+              {(() => {
+                if (filterSet.size !== 1) return null;
+                const theSet = [...filterSet][0];
+                const pool = cards.filter(c => c.setName === theSet);
+                const spec = pool.map(versionSpecFor).find(Boolean);
+                if (!spec) return null;
+                const tracked = pool.filter(c => versionSpecFor(c));
+                const nameOf = c => (c.hero || c.playName || "").trim().toLowerCase();
+                const target = new Set(tracked.map(nameOf).filter(Boolean)).size;
+                if (!target) return null;
+                const byVersion = {};
+                spec.options.forEach(o => byVersion[o] = new Set());
+                let unassigned = 0;
+                tracked.forEach(card => {
+                  if (!owned[card.id]) return;
+                  const seen = new Set((lots||[]).filter(l => l.cardId === card.id).map(l => l.version).filter(Boolean));
+                  if (seen.size === 0) { unassigned++; return; }
+                  seen.forEach(v => { if (byVersion[v]) byVersion[v].add(nameOf(card)); });
+                });
+                return (
+                  <div style={{display:"flex",gap:10,flexWrap:"wrap",width:"100%",marginTop:4}}>
+                    {spec.options.map(opt => {
+                      const have = byVersion[opt].size;
+                      const pct  = target ? Math.round((have/target)*100) : 0;
+                      const done = have >= target;
+                      return (
+                        <div key={opt} style={{flex:"1 1 180px",minWidth:170,background:done?"rgba(74,222,128,0.1)":"rgba(255,255,255,0.03)",border:"1px solid "+(done?"rgba(74,222,128,0.45)":"rgba(255,255,255,0.1)"),borderRadius:10,padding:"9px 11px"}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,marginBottom:5}}>
+                            <span style={{fontSize:11.5,fontWeight:800,color:done?"#4ade80":"var(--bz-ink)"}}>{done?"\u2705 ":""}{opt}</span>
+                            <span style={{fontSize:12.5,fontWeight:900,color:done?"#4ade80":"#E8317A"}}>{have}/{target}</span>
+                          </div>
+                          <div style={{height:5,background:"rgba(0,0,0,0.4)",borderRadius:3,overflow:"hidden"}}>
+                            <div style={{height:"100%",width:`${pct}%`,background:done?"#4ade80":"linear-gradient(90deg,#E8317A,#7B2FF7)",borderRadius:3}}/>
+                          </div>
+                          {!done && <div style={{fontSize:10,color:"var(--bz-ink-3)",marginTop:4}}>{target-have} to go</div>}
+                        </div>
+                      );
+                    })}
+                    {unassigned>0 && (
+                      <div style={{flex:"1 1 100%",fontSize:10.5,color:"#FBBF24",lineHeight:1.5}}>
+                        {unassigned} card{unassigned===1?"":"s"} you own {unassigned===1?"has":"have"} no print recorded {"\u2014"} set it under {"\uD83D\uDCB0"} Details so it counts toward a run.
+                      </div>
+                    )}
+                  </div>
                 );
               })()}
               {/* Sub-set chips (e.g. World Champions Series → L.A. / Philadelphia / Oklahoma City) */}
