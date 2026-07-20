@@ -33684,19 +33684,24 @@ See you in there!
     if (!ask) return;
     setVersionAsk(null);
     const cardId = ask.card.id;
+    const prevQty = parseInt(owned[cardId]) || 0;
+    const target  = Math.max(prevQty + 1, parseInt(ask.targetQty) || prevQty + 1);
+    const adding  = target - prevQty;
     let saved = null;
     setOwned(prev => {
       const next = { ...prev };
-      next[cardId] = (parseInt(next[cardId]) || 0) + 1;
+      next[cardId] = target;
       saved = next;
       return next;
     });
     if (saved) queueOwnedSave(saved);
     // A lot carries the version. Everything else is left blank so this stays a one-tap add \u2014 cost
     // and condition can be filled in later from Details if the person cares.
-    const lot = { id: uid(), cardId, version, cost:null, value:null, method:"purchased",
-                  date: todayLocal(), notes:"", serial:"" };
-    const nextLots = [...(lots||[]), lot];
+    const newLots = Array.from({length: adding}, () => ({
+      id: uid(), cardId, version, cost:null, value:null, method:"purchased",
+      date: todayLocal(), notes:"", serial:"",
+    }));
+    const nextLots = [...(lots||[]), ...newLots];
     setLots(nextLots);
     if (user) { try { await setDoc(doc(db,"boba_lots",user.uid), { lots: nextLots }); } catch(e){ console.error("save version lot failed:", e); } }
     setCardFx({ type:"caught", card: ask.card });
@@ -33754,7 +33759,7 @@ See you in there!
     if (!wasOwned) {
       const card = cards.find(x=>x.id===cardId);
       const spec = versionSpecFor(card);
-      if (spec) { setVersionAsk({ card, spec }); return; }
+      if (spec) { setVersionAsk({ card, spec, targetQty: 1 }); return; }
     }
     // Functional update for the same reason as setOwnedQty: adding two cards in quick succession
     // must not have the second write built from a snapshot taken before the first.
@@ -33771,6 +33776,16 @@ See you in there!
   async function setOwnedQty(cardId, qty) {
     if (!user) return;
     const wasOwned = !!owned[cardId];
+    // The stepper "+" comes through here rather than toggleOwned, so the print question has to be
+    // asked here too \u2014 otherwise adding from the grid stepper silently skips it. Only when the count
+    // is going UP, and only for cards that have more than one print.
+    const prevQty = parseInt(owned[cardId]) || 0;
+    if (qty > prevQty) {
+      const card = cards.find(x=>x.id===cardId);
+      const spec = versionSpecFor(card);
+      // Carry the target so a jump from 1 to 3 records the right number of copies, not just one.
+      if (spec) { setVersionAsk({ card, spec, targetQty: qty }); return; }
+    }
     // FUNCTIONAL UPDATE, not `{...owned}`. Reading `owned` from the render closure meant two quick
     // clicks on different cards both built from the SAME stale snapshot \u2014 so adding Ice right after
     // Fire wrote a map that never had Fire in it, silently wiping the first card. Building from the
