@@ -20639,9 +20639,30 @@ function CardSetImporter({ userRole }) {
     try {
       const lines = bulkText.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
       if (!lines.length) { setBulkMsg({ok:false,text:"Nothing pasted."}); setBulkBusy(false); return; }
-      const split = l => l.includes("\t") ? l.split("\t") : l.split(",");
-      const head = split(lines[0]).map(h=>h.trim().toLowerCase().replace(/[^a-z]/g,""));
-      const known = ["set","setname","cardnum","cardnumber","number","hero","treatment","weapon","power","playname","athlete"];
+      // Real CSVs quote any field containing a comma \u2014 and treatments like "Grandma's Linoleum, Fire"
+      // do. A naive split on "," tears those rows apart, which is why a clean export can come back
+      // as "unusable" on every line. This respects quotes and doubled "" escapes.
+      const split = (line) => {
+        if (line.includes("\t") && !line.includes('"')) return line.split("\t");
+        const out = []; let cur = "", inQ = false;
+        for (let i=0; i<line.length; i++) {
+          const ch = line[i];
+          if (inQ) {
+            if (ch === '"') { if (line[i+1] === '"') { cur += '"'; i++; } else inQ = false; }
+            else cur += ch;
+          } else if (ch === '"') inQ = true;
+          else if (ch === "," || ch === "\t") { out.push(cur); cur = ""; }
+          else cur += ch;
+        }
+        out.push(cur);
+        return out;
+      };
+      // Header names are normalised by stripping everything except letters, which turns the very
+      // header this tool documents \u2014 "Card #" \u2014 into "card", matching none of the known keys. Every
+      // row then failed for a missing card number. Keep digits, and accept the short forms too.
+      const head = split(lines[0]).map(h=>h.trim().toLowerCase().replace(/[^a-z0-9]/g,""));
+      const known = ["set","setname","cardnum","cardnumber","cardno","card","number","num","no",
+                     "hero","treatment","weapon","power","pwr","playname","athlete"];
       const hasHeader = head.some(h=>known.includes(h));
       const cols = hasHeader ? head : null;
       const at = (parts, names) => {
@@ -20654,11 +20675,11 @@ function CardSetImporter({ userRole }) {
       for (const parts of rows) {
         const card = cols ? {
           setName:   at(parts,["setname","set"]) || "",
-          cardNum:   at(parts,["cardnum","cardnumber","number"]) || "",
+          cardNum:   at(parts,["cardnum","cardnumber","cardno","card","number","num","no"]) || "",
           hero:      at(parts,["hero"]) || "",
           treatment: at(parts,["treatment"]) || "",
           weapon:    at(parts,["weapon"]) || "",
-          power:     at(parts,["power"]) || "",
+          power:     at(parts,["power","pwr"]) || "",
           playName:  at(parts,["playname"]) || "",
           athlete:   at(parts,["athlete"]) || "",
         } : {
@@ -20667,7 +20688,16 @@ function CardSetImporter({ userRole }) {
           treatment:(parts[3]||"").trim(), weapon:(parts[4]||"").trim(), power:(parts[5]||"").trim(),
           playName:"", athlete:"",
         };
-        if (!card.hero || !card.setName || !card.cardNum) { bad.push({ card, why:"needs Set, Card #, and Hero" }); continue; }
+        // Say WHICH field is missing. "needs Set, Card # and Hero" on all 133 rows does not tell you
+        // whether the header was misread or one column is genuinely blank.
+        if (!card.hero || !card.setName || !card.cardNum) {
+          const miss = [];
+          if (!card.setName) miss.push("Set");
+          if (!card.cardNum) miss.push("Card #");
+          if (!card.hero)    miss.push("Hero");
+          bad.push({ card, why: "missing " + miss.join(", ") + (cols ? "" : " (no header row found \u2014 columns read by position)") });
+          continue;
+        }
         card.id = checklistCardId(card);
         if (create.some(x=>x.id===card.id)) { bad.push({ card, why:"duplicate row in your paste" }); continue; }
         create.push(card);
@@ -20679,7 +20709,7 @@ function CardSetImporter({ userRole }) {
         const snaps = await Promise.all(batch.map(x=>getDoc(doc(db,"boba_checklist",x.id)).catch(()=>null)));
         snaps.forEach((s,k)=>{ if (s && s.exists()) existing.push({...batch[k], _was:s.data()}); else stillNew.push(batch[k]); });
       }
-      setBulkPreview({ create: stillNew, existing, bad });
+      setBulkPreview({ create: stillNew, existing, bad, header: cols, rowCount: rows.length });
     } catch(e) {
       setBulkMsg({ok:false,text:"Couldn't read that: "+(e?.message||e)});
     }
@@ -21162,6 +21192,27 @@ function CardSetImporter({ userRole }) {
               <strong style={{color:"#bbb"}}> Set, Card #, Hero, Treatment, Weapon, Power</strong> — or paste in that order without one.
               Weapon matters: Skyline Fire, Skyline Ice and Skyline Glow are three different cards.
             </div>
+            {/* Upload the CSV directly. Pasting a large export into a textarea is where rows get
+                mangled \u2014 truncated, re-wrapped, or stripped of quoting by the clipboard \u2014 so reading
+                the file itself removes a whole class of "every row is unusable" failures. */}
+            <label style={{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.45)",color:"#7B9CFF",borderRadius:8,padding:"8px 13px",fontSize:12.5,fontWeight:800,cursor:"pointer",marginBottom:10}}>
+              {"\uD83D\uDCC4"} Choose CSV file
+              <input type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" style={{display:"none"}}
+                onChange={async e => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";               // allow re-picking the same file
+                  if (!f) return;
+                  try {
+                    const text = await f.text();
+                    setBulkText(text);
+                    setBulkPreview(null);
+                    setBulkMsg({ ok:true, text:`Loaded ${f.name} \u2014 press Preview to check it before anything is written.` });
+                  } catch (err) {
+                    setBulkMsg({ ok:false, text:"Couldn't read that file: " + (err?.message || err) });
+                  }
+                }}/>
+            </label>
+            <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:8}}>{"\u2026"}or paste the rows below.</div>
             <textarea value={bulkText} onChange={e=>{setBulkText(e.target.value); setBulkPreview(null);}}
               rows={7} placeholder={"Set\tCard #\tHero\tTreatment\tWeapon\tPower\n2025 Tecmo Bowl\tS130\tMajik Man\tSkyline\tGlow\t80"}
               style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:12,color:"#fff",fontFamily:"ui-monospace,monospace",lineHeight:1.5}}/>
@@ -21184,6 +21235,14 @@ function CardSetImporter({ userRole }) {
 
             {bulkPreview && (
               <div style={{marginTop:12,display:"flex",flexDirection:"column",gap:10}}>
+                {/* Show what the parser actually understood. If the header was misread, every row
+                    fails for the same reason and this is the fastest way to see why. */}
+                <div style={{fontSize:10.5,color:"var(--bz-ink-3)",lineHeight:1.6}}>
+                  {bulkPreview.header
+                    ? <>Header detected: <span style={{color:"#7B9CFF",fontWeight:700}}>{bulkPreview.header.join(", ")}</span></>
+                    : <span style={{color:"#FBBF24",fontWeight:700}}>No header row found {"\u2014"} columns read by position: Set, Card #, Hero, Treatment, Weapon, Power</span>}
+                  {" \u00b7 "}{bulkPreview.rowCount} row{bulkPreview.rowCount===1?"":"s"} read
+                </div>
                 <div style={{display:"flex",gap:14,flexWrap:"wrap",fontSize:12,fontWeight:800}}>
                   <span style={{color:"#4ade80"}}>{bulkPreview.create.length} new</span>
                   <span style={{color:"#888"}}>{bulkPreview.existing.length} already in database</span>
