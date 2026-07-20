@@ -39094,6 +39094,23 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   <div style={{ fontSize:30, fontWeight:900, color:"#fff", lineHeight:1.05 }}>{c.hero}</div>
                   {ath && <div style={{ fontSize:14, color:"#999", marginTop:4 }}>🏅 Inspired by <strong style={{ color:"#ccc" }}>{ath}</strong>{sport && <span style={{ display:"inline-flex", alignItems:"center", gap:3, marginLeft:8, background:"rgba(232,49,122,0.12)", border:"1px solid rgba(232,49,122,0.3)", borderRadius:6, padding:"1px 8px", fontSize:12, fontWeight:700, color:"#E8317A" }}>{emoji} {sport}</span>}</div>}
                 </div>
+                {/* Error-card flag. This existed only on the small card's BACK face, so opening the
+                    full detail view \u2014 the place you go precisely to check a card \u2014 showed nothing. If a
+                    card is a known misprint or has had its power corrected, that belongs here. */}
+                {c.isError && (
+                  <div style={{ display:"flex", alignItems:"flex-start", gap:8, background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.4)", borderRadius:10, padding:"9px 12px" }}>
+                    <span style={{ fontSize:14, lineHeight:1.3 }}>{"\u26A0\uFE0F"}</span>
+                    <div>
+                      <div style={{ fontSize:12.5, fontWeight:900, color:"#FBBF24" }}>Error card</div>
+                      {c.errorNote && <div style={{ fontSize:11.5, color:"rgba(255,255,255,0.65)", lineHeight:1.55, marginTop:2 }}>{c.errorNote}</div>}
+                      {c.originalPower!=null && c.originalPower!=="" && String(c.originalPower)!==String(c.power) && (
+                        <div style={{ fontSize:11, color:"rgba(255,255,255,0.45)", marginTop:3 }}>
+                          Power was {c.originalPower}, now {c.power}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                   {c.power && <div style={{ fontSize:15, fontWeight:900, color:wc, background:wc+"18", border:`1px solid ${wc}44`, borderRadius:8, padding:"4px 12px" }}>{c.power}⚡ POWER</div>}
                   {c.dbs!==undefined && c.dbs!=="" && <div style={{ fontSize:15, fontWeight:900, color:"#C084FC", background:"rgba(192,132,252,0.12)", border:"1px solid #C084FC44", borderRadius:8, padding:"4px 12px" }}>DBS {c.dbs}</div>}
