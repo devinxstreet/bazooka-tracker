@@ -35683,6 +35683,7 @@ See you in there!
     let matched=0, skipped=0, done=0, kept=0;   // kept = already had art, left alone
     window._bulkErrShown = false;
     const skippedNames=[];
+    const diagLines=[];   // why each unmatched file failed
     setBulkProg({done:0,total:list.length,matched:0,skipped:0,status:"Starting…"});
 
     // Build the candidate pool for a specific treatment (used per-file)
@@ -35808,11 +35809,33 @@ See you in there!
       try {
         const fileTreatment = treatmentForFile(file);
         const pool = poolFor(fileTreatment);
+        // When a folder comes back "0 matched" the summary cannot say WHY \u2014 wrong set, empty pool,
+        // or names the matchers do not recognise. Record the decision inputs per file so the
+        // downloaded report explains it without needing developer tools.
+        const diag = [];
+        diag.push(`FILE: ${file.name}`);
+        diag.push(`  set picked : ${setName || "(all sets)"}`);
+        diag.push(`  treatment  : ${fileTreatment || "(none \u2014 not filtered)"}`);
+        diag.push(`  candidates : ${pool.length}`);
+        if(pool.length === 0){
+          diag.push("  >> NOTHING TO MATCH AGAINST. The set or treatment filter excluded every card.");
+        } else {
+          diag.push("  examples   : " + pool.slice(0,3).map(c=>`${c.hero} / ${c.treatment} / ${c.weapon||"-"} / #${c.cardNum}`).join("  |  "));
+        }
         // Try filename FIRST — it usually contains the exact card number (e.g. "2026-Griffey-BBF-1.jpg" → BBF-1).
         let card = filenameFind(file.name, pool);
-        // Hero name next \u2014 cheap, offline, and correct even when the checklist's card number is wrong.
-        if(!card && bulkImgHeroMatch) card = heroFind(file.name, pool);
-        if(!card) card = await visionFind(file, pool, fileTreatment);
+        if(card) diag.push(`  MATCHED by card number -> ${card.hero} #${card.cardNum}`);
+        if(!card && bulkImgHeroMatch){
+          card = heroFind(file.name, pool);
+          if(card) diag.push(`  MATCHED by hero name -> ${card.hero} ${card.weapon||""} #${card.cardNum}`);
+          else diag.push("  hero name: no match");
+        }
+        if(!card){
+          card = await visionFind(file, pool, fileTreatment);
+          if(card) diag.push(`  MATCHED by photo scan -> ${card.hero} #${card.cardNum}`);
+          else diag.push("  photo scan: no match");
+        }
+        if(!card) diagLines.push(diag.join("\n"));
         if(!card){ skipped++; skippedNames.push(file.name); done++; setBulkProg({done,total:list.length,matched,skipped,status:`No match: ${file.name}`}); return; }
         // Counting these as "matched" made the summary claim success while nothing was written —
         // the report said it worked and the images never changed. Tracked separately now.
@@ -35833,7 +35856,23 @@ See you in there!
     for(let i=0;i<list.length;i+=PAR){ await Promise.all(list.slice(i,i+PAR).map(one)); }
 
     // Regenerate the snapshot + bump version so EVERY viewer sees it, and reload THIS page's cards now.
-    setBulkProg({done:list.length,total:list.length,matched,skipped,status:"Saving & refreshing…"});
+    // Work out the single most useful sentence about why nothing matched, so the on-screen panel
+    // can explain it without the person opening the report.
+    let why = null;
+    if (matched === 0 && list.length > 0) {
+      const poolNow = poolFor(treatment || "");
+      if (poolNow.length === 0) {
+        why = setName
+          ? `No cards found in "${setName}"` + (treatment ? ` with treatment "${treatment}".` : ".") +
+            `\n\nCheck the Set (and Treatment) picker \u2014 the names have to match the checklist exactly.`
+          : "No cards matched the filters, so there was nothing to attach images to.";
+      } else {
+        why = `Found ${poolNow.length} candidate card${poolNow.length===1?"":"s"}, but none of the filenames ` +
+              `matched a card number or hero name.\n\nA report has downloaded showing what each file was compared against.`;
+      }
+    }
+    setBulkProg({done:list.length,total:list.length,matched,skipped,why,status:"Saving & refreshing…"});
+
     try {
       const snap2 = await getDocs(collection(db,"boba_checklist"));
       const all = snap2.docs.map(d=>({...d.data(), id:d.id}));
@@ -35845,10 +35884,15 @@ See you in there!
       setCards(all); // <-- update THIS page immediately
     } catch(e){ console.warn("snapshot/refresh failed",e); }
 
-    if(skippedNames.length){ try{ const b=new Blob([`Unmatched (${skippedNames.length}):\n\n`+skippedNames.join("\n")],{type:"text/plain"}); const u=URL.createObjectURL(b); const a=document.createElement("a"); a.href=u; a.download=`unmatched-${new Date().toISOString().slice(0,10)}.txt`; a.click(); URL.revokeObjectURL(u);}catch(e){} }
-    setBulkProg({done:list.length,total:list.length,matched,skipped,status:`✅ Done — ${matched} imported, ${skipped} skipped`});
-    setToast(`✅ Imported ${matched} images${skipped?`, ${skipped} skipped`:""}`);
-    setTimeout(()=>setBulkProg(null), 6000);
+    if(skippedNames.length){ try{ const b=new Blob([`Unmatched (${skippedNames.length}):\n\n`+skippedNames.join("\n")+"\n\n\n=== WHY EACH FILE DID NOT MATCH ===\n\n"+diagLines.join("\n\n")],{type:"text/plain"}); const u=URL.createObjectURL(b); const a=document.createElement("a"); a.href=u; a.download=`unmatched-${new Date().toISOString().slice(0,10)}.txt`; a.click(); URL.revokeObjectURL(u);}catch(e){} }
+    // Keep `why` on the final state, or the explanation is wiped the moment the run ends.
+    setBulkProg({done:list.length,total:list.length,matched,skipped,why,
+      status: matched>0 ? `✅ Done — ${matched} imported, ${skipped} skipped`
+                        : `⚠️ Nothing matched — ${skipped} file${skipped===1?"":"s"} skipped`});
+    setToast(matched>0 ? `✅ Imported ${matched} images${skipped?`, ${skipped} skipped`:""}`
+                       : `⚠️ No images matched — see the panel for why`);
+    // When it worked, get out of the way. When it did not, stay open so the reason can be read.
+    if (matched > 0) setTimeout(()=>setBulkProg(null), 6000);
   }
   // -- Reviews (buyer rates seller, tied to a completed sale) --
   const reviewedSaleIds = new Set(myReviews.map(r=>r.saleId));
@@ -39155,6 +39199,20 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             </div>
             <div style={{fontSize:13,color:"#ccc",marginBottom:6}}>{bulkProg.done} / {bulkProg.total} — <span style={{color:"#4ade80"}}>{bulkProg.matched} matched</span>{bulkProg.skipped?<span style={{color:"#FBBF24"}}>, {bulkProg.skipped} skipped</span>:null}</div>
             <div style={{fontSize:11,color:"#a0a0a0",minHeight:16,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis"}}>{bulkProg.status}</div>
+            {/* When nothing matches, say WHY on screen. The downloaded report has the per-file detail,
+                but the single most common cause \u2014 an empty candidate pool \u2014 should not require opening
+                a text file to discover. */}
+            {bulkProg.why && (
+              <>
+                <div style={{marginTop:12,background:"rgba(251,191,36,0.1)",border:"1px solid rgba(251,191,36,0.4)",borderRadius:9,padding:"10px 12px",fontSize:11.5,color:"#FBBF24",lineHeight:1.6,whiteSpace:"pre-wrap"}}>
+                  {bulkProg.why}
+                </div>
+                <button onClick={()=>setBulkProg(null)}
+                  style={{marginTop:12,width:"100%",background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:9,padding:"9px",fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                  Close
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
