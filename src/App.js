@@ -28527,6 +28527,13 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const [filtSOpen, setFiltSOpen] = useState(false); // sets
   const [filtTOpen, setFiltTOpen] = useState(false); // treatments
   const [filtPOpen, setFiltPOpen] = useState(false); // manual builder: power multi-select picker
+  // Shared by all four filter pickers. It used to live inside the IIFE that renders the first
+  // three, so the power picker \u2014 which sits outside that block \u2014 crashed on render with
+  // "tabBtn is not defined".
+  const [goalWOpen,  setGoalWOpen]  = useState(false); // goal picker: weapons expanded
+  const [giveDeckFor, setGiveDeckFor] = useState(null); // deck id whose "give to family" row is open
+  const tabBtn = (open, active) => ({...inp, width:"auto", cursor:"pointer", textAlign:"left",
+    color: active ? "#fff" : "rgba(255,255,255,0.4)"});
   const [goalTOpen, setGoalTOpen] = useState(false); // treatment picker
   const [progressExpanded, setProgressExpanded] = useState(false);
   // Quick Build starts collapsed: most time in this tab is manual building, and the card grid is
@@ -29074,8 +29081,6 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     </div>
                   );
                   const lab = (sel, none, one) => sel.size===0 ? none : sel.size===1 ? `${Array.from(sel)[0]} ${one}` : `${sel.size} ${none.replace(/^All /,"")}`;
-                  const tabBtn = (open, active) => ({...inp, width:"auto", cursor:"pointer", textAlign:"left",
-                    color: active ? "#fff" : "rgba(255,255,255,0.4)"});
                   return (
                     <>
                       <button onClick={()=>setFiltWOpen(v=>!v)} style={tabBtn(filtWOpen, deckFilterW.size>0)}>
