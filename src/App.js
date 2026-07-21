@@ -16772,6 +16772,7 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
   // True whenever a FILE is being dragged anywhere over the window. Used to arm the per-card drop
   // layers only during a drag, so they never interfere with normal mouse use.
   const [dragActive, setDragActive] = useState(false);
+  const [dropBusy, setDropBusy] = useState(false);  // fetching a dragged-from-web image
   useEffect(()=>{
     if(!(isAdmin && onImageUpload)) return;
     let depth = 0;
@@ -17031,8 +17032,8 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
             transparent and only lights up once a drag is actually over the card. */}
         {isAdmin && onImageUpload && (
           <div style={{ position:"absolute", inset:0, zIndex:45, borderRadius:10,
-            border: dragOver ? "2px dashed #4ade80" : "none",
-            background: dragOver ? "rgba(74,222,128,0.18)" : "transparent",
+            border: (dragOver||dropBusy) ? "2px dashed #4ade80" : "none",
+            background: (dragOver||dropBusy) ? "rgba(74,222,128,0.18)" : "transparent",
             display:"flex", alignItems:"center", justifyContent:"center",
             fontSize:11, fontWeight:900, color:"#4ade80", textAlign:"center", padding:8,
             // Only becomes a real hit target while a file is being dragged over the page. The rest of
@@ -17040,24 +17041,58 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
             // untouched. dragActive is driven by a window-level dragenter, which fires regardless of
             // what is underneath \u2014 unlike the card's own handlers, which the 3D-transformed flipper
             // can swallow.
-            pointerEvents: dragActive ? "auto" : "none" }}
+            pointerEvents: (dragActive||dropBusy) ? "auto" : "none" }}
             onDragOver={e=>{ e.preventDefault(); e.stopPropagation(); if(!dragOver) setDragOver(true); }}
             onDragLeave={e=>{ if(e.currentTarget.contains(e.relatedTarget)) return; setDragOver(false); }}
-            onDrop={e=>{
+            onDrop={async e=>{
               e.preventDefault(); e.stopPropagation();
               setDragOver(false);
               const dt = e.dataTransfer;
+
+              // 1. A real file from disk \u2014 the simple case.
               const f = [...(dt?.files||[])].find(x=>x.type.startsWith("image/"));
               if(f){ onImageUpload(c, f); return; }
-              const kinds = dt ? [...(dt.items||[])].map(i=>`${i.kind}:${i.type}`).join(", ") : "none";
-              alert(
-                "Nothing was uploaded \u2014 that drop carried no image FILE.\n\n" +
-                `What arrived: ${kinds || "(nothing)"}\n\n` +
-                "Dragging a picture out of another browser tab usually sends a link, not a file. " +
-                "Save the image to your computer first, then drag it from there."
-              );
+
+              // 2. Dragged out of another browser tab. No file is transferred, only a URL, because
+              //    the image lives on a remote server. Fetch it and turn it into a file ourselves.
+              //    Grabbing thousands of checklist images one save-dialog at a time is not viable,
+              //    so this path is worth the extra handling.
+              const uri = (dt?.getData?.("text/uri-list") || dt?.getData?.("text/plain") || "").trim();
+              const url = uri.split(/[\r\n]/).find(l=>/^https?:\/\//i.test(l));
+              if(!url){
+                alert("That drop carried no image and no link. Save the picture to your computer, then drag it from there.");
+                return;
+              }
+              try {
+                setDropBusy(true);
+                let blob = null;
+                // Direct fetch works when the host allows cross-origin reads.
+                try {
+                  const r = await fetch(url, { mode:"cors" });
+                  if(r.ok){ const b = await r.blob(); if(b.type.startsWith("image/")) blob = b; }
+                } catch(_) {}
+                // Otherwise go through our own server, which is not bound by CORS.
+                if(!blob){
+                  const r2 = await fetch("/api/fetch-image", {
+                    method:"POST", headers:{"Content-Type":"application/json"},
+                    body: JSON.stringify({ url }),
+                  });
+                  if(r2.ok){ const b2 = await r2.blob(); if(b2.type.startsWith("image/")) blob = b2; }
+                }
+                if(!blob) throw new Error("could not read that image");
+                const name = (url.split("/").pop()||"dropped").split("?")[0] || "dropped.jpg";
+                onImageUpload(c, new File([blob], name, { type: blob.type || "image/jpeg" }));
+              } catch(err) {
+                alert(
+                  "Couldn't pull that image from the web.\n\n" +
+                  (err?.message || err) + "\n\n" +
+                  "Some sites block this. Save the picture to your computer and drag it from there instead."
+                );
+              } finally {
+                setDropBusy(false);
+              }
             }}>
-            {dragOver ? "Drop image" : null}
+            {dropBusy ? "Fetching\u2026" : dragOver ? "Drop image" : null}
           </div>
         )}
         <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transition:"transform 0.2s ease, box-shadow 0.2s ease", borderRadius:10, cursor:"pointer", willChange:"transform" }} onClick={handleClick}>
@@ -28736,7 +28771,18 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const DECK_PAGE_SIZE = 60;
   const ownedCount = owned ? Object.keys(owned).filter(id=>owned[id]).length : 0;
   const deckSet = useMemo(()=>new Set(deckCards), [deckCards]);
-  const inDeck = useMemo(()=>cards.filter(c=>deckSet.has(c.id)), [cards, deckSet]);
+  // Highest power first. The deck inherited whatever order the catalog happened to be in, which
+  // makes it hard to scan a built deck and confirm it is right \u2014 and power is the thing you are
+  // actually checking. Every view (grid, expand, fan) derives from this array, so sorting once
+  // here orders all of them. Ties fall back to hero name so the order is stable rather than
+  // shuffling between renders.
+  const inDeck = useMemo(()=>{
+    const p = c => { const n = parseFloat(c?.power); return isNaN(n) ? -Infinity : n; };
+    return cards
+      .filter(c=>deckSet.has(c.id))
+      .slice()
+      .sort((a,b)=> p(b)-p(a) || String(a.hero||"").localeCompare(String(b.hero||"")));
+  }, [cards, deckSet]);
   const isSpec = deckType==="spec"||deckType==="vegasbaby", isAM = deckType==="apexmadness";
   const [deckListView, setDeckListView] = useState("mine");   // "mine" | "family"
   const dupKey = c=>`${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
@@ -39069,7 +39115,15 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
   return (
     <div style={{minHeight:"100vh",background:"#000",color:"var(--bz-ink)",fontFamily:"'Trebuchet MS',sans-serif"}}>
       {fanDeck && (()=>{
-        const cards = fanDeck.cards||[];
+        // Sort here too rather than trusting every caller. This view is opened from the deck
+        // builder, the playbook, and the saved-deck list, and a saved deck is rebuilt from stored
+        // ids in whatever order they were written \u2014 so relying on the caller would leave some
+        // entry points unsorted.
+        const cards = (()=>{
+          const pw = x => { const n = parseFloat(x?.power); return isNaN(n) ? -Infinity : n; };
+          return (fanDeck.cards||[]).slice()
+            .sort((a,b)=> pw(b)-pw(a) || String(a.hero||"").localeCompare(String(b.hero||"")));
+        })();
         const n = cards.length;
         const mid = (n-1)/2;
         // Fan geometry: spread WIDE left-to-right. Cards overlap horizontally,
