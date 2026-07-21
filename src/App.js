@@ -16773,6 +16773,51 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
   // layers only during a drag, so they never interfere with normal mouse use.
   const [dragActive, setDragActive] = useState(false);
   const [dropBusy, setDropBusy] = useState(false);  // fetching a dragged-from-web image
+
+  // One shared drop handler. The card has a drop layer over the artwork, but a card with NO image
+  // shows a placeholder with its own "Add Image" label that sits above that layer and stops event
+  // propagation \u2014 so blank cards, the exact ones you are trying to fill, never received the drop.
+  // Both attach this.
+  async function acceptDroppedImage(e){
+    e.preventDefault(); e.stopPropagation();
+    setDragOver(false);
+    const dt = e.dataTransfer;
+
+    // A real file from disk.
+    const f = [...(dt?.files||[])].find(x=>x.type.startsWith("image/"));
+    if(f){ onImageUpload(c, f); return; }
+
+    // Dragged out of another tab: only a URL is transferred, since the image is on a remote server.
+    const uri = (dt?.getData?.("text/uri-list") || dt?.getData?.("text/plain") || "").trim();
+    const url = uri.split(/[\r\n]/).find(l=>/^https?:\/\//i.test(l));
+    if(!url){ alert("That drop carried no image and no link. Save the picture first, then drag it from your computer."); return; }
+    try {
+      setDropBusy(true);
+      let blob = null;
+      try {
+        const r = await fetch(url, { mode:"cors" });
+        if(r.ok){ const b = await r.blob(); if(b.type.startsWith("image/")) blob = b; }
+      } catch(_) {}
+      if(!blob){
+        const r2 = await fetch("/api/fetch-image", {
+          method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ url }),
+        });
+        if(r2.ok){ const b2 = await r2.blob(); if(b2.type.startsWith("image/")) blob = b2; }
+        else { let m=""; try{ m=(await r2.json())?.error||""; }catch(_){} throw new Error(m || `server said ${r2.status}`); }
+      }
+      if(!blob) throw new Error("could not read that image");
+      const name = (url.split("/").pop()||"dropped").split("?")[0] || "dropped.jpg";
+      onImageUpload(c, new File([blob], name, { type: blob.type || "image/jpeg" }));
+    } catch(err) {
+      alert("Couldn't pull that image from the web.\n\n" + (err?.message || err) +
+            "\n\nIf this keeps happening, save the picture and drag it from your computer.");
+    } finally { setDropBusy(false); }
+  }
+  const dropProps = (isAdmin && onImageUpload) ? {
+    onDragOver: e=>{ e.preventDefault(); e.stopPropagation(); if(!dragOver) setDragOver(true); },
+    onDragLeave: e=>{ if(e.currentTarget.contains(e.relatedTarget)) return; setDragOver(false); },
+    onDrop: acceptDroppedImage,
+  } : {};
   useEffect(()=>{
     if(!(isAdmin && onImageUpload)) return;
     let depth = 0;
@@ -17044,54 +17089,7 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
             pointerEvents: (dragActive||dropBusy) ? "auto" : "none" }}
             onDragOver={e=>{ e.preventDefault(); e.stopPropagation(); if(!dragOver) setDragOver(true); }}
             onDragLeave={e=>{ if(e.currentTarget.contains(e.relatedTarget)) return; setDragOver(false); }}
-            onDrop={async e=>{
-              e.preventDefault(); e.stopPropagation();
-              setDragOver(false);
-              const dt = e.dataTransfer;
-
-              // 1. A real file from disk \u2014 the simple case.
-              const f = [...(dt?.files||[])].find(x=>x.type.startsWith("image/"));
-              if(f){ onImageUpload(c, f); return; }
-
-              // 2. Dragged out of another browser tab. No file is transferred, only a URL, because
-              //    the image lives on a remote server. Fetch it and turn it into a file ourselves.
-              //    Grabbing thousands of checklist images one save-dialog at a time is not viable,
-              //    so this path is worth the extra handling.
-              const uri = (dt?.getData?.("text/uri-list") || dt?.getData?.("text/plain") || "").trim();
-              const url = uri.split(/[\r\n]/).find(l=>/^https?:\/\//i.test(l));
-              if(!url){
-                alert("That drop carried no image and no link. Save the picture to your computer, then drag it from there.");
-                return;
-              }
-              try {
-                setDropBusy(true);
-                let blob = null;
-                // Direct fetch works when the host allows cross-origin reads.
-                try {
-                  const r = await fetch(url, { mode:"cors" });
-                  if(r.ok){ const b = await r.blob(); if(b.type.startsWith("image/")) blob = b; }
-                } catch(_) {}
-                // Otherwise go through our own server, which is not bound by CORS.
-                if(!blob){
-                  const r2 = await fetch("/api/fetch-image", {
-                    method:"POST", headers:{"Content-Type":"application/json"},
-                    body: JSON.stringify({ url }),
-                  });
-                  if(r2.ok){ const b2 = await r2.blob(); if(b2.type.startsWith("image/")) blob = b2; }
-                }
-                if(!blob) throw new Error("could not read that image");
-                const name = (url.split("/").pop()||"dropped").split("?")[0] || "dropped.jpg";
-                onImageUpload(c, new File([blob], name, { type: blob.type || "image/jpeg" }));
-              } catch(err) {
-                alert(
-                  "Couldn't pull that image from the web.\n\n" +
-                  (err?.message || err) + "\n\n" +
-                  "Some sites block this. Save the picture to your computer and drag it from there instead."
-                );
-              } finally {
-                setDropBusy(false);
-              }
-            }}>
+            onDrop={acceptDroppedImage}>
             {dropBusy ? "Fetching\u2026" : dragOver ? "Drop image" : null}
           </div>
         )}
@@ -17213,13 +17211,23 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
   return (
     <div onClick={handleClick} style={{ aspectRatio:"3/4", background:isOwned?"linear-gradient(160deg,#0d2416,#0a1a0a)":"#111111", border:`2px solid ${isOwned?"#4ade80":"#1a1a1a"}`, boxShadow:isOwned?"0 0 0 1px rgba(74,222,128,0.3), 0 4px 16px rgba(74,222,128,0.18)":"none", borderRadius:10, overflow:"hidden", display:"flex", flexDirection:"column", cursor:"pointer" }}>
       {/* "Image coming soon" art placeholder — fills the card-art area */}
-      <div style={{ position:"relative", flex:"1 1 58%", minHeight:0, background:`linear-gradient(135deg, ${wc}18, #0a0a0a 70%)`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", borderBottom:`1px solid ${wc}22` }}>
+      <div {...dropProps} style={{ position:"relative", flex:"1 1 58%", minHeight:0, background:`linear-gradient(135deg, ${wc}18, #0a0a0a 70%)`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", borderBottom:`1px solid ${wc}22` }}>
+        {(dragOver||dropBusy) && (
+          <div style={{ position:"absolute", inset:0, zIndex:5, borderRadius:8, pointerEvents:"none",
+            border:"2px dashed #4ade80", background:"rgba(74,222,128,0.2)",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            fontSize:11, fontWeight:900, color:"#4ade80" }}>
+            {dropBusy ? "Fetching\u2026" : "Drop image"}
+          </div>
+        )}
         <div style={{ fontSize:30, opacity:0.35, marginBottom:6 }}>🃏</div>
         <div style={{ fontSize:9, fontWeight:800, color:"rgba(255,255,255,0.4)", letterSpacing:1.5, textTransform:"uppercase" }}>Image coming soon</div>
         {c.power ? <div style={{ position:"absolute", top:8, right:10, fontSize:13, fontWeight:900, color:wc }}>{c.power}⚡</div> : null}
         {isOwned && <div style={{ position:"absolute", top:6, left:8, fontSize:15 }}>{"\u2705"}</div>}
+        {/* Label stops CLICKS so the card does not open. Drag events still reach the placeholder
+            behind it, which is what carries the drop handler. */}
         {isAdmin && onImageUpload && (
-          <label onClick={e=>e.stopPropagation()} style={{ position:"absolute", bottom:8, background:"rgba(74,222,128,0.15)", border:"1px solid rgba(74,222,128,0.35)", color:"#4ade80", borderRadius:6, padding:"2px 10px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+          <label onClick={e=>e.stopPropagation()} style={{ pointerEvents:"auto", position:"absolute", bottom:8, background:"rgba(74,222,128,0.15)", border:"1px solid rgba(74,222,128,0.35)", color:"#4ade80", borderRadius:6, padding:"2px 10px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
             🖼 Add Image
             <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{ const f=e.target.files?.[0]; if(f) onImageUpload(c,f); e.target.value=""; }}/>
           </label>
