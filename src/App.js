@@ -191,8 +191,17 @@ const fmtOf = t => DECK_FORMATS[t] || DECK_FORMATS.none;
 const COLOR_BATTLEFOILS = new Set([
   "green battlefoil", "orange battlefoil", "blue battlefoil", "pink battlefoil",
 ]);
-const insertKey = (treatment) => {
-  const t = String(treatment||"").toLowerCase().trim();
+// Accepts either a treatment string or a whole card. It needs the card for set-level grouping:
+// everything in Alpha Blast is a single insert regardless of its treatment, and the treatment
+// alone cannot tell you that. Callers that only have a string still work unchanged.
+const insertKey = (arg) => {
+  const isCard = arg && typeof arg === "object";
+  const t = String((isCard ? arg.treatment : arg) || "").toLowerCase().trim();
+  if (isCard) {
+    const set = String(arg.setName || "").toLowerCase();
+    // Whole-set inserts: every card in the set counts toward ONE unlock pile, whatever its finish.
+    if (set.includes("alpha blast")) return "alpha blast";
+  }
   if (t.includes("inspired ink")) return "inspired ink";
   if (COLOR_BATTLEFOILS.has(t)) return "color battlefoil";
   return t;
@@ -201,12 +210,15 @@ const insertKey = (treatment) => {
 const insertLabel = (key, fallback) =>
   key === "inspired ink"     ? "Inspired Ink (all)" :
   key === "color battlefoil" ? "Color Battlefoils (all)" :
+  key === "alpha blast"      ? "Alpha Blast (all)" :
   (fallback || key);
 // Plain "Battlefoil" is the BASE foil parallel, not an insert — it earns no Apex unlock in Madness
 // and can't be one of the six inserts a core is built from. Named foils (Blue Battlefoil, Inspired
 // Ink Battlefoil, 80's Rad Battlefoil…) are real inserts and still count.
 const NON_INSERT_TREATMENTS = new Set(["battlefoil", "base", "paper", ""]);
-const isInsertTreatment = (treatment) => !NON_INSERT_TREATMENTS.has(insertKey(treatment));
+// Takes a treatment string OR a card \u2014 insertKey handles both, and set-level grouping needs the
+// card. A whole-set insert like Alpha Blast is always a real insert, never a base parallel.
+const isInsertTreatment = (arg) => !NON_INSERT_TREATMENTS.has(insertKey(arg));
 
 // Only Plays and Bonus Plays actually have a play cost. The DBS checklist import writes a cost
 // column for every row, so ordinary heroes ended up carrying playCost:0 and rendering a stray
@@ -15514,19 +15526,25 @@ function SharedDeck({ deckId }) {
         // checklist. Firestore `in` queries cap at 30 ids, so chunk them.
         const ids = Array.from(new Set(d.cardIds || []));
         let all = null;
+        // Fetch ONLY this deck's ~60 cards first. This used to download the whole gzipped checklist
+        // \u2014 several megabytes of ~35k cards \u2014 just to display sixty of them, which is why a shared
+        // link sat on a loading screen for so long. Firestore `in` queries cap at 30 ids, so chunk.
         try {
-          all = await readCardSnapshot(false);
-        } catch (e1) {
-          try {
-            const chunks = [];
-            for (let i = 0; i < ids.length; i += 30) chunks.push(ids.slice(i, i + 30));
-            const results = await Promise.all(
-              chunks.map(ch => getDocs(query(collection(db, "boba_checklist"), where(documentId(), "in", ch))))
-            );
-            all = results.flatMap(r => r.docs.map(dd => ({ id: dd.id, ...dd.data() })));
-          } catch (e2) {
-            setErr("Couldn't load the card list. The deck exists, but its cards can't be shown.");
-          }
+          const chunks = [];
+          for (let i = 0; i < ids.length; i += 30) chunks.push(ids.slice(i, i + 30));
+          const results = await Promise.all(
+            chunks.map(ch => getDocs(query(collection(db, "boba_checklist"), where(documentId(), "in", ch))))
+          );
+          const found = results.flatMap(r => r.docs.map(dd => ({ ...dd.data(), id: dd.id })));
+          // Only accept it if we actually resolved the deck. A partial result means some ids are
+          // stale, and the full snapshot is a better source than a half-empty deck.
+          if (found.length >= ids.length) all = found;
+        } catch (e1) { /* fall through to the snapshot */ }
+        // Fallback: the whole checklist. Slower, but it still renders when per-id reads fail or the
+        // deck references cards whose ids have since changed.
+        if (!all) {
+          try { all = await readCardSnapshot(false); }
+          catch (e2) { setErr("Couldn't load the card list. The deck exists, but its cards can't be shown."); }
         }
         setCards(Array.isArray(all) ? all : []);
         if (d.userId) {
@@ -15601,8 +15619,37 @@ function SharedDeck({ deckId }) {
 
   const wrap = { minHeight:"100vh", background:"#0a0a0a", color:"#fff", fontFamily:"'DM Sans',system-ui,sans-serif", padding:"32px 20px" };
 
-  if (loading) return <div style={{...wrap, display:"flex", alignItems:"center", justifyContent:"center"}}>
-    <div style={{color:"rgba(255,255,255,0.4)", fontSize:14}}>Loading deck…</div></div>;
+  // A shared deck link is often the first thing someone sees of Bazooka \u2014 frequently a stranger,
+  // on a phone, from a Whatnot chat. A line of grey text on a black page reads as broken. A skeleton
+  // in the shape of the real thing communicates "this is loading" without needing to say it, and
+  // makes the wait feel shorter because the layout is already there when the cards arrive.
+  if (loading) {
+    const shimmer = { background:"linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.04) 75%)",
+                      backgroundSize:"200% 100%", animation:"deckSkeleton 1.4s ease-in-out infinite" };
+    return (
+      <div style={wrap}>
+        <style>{`
+          @keyframes deckSkeleton { 0%{background-position:200% 0;} 100%{background-position:-200% 0;} }
+          @media (prefers-reduced-motion: reduce){ [data-skel]{animation:none !important;} }
+        `}</style>
+        <div style={{maxWidth:1100, margin:"0 auto", padding:"22px 16px"}}>
+          <div data-skel style={{...shimmer, height:26, width:"46%", borderRadius:7, marginBottom:10}}/>
+          <div data-skel style={{...shimmer, height:14, width:"28%", borderRadius:6, marginBottom:22}}/>
+          <div style={{display:"flex", gap:10, flexWrap:"wrap", marginBottom:22}}>
+            {[0,1,2,3].map(i=>(
+              <div key={i} data-skel style={{...shimmer, height:52, flex:"1 1 120px", minWidth:110, borderRadius:10}}/>
+            ))}
+          </div>
+          <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(104px, 1fr))", gap:10}}>
+            {Array.from({length:18}).map((_,i)=>(
+              // Staggered so the grid ripples rather than pulsing as one block, which looks stuck.
+              <div key={i} data-skel style={{...shimmer, aspectRatio:"3/4", borderRadius:9, animationDelay:`${(i%6)*0.09}s`}}/>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (err || !deck) return <div style={{...wrap, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:14}}>
     <div style={{fontSize:34}}>{"\uD83C\uDCCF"}</div>
@@ -28837,7 +28884,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const inDeckDupKeys = new Set(inDeck.map(dupKey));
   const powerCount = {}; inDeck.forEach(c=>{const p=c.power||"0"; powerCount[p]=(powerCount[p]||0)+1;});
   const treatCore={}, treatApex={};
-  if(isAM){inDeck.forEach(c=>{if(!isInsertTreatment(c.treatment))return;const t=insertKey(c.treatment),p=parseFloat(c.power||0);if(p<=160){treatCore[t]=(treatCore[t]||0)+1;}else if(p>160){treatApex[t]=(treatApex[t]||0)+1;}});}
+  if(isAM){inDeck.forEach(c=>{if(!isInsertTreatment(c))return;const t=insertKey(c),p=parseFloat(c.power||0);if(p<=160){treatCore[t]=(treatCore[t]||0)+1;}else if(p>160){treatApex[t]=(treatApex[t]||0)+1;}});}
   const dbTotalPower = inDeck.reduce((s,c)=>s+(parseFloat(c.power)||0),0);
   const dbAvgPower = inDeck.length>0 ? Math.round(dbTotalPower/inDeck.length) : 0;
   const dbHeroes = new Set(inDeck.map(c=>(c.hero||"").toLowerCase()).filter(Boolean)).size;
@@ -28855,7 +28902,9 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     if(isAM){
       const treatments=[...new Set(inDeck.map(c=>c.treatment).filter(Boolean))];
       // Iterate INSERTS (Inspired Ink variants collapse to one), not raw treatment strings.
-      Array.from(new Set(treatments.map(insertKey))).forEach(tl=>{ const t=insertLabel(tl, treatments.find(x=>insertKey(x)===tl)||tl),core=treatCore[tl]||0,apex=treatApex[tl]||0; if(apex>0&&core<10) tips.push({t:"warn",m:`${t}: apex card in deck but only ${core}/10 core cards — needs 10 core to be legal.`}); else if(core>=10&&apex===0) tips.push({t:"good",m:`${t} unlocked (${core} core) — you can add 1 apex card.`}); else if(core>0&&core<10){ const need=10-core; const ownedEligible = owned ? cards.filter(cc=>!deckSet.has(cc.id)&&insertKey(cc.treatment)===tl&&((parseFloat(cc.power)||0)>=115)&&((parseFloat(cc.power)||0)<=160)&&owned[cc.id]).length : 0; tips.push({t:"info",m:`${t}: ${core}/10 core toward an apex unlock.${owned?(ownedEligible>=need?` You own ${ownedEligible} eligible — enough to finish!`:` You own ${ownedEligible} of ${need} more needed.`):""}`}); } });
+      // Keys come from the DECK, not from the treatment list: a set-level insert like Alpha Blast
+      // has no single treatment to derive it from, so listing treatments would split it back apart.
+      Array.from(new Set(inDeck.map(insertKey))).forEach(tl=>{ const t=insertLabel(tl, inDeck.find(x=>insertKey(x)===tl)?.treatment||tl),core=treatCore[tl]||0,apex=treatApex[tl]||0; if(apex>0&&core<10) tips.push({t:"warn",m:`${t}: apex card in deck but only ${core}/10 core cards — needs 10 core to be legal.`}); else if(core>=10&&apex===0) tips.push({t:"good",m:`${t} unlocked (${core} core) — you can add 1 apex card.`}); else if(core>0&&core<10){ const need=10-core; const ownedEligible = owned ? cards.filter(cc=>!deckSet.has(cc.id)&&insertKey(cc.treatment)===tl&&((parseFloat(cc.power)||0)>=115)&&((parseFloat(cc.power)||0)<=160)&&owned[cc.id]).length : 0; tips.push({t:"info",m:`${t}: ${core}/10 core toward an apex unlock.${owned?(ownedEligible>=need?` You own ${ownedEligible} eligible — enough to finish!`:` You own ${ownedEligible} of ${need} more needed.`):""}`}); } });
       if(treatments.length===0) tips.push({t:"info",m:"Apex Madness: build 10 core cards (115–160) of a treatment to unlock its apex card."});
       // Foil Hot Dogs aren't part of the quick build (they depend on foils you own, not the deck), so
       // surface them here as a manual next step once the auto-built deck is on the table.
@@ -28884,7 +28933,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
     const needs=[];
     if(isAM){
       const treatments=[...new Set(inDeck.map(c=>c.treatment).filter(Boolean))];
-      Array.from(new Set(treatments.map(insertKey))).forEach(tl=>{ const t=insertLabel(tl, treatments.find(x=>insertKey(x)===tl)||tl),core=treatCore[tl]||0; if(core>0&&core<10){ const corePowers=["115","120","125","130","135","140","145","150","155","160"]; needs.push({ label:`Find core ${t} (${core}/10)`, t, p:corePowers }); } });
+      Array.from(new Set(inDeck.map(insertKey))).forEach(tl=>{ const t=insertLabel(tl, inDeck.find(x=>insertKey(x)===tl)?.treatment||tl),core=treatCore[tl]||0; if(core>0&&core<10){ const corePowers=["115","120","125","130","135","140","145","150","155","160"]; needs.push({ label:`Find core ${t} (${core}/10)`, t, p:corePowers }); } });
     }
     return needs.slice(0,4);
   })();
@@ -29745,8 +29794,8 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     const byKey = {};
                     inDeck.forEach(c => {
                       if (!c.treatment) return;
-                      if (!isInsertTreatment(c.treatment)) return;   // plain Battlefoil isn't an insert
-                      const k = insertKey(c.treatment);
+                      if (!isInsertTreatment(c)) return;   // plain Battlefoil isn't an insert
+                      const k = insertKey(c);
                       if (!byKey[k]) byKey[k] = c.treatment;   // first-seen name as the fallback label
                     });
                     return Object.keys(byKey).sort().map(tl => {
@@ -37979,7 +38028,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
   const inDeckDupKeys = useMemo(()=>new Set(inDeck.map(dupKey)), [inDeck]);
   const powerCount = useMemo(()=>{ const m={}; inDeck.forEach(c=>{const p=c.power||"0"; m[p]=(m[p]||0)+1;}); return m; }, [inDeck]);
   const treatCore={},treatApex={};
-  if(isAM){inDeck.forEach(c=>{if(!isInsertTreatment(c.treatment))return;const t=insertKey(c.treatment),p=parseFloat(c.power||0);if(p<=160)treatCore[t]=(treatCore[t]||0)+1;if(p>160)treatApex[t]=(treatApex[t]||0)+1;});}
+  if(isAM){inDeck.forEach(c=>{if(!isInsertTreatment(c))return;const t=insertKey(c),p=parseFloat(c.power||0);if(p<=160)treatCore[t]=(treatCore[t]||0)+1;if(p>160)treatApex[t]=(treatApex[t]||0)+1;});}
   // -- Tournament rule: a physical copy can't be in two decks at once. --
   // Count how many of the user's OTHER saved decks already commit each cardId (excluding the
   // deck currently being edited). A card locks only when other decks have used up every copy
@@ -38198,7 +38247,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     // Inserts in the deck unlocks one (max 6), plus four different Foil Hot Dogs unlock four more.
     if(deckType==="apexmadness" && p > 160){
       const tally = {};
-      inDeck.filter(x=>(parseFloat(x.power)||0)<=160 && isInsertTreatment(x.treatment)).forEach(x=>{ const t=insertKey(x.treatment)||"—"; tally[t]=(tally[t]||0)+1; });
+      inDeck.filter(x=>(parseFloat(x.power)||0)<=160 && isInsertTreatment(x)).forEach(x=>{ const t=insertKey(x)||"—"; tally[t]=(tally[t]||0)+1; });
       const insertUnlocks = Math.min(6, Object.values(tally).reduce((n,v)=>n+Math.floor(v/10), 0));
       // Foil Hot Dogs must be IN THE DECK to grant a slot, exactly like the 10-insert rule above.
       // This used to scan your whole COLLECTION, so owning four foil Hot Dogs anywhere unlocked four
@@ -38390,8 +38439,8 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       base.forEach(c => {
         // Plain "Battlefoil" is a base parallel, not an insert — it can't earn an unlock or be one
         // of the six inserts the core is drawn from, so keep it out of the pools entirely.
-        if (!isInsertTreatment(c.treatment)) return;
-        const k = insertKey(c.treatment) || "—";
+        if (!isInsertTreatment(c)) return;
+        const k = insertKey(c) || "—";
         if (inRange(c)) (coreByIns[k] = coreByIns[k]||[]).push(c);
         else if (powerOf(c) > CORE_MAX) (apexByIns[k] = apexByIns[k]||[]).push(c);
       });
@@ -38455,7 +38504,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
         const pk = String(c.power||"0"); if ((perPowerAM[pk]||0) >= (F.perPower||6)) return false;
         // An insert tops out at 10 core cards. Beyond that the cards are illegal, not just wasted —
         // the top-up used to pour 16 of one insert into the deck. 6 inserts x 10 = the full 60.
-        const ik = insertKey(c.treatment) || "—";
+        const ik = insertKey(c) || "—";
         if ((perInsAM[ik]||0) >= BLOCK) return false;
         usedKeys.add(k); perPowerAM[pk] = (perPowerAM[pk]||0)+1;
         perInsAM[ik] = (perInsAM[ik]||0)+1;
@@ -38486,7 +38535,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       // 3. Top the core up to 60 — but ONLY from the inserts we picked. This is the fix: pulling
       //    from any insert here is what scattered the core and wasted slots.
       const restCore = base
-        .filter(c => inRange(c) && pickedKeys.has(insertKey(c.treatment) || "—"))
+        .filter(c => inRange(c) && pickedKeys.has(insertKey(c) || "—"))
         .sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
       for (const c of restCore) { if (chosen.length >= 60) break; seat(c); }
 
@@ -38503,14 +38552,14 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
         const inDeckIds = () => new Set(chosen.map(c=>c.id));
         // Cards we'd still like, from our picked inserts, strongest first.
         const wanted = base
-          .filter(c => inRange(c) && pickedKeys.has(insertKey(c.treatment) || "—"))
+          .filter(c => inRange(c) && pickedKeys.has(insertKey(c) || "—"))
           .filter(c => !usedKeys.has(dupKey(c)))
           .sort((a,b)=>(powerOf(b)-powerOf(a))||mineFirst(a,b));
 
         for (const want of wanted) {
           if (chosen.length >= 60) break;
           // If this card's own insert is already at its 10-card ceiling, no power swap can help.
-          if ((perInsAM[insertKey(want.treatment) || "—"]||0) >= BLOCK) continue;
+          if ((perInsAM[insertKey(want) || "—"]||0) >= BLOCK) continue;
           const wp = String(want.power||"0");
           if ((perPowerAM[wp]||0) < (F.perPower||6)) { seat(want); continue; }  // not actually blocked
 
@@ -38556,7 +38605,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       // A late block can complete once the top-up lands more of an insert — sweep once more.
       if (completedInserts.length < MAX_UNLOCKS) {
         const tally = {};
-        chosen.filter(inRange).forEach(c => { const t = insertKey(c.treatment)||"—"; tally[t]=(tally[t]||0)+1; });
+        chosen.filter(inRange).forEach(c => { const t = insertKey(c)||"—"; tally[t]=(tally[t]||0)+1; });
         for (const [k,count] of Object.entries(tally)) {
           if (completedInserts.length >= MAX_UNLOCKS) break;
           if (count < BLOCK) continue;
@@ -38577,7 +38626,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       });
 
       const insertTally = {};
-      chosen.filter(inRange).forEach(c => { const t = insertKey(c.treatment) || "—"; insertTally[t] = (insertTally[t]||0)+1; });
+      chosen.filter(inRange).forEach(c => { const t = insertKey(c) || "—"; insertTally[t] = (insertTally[t]||0)+1; });
       const insertList = Object.entries(insertTally)
         .map(([insert,count]) => ({ insert: insertLabel(insert, insert), count, unlocks: Math.floor(count/BLOCK) }))
         .sort((a,b)=>b.count-a.count);
