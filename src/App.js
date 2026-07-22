@@ -184,13 +184,24 @@ const fmtOf = t => DECK_FORMATS[t] || DECK_FORMATS.none;
 // Inspired Ink is a single insert with several finishes (Battlefoil, Metallic Battlefoil, Superfoil,
 // Bubble Gum, Magic Gum…). Counting those separately meant 6/10 + 4/10 instead of one unlocked 10/10.
 // This collapses every Inspired Ink variant to one key; everything else keeps its own treatment name.
+// The four colour Battlefoils are ONE insert in Madness, so ten cards spread across green, orange,
+// blue and pink is a complete set of ten \u2014 not four part-finished piles that never unlock anything.
+// Deliberately an explicit list rather than a "<colour> Battlefoil" pattern: a pattern would also
+// swallow Silver Battlefoil and any future colour, and those are their own inserts.
+const COLOR_BATTLEFOILS = new Set([
+  "green battlefoil", "orange battlefoil", "blue battlefoil", "pink battlefoil",
+]);
 const insertKey = (treatment) => {
   const t = String(treatment||"").toLowerCase().trim();
   if (t.includes("inspired ink")) return "inspired ink";
+  if (COLOR_BATTLEFOILS.has(t)) return "color battlefoil";
   return t;
 };
 // Display name for an insert key — "inspired ink" shows as a single combined insert.
-const insertLabel = (key, fallback) => key === "inspired ink" ? "Inspired Ink (all)" : (fallback || key);
+const insertLabel = (key, fallback) =>
+  key === "inspired ink"     ? "Inspired Ink (all)" :
+  key === "color battlefoil" ? "Color Battlefoils (all)" :
+  (fallback || key);
 // Plain "Battlefoil" is the BASE foil parallel, not an insert — it earns no Apex unlock in Madness
 // and can't be one of the six inserts a core is built from. Named foils (Blue Battlefoil, Inspired
 // Ink Battlefoil, 80's Rad Battlefoil…) are real inserts and still count.
