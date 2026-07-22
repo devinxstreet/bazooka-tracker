@@ -35551,6 +35551,92 @@ See you in there!
     }
   }
 
+  // On-loan report. Answers two questions that are painful to reconstruct from memory: what have I
+  // lent out and to whom, and what am I holding that belongs to someone else. Opens a clean printable
+  // page rather than a CSV, because this is a list you hand to someone or check against a stack of
+  // cards \u2014 not something you load into a spreadsheet.
+  function printLoanReport(which) {
+    if (!user) { setSigningIn(true); return; }
+    const want = which === "borrowed" ? "borrowed" : which === "lent" ? "lent" : null;
+    const rows = (lots||[])
+      .filter(l => l.lendState && (!want || l.lendState === want))
+      .map(l => {
+        const card = cards.find(x => x.id === l.cardId) || {};
+        return {
+          state: l.lendState,
+          who:   l.lendWho || "\u2014",
+          why:   l.lendWhy || "",
+          since: l.lendDate || "",
+          hero:  card.hero || card.playName || "(unknown card)",
+          set:   card.setName || "",
+          treat: [card.treatment, card.weapon].filter(Boolean).join(" \u00b7 "),
+          num:   card.cardNum || "",
+          value: l.value != null && l.value !== "" ? parseFloat(l.value) : null,
+        };
+      })
+      // Group by person, then oldest loan first \u2014 the ones out longest are the ones to chase.
+      .sort((a,b) => a.who.localeCompare(b.who) || String(a.since).localeCompare(String(b.since)));
+
+    if (!rows.length) {
+      alert(want === "borrowed" ? "You aren't holding any borrowed cards."
+          : want === "lent"     ? "You haven't lent any cards out."
+          : "Nothing is on loan in either direction.");
+      return;
+    }
+
+    const esc = s => String(s==null?"":s).replace(/[&<>"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
+    const title = want === "borrowed" ? "Cards I'm Borrowing"
+                : want === "lent"     ? "Cards I've Lent Out"
+                : "Cards On Loan";
+    const totalVal = rows.reduce((s,r)=>s+(r.value||0), 0);
+    const body = rows.map(r => `
+      <tr>
+        <td class="who">${esc(r.who)}</td>
+        <td><strong>${esc(r.hero)}</strong>${r.num?` <span class="dim">#${esc(r.num)}</span>`:""}
+            ${r.treat?`<div class="dim">${esc(r.treat)}</div>`:""}
+            ${r.set?`<div class="dim">${esc(r.set)}</div>`:""}</td>
+        <td>${esc(r.why)}</td>
+        <td class="mono">${esc(r.since)}</td>
+        ${want ? "" : `<td>${r.state === "lent" ? "Lent out" : "Borrowed"}</td>`}
+        <td class="mono num">${r.value!=null?"$"+r.value.toFixed(2):""}</td>
+      </tr>`).join("");
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title>
+      <style>
+        body{font-family:'Trebuchet MS',sans-serif;margin:28px;color:#111;}
+        h1{font-size:19px;margin:0 0 2px;}
+        .sub{color:#666;font-size:12px;margin-bottom:16px;}
+        table{border-collapse:collapse;width:100%;font-size:12px;}
+        th{text-align:left;border-bottom:2px solid #111;padding:6px 8px;font-size:11px;text-transform:uppercase;letter-spacing:0.4px;}
+        td{border-bottom:1px solid #ddd;padding:7px 8px;vertical-align:top;}
+        .who{font-weight:700;white-space:nowrap;}
+        .dim{color:#777;font-size:11px;}
+        .mono{font-family:ui-monospace,monospace;white-space:nowrap;}
+        .num{text-align:right;}
+        tfoot td{border:none;padding-top:10px;font-weight:700;}
+        @media print{ body{margin:0;} .noprint{display:none;} }
+      </style></head><body>
+      <h1>${esc(title)}</h1>
+      <div class="sub">${rows.length} card${rows.length===1?"":"s"} \u00b7 generated ${new Date().toLocaleDateString()}</div>
+      <table>
+        <thead><tr>
+          <th>${want === "borrowed" ? "From" : want === "lent" ? "With" : "Person"}</th>
+          <th>Card</th><th>Reason</th><th>Since</th>${want?"":"<th>Direction</th>"}<th class="num">Value</th>
+        </tr></thead>
+        <tbody>${body}</tbody>
+        ${totalVal>0?`<tfoot><tr><td colspan="${want?4:5}">Total declared value</td><td class="num">$${totalVal.toFixed(2)}</td></tr></tfoot>`:""}
+      </table>
+      <p class="noprint" style="margin-top:18px;">
+        <button onclick="window.print()" style="padding:8px 16px;font-size:13px;cursor:pointer;">Print</button>
+      </p>
+      </body></html>`;
+
+    const w = window.open("", "_blank");
+    if (!w) { alert("Your browser blocked the report window. Allow pop-ups for this site and try again."); return; }
+    w.document.write(html);
+    w.document.close();
+  }
+
   function exportCollection() {
     if (!user) { setSigningIn(true); return; }
     const csvEsc = v => { const s = v===null||v===undefined ? "" : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s; };
@@ -41745,6 +41831,12 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   // whether you are about to get 40 rows or 4,000.
                   {label: (filterTreat.size>0||filterSet.size>0||filterWeapon.size>0||filterPower.size>0)
                     ? "\u2b06\ufe0f Export filtered cards" : "\u2b06\ufe0f Export Collection", act:exportCollection},
+                  // Only worth showing when something is actually on loan \u2014 a dead menu item that
+                  // always says "nothing to report" is just noise.
+                  ...((lots||[]).some(l=>l.lendState==="borrowed")
+                    ? [{label:"\uD83D\uDCE5 Cards I\u2019m borrowing", act:()=>printLoanReport("borrowed")}] : []),
+                  ...((lots||[]).some(l=>l.lendState==="lent")
+                    ? [{label:"\uD83D\uDCE4 Cards I\u2019ve lent out", act:()=>printLoanReport("lent")}] : []),
                   {label:"\uD83D\uDCBE Full Backup (JSON)",act:exportFullBackup},
                   {label:"\u267B\uFE0F Restore from Backup",act:()=>setRestoreModal({pick:true})},
                   {label:"\uD83D\uDD17 Share Collection",act:()=>{ const url=`${window.location.origin}/showcase?uid=${user.uid}`; if(navigator.share){navigator.share({title:"My Bazooka Collection",url}).catch(()=>{});} else { navigator.clipboard.writeText(url).then(()=>showToast("Collection link copied!")).catch(()=>{}); } }},
