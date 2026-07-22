@@ -28769,6 +28769,9 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
+  // Highest power first \u2014 alphabetical would put 100 above 95, and you pick power by tier.
+  const powers = [...new Set(cards.map(c=>c.power!=null&&c.power!==""?String(c.power):null).filter(Boolean))]
+    .sort((a,b)=>parseFloat(b)-parseFloat(a));
   const DECK_SIZE = (DECK_FORMATS[deckType]||DECK_FORMATS.none).size || 60;   // capacity follows format (Apex Madness = 70)
   const [deckOwnedOnly, setDeckOwnedOnly] = useState(false);
   const [deckFamilyOnly, setDeckFamilyOnly] = useState(false);
@@ -29307,7 +29310,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     instead of one at a time. */}
                 {(() => {
                   const toggleIn = (setter) => (v) => setter(prev => { const n=new Set(prev); n.has(v)?n.delete(v):n.add(v); return n; });
-                  const tW = toggleIn(setDeckFilterW), tS = toggleIn(setDeckFilterS), tT = toggleIn(setDeckFilterT);
+                  const tW = toggleIn(setDeckFilterW), tS = toggleIn(setDeckFilterS), tT = toggleIn(setDeckFilterT), tP = toggleIn(setDeckFilterP);
                   // Checkbox rows, not pills. "Select everything, then untick the one I don't want"
                   // is the actual workflow, and pills make that a hunt \u2014 you cannot tell selected from
                   // unselected at a glance across 30 of them, and there is no way to select all.
@@ -29358,13 +29361,22 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       <button onClick={()=>setFiltTOpen(v=>!v)} style={tabBtn(filtTOpen, deckFilterT.size>0)}>
                         {lab(deckFilterT,"All Treatments","only")} <span style={{fontSize:9,opacity:0.7}}>{filtTOpen?"▲":"▼"}</span>
                       </button>
-                      {(deckFilterW.size>0||deckFilterS.size>0||deckFilterT.size>0) && (
-                        <button onClick={()=>{setDeckFilterW(new Set());setDeckFilterS(new Set());setDeckFilterT(new Set());}}
+                      {/* Power belongs in this row with the others. It used to live ~150 lines further
+                          down in a separate block, so it rendered detached from the filter bar and
+                          read as missing. Same button, same panel helper, same Clear behaviour. */}
+                      <button onClick={()=>setFiltPOpen(v=>!v)} style={tabBtn(filtPOpen, deckFilterP.size>0)}>
+                        {lab(deckFilterP,"All Power","only")} <span style={{fontSize:9,opacity:0.7}}>{filtPOpen?"\u25B2":"\u25BC"}</span>
+                      </button>
+                      {(deckFilterW.size>0||deckFilterS.size>0||deckFilterT.size>0||deckFilterP.size>0) && (
+                        <button onClick={()=>{setDeckFilterW(new Set());setDeckFilterS(new Set());setDeckFilterT(new Set());setDeckFilterP(new Set());}}
                           style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:8,padding:"5px 10px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Clear filters</button>
                       )}
                       {filtWOpen && filterPanel(weapons, deckFilterW, setDeckFilterW, tW)}
                       {filtSOpen && filterPanel(sets, deckFilterS, setDeckFilterS, tS)}
                       {filtTOpen && filterPanel(treatments, deckFilterT, setDeckFilterT, tT)}
+                      {/* Same shared panel as the others, so Power looks and behaves identically
+                          rather than being a bespoke one-off. Sorted high to low. */}
+                      {filtPOpen && filterPanel(powers, deckFilterP, setDeckFilterP, tP)}
                     </>
                   );
                 })()}
@@ -29495,51 +29507,6 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                           ))}
                         </div>
                       )
-                    )}
-                  </div>
-                );
-              })()}
-              {/* Power is multi-select. It was a <select>, which can only hold ONE value \u2014 but the
-                  filter has always been a Set, and building a deck means wanting several tiers at
-                  once (115 through 160, say). Same checkbox pattern as the filters beside it. */}
-              {(() => {
-                const powers = [...new Set(cards.map(c=>c.power!=null&&c.power!==""?String(c.power):null).filter(Boolean))]
-                  .sort((a,b)=>parseFloat(b)-parseFloat(a));
-                const label = deckFilterP.size===0 ? "All Power"
-                            : deckFilterP.size===1 ? `Power ${[...deckFilterP][0]}`
-                            : `${deckFilterP.size} powers`;
-                return (
-                  <div style={{position:"relative"}}>
-                    <button onClick={()=>setFiltPOpen(v=>!v)} style={tabBtn(filtPOpen, deckFilterP.size>0)}>
-                      {label} <span style={{fontSize:9,opacity:0.7}}>{filtPOpen?"\u25B2":"\u25BC"}</span>
-                    </button>
-                    {filtPOpen && (
-                      // Floats above the layout instead of pushing it around. In-flow it appeared to
-                      // "not work": the panel opened inside a wrapping filter row and got covered by
-                      // the card grid below, so clicking Power looked like nothing happened.
-                      <div style={{position:"absolute",top:"100%",left:0,zIndex:60,minWidth:190,maxWidth:280,marginTop:6,background:"var(--bz-s1,#16161f)",border:"1px solid var(--bz-line)",borderRadius:9,overflow:"hidden",boxShadow:"0 10px 30px rgba(0,0,0,0.55)"}}>
-                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"7px 10px",borderBottom:"1px solid var(--bz-line)",background:"rgba(255,255,255,0.03)"}}>
-                          <span style={{fontSize:10.5,fontWeight:800,color:"var(--bz-ink-3)"}}>
-                            {deckFilterP.size===0 ? "Showing all" : `${deckFilterP.size} of ${powers.length} selected`}
-                          </span>
-                          <span style={{display:"flex",gap:6}}>
-                            <button onClick={()=>setDeckFilterP(new Set(powers))} style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:6,padding:"3px 9px",fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Select all</button>
-                            <button onClick={()=>setDeckFilterP(new Set())} style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:6,padding:"3px 9px",fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>None</button>
-                          </span>
-                        </div>
-                        <div style={{maxHeight:210,overflowY:"auto",overscrollBehavior:"contain"}}>
-                          {powers.map(pw=>{
-                            const on = deckFilterP.has(pw);
-                            return (
-                              <label key={pw} onClick={ev=>{ev.preventDefault(); setDeckFilterP(prev=>{const n=new Set(prev); n.has(pw)?n.delete(pw):n.add(pw); return n;});}}
-                                style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",cursor:"pointer",background:on?"rgba(232,49,122,0.10)":"transparent",borderBottom:"1px solid rgba(255,255,255,0.04)"}}>
-                                <span style={{width:14,height:14,flexShrink:0,borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",border:`1.5px solid ${on?"#E8317A":"var(--bz-line-2)"}`,background:on?"#E8317A":"transparent",color:"#fff",fontSize:10,fontWeight:900,lineHeight:1}}>{on?"\u2713":""}</span>
-                                <span style={{fontSize:11.5,fontWeight:on?800:600,color:on?"#fff":"var(--bz-ink-2)"}}>{pw}</span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </div>
                     )}
                   </div>
                 );
@@ -35400,24 +35367,6 @@ See you in there!
         return { id, hero:c.hero||"", setName:c.setName||"", treatment:c.treatment||"",
                  weapon:c.weapon||"", cardNum:c.cardNum||"", power:c.power??null };
       };
-      // Respect whatever the collection is currently filtered to. Exporting the entire collection
-    // when you have deliberately narrowed it to two treatments is not the report you asked for \u2014
-    // and filtering a 30k-row CSV afterwards defeats the point of filtering in the app.
-    // `sorted` is the full filtered list (visibleCards is paginated, which would silently export
-    // only the first page). It is declared below this function, but a const is initialised long
-    // before any click can call this, so reading it here is safe.
-    const filtered = new Set(sorted.map(x => x.id));
-    const usingFilter = filtered.size > 0 && filtered.size < cards.length;
-    const ownedIds = Object.keys(owned)
-      .filter(id => owned[id])
-      .filter(id => !usingFilter || filtered.has(id));
-    if (!ownedIds.length) {
-      alert(usingFilter
-        ? "You do not own any cards matching the current filters."
-        : "No cards owned yet.");
-      return;
-    }
-
       const backup = {
         _format: "bazooka-dash-backup",
         _version: 1,
@@ -35469,7 +35418,21 @@ See you in there!
   function exportCollection() {
     if (!user) { setSigningIn(true); return; }
     const csvEsc = v => { const s = v===null||v===undefined ? "" : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s; };
-    const ownedIds = Object.keys(owned).filter(id => owned[id]);
+    // Respect whatever the grid is currently filtered to. Exporting the whole collection when you
+    // have deliberately narrowed it to two treatments is not the report you asked for, and
+    // filtering a 30k-row CSV afterwards defeats the point of filtering in the app.
+    // `sorted` is the full filtered list — visibleCards is paginated and would silently export
+    // only the first page. It is declared below this function, but a const is initialised long
+    // before any click can reach here.
+    const _filteredIds = new Set(sorted.map(x => x.id));
+    const _narrowed = _filteredIds.size > 0 && _filteredIds.size < cards.length;
+    const ownedIds = Object.keys(owned)
+      .filter(id => owned[id])
+      .filter(id => !_narrowed || _filteredIds.has(id));
+    if (!ownedIds.length) {
+      alert(_narrowed ? "You do not own any cards matching the current filters." : "No cards owned yet.");
+      return;
+    }
     let totalSpent = 0, totalValue = 0;
     const rows = [];
     ownedIds.forEach(id => {
