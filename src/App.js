@@ -29509,12 +29509,15 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                             : deckFilterP.size===1 ? `Power ${[...deckFilterP][0]}`
                             : `${deckFilterP.size} powers`;
                 return (
-                  <>
+                  <div style={{position:"relative"}}>
                     <button onClick={()=>setFiltPOpen(v=>!v)} style={tabBtn(filtPOpen, deckFilterP.size>0)}>
                       {label} <span style={{fontSize:9,opacity:0.7}}>{filtPOpen?"\u25B2":"\u25BC"}</span>
                     </button>
                     {filtPOpen && (
-                      <div style={{width:"100%",marginTop:6,background:"rgba(0,0,0,0.25)",border:"1px solid var(--bz-line)",borderRadius:9,overflow:"hidden"}}>
+                      // Floats above the layout instead of pushing it around. In-flow it appeared to
+                      // "not work": the panel opened inside a wrapping filter row and got covered by
+                      // the card grid below, so clicking Power looked like nothing happened.
+                      <div style={{position:"absolute",top:"100%",left:0,zIndex:60,minWidth:190,maxWidth:280,marginTop:6,background:"var(--bz-s1,#16161f)",border:"1px solid var(--bz-line)",borderRadius:9,overflow:"hidden",boxShadow:"0 10px 30px rgba(0,0,0,0.55)"}}>
                         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"7px 10px",borderBottom:"1px solid var(--bz-line)",background:"rgba(255,255,255,0.03)"}}>
                           <span style={{fontSize:10.5,fontWeight:800,color:"var(--bz-ink-3)"}}>
                             {deckFilterP.size===0 ? "Showing all" : `${deckFilterP.size} of ${powers.length} selected`}
@@ -29538,7 +29541,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         </div>
                       </div>
                     )}
-                  </>
+                  </div>
                 );
               })()}
               {/* The card list scrolls ITSELF rather than growing the page. It used to have no height
@@ -35397,7 +35400,23 @@ See you in there!
         return { id, hero:c.hero||"", setName:c.setName||"", treatment:c.treatment||"",
                  weapon:c.weapon||"", cardNum:c.cardNum||"", power:c.power??null };
       };
-      const ownedIds = Object.keys(owned).filter(id => owned[id]);
+      // Respect whatever the collection is currently filtered to. Exporting the entire collection
+    // when you have deliberately narrowed it to two treatments is not the report you asked for \u2014
+    // and filtering a 30k-row CSV afterwards defeats the point of filtering in the app.
+    // `sorted` is the full filtered list (visibleCards is paginated, which would silently export
+    // only the first page). It is declared below this function, but a const is initialised long
+    // before any click can call this, so reading it here is safe.
+    const filtered = new Set(sorted.map(x => x.id));
+    const usingFilter = filtered.size > 0 && filtered.size < cards.length;
+    const ownedIds = Object.keys(owned)
+      .filter(id => owned[id])
+      .filter(id => !usingFilter || filtered.has(id));
+    if (!ownedIds.length) {
+      alert(usingFilter
+        ? "You do not own any cards matching the current filters."
+        : "No cards owned yet.");
+      return;
+    }
 
       const backup = {
         _format: "bazooka-dash-backup",
@@ -41598,7 +41617,10 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                       ...((user?.email||"").toLowerCase().endsWith("@bazookabreaks.com") ? [{label:"🗂️ Missing Cards",act:()=>{ setMissingCardsModal(true); loadMissingCards(); }}] : []),
                       {label:"🖼️ My Collection",act:()=>{ window.open(`/showcase?uid=${user.uid}`,"_blank"); }},
                   {label:"\u2b07\ufe0f Import Cards",act:()=>{ setImportModal(true); setImportRows(null); setImportRaw(null); setImportSetMap({}); setImportColMap(null); setColMapConfirmed(false); }},
-                  {label:"\u2b06\ufe0f Export Collection",act:exportCollection},
+                  // Name the scope so it is obvious the filters apply \u2014 otherwise you cannot tell
+                  // whether you are about to get 40 rows or 4,000.
+                  {label: (filterTreat.size>0||filterSet.size>0||filterWeapon.size>0||filterPower.size>0)
+                    ? "\u2b06\ufe0f Export filtered cards" : "\u2b06\ufe0f Export Collection", act:exportCollection},
                   {label:"\uD83D\uDCBE Full Backup (JSON)",act:exportFullBackup},
                   {label:"\u267B\uFE0F Restore from Backup",act:()=>setRestoreModal({pick:true})},
                   {label:"\uD83D\uDD17 Share Collection",act:()=>{ const url=`${window.location.origin}/showcase?uid=${user.uid}`; if(navigator.share){navigator.share({title:"My Bazooka Collection",url}).catch(()=>{});} else { navigator.clipboard.writeText(url).then(()=>showToast("Collection link copied!")).catch(()=>{}); } }},
