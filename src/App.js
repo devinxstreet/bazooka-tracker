@@ -31625,7 +31625,9 @@ function AccountingLedger({ lots=[], marketSales=[], user, cards=[] }) {
   // The distinction that matters: REALISED gain is money you actually banked (sales minus what
   // those cards cost you). UNREALISED is paper — what you hold is worth more than you paid, but
   // you have not sold it. Lumping them together is how people fool themselves about performance.
-  const heldLots  = lots.filter(l => !l.soldAt && !l.sold);
+  // Borrowed copies are excluded from valuation: they are in your hands but they are someone else's
+  // property, so counting their cost or value would report another person's cards as your assets.
+  const heldLots  = lots.filter(l => !l.soldAt && !l.sold && l.lendState !== "borrowed");
   // Cost basis = cash + the value of cards traded away. Cash is a hard fact; trade value is the
   // user's own estimate of what they gave up, because in a real negotiation the credited value is
   // never formally stated. Both are kept separately so a cash-only figure stays available \u2014 one is
@@ -32454,6 +32456,25 @@ See you in there!
   const [trackerAutoPublic, setTrackerAutoPublic] = useState(() => { try { const c=localStorage.getItem("trackerAutoPublic_v1"); return c?JSON.parse(c):{}; } catch { return {}; } }); // cards made public because a tracker covering them is public
   const [tradeBait,     setTradeBait]     = useState({}); // {cardId: true} manually flagged for trade
   const [lots,          setLots]          = useState([]); // [{id,cardId,cost,value,method,date,notes}]
+
+  // A borrowed card is in your hands but is NOT yours. It must not count toward owned totals, set
+  // completion, or vault value \u2014 otherwise the collection reports someone else's cards as assets.
+  // `owned` stays the raw physical count (what is in the box); this is the ownership-adjusted view
+  // that anything financial or completion-related should use.
+  const borrowedByCard = useMemo(() => {
+    const m = {};
+    (lots||[]).forEach(l => { if (l?.cardId && l.lendState === "borrowed") m[l.cardId] = (m[l.cardId]||0) + 1; });
+    return m;
+  }, [lots]);
+  const ownedNet = useMemo(() => {
+    if (!Object.keys(borrowedByCard).length) return owned || {};
+    const out = { ...(owned||{}) };
+    Object.entries(borrowedByCard).forEach(([id, n]) => {
+      const left = (parseInt(out[id]) || 0) - n;
+      if (left > 0) out[id] = left; else delete out[id];
+    });
+    return out;
+  }, [owned, borrowedByCard]);
   const [myReviews,     setMyReviews]     = useState([]); // reviews this buyer has left (by saleId)
   const [myUsername,    setMyUsername]    = useState("");
   const usernameClaimedThisSession = useRef(false);
@@ -43523,6 +43544,16 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                         lineHeight:1.2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", flex:1, minWidth:0 }}>
                         {c.hero || c.playName || "\u2014"}
                       </div>
+                      {/* Borrowed marker. A borrowed card sits in the grid so you can see and deck it,
+                          but it is not yours \u2014 without a tag it is indistinguishable from a card you
+                          own, which is exactly the confusion this whole feature exists to prevent. */}
+                      {(borrowedByCard[c.id]||0) > 0 && (
+                        <span title="Borrowed \u2014 not yours" style={{ fontSize:9.5, fontWeight:900, color:"#7B9CFF",
+                          background:"rgba(123,156,255,0.15)", border:"1px solid rgba(123,156,255,0.45)",
+                          borderRadius:5, padding:"0 4px", lineHeight:1.5, flexShrink:0 }}>
+                          {"\uD83D\uDCE5"} BORROWED
+                        </span>
+                      )}
                       {/* Count lives here now instead of on the artwork. Shown from 1 upward: it sits
                           beside the + button, so hiding it at exactly one copy left the row looking
                           like nothing was owned right after you added a card. */}
