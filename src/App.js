@@ -35348,6 +35348,15 @@ See you in there!
     const lot = { id: uid(), cardId, cost: data.cost??null, value: data.value??null, method: data.method||"purchased", date: data.date||new Date().toISOString().split("T")[0], notes: data.notes||"" };
     saveLots([...lots, lot]);
   }
+  // Add a card you're BORROWING in one step. Creates the copy already tagged as borrowed \u2014 so it
+  // never counts as yours \u2014 and bumps the physical count so it appears in the grid and can be decked.
+  async function addBorrowedCopy(cardId, who, why) {
+    const lot = { id: uid(), cardId, cost:null, value:null, method:"borrowed",
+      date: todayLocal(), notes:"", lendState:"borrowed",
+      lendWho:(who||"").trim(), lendWhy:(why||"").trim(), lendDate: todayLocal() };
+    saveLots([...lots, lot]);
+    await setOwnedQty(cardId, (parseInt(owned?.[cardId])||0) + 1);
+  }
   function updateLot(lotId, data) {
     saveLots(lots.map(l => l.id===lotId ? { ...l, ...data } : l));
   }
@@ -40004,6 +40013,20 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 {/* Error-card flag. This existed only on the small card's BACK face, so opening the
                     full detail view \u2014 the place you go precisely to check a card \u2014 showed nothing. If a
                     card is a known misprint or has had its power corrected, that belongs here. */}
+                {/* One-tap "I'm borrowing this". Adds the copy already tagged as borrowed so it never
+                    counts as owned, instead of the two-step add-then-edit-details dance. */}
+                {user && (
+                  <button onClick={async ()=>{
+                    const who = window.prompt("Who are you borrowing this from?") ;
+                    if (who === null) return;   // cancelled
+                    const why = window.prompt("What are you borrowing it for? (optional)") || "";
+                    await addBorrowedCopy(c.id, who, why);
+                    setToast(`\uD83D\uDCE5 Added as borrowed${who?` from ${who}`:""}`);
+                  }} style={{width:"100%",background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.45)",
+                    color:"#7B9CFF",borderRadius:9,padding:"9px",fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                    {"\uD83D\uDCE5"} I'm borrowing this card
+                  </button>
+                )}
                 {(() => {
                   // Lending status. Shown prominently because it answers "why can I not deck this?"
                   // and "who has my card?" \u2014 both of which are otherwise invisible.
