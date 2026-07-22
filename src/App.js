@@ -883,6 +883,28 @@ function GlobalStyles() {
       @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
       @keyframes slideIn { from { opacity:0; transform:translateX(16px); } to { opacity:1; transform:translateX(0); } }
       @keyframes numPop { from { transform:scale(0.8); opacity:0; } to { transform:scale(1); opacity:1; } }
+      /* Notification bell. The header is busy, so a static bell is easy to miss entirely. This
+         breathes rather than flashes: a slow scale with a brief pause between beats reads as
+         "something is waiting" without the nagging quality of a fast blink. */
+      @keyframes bellPulse {
+        0%, 55%, 100% { transform: scale(1); }
+        62%           { transform: scale(1.22) rotate(-9deg); }
+        70%           { transform: scale(1.12) rotate(8deg); }
+        78%           { transform: scale(1.18) rotate(-5deg); }
+        88%           { transform: scale(1); }
+      }
+      @keyframes bellHalo {
+        0%, 55%, 100% { opacity:0; transform: scale(0.7); }
+        65%           { opacity:0.5; transform: scale(1); }
+        100%          { opacity:0; transform: scale(1.5); }
+      }
+      .bz-bell-live { animation: bellPulse 2.6s ease-in-out infinite; transform-origin: 50% 15%; }
+      /* Anyone who finds motion distracting or is prone to motion sickness has usually told their
+         operating system already \u2014 honour that rather than making them ask. */
+      @media (prefers-reduced-motion: reduce) {
+        .bz-bell-live { animation: none; }
+        .bz-bell-halo { animation: none; opacity: 0; }
+      }
       @keyframes spin { to { transform:rotate(360deg); } }
       @keyframes fabIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
       @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
@@ -31842,9 +31864,13 @@ function OnboardingModal({ user, onComplete, inp }) {
     if (u.length < 3 || (status !== "available" && status !== "mine") || !user) return;
     setSaving(true);
     try {
-      // Reserve the handle (no-op if already mine) and write it to the profile
-      await setDoc(doc(db,"usernames",u), { uid: user.uid, createdAt: new Date().toISOString() }, { merge:true });
+      // Write the PROFILE first. These were the other way round, and the two writes are not atomic:
+      // if the reservation succeeded and the profile write did not, the handle was locked to this
+      // uid while users/{uid} still had no username \u2014 so the app kept asking for a username on every
+      // other device, even though the person had already claimed one. Profile first means a partial
+      // failure leaves the account WORKING, with only the reservation missing.
       await setDoc(doc(db,"users",user.uid), { username: u }, { merge:true });
+      await setDoc(doc(db,"usernames",u), { uid: user.uid, createdAt: new Date().toISOString() }, { merge:true });
       // Save locally too — this is the reliable backup that survives any Firestore flakiness
       try { localStorage.setItem("bazooka_username_" + user.uid, u); } catch(e) {}
       setStep(2);
@@ -31888,7 +31914,15 @@ function OnboardingModal({ user, onComplete, inp }) {
           <>
             <div style={{ fontSize:26, marginBottom:6 }}>👋</div>
             <div style={{ fontSize:22, fontWeight:900, color:"#fff", marginBottom:6 }}>Claim your username</div>
-            <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginBottom:20, lineHeight:1.6 }}>This is your handle across Bazooka — on your profile, the leaderboard, and the marketplace. Pick something good, it's yours.</div>
+            {/* Signing in on a second device and landing here is alarming \u2014 it reads like the account
+                did not carry over. Naming the signed-in account makes it obvious this is the same
+                one, and that picking a handle adds to it rather than starting over. */}
+            {user?.email && (
+              <div style={{ fontSize:12, color:"#4ade80", marginBottom:10, fontWeight:700 }}>
+                {"\u2713"} Signed in as {user.email}
+              </div>
+            )}
+            <div style={{ fontSize:13, color:"rgba(255,255,255,0.5)", marginBottom:20, lineHeight:1.6 }}>This is your handle across Bazooka. You only pick it once — after this it follows your account onto any device.</div>
 
             <div style={{ position:"relative", marginBottom:8 }}>
               <span style={{ position:"absolute", left:14, top:"50%", transform:"translateY(-50%)", fontSize:16, color:"#999", fontWeight:700 }}>@</span>
@@ -33330,8 +33364,16 @@ See you in there!
         try {
           const uref = doc(db,"users",u.uid);
           let usnap;
+          // Track whether we actually HEARD from the server. A failed read used to fall through to
+          // a fake empty snapshot, which is indistinguishable from "this account has no username" \u2014
+          // so a flaky mobile connection would bounce an existing user to the claim-a-username
+          // screen. Not knowing must never be treated as knowing the answer is "no".
+          let readOk = true;
           try { usnap = await getDocFromServer(uref); }
-          catch(se) { try { usnap = await getDoc(uref); } catch(se2) { usnap = { exists:()=>false, data:()=>({}) }; } }
+          catch(se) {
+            try { usnap = await getDoc(uref); }
+            catch(se2) { readOk = false; usnap = { exists:()=>false, data:()=>({}) }; }
+          }
           await setDoc(uref, {
             email: u.email || "",
             displayName: u.displayName || "",
@@ -33344,7 +33386,22 @@ See you in there!
           let lsUsername = "", lsPhoto = "";
           try { lsUsername = localStorage.getItem("bazooka_username_" + u.uid) || ""; } catch(e) {}
           try { lsPhoto = localStorage.getItem("bazooka_photo_" + u.uid) || ""; } catch(e) {}
-          const effectiveUsername = existing.username || lsUsername;
+          let effectiveUsername = existing.username || lsUsername;
+          // Self-heal: an earlier version reserved the handle BEFORE writing the profile, so a
+          // partial failure could leave usernames/{handle} pointing at this uid while
+          // users/{uid}.username was empty \u2014 the account looked unnamed on every other device.
+          // If the profile has no username, look for a reservation owned by this uid and restore it.
+          if (readOk && !effectiveUsername) {
+            try {
+              const mine = await getDocs(query(collection(db,"usernames"), where("uid","==",u.uid), limit(1)));
+              const found = mine.docs[0]?.id;
+              if (found) {
+                effectiveUsername = found;
+                setDoc(doc(db,"users",u.uid), { username: found }, { merge:true }).catch(()=>{});
+                try { localStorage.setItem("bazooka_username_" + u.uid, found); } catch(e) {}
+              }
+            } catch(e) { /* recovery is best-effort; never block sign-in on it */ }
+          }
           const effectivePhoto = existing.photoURL || lsPhoto;
           // If the server somehow lost it but we have it locally, re-write it to the server
           if (!existing.username && lsUsername) {
@@ -33358,7 +33415,10 @@ See you in there!
           setMyDiscord(existing.discordName || "");
           setMyWhatnot(existing.whatnotName || "");
           if (effectiveUsername) usernameClaimedThisSession.current = true;
-          if (!effectiveUsername && !usernameClaimedThisSession.current) setOnboarding(true);
+          // Only prompt when we genuinely know there is no username. If the read failed we simply
+          // do not ask \u2014 a returning user keeps using the app, and the next successful load will
+          // prompt if they really are new.
+          if (readOk && !effectiveUsername && !usernameClaimedThisSession.current) setOnboarding(true);
         } catch(e) { console.error("user record failed:", e); }
         try {
           // allSettled, NOT all. These six are independent, and Promise.all is all-or-nothing:
@@ -41457,8 +41517,14 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
               <button onClick={()=>{ setMktInitView(wantNotifs.some(n=>String(n.type||"").startsWith("trade_"))?"trades":"sale"); setActiveTab("market"); }}
                 title={`${totalNotifs} notification${totalNotifs===1?"":"s"}`}
                 style={{flexShrink:0,position:"relative",background:"transparent",border:"none",cursor:"pointer",fontSize:isMobile?20:22,padding:"4px 6px",marginRight:isMobile?4:10,lineHeight:1}}>
-                {"\uD83D\uDD14"}
-                <span style={{position:"absolute",top:-2,right:-2,background:"#E8317A",color:"#fff",borderRadius:10,minWidth:16,height:16,fontSize:10,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px",boxSizing:"border-box"}}>{totalNotifs>99?"99+":totalNotifs}</span>
+                {/* Halo sits BEHIND the glyph and expands outward on each beat \u2014 it reads as a soft
+                    ping rather than a hard flash, which is what makes it noticeable in a busy header
+                    without being irritating. */}
+                <span aria-hidden="true" className="bz-bell-halo" style={{position:"absolute",inset:-4,borderRadius:"50%",background:"radial-gradient(circle, rgba(232,49,122,0.55) 0%, rgba(232,49,122,0) 70%)",animation:"bellHalo 2.6s ease-out infinite",pointerEvents:"none"}}/>
+                <span className="bz-bell-live" style={{display:"inline-block",position:"relative"}}>{"\uD83D\uDD14"}</span>
+                {/* key on the count so React remounts this node when the number changes, which
+                    replays the pop \u2014 a new message feels different from a count just sitting there. */}
+                <span key={totalNotifs} style={{animation:"numPop 0.35s ease-out",position:"absolute",top:-2,right:-2,background:"#E8317A",color:"#fff",borderRadius:10,minWidth:16,height:16,fontSize:10,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 4px",boxSizing:"border-box"}}>{totalNotifs>99?"99+":totalNotifs}</span>
               </button>
             )}
 
@@ -47007,7 +47073,10 @@ function AppInner() {
     // can be badly delayed (Safari cookie throttling, cold connections). Never let that
     // block the UI — flip authReady after 3.5s no matter what. The real callback still
     // runs and updates `user` when it eventually arrives.
-    const authTimeout = setTimeout(() => setAuthReady(true), 3500);
+    // 3.5s was short enough to fire routinely on a phone, and releasing the UI with `user` still
+    // null makes a signed-in person look signed-out: wrong avatar, then a bounce to the
+    // claim-a-username screen. Give a real session room to arrive before giving up on it.
+    const authTimeout = setTimeout(() => setAuthReady(true), 10000);
     const unsub = onAuthStateChanged(auth, u => { setUser(u); setAuthReady(true); clearTimeout(authTimeout); });
     return () => { clearTimeout(authTimeout); unsub(); };
   }, []);
