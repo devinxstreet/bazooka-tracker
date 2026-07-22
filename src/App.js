@@ -21983,6 +21983,11 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
   const [deckOwnedOnly,  setDeckOwnedOnly]  = useState(false);
   const [deckSlotSort,   setDeckSlotSort]   = useState("added");
   const [deckType,       setDeckType]       = useState("none");
+
+  // How many Foil Hot Dogs you're bringing to a Madness deck. These aren't a treatment the app can
+  // reliably detect \u2014 they don't have to differ from each other \u2014 so the count is entered by hand.
+  // Each one (up to 4) unlocks an extra Apex Hero slot on top of the insert unlocks.
+  const [foilDogs, setFoilDogs] = useState(0);
   const [deckFilterPower, setDeckFilterPower] = useState("");
   const [deckFilterPowers, setDeckFilterPowers] = useState(new Set()); // multi-select powers
   const [deckFilterSet,    setDeckFilterSet]    = useState("");
@@ -29092,7 +29097,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         {deckProgress.am.nearInserts && deckProgress.am.nearInserts.length>0 && (
                           <div style={{marginTop:4,color:"#60A5FA"}}>💡 Closest to another unlock: {deckProgress.am.nearInserts.map(x=>`${x.insert} (${x.have}/${x.need})`).join(" · ")}</div>
                         )}
-                        <div style={{color:"#999",marginTop:4}}>• Foil Hot Dogs (different treatments): {deckProgress.am.foiledHotDogs} — four different ones unlock four extra Apex</div>
+                        <div style={{color:"#999",marginTop:4}}>• Foil Hot Dogs: {Math.min(4,parseInt(foilDogs)||0)}/4 — each one unlocks an extra Apex Hero</div>
                       </div>
                     )}
                     <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
@@ -29567,7 +29572,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                   apexmadness:{c:"#E8317A",icon:"\uD83D\uDD25",title:"Apex Madness",rules:[
                     "Start from a 60-card Spec deck (\u2264160 power)",
                     "Every 10 matching Inserts in your deck unlocks one Apex Hero (>160) \u2014 max 6",
-                    "Four DIFFERENT Foil Hot Dogs unlock four more Apex Heroes",
+                    "Each Foil Hot Dog you add (up to 4) unlocks one more Apex Hero",
                     "A fully optimised deck is 70 Heroes (60 + 6 + 4)",
                     "Max 6 cards at any power level",
                   ]},
@@ -29600,6 +29605,33 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                   </div>
                 );
               })()}
+                {/* Foil Hot Dog counter \u2014 Madness only. Entered by hand because these cards can't be
+                    reliably detected and don't have to differ from each other. Each one unlocks an
+                    Apex slot, capped at 4. */}
+                {isAM && (
+                  <div style={{marginTop:10,background:"rgba(232,49,122,0.08)",border:"1px solid rgba(232,49,122,0.3)",borderRadius:10,padding:"11px 13px"}}>
+                    <div style={{fontSize:12,fontWeight:800,color:"#E8317A",marginBottom:3}}>{"\uD83C\uDF2D"} Foil Hot Dogs in this deck</div>
+                    <div style={{fontSize:10.5,color:"var(--bz-ink-3)",marginBottom:8}}>Each one unlocks an extra Apex Hero slot (max 4).</div>
+                    <div style={{display:"flex",gap:6}}>
+                      {[0,1,2,3,4].map(n=>{
+                        const on = (parseInt(foilDogs)||0) === n;
+                        return (
+                          <button key={n} onClick={()=>setFoilDogs(n)}
+                            style={{flex:1,background:on?"#E8317A":"transparent",border:"1px solid "+(on?"#E8317A":"#444"),
+                              color:on?"#fff":"#999",borderRadius:8,padding:"8px 0",fontSize:14,fontWeight:900,
+                              cursor:"pointer",fontFamily:"inherit"}}>
+                            {n}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {(parseInt(foilDogs)||0) > 0 && (
+                      <div style={{fontSize:10.5,color:"#4ade80",marginTop:7,fontWeight:700}}>
+                        +{Math.min(4,parseInt(foilDogs)||0)} Apex slot{(parseInt(foilDogs)||0)===1?"":"s"} unlocked
+                      </div>
+                    )}
+                  </div>
+                )}
               {/* The card list scrolls ITSELF rather than growing the page. It used to have no height
                   limit, so picking a treatment shrank the list, the page got shorter, and the browser
                   clamped your scroll position back to the top \u2014 which reads as "it jumped me to the
@@ -38428,12 +38460,11 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       const tally = {};
       inDeck.filter(x=>(parseFloat(x.power)||0)<=160 && isInsertTreatment(x)).forEach(x=>{ const t=insertKey(x)||"—"; tally[t]=(tally[t]||0)+1; });
       const insertUnlocks = Math.min(6, Object.values(tally).reduce((n,v)=>n+Math.floor(v/10), 0));
-      // Foil Hot Dogs must be IN THE DECK to grant a slot, exactly like the 10-insert rule above.
-      // This used to scan your whole COLLECTION, so owning four foil Hot Dogs anywhere unlocked four
-      // apex slots on a completely empty deck \u2014 cards showed as unlocked that had not been earned.
-      const foilHotDogs = new Set(
-        inDeck.filter(x => (x.treatment||"").toLowerCase().includes("hot dog")).map(x=>x.treatment)
-      ).size;
+      // Foil Hot Dogs are entered by hand (the foilDogs count). Auto-detecting them by treatment was
+      // wrong twice over: they don't carry a distinct "foil" treatment, and they don't have to differ
+      // from each other \u2014 so counting distinct "hot dog" treatments collapsed four identical dogs to a
+      // single slot. A clamped manual count is both correct and simpler.
+      const foilHotDogs = Math.max(0, Math.min(4, parseInt(foilDogs) || 0));
       const slots = insertUnlocks + Math.min(4, foilHotDogs);
       const apexIn = inDeck.filter(x=>(parseFloat(x.power)||0)>160).length;
       if(apexIn >= slots){
