@@ -15886,7 +15886,11 @@ function PublicDeckBuilder() {
   if (isApexMadness) {
     inDeck.forEach(c => {
       const t=(c.treatment||"Unknown").toLowerCase(), p=parseFloat(c.power||0);
-      if (p>=115&&p<=160) treatCountCore[t]=(treatCountCore[t]||0)+1;
+      // No power FLOOR on the core count. The 10-inserts-unlocks-an-apex rule is about how many
+      // inserts of a treatment are in the deck, not how strong they are \u2014 and a thinner collection
+      // often has to reach below 115 to field a full deck. Requiring 115+ meant those cards sat in
+      // the deck contributing nothing toward an unlock.
+      if (p<=160) treatCountCore[t]=(treatCountCore[t]||0)+1;
       if (p>160)          treatCountApex[t]=(treatCountApex[t]||0)+1;
     });
   }
@@ -28822,7 +28826,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
   const inDeckDupKeys = new Set(inDeck.map(dupKey));
   const powerCount = {}; inDeck.forEach(c=>{const p=c.power||"0"; powerCount[p]=(powerCount[p]||0)+1;});
   const treatCore={}, treatApex={};
-  if(isAM){inDeck.forEach(c=>{if(!isInsertTreatment(c.treatment))return;const t=insertKey(c.treatment),p=parseFloat(c.power||0);if(p>=115&&p<=160){treatCore[t]=(treatCore[t]||0)+1;}else if(p>160){treatApex[t]=(treatApex[t]||0)+1;}});}
+  if(isAM){inDeck.forEach(c=>{if(!isInsertTreatment(c.treatment))return;const t=insertKey(c.treatment),p=parseFloat(c.power||0);if(p<=160){treatCore[t]=(treatCore[t]||0)+1;}else if(p>160){treatApex[t]=(treatApex[t]||0)+1;}});}
   const dbTotalPower = inDeck.reduce((s,c)=>s+(parseFloat(c.power)||0),0);
   const dbAvgPower = inDeck.length>0 ? Math.round(dbTotalPower/inDeck.length) : 0;
   const dbHeroes = new Set(inDeck.map(c=>(c.hero||"").toLowerCase()).filter(Boolean)).size;
@@ -37964,7 +37968,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
   const inDeckDupKeys = useMemo(()=>new Set(inDeck.map(dupKey)), [inDeck]);
   const powerCount = useMemo(()=>{ const m={}; inDeck.forEach(c=>{const p=c.power||"0"; m[p]=(m[p]||0)+1;}); return m; }, [inDeck]);
   const treatCore={},treatApex={};
-  if(isAM){inDeck.forEach(c=>{if(!isInsertTreatment(c.treatment))return;const t=insertKey(c.treatment),p=parseFloat(c.power||0);if(p>=115&&p<=160)treatCore[t]=(treatCore[t]||0)+1;if(p>160)treatApex[t]=(treatApex[t]||0)+1;});}
+  if(isAM){inDeck.forEach(c=>{if(!isInsertTreatment(c.treatment))return;const t=insertKey(c.treatment),p=parseFloat(c.power||0);if(p<=160)treatCore[t]=(treatCore[t]||0)+1;if(p>160)treatApex[t]=(treatApex[t]||0)+1;});}
   // -- Tournament rule: a physical copy can't be in two decks at once. --
   // Count how many of the user's OTHER saved decks already commit each cardId (excluding the
   // deck currently being edited). A card locks only when other decks have used up every copy
