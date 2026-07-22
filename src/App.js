@@ -28827,7 +28827,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, lots=[], inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -28962,6 +28962,29 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
 
   // PERF: filters + sorts the full 31k checklist. Memoized so hovering/adding a card doesn't
   // re-scan every card in the game.
+  // How many copies of a card are actually IN HAND. Owned quantity is not the same thing: a copy
+  // lent to someone is still yours and still counts toward your collection, but you cannot put it
+  // in a deck. A borrowed copy is the opposite \u2014 you have it, so it can be decked.
+  const availableCount = useMemo(() => {
+    const byCard = {};
+    (lots||[]).forEach(l => {
+      if (!l?.cardId) return;
+      const st = l.lendState || "";
+      byCard[l.cardId] = byCard[l.cardId] || { lots:0, lent:0, borrowed:0 };
+      byCard[l.cardId].lots++;
+      if (st === "lent") byCard[l.cardId].lent++;
+      if (st === "borrowed") byCard[l.cardId].borrowed++;
+    });
+    return (cardId) => {
+      const q = parseInt(owned?.[cardId]) || 0;
+      const b = byCard[cardId];
+      if (!b) return q;                       // no per-copy records: everything is in hand
+      // Only subtract lends we actually have a record for. If someone owns 3 but has only made
+      // one lot, we must not assume the other two are missing.
+      return Math.max(0, q - b.lent) + b.borrowed;
+    };
+  }, [lots, owned]);
+
   const deckAvail = useMemo(() => cards.filter(c=>{
     if(deckSet.has(c.id)) return false;
     if(deckFamilyOnly && !familyOwnerByCard[c.id]) return false;
@@ -28970,6 +28993,8 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
       const isMine = !!(owned && owned[c.id]);
       const isFam  = !!familyOwnerByCard[c.id];
       if(deckMineOnly ? !isMine : (!isMine && !isFam)) return false;
+      // Every copy is lent out \u2014 owned, but not available to build with.
+      if(isMine && availableCount(c.id) <= 0) return false;
     }
     if(deckFilterW.size && !deckFilterW.has(canonWeapon(c.weapon))) return false;   // multi-select
     if(deckFilterP && deckFilterP.size>0 && !deckFilterP.has(String(c.power||""))) return false;
@@ -31150,9 +31175,13 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp, onUploa
   // cost = CASH actually paid. tradeValue = what the cards you gave up were worth to you. Real
   // acquisition cost is the two together — recording only cash understates what a card cost and
   // quietly inflates every ROI number built on top of it.
+  // Lending lives on the COPY, not the card. Own three Ajax Gums and lend one, and only that one
+  // becomes unavailable \u2014 the other two still build decks normally.
+  //   lendState: "" (in hand) | "lent" (mine, with someone else) | "borrowed" (theirs, with me)
   const blank = { cost:"", tradeValue:"", value:"", version:"", method:"purchased", date:todayLocal(), notes:"", serial:"",
                   purchaseDate:"", condition:"", grade:"", gradeCompany:"", certNum:"",
-                  location:"", locked:false };
+                  location:"", locked:false,
+                  lendState:"", lendWho:"", lendWhy:"", lendDate:"" };
   const [draft, setDraft] = useState(blank);
   const [editId, setEditId] = useState(null);
   const [busySide, setBusySide] = useState(null);   // "front" | "back" while uploading
@@ -31171,6 +31200,10 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp, onUploa
       serial: (draft.serial||"").trim(),   // e.g. "21/50" — which numbered copy this is
       tradeValue: draft.tradeValue===""||draft.tradeValue==null ? null : (parseFloat(draft.tradeValue)||0),
       version: (draft.version||"").trim() || null,
+      lendState: draft.lendState || "",
+      lendWho:  (draft.lendWho||"").trim(),
+      lendWhy:  (draft.lendWhy||"").trim(),
+      lendDate:  draft.lendDate || "",
       purchaseDate: draft.purchaseDate||"",
       condition: draft.condition||"",
       grade: (draft.grade||"").trim(),
@@ -31184,7 +31217,7 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp, onUploa
   }
   function startEdit(l) { setEditId(l.id); setDraft({ cost:l.cost??"", tradeValue:l.tradeValue??"", value:l.value??"", version:l.version||"", method:l.method||"purchased", date:l.date||blank.date, notes:l.notes||"", serial:l.serial||"",
       purchaseDate:l.purchaseDate||"", condition:l.condition||"", grade:l.grade||"", gradeCompany:l.gradeCompany||"",
-      certNum:l.certNum||"", location:l.location||"", locked:!!l.locked });
+      certNum:l.certNum||"", location:l.location||"", locked:!!l.locked , lendState:l.lendState||"", lendWho:l.lendWho||"", lendWhy:l.lendWhy||"", lendDate:l.lendDate||""});
     // Reveal whatever this copy already has, so editing never hides saved data behind a collapse.
     setShowGrading(!!(l.gradeCompany || l.grade || l.certNum || l.condition));
     setShowWhere(!!l.location); }
@@ -31335,6 +31368,45 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp, onUploa
               </div>
             );
           })()}
+          {/* Lending. Kept right at the top because it changes whether the copy can be decked at all,
+              which matters more day-to-day than cost or grading. */}
+          <div style={{ marginBottom:10 }}>
+            <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:4 }}>Where is this copy?</div>
+            <div style={{ display:"flex", gap:6, marginBottom:draft.lendState?8:0 }}>
+              {[["","\uD83C\uDFE0 In hand"],["lent","\uD83D\uDCE4 Lent out"],["borrowed","\uD83D\uDCE5 Borrowed"]].map(([v,label])=>{
+                const on = (draft.lendState||"") === v;
+                const col = v==="lent" ? "#FBBF24" : v==="borrowed" ? "#7B9CFF" : "#4ade80";
+                return (
+                  <button key={v} onClick={()=>setDraft({...draft, lendState:v,
+                    // Starting a loan stamps today so "how long has Jason had this" is answerable
+                    // without anyone having to remember to fill in a date.
+                    lendDate: v && !draft.lendDate ? todayLocal() : (v ? draft.lendDate : ""),
+                    lendWho: v ? draft.lendWho : "", lendWhy: v ? draft.lendWhy : ""})}
+                    style={{flex:1,background:on?col+"22":"transparent",border:"1px solid "+(on?col:"#333"),
+                      color:on?col:"#888",borderRadius:8,padding:"7px 4px",fontSize:11,fontWeight:800,
+                      cursor:"pointer",fontFamily:"inherit"}}>
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            {draft.lendState && (
+              <div style={{ display:"flex", gap:8 }}>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>
+                    {draft.lendState==="lent" ? "Who has it" : "Who lent it to you"}
+                  </div>
+                  <input value={draft.lendWho} onChange={e=>setDraft({...draft,lendWho:e.target.value})}
+                    placeholder="Name" style={{...inp, width:"100%"}}/>
+                </div>
+                <div style={{ flex:1.3 }}>
+                  <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>What for</div>
+                  <input value={draft.lendWhy} onChange={e=>setDraft({...draft,lendWhy:e.target.value})}
+                    placeholder="e.g. BJBA league night" style={{...inp, width:"100%"}}/>
+                </div>
+              </div>
+            )}
+          </div>
           <div style={{ display:"flex", gap:8, marginBottom:10 }}>
             <div style={{ flex:1 }}>
               <div style={{ fontSize:10, color:"#a0a0a0", marginBottom:3 }}>Date acquired</div>
@@ -39795,6 +39867,31 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                     full detail view \u2014 the place you go precisely to check a card \u2014 showed nothing. If a
                     card is a known misprint or has had its power corrected, that belongs here. */}
                 {(() => {
+                  // Lending status. Shown prominently because it answers "why can I not deck this?"
+                  // and "who has my card?" \u2014 both of which are otherwise invisible.
+                  const mine = (lots||[]).filter(l => l.cardId === c.id && l.lendState);
+                  if (!mine.length) return null;
+                  return (
+                    <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                      {mine.map((l,i)=>{
+                        const out = l.lendState === "lent";
+                        const col = out ? "#FBBF24" : "#7B9CFF";
+                        return (
+                          <div key={i} style={{background:col+"1a",border:`1px solid ${col}66`,borderRadius:10,padding:"8px 11px"}}>
+                            <div style={{fontSize:12,fontWeight:800,color:col}}>
+                              {out ? "\uD83D\uDCE4 Lent out" : "\uD83D\uDCE5 Borrowed"}
+                              {l.lendWho ? (out ? ` to ${l.lendWho}` : ` from ${l.lendWho}`) : ""}
+                            </div>
+                            {l.lendWhy && <div style={{fontSize:11,color:"var(--bz-ink-2)",marginTop:2}}>{l.lendWhy}</div>}
+                            {l.lendDate && <div style={{fontSize:10,color:"var(--bz-ink-3)",marginTop:2}}>Since {l.lendDate}</div>}
+                            {out && <div style={{fontSize:10,color:"var(--bz-ink-3)",marginTop:3}}>This copy is excluded from deck building.</div>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+                {(() => {
                   // Version breakdown for multi-print cards: the grid shows one tile, so this is the
                   // only place the Alpha / Alpha Update split is visible.
                   const vspec = versionSpecFor(c);
@@ -43954,7 +44051,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
             cards={cards} owned={owned} inp={inp}
             familyOwnerByCard={familyOwnerByCard} familyOwnsCard={familyOwnsCard} deckOwnedMerged={deckOwnedMerged}
-            canAddToDeck={canAddToDeck} isMobile={isMobile}
+            canAddToDeck={canAddToDeck} isMobile={isMobile} lots={lots}
             savedDecks={savedDecks} familyDecks={familyDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
             saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} giveDeckToFamily={giveDeckToFamily} takeBackDeck={takeBackDeck} familyList={familyList} givenDecks={givenDecks} setFanDeck={setFanDeck} setFanMode={setFanMode}
             deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} deckSource={deckSource} setDeckSource={setDeckSource} computeDeckProgress={computeDeckProgress} listings={listings} setActiveTab={setActiveTab} deckLegality={deckLegality}
