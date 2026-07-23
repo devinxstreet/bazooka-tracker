@@ -174,6 +174,12 @@ const DECK_FORMATS = {
       { id:"greatgrandma", label:"Great Grandma Linoleum",   min:10, match:c=>(c.treatment||"")==="Great Grandma Linoleum Battlefoil" },
       { id:"gum",          label:"Gum weapon (any insert)",  min:10, match:c=>canonWeapon(c.weapon)==="Gum" },
     ] },
+  // Tecmo HiLo \u2014 Tecmo Bowl cards only, no power cap in either direction. The Captain/Coach split is
+  // the same idea as GG HiLo: identical legal pool, opposite goal. Captain wants the highest total
+  // power it can field; Coach wants the lowest, which the `lowPower` flag drives by flipping every
+  // power-preference sort in the auto-builder.
+  tecmohilo:      { label:"Tecmo HiLo (Captain)", short:"TECMO CAPT",  size:60, perPower:6, set:"Tecmo Bowl" },
+  tecmohilo_coach:{ label:"Tecmo HiLo (Coach)",   short:"TECMO COACH", size:60, perPower:6, set:"Tecmo Bowl", lowPower:true },
   // Madness: start from a 60-card Spec deck. Every 10 matching Inserts (= treatments) unlocks one
   // Apex Hero (>160), max 6. Four different Foil Hot Dogs unlock four more. Optimised = 70.
   apexmadness: { label:"Apex Madness",            short:"MADNESS",     size:70, perPower:6,
@@ -15497,6 +15503,8 @@ const SHARED_DECK_RULES = {
   gghilo:["Up to 60 cards","Grandma\u2019s Linoleum (min 10)","Great Grandma Linoleum (min 10)","Any Gum-weapon card (min 10)"],
   powerglove:["60 cards","Power Glove treatment only","Every card must be unique"],
   blast:["30-card deck","2025 Alpha Blast cards only","Max 3 at any power level"],
+  tecmohilo:["Up to 60 cards","Tecmo Bowl cards only","Max 6 at any power level","No power cap \u2014 aim as HIGH as you can"],
+  tecmohilo_coach:["Up to 60 cards (lowest-power build)","Tecmo Bowl cards only","Max 6 at any power level","No power cap \u2014 aim as LOW as you can"],
   apexmadness:["60-card Spec core (\u2264160)","Every 10 matching Inserts unlocks an Apex Hero (max 6)","Four different Foil Hot Dogs unlock four more","Ceiling: 70 Heroes"],
   vegasbaby:["Spec rules (\u2264160 power)","Max 6 at any power level"],
 };
@@ -28828,7 +28836,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, lots=[], foilDogs=0, setFoilDogs=()=>{}, kidGroups=[], kidOfCopy=null, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, lots=[], foilDogs=0, setFoilDogs=()=>{}, kidGroups=[], kidOfCopy=null, otherDeckUse={}, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -29896,26 +29904,35 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
             const openPickPrint = (autoPrint) => {
               const esc = s => String(s==null?"":s).replace(/[&<>"]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
               const dash = "\u2014", dot = "\u00b7";
+              // Who physically has a copy, and how many are actually free to pull. Owning a copy used
+              // to short-circuit the whole check, so a card where you have one and Derrik has one
+              // read as simply "You" \u2014 hiding both that a second copy exists and whose it is. Every
+              // holder is listed, and copies already committed to a deck are called out, because a
+              // committed copy is not one you can go and fetch.
               const ownLabel = c => {
-                if (owned && owned[c.id]) {
-                  // Name the kid holding it. "You" on every owned card sends you hunting through
-                  // your own binder for something that is actually in a kid's collection \u2014 which is
-                  // the exact wasted trip this list is supposed to prevent.
-                  const qty = parseInt(owned[c.id]) || 1;
-                  const who = [];
-                  for (let i = 0; i < qty; i++) {
+                const parts = [];
+                const myQty = (owned && owned[c.id]) ? (parseInt(owned[c.id]) || 0) : 0;
+                if (myQty > 0) {
+                  const mine = [];
+                  for (let i = 0; i < myQty; i++) {
                     const k = kidOfCopy ? kidOfCopy(c.id, i) : null;
                     const name = k ? ((kidGroups.find(g=>g.id===k)||{}).name || "Kid") : "You";
-                    if (!who.includes(name)) who.push(name);
+                    if (!mine.includes(name)) mine.push(name);
                   }
-                  const mineToo = who.includes("You");
-                  const kidsOnly = !mineToo && who.length > 0;
-                  const col = kidsOnly ? "#B45309" : "#1a7a3a";
-                  return '<span style="color:'+col+';font-weight:700">'+esc(who.join(" + "))+'</span>';
+                  const kidsOnly = !mine.includes("You");
+                  parts.push('<span style="color:'+(kidsOnly?"#B45309":"#1a7a3a")+';font-weight:700">'+esc(mine.join(" + "))+'</span>');
                 }
                 const fam = (familyOwnerByCard && familyOwnerByCard[c.id]) || (familyOwnsCard && familyOwnsCard[c.id]);
-                if (fam) return '<span style="color:#7B2FF7;font-weight:700">'+esc(fam.name||"Family")+'</span>';
-                return '<span style="color:#c0392b;font-weight:700">Not owned</span>';
+                if (fam) parts.push('<span style="color:#7B2FF7;font-weight:700">'+esc(fam.name||"Family")+'</span>');
+                if (!parts.length) return '<span style="color:#c0392b;font-weight:700">Not owned</span>';
+                // Copies of MINE already spoken for by another deck. Without this the list implies a
+                // card is available when every copy is already committed elsewhere.
+                const committed = (otherDeckUse && otherDeckUse[c.id]) || 0;
+                const free = Math.max(0, myQty - committed);
+                const note = (myQty > 0 && committed > 0)
+                  ? '<span style="color:#B45309;font-size:11px;"> \u00b7 '+committed+' in a deck'+(free>0?', '+free+' free':'')+'</span>'
+                  : "";
+                return parts.join('<span style="color:#999"> + </span>') + note;
               };
               const rows = sorted.map((c,i)=>('<tr><td class="num">'+(i+1)+'</td><td class="mono">'+esc(c.cardNum||dash)+'</td><td class="hero">'+esc(c.hero||dash)+'</td><td class="r">'+esc(c.power)+'</td><td>'+esc(c.weapon||dash)+'</td><td>'+esc(c.treatment||dash)+'</td><td class="set">'+esc(c.setName||dash)+'</td><td>'+ownLabel(c)+'</td></tr>')).join("");
               const script = autoPrint ? '<scr'+'ipt>window.onload=function(){setTimeout(function(){window.print();},250);};</scr'+'ipt>' : '';
@@ -29988,18 +30005,33 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         <td style={{padding:"6px",color:"#555"}}>{c.treatment||"—"}</td>
                         <td style={{padding:"6px",color:"#888",fontSize:12}}>{c.setName||"—"}</td>
                         <td style={{padding:"6px",fontSize:12,fontWeight:700}}>{(() => {
-                          if (owned && owned[c.id]) {
-                            // Same as the printed list: say WHO has it, so a card sitting in a kid's
-                            // collection is not mistaken for one you can pull off your own shelf.
-                            const qty = parseInt(owned[c.id]) || 1;
+                          // List EVERY holder, not just the first match. Returning early on "I own
+                          // one" hid the fact that a relative also has a copy \u2014 and hid whose it was.
+                          const myQty = (owned && owned[c.id]) ? (parseInt(owned[c.id]) || 0) : 0;
+                          const bits = [];
+                          if (myQty > 0) {
                             const who = [];
-                            for (let i = 0; i < qty; i++) {
+                            for (let i = 0; i < myQty; i++) {
                               const k = kidOfCopy ? kidOfCopy(c.id, i) : null;
                               const nm = k ? ((kidGroups.find(g=>g.id===k)||{}).name || "Kid") : "You";
                               if (!who.includes(nm)) who.push(nm);
                             }
                             const kidsOnly = !who.includes("You");
-                            return <span style={{color: kidsOnly ? "#B45309" : "#1a7a3a"}}>{who.join(" + ")}</span>;
+                            bits.push(<span key="me" style={{color: kidsOnly ? "#B45309" : "#1a7a3a"}}>{who.join(" + ")}</span>);
+                          }
+                          const famHolder = (familyOwnerByCard && familyOwnerByCard[c.id]) || (familyOwnsCard && familyOwnsCard[c.id]);
+                          if (famHolder) bits.push(<span key="fam" style={{color:"#7B2FF7"}}>{famHolder.name||"Family"}</span>);
+                          if (bits.length) {
+                            const committed = (otherDeckUse && otherDeckUse[c.id]) || 0;
+                            const free = Math.max(0, myQty - committed);
+                            return (
+                              <span>
+                                {bits.map((b,bi)=>(<span key={bi}>{bi>0 && <span style={{color:"#666"}}> + </span>}{b}</span>))}
+                                {myQty>0 && committed>0 && (
+                                  <span style={{color:"#B45309",fontSize:10.5}}> {"\u00b7"} {committed} in a deck{free>0?`, ${free} free`:""}</span>
+                                )}
+                              </span>
+                            );
                           }
                           const fam = (familyOwnerByCard && familyOwnerByCard[c.id]) || (familyOwnsCard && familyOwnsCard[c.id]);
                           if (fam) return <span style={{color:"#7B2FF7"}}>{fam.name || "Family"}</span>;
@@ -44362,7 +44394,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             cards={cards} owned={owned} inp={inp}
             familyOwnerByCard={familyOwnerByCard} familyOwnsCard={familyOwnsCard} deckOwnedMerged={deckOwnedMerged}
             canAddToDeck={canAddToDeck} isMobile={isMobile} lots={lots} foilDogs={foilDogs} setFoilDogs={setFoilDogs}
-            kidGroups={kidGroups} kidOfCopy={kidOfCopy}
+            kidGroups={kidGroups} kidOfCopy={kidOfCopy} otherDeckUse={otherDeckUse}
             savedDecks={savedDecks} familyDecks={familyDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
             saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} giveDeckToFamily={giveDeckToFamily} takeBackDeck={takeBackDeck} familyList={familyList} givenDecks={givenDecks} setFanDeck={setFanDeck} setFanMode={setFanMode}
             deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} deckSource={deckSource} setDeckSource={setDeckSource} computeDeckProgress={computeDeckProgress} listings={listings} setActiveTab={setActiveTab} deckLegality={deckLegality}
