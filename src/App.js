@@ -238,6 +238,14 @@ function hasPlayCost(card) {
   const n = parseFloat(v);
   return !(isNaN(n) && String(v).trim() === "");
 }
+// Cards that are not Heroes: Plays, Bonus Plays and Hot Dogs. They live in your collection and are
+// legal to hold, but they do not fill a Hero slot \u2014 so the auto-builder must not spend deck slots on
+// them. Matched on the treatment, with word boundaries so a hero named e.g. "Playmaker" is not caught.
+function isSupportCard(card) {
+  const t = String(card?.treatment || "").toLowerCase();
+  if (!t) return false;
+  return /\bplay\b|\bplays\b|\bhot dog\b|\bhot dogs\b/.test(t);
+}
 const INDIV_TYPES = ["First-Timer Cards","Chaser Cards"];  // individual tracking
 const BREAKERS = ["Dev","Dre","Krystal","BigU","Vinny","Stephen"];
 // Remote breakers front their own supplies/shipping and get reimbursed — same
@@ -38992,6 +39000,11 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       if(F.weapon && canonWeapon(c.weapon) !== canonWeapon(F.weapon)) return false; // Brawl
       // GG HiLo: the deck may ONLY contain cards from the allowed groups.
       if(F.groups && !F.groups.some(g=>g.match(c))) return false;
+      // Plays, Bonus Plays and Hot Dogs are not Heroes \u2014 they are support cards you play alongside a
+      // deck, so an auto-build that fills slots with them produces a deck you cannot actually field.
+      // Only the QUICK builder skips them; manual building still allows anything, because a Madness
+      // deck genuinely wants Foil Hot Dogs and only you know which ones you are bringing.
+      if(isSupportCard(c)) return false;
       return true;
     };
     const ownedCards = cards.filter(c => isOwned(c) && isAvailable(c) && formatEligible(c));
