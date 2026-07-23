@@ -29525,7 +29525,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     </div>
                   );
                 }
-                const fmt = {
+                let fmt = {
                   none:{c:"rgba(255,255,255,0.5)",icon:"\uD83D\uDCCB",title:"No Restrictions",rules:["Up to 60 cards","No duplicate cards","Max 6 cards at any power level"]},
                   spec:{c:"#FBBF24",icon:"\uD83D\uDEE1\uFE0F",title:"Spec",rules:["Up to 60 cards","Power ceiling: 160 max","No power floor","Max 6 cards at any power level"]},
                   apex:{c:"#A855F7",icon:"\u26A1",title:"Apex",rules:["Up to 60 cards","No power cap","Max 6 cards at any power level"]},
@@ -29573,6 +29573,18 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     "2025 Alpha Blast cards only",
                     "Max 3 Heroes at any power level",
                   ]},
+                  tecmohilo:{c:"#FBBF24",icon:"\uD83C\uDFC8",title:"Tecmo HiLo \u2014 Captain",rules:[
+                    "Up to 60 cards",
+                    "Tecmo Bowl cards only",
+                    "No power cap \u2014 build the HIGHEST power deck you can",
+                    "Max 6 cards at any power level",
+                  ]},
+                  tecmohilo_coach:{c:"#7B9CFF",icon:"\uD83C\uDFC8",title:"Tecmo HiLo \u2014 Coach",rules:[
+                    "Up to 60 cards",
+                    "Tecmo Bowl cards only",
+                    "No power cap \u2014 build the LOWEST power deck you can",
+                    "Max 6 cards at any power level",
+                  ]},
                   apexmadness:{c:"#E8317A",icon:"\uD83D\uDD25",title:"Apex Madness",rules:[
                     "Start from a 60-card Spec deck (\u2264160 power)",
                     "Every 10 matching Inserts in your deck unlocks one Apex Hero (>160) \u2014 max 6",
@@ -29581,6 +29593,14 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     "Max 6 cards at any power level",
                   ]},
                 }[deckType] || {};
+                // A format missing from the table above used to fall through to {} and then crash on
+                // fmt.rules.map. Fall back to the shared rule summaries, and bail out entirely if even
+                // those are absent \u2014 a missing blurb must never take down the deck builder.
+                if (!fmt.rules) {
+                  const shared = SHARED_DECK_RULES[deckType];
+                  if (!shared) return null;
+                  fmt = { c: fmt.c || "#E8317A", label: fmtOf(deckType).label, rules: shared };
+                }
                 return (
                   <div style={{background:`${fmt.c}11`,border:`1px solid ${fmt.c}33`,borderRadius:10,padding:"10px 13px"}}>
                     <div style={{fontSize:11.5,fontWeight:800,color:fmt.c,marginBottom:6,display:"flex",alignItems:"center",gap:6}}>{fmt.icon} {fmt.title} — rules</div>
