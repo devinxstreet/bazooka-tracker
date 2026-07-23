@@ -28828,7 +28828,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, lots=[], foilDogs=0, setFoilDogs=()=>{}, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, lots=[], foilDogs=0, setFoilDogs=()=>{}, kidGroups=[], kidOfCopy=null, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -29897,7 +29897,22 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               const esc = s => String(s==null?"":s).replace(/[&<>"]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
               const dash = "\u2014", dot = "\u00b7";
               const ownLabel = c => {
-                if (owned && owned[c.id]) return '<span style="color:#1a7a3a;font-weight:700">You</span>';
+                if (owned && owned[c.id]) {
+                  // Name the kid holding it. "You" on every owned card sends you hunting through
+                  // your own binder for something that is actually in a kid's collection \u2014 which is
+                  // the exact wasted trip this list is supposed to prevent.
+                  const qty = parseInt(owned[c.id]) || 1;
+                  const who = [];
+                  for (let i = 0; i < qty; i++) {
+                    const k = kidOfCopy ? kidOfCopy(c.id, i) : null;
+                    const name = k ? ((kidGroups.find(g=>g.id===k)||{}).name || "Kid") : "You";
+                    if (!who.includes(name)) who.push(name);
+                  }
+                  const mineToo = who.includes("You");
+                  const kidsOnly = !mineToo && who.length > 0;
+                  const col = kidsOnly ? "#B45309" : "#1a7a3a";
+                  return '<span style="color:'+col+';font-weight:700">'+esc(who.join(" + "))+'</span>';
+                }
                 const fam = (familyOwnerByCard && familyOwnerByCard[c.id]) || (familyOwnsCard && familyOwnsCard[c.id]);
                 if (fam) return '<span style="color:#7B2FF7;font-weight:700">'+esc(fam.name||"Family")+'</span>';
                 return '<span style="color:#c0392b;font-weight:700">Not owned</span>';
@@ -29918,7 +29933,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 '<div class="btns"><button onclick="window.print()">Print</button><button onclick="window.print()">Save as PDF</button><button onclick="window.close()" style="background:#666">Close</button></div>'+
                 '<h1>'+esc(deckName||"My Deck")+' '+dash+' Pick List</h1>'+
                 '<div class="sub">'+sorted.length+' cards '+dot+' generated '+new Date().toLocaleDateString()+'</div>'+
-                '<table><thead><tr><th>#</th><th>Card #</th><th>Hero</th><th class="r">Power</th><th>Weapon</th><th>Treatment</th><th>Set</th><th>In Collection</th></tr></thead>'+
+                '<table><thead><tr><th>#</th><th>Card #</th><th>Hero</th><th class="r">Power</th><th>Weapon</th><th>Treatment</th><th>Set</th><th>Who has it</th></tr></thead>'+
                 '<tbody>'+rows+'</tbody></table>'+
                 '<div class="foot">Bazooka Dash '+dot+' '+esc(deckName||"My Deck")+'</div>'+script+
                 '</body></html>';
@@ -29959,7 +29974,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       <th style={{padding:"7px 6px"}}>Weapon</th>
                       <th style={{padding:"7px 6px"}}>Treatment</th>
                       <th style={{padding:"7px 6px"}}>Set</th>
-                          <th style={{padding:"7px 6px"}}>In Collection</th>
+                          <th style={{padding:"7px 6px"}}>Who has it</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -29973,7 +29988,19 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         <td style={{padding:"6px",color:"#555"}}>{c.treatment||"—"}</td>
                         <td style={{padding:"6px",color:"#888",fontSize:12}}>{c.setName||"—"}</td>
                         <td style={{padding:"6px",fontSize:12,fontWeight:700}}>{(() => {
-                          if (owned && owned[c.id]) return <span style={{color:"#1a7a3a"}}>You</span>;
+                          if (owned && owned[c.id]) {
+                            // Same as the printed list: say WHO has it, so a card sitting in a kid's
+                            // collection is not mistaken for one you can pull off your own shelf.
+                            const qty = parseInt(owned[c.id]) || 1;
+                            const who = [];
+                            for (let i = 0; i < qty; i++) {
+                              const k = kidOfCopy ? kidOfCopy(c.id, i) : null;
+                              const nm = k ? ((kidGroups.find(g=>g.id===k)||{}).name || "Kid") : "You";
+                              if (!who.includes(nm)) who.push(nm);
+                            }
+                            const kidsOnly = !who.includes("You");
+                            return <span style={{color: kidsOnly ? "#B45309" : "#1a7a3a"}}>{who.join(" + ")}</span>;
+                          }
                           const fam = (familyOwnerByCard && familyOwnerByCard[c.id]) || (familyOwnsCard && familyOwnsCard[c.id]);
                           if (fam) return <span style={{color:"#7B2FF7"}}>{fam.name || "Family"}</span>;
                           return <span style={{color:"#c0392b"}}>Not owned</span>;
@@ -44335,6 +44362,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             cards={cards} owned={owned} inp={inp}
             familyOwnerByCard={familyOwnerByCard} familyOwnsCard={familyOwnsCard} deckOwnedMerged={deckOwnedMerged}
             canAddToDeck={canAddToDeck} isMobile={isMobile} lots={lots} foilDogs={foilDogs} setFoilDogs={setFoilDogs}
+            kidGroups={kidGroups} kidOfCopy={kidOfCopy}
             savedDecks={savedDecks} familyDecks={familyDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
             saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} giveDeckToFamily={giveDeckToFamily} takeBackDeck={takeBackDeck} familyList={familyList} givenDecks={givenDecks} setFanDeck={setFanDeck} setFanMode={setFanMode}
             deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} deckSource={deckSource} setDeckSource={setDeckSource} computeDeckProgress={computeDeckProgress} listings={listings} setActiveTab={setActiveTab} deckLegality={deckLegality}
