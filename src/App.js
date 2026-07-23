@@ -35614,6 +35614,28 @@ See you in there!
   // lent out and to whom, and what am I holding that belongs to someone else. Opens a clean printable
   // page rather than a CSV, because this is a list you hand to someone or check against a stack of
   // cards \u2014 not something you load into a spreadsheet.
+  // On-loan manager state. A printable report answers "what is out?" but not "I got it back" \u2014
+  // returning a card meant hunting for the right copy inside the card's Details modal, and a
+  // mis-tagged card had no way back at all. This is the working list: see everything on loan and
+  // act on it in one place.
+  const [loanMgr, setLoanMgr] = useState(null);   // null | "borrowed" | "lent" | "all"
+
+  // Clear the loan status on one copy, leaving the copy itself intact. Used for "returned to me"
+  // and for undoing a mis-tag.
+  function clearLoanOn(lotId) {
+    saveLots((lots||[]).map(l => l.id === lotId
+      ? { ...l, lendState:"", lendWho:"", lendWhy:"", lendDate:"" }
+      : l));
+  }
+
+  // A borrowed card was never yours, so giving it back means the copy leaves your collection
+  // entirely \u2014 unlike a lent card coming home, which just clears its status.
+  async function returnBorrowedCopy(lot) {
+    saveLots((lots||[]).filter(l => l.id !== lot.id));
+    const left = (parseInt(owned?.[lot.cardId]) || 0) - 1;
+    await setOwnedQty(lot.cardId, Math.max(0, left));
+  }
+
   function printLoanReport(which) {
     if (!user) { setSigningIn(true); return; }
     const want = which === "borrowed" ? "borrowed" : which === "lent" ? "lent" : null;
@@ -41216,6 +41238,94 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
           </div>
         </div>
       )}
+      {/* On-loan manager. The list you actually work from: everything currently lent or borrowed,
+          with the action to resolve it right on the row. */}
+      {loanMgr && (()=>{
+        const all = (lots||[]).filter(l => l.lendState);
+        const rows = all.filter(l => loanMgr==="all" ? true : l.lendState===loanMgr)
+          .map(l => ({ lot:l, card: cards.find(x=>x.id===l.cardId) || {} }))
+          .sort((a,b)=> String(a.lot.lendWho||"").localeCompare(String(b.lot.lendWho||""))
+                     || String(a.lot.lendDate||"").localeCompare(String(b.lot.lendDate||"")));
+        const tab = (k,label)=>(
+          <button key={k} onClick={()=>setLoanMgr(k)}
+            style={{flex:1,background:loanMgr===k?"rgba(232,49,122,0.15)":"transparent",
+              border:"1px solid "+(loanMgr===k?"#E8317A":"var(--bz-line-2)"),
+              color:loanMgr===k?"#E8317A":"var(--bz-ink-2)",borderRadius:8,padding:"7px 4px",
+              fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
+        );
+        return (
+          <div onClick={()=>setLoanMgr(null)} style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-s1,#14141c)",border:"1px solid var(--bz-line-2)",borderRadius:14,width:"100%",maxWidth:620,maxHeight:"84vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+              <div style={{padding:"14px 16px 10px",borderBottom:"1px solid var(--bz-line)"}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                  <div style={{fontSize:15,fontWeight:900,color:"var(--bz-ink)"}}>Cards on loan</div>
+                  <button onClick={()=>setLoanMgr(null)} style={{background:"none",border:"none",color:"var(--bz-ink-3)",fontSize:20,cursor:"pointer",lineHeight:1,fontFamily:"inherit"}}>{"\u00d7"}</button>
+                </div>
+                <div style={{display:"flex",gap:6}}>
+                  {tab("borrowed", "\uD83D\uDCE5 Borrowing")}
+                  {tab("lent", "\uD83D\uDCE4 Lent out")}
+                  {tab("all", "All")}
+                  <button onClick={()=>printLoanReport(loanMgr==="all"?null:loanMgr)}
+                    title="Print this list"
+                    style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:8,padding:"7px 11px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>
+                    {"\uD83D\uDDA8"}
+                  </button>
+                </div>
+              </div>
+              <div style={{overflowY:"auto",padding:"10px 12px 14px"}}>
+                {rows.length===0 ? (
+                  <div style={{textAlign:"center",color:"var(--bz-ink-3)",fontSize:12.5,padding:"26px 10px"}}>
+                    {loanMgr==="borrowed" ? "You aren\u2019t borrowing anything right now."
+                      : loanMgr==="lent" ? "You haven\u2019t lent anything out."
+                      : "Nothing is on loan."}
+                  </div>
+                ) : rows.map(({lot,card})=>{
+                  const borrowed = lot.lendState==="borrowed";
+                  const col = borrowed ? "#7B9CFF" : "#FBBF24";
+                  return (
+                    <div key={lot.id} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"10px 2px",borderBottom:"1px solid var(--bz-line)"}}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontSize:12.5,fontWeight:800,color:"var(--bz-ink)"}}>
+                          {card.hero || card.playName || "(unknown card)"}
+                          {card.cardNum ? <span style={{color:"var(--bz-ink-3)",fontWeight:600}}> #{card.cardNum}</span> : null}
+                        </div>
+                        <div style={{fontSize:10.5,color:"var(--bz-ink-3)",marginTop:1}}>
+                          {[card.treatment, card.weapon, card.setName].filter(Boolean).join(" \u00b7 ")}
+                        </div>
+                        <div style={{fontSize:11,color:col,marginTop:3,fontWeight:700}}>
+                          {borrowed ? "\uD83D\uDCE5 From" : "\uD83D\uDCE4 With"} {lot.lendWho || "\u2014"}
+                          {lot.lendWhy ? <span style={{color:"var(--bz-ink-3)",fontWeight:600}}> {"\u00b7"} {lot.lendWhy}</span> : null}
+                        </div>
+                        {lot.lendDate && <div style={{fontSize:10,color:"var(--bz-ink-3)",marginTop:1}}>Since {lot.lendDate}</div>}
+                      </div>
+                      <div style={{display:"flex",flexDirection:"column",gap:5,flexShrink:0}}>
+                        <button onClick={async ()=>{
+                          if (borrowed) {
+                            if (!window.confirm(`Give ${card.hero||"this card"} back to ${lot.lendWho||"its owner"}?\n\nIt will be removed from your collection.`)) return;
+                            await returnBorrowedCopy(lot);
+                            setToast("\u2713 Returned \u2014 removed from your collection");
+                          } else {
+                            clearLoanOn(lot.id);
+                            setToast("\u2713 Marked as back in hand");
+                          }
+                        }} style={{background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.45)",color:"#4ade80",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                          {borrowed ? "Gave it back" : "Got it back"}
+                        </button>
+                        {/* Undo a mis-tag without touching the copy itself \u2014 the card stays exactly as
+                            it was, only the loan status is cleared. */}
+                        <button onClick={()=>{ clearLoanOn(lot.id); setToast("Loan tag removed"); }}
+                          style={{background:"none",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-3)",borderRadius:8,padding:"6px 10px",fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                          Not on loan
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {lotModal && <LotModal card={lotModal.card} lots={lotsForCard(lotModal.card.id)} onAdd={addLot} onUpdate={updateLot} onRemove={removeLot} onClose={()=>setLotModal(null)} inp={inp} onUploadPhoto={uploadLotPhoto} />}
       {reviewModal && <ReviewModal sale={reviewModal.sale} onSubmit={submitReview} onClose={()=>setReviewModal(null)} inp={inp} />}
       <BackToTop />
@@ -41903,12 +42013,11 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   // whether you are about to get 40 rows or 4,000.
                   {label: (filterTreat.size>0||filterSet.size>0||filterWeapon.size>0||filterPower.size>0)
                     ? "\u2b06\ufe0f Export filtered cards" : "\u2b06\ufe0f Export Collection", act:exportCollection},
-                  // Only worth showing when something is actually on loan \u2014 a dead menu item that
-                  // always says "nothing to report" is just noise.
-                  ...((lots||[]).some(l=>l.lendState==="borrowed")
-                    ? [{label:"\uD83D\uDCE5 Cards I\u2019m borrowing", act:()=>printLoanReport("borrowed")}] : []),
-                  ...((lots||[]).some(l=>l.lendState==="lent")
-                    ? [{label:"\uD83D\uDCE4 Cards I\u2019ve lent out", act:()=>printLoanReport("lent")}] : []),
+                  // Opens the manager rather than a print view: seeing the list and acting on it
+                  // are the same job, and printing is available from inside it.
+                  ...((lots||[]).some(l=>l.lendState)
+                    ? [{label:"\uD83D\uDD01 Cards on loan", act:()=>setLoanMgr(
+                        (lots||[]).some(l=>l.lendState==="borrowed") ? "borrowed" : "lent")}] : []),
                   {label:"\uD83D\uDCBE Full Backup (JSON)",act:exportFullBackup},
                   {label:"\u267B\uFE0F Restore from Backup",act:()=>setRestoreModal({pick:true})},
                   {label:"\uD83D\uDD17 Share Collection",act:()=>{ const url=`${window.location.origin}/showcase?uid=${user.uid}`; if(navigator.share){navigator.share({title:"My Bazooka Collection",url}).catch(()=>{});} else { navigator.clipboard.writeText(url).then(()=>showToast("Collection link copied!")).catch(()=>{}); } }},
