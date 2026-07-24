@@ -31431,8 +31431,10 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
                   {hit && <div className="bz-fx-layer"><ArenaProjectile key={fx.key} w={fx.weapon} up={false} /></div>}
                 </div>
               );
-              // My own face-down cards are visible to ME only — I placed them.
-              return <div key={i} style={{opacity:0.5}}>{mine ? heroCard(mine) : cardBack("EMPTY")}</div>;
+              // Once I place a hero it's face-down to ME too. Knowing my own lineup
+              // before reveal defeats the memory element of the game — I have to
+              // remember which hero went where, same as the physical game.
+              return <div key={i}>{mine ? cardBack("PLACED") : cardBack("EMPTY")}</div>;
             })}
           </div>
           <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.5)",textAlign:"center",marginTop:10,letterSpacing:2}}>
