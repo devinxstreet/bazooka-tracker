@@ -28894,9 +28894,36 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
 
 const ARENA_FX_CSS = `
 @keyframes bzShake {
-  0%,100%{transform:translate(0,0)} 15%{transform:translate(-3px,2px)}
-  30%{transform:translate(3px,-2px)} 45%{transform:translate(-2px,-2px)}
-  60%{transform:translate(2px,2px)} 80%{transform:translate(-1px,1px)}
+  0%,100%{transform:translate(0,0) rotate(0deg)} 10%{transform:translate(-7px,4px) rotate(-2deg)}
+  22%{transform:translate(7px,-5px) rotate(2.5deg)} 36%{transform:translate(-6px,-4px) rotate(-2deg)}
+  50%{transform:translate(6px,5px) rotate(1.5deg)} 64%{transform:translate(-4px,3px) rotate(-1deg)}
+  80%{transform:translate(3px,-2px) rotate(0.5deg)}
+}
+/* Winner pulses forward — the strike should read as coming FROM somewhere. */
+@keyframes bzWinnerPulse {
+  0%{transform:scale(1)} 22%{transform:scale(1.12)} 55%{transform:scale(0.98)} 100%{transform:scale(1)}
+}
+/* Full-board impact flash. */
+@keyframes bzBoardFlash {
+  0%{opacity:0} 8%{opacity:0.85} 100%{opacity:0}
+}
+/* Debris/spark thrown outward from the point of impact. */
+@keyframes bzSpark {
+  0%{transform:translate(0,0) scale(1);opacity:1}
+  100%{transform:translate(var(--dx),var(--dy)) scale(0.2);opacity:0}
+}
+/* Big travelling projectile across the whole board height. */
+@keyframes bzHurlUp {
+  0%{transform:translate(-50%,120px) scale(0.35) rotate(0deg);opacity:0}
+  15%{opacity:1}
+  85%{opacity:1}
+  100%{transform:translate(-50%,-150px) scale(1.9) rotate(var(--spin,0deg));opacity:0}
+}
+@keyframes bzHurlDown {
+  0%{transform:translate(-50%,-120px) scale(0.35) rotate(0deg);opacity:0}
+  15%{opacity:1}
+  85%{opacity:1}
+  100%{transform:translate(-50%,150px) scale(1.9) rotate(var(--spin,0deg));opacity:0}
 }
 @keyframes bzFlyUp {
   0%{transform:translate(-50%,40px) scale(0.5);opacity:0}
@@ -28934,8 +28961,8 @@ const ARENA_FX_CSS = `
   0%{top:-12%;opacity:0} 12%{opacity:1} 88%{opacity:1} 100%{top:104%;opacity:0}
 }
 @keyframes bzRing {
-  0%{transform:translate(-50%,-50%) scale(0.15);opacity:0.95;border-width:8px}
-  100%{transform:translate(-50%,-50%) scale(3.6);opacity:0;border-width:1px}
+  0%{transform:translate(-50%,-50%) scale(0.1);opacity:1;border-width:14px}
+  100%{transform:translate(-50%,-50%) scale(9);opacity:0;border-width:1px}
 }
 @keyframes bzBloom {
   0%{opacity:0} 30%{opacity:1} 100%{opacity:0}
@@ -29122,14 +29149,14 @@ function ArenaOnCardFx({ w }) {
 // `up` = travelling toward the opponent's row (I won).
 function ArenaProjectile({ w, up }) {
   if (!w) return null;
-  const fly = up ? "bzFlyUp" : "bzFlyDown";
+  const fly = up ? "bzHurlUp" : "bzHurlDown";
   const wrap = { position:"absolute", left:"50%", top:"50%", pointerEvents:"none" };
 
   if (w === "Fire") {
     return (
       <div style={wrap}>
         {[0,1,2].map(i=>(
-          <div key={i} style={{position:"absolute",left:(i-1)*17,fontSize:30,
+          <div key={i} style={{position:"absolute",left:(i-1)*26,fontSize:54,
             animation:`${fly} 760ms ease-out ${i*80}ms forwards`,
             filter:"drop-shadow(0 0 12px rgba(255,120,0,0.95))"}}>🔥</div>
         ))}
@@ -29139,8 +29166,8 @@ function ArenaProjectile({ w, up }) {
   if (w === "Brawl") {
     return (
       <div style={wrap}>
-        <div style={{position:"absolute",fontSize:34,
-          animation:`${fly} 620ms cubic-bezier(.2,.8,.3,1) forwards`,
+        <div style={{position:"absolute",fontSize:60,"--spin":"-25deg",
+          animation:`${fly} 640ms cubic-bezier(.2,.8,.3,1) forwards`,
           filter:"drop-shadow(0 0 10px rgba(248,113,113,0.9))"}}>🥊</div>
       </div>
     );
@@ -29182,7 +29209,7 @@ function ArenaProjectile({ w, up }) {
     return (
       <div style={wrap}>
         {[0,1,2].map(i=>(
-          <div key={i} style={{position:"absolute",left:(i-1)*16,fontSize:24,
+          <div key={i} style={{position:"absolute",left:(i-1)*24,fontSize:46,
             animation:`${fly} 740ms ease-out ${i*70}ms forwards`,
             filter:"drop-shadow(0 0 10px rgba(147,220,255,0.95))"}}>❄️</div>
         ))}
@@ -29251,6 +29278,52 @@ function ArenaProjectile({ w, up }) {
     );
   }
   return null;
+}
+
+// Board-wide strike layer. The per-card effects are clipped to a ~130px slot on a
+// 7-wide grid, which is why the first version felt small. This renders ACROSS the
+// whole arena: a tint wash in the weapon's colour, a burst at the impact column,
+// and sparks thrown outward. Cosmetic only.
+function ArenaStrikeLayer({ w, up, zone }) {
+  if (!w) return null;
+  const TONE = {
+    Fire:"#FF6A00", Ice:"#7DD3FC", Brawl:"#F87171", Steel:"#E2E8F0",
+    Gum:"#FF69B4", Hex:"#A855F7", Glow:"#FDE68A", Cyber:"#00FFC8",
+    Alt:"#FF006E", Super:"#FFD700", Medal:"#FFD700", Metallic:"#CBD5E1",
+  };
+  const tone = TONE[w] || "#fff";
+  // Impact column: 7 zones, centre of the struck one.
+  const leftPct = ((zone + 0.5) / 7) * 100;
+  // The blow lands on the row OPPOSITE the winner.
+  const impactTop = up ? "22%" : "78%";
+
+  return (
+    <div style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:45,overflow:"hidden",borderRadius:12}}>
+      {/* whole-board tint in the weapon colour */}
+      <div style={{position:"absolute",inset:0,animation:"bzBoardFlash 620ms ease-out forwards",
+        background:`radial-gradient(circle at ${leftPct}% ${up?"25%":"75%"}, ${tone}88 0%, ${tone}22 34%, transparent 68%)`,
+        mixBlendMode:"screen"}}/>
+      {/* concussion ring at the impact point */}
+      {[0,1].map(i=>(
+        <div key={i} style={{position:"absolute",left:`${leftPct}%`,top:impactTop,
+          width:70,height:70,borderRadius:"50%",border:`6px solid ${tone}`,
+          animation:`bzRing ${820+i*140}ms ease-out ${i*110}ms forwards`,
+          boxShadow:`0 0 34px ${tone}`}}/>
+      ))}
+      {/* sparks thrown outward from impact */}
+      {Array.from({length:12}).map((_,i)=>{
+        const ang = (i/12)*Math.PI*2;
+        const dist = 60 + (i%4)*26;
+        return (
+          <div key={"s"+i} style={{position:"absolute",left:`${leftPct}%`,top:impactTop,
+            width:i%3===0?7:4, height:i%3===0?7:4, borderRadius:"50%", background:tone,
+            boxShadow:`0 0 12px ${tone}`,
+            "--dx":`${Math.cos(ang)*dist}px`, "--dy":`${Math.sin(ang)*dist}px`,
+            animation:`bzSpark ${520+(i%5)*90}ms ease-out ${(i%3)*40}ms forwards`}}/>
+        );
+      })}
+    </div>
+  );
 }
 
 function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobile, setToast, inp }) {
@@ -29998,14 +30071,20 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   );
 
   // `struck` = the winning weapon landing on THIS card, or null. Cosmetic only.
-  const heroCard = (c, dim, struck, fxKey) => {
+  const heroCard = (c, dim, struck, fxKey, striking) => {
     if (!c) return null;
     const wc = WEAPON_COLORS?.[c.weapon] || "#666";
     return (
       <div style={{
         width:"100%", aspectRatio:"5/7", borderRadius:8, overflow:"hidden", position:"relative",
         border:`2px solid ${wc}`, background:"#111", opacity: dim ? 0.55 : 1,
-        animation: struck ? "bzShake 480ms ease-in-out" : undefined,
+        // Struck cards get hit; the WINNING card lunges forward, so the blow reads as
+        // coming from a specific card rather than appearing out of nowhere.
+        animation: struck   ? "bzShake 560ms ease-in-out"
+                 : striking ? "bzWinnerPulse 520ms ease-out"
+                 : undefined,
+        boxShadow: striking ? `0 0 26px ${wc}` : undefined,
+        zIndex: (struck || striking) ? 5 : undefined,
       }}>
         {c.img
           ? <img src={c.img} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover"}} />
@@ -30290,6 +30369,9 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           {/* Super is a board-wide shockwave rather than a per-card hit — it is the
               rarest weapon and the tiebreaker, so it should feel like the biggest
               thing that happens in a game. */}
+          {/* Board-wide strike for EVERY weapon — the per-card effect alone was too
+              small to register on a 7-across grid. */}
+          {fx && <ArenaStrikeLayer key={"sl"+fx.key} w={fx.weapon} up={fx.up} zone={fx.zone} />}
           {fx && fx.weapon === "Super" && (
             <div key={fx.key} className="bz-fx-layer" style={{position:"absolute",inset:0,overflow:"hidden",borderRadius:12}}>
               <div style={{position:"absolute",inset:0,animation:"bzFlash 900ms ease-out forwards",
@@ -30311,9 +30393,10 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
               const c = zones[i]?.[foe];
               // The opponent's card is struck when the strike is aimed upward (I won).
               const hit = fx && fx.zone === i && fx.up ? fx.weapon : null;
+              const striking = fx && fx.zone === i && !fx.up;   // they struck downward
               return (
                 <div key={i} style={{position:"relative"}}>
-                  {c ? heroCard(c, zones[i]?.winner && zones[i].winner !== foe, hit, fx?.key)
+                  {c ? heroCard(c, zones[i]?.winner && zones[i].winner !== foe, hit, fx?.key, striking)
                      : cardBack("FACE\nDOWN")}
                   {hit && <div className="bz-fx-layer"><ArenaProjectile key={fx.key} w={fx.weapon} up={true} /></div>}
                 </div>
@@ -30351,9 +30434,10 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
               const mine     = P?.placed?.[i];
               // My card is struck when the strike travels downward (opponent won).
               const hit = fx && fx.zone === i && !fx.up ? fx.weapon : null;
+              const striking = fx && fx.zone === i && fx.up;    // I struck upward
               if (revealed) return (
                 <div key={i} style={{position:"relative"}}>
-                  {heroCard(revealed, zones[i]?.winner && zones[i].winner !== seat, hit, fx?.key)}
+                  {heroCard(revealed, zones[i]?.winner && zones[i].winner !== seat, hit, fx?.key, striking)}
                   {hit && <div className="bz-fx-layer"><ArenaProjectile key={fx.key} w={fx.weapon} up={false} /></div>}
                 </div>
               );
@@ -30446,21 +30530,67 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
             </span>
           </div>
 
-          {G.result === "tie" && (
-            <div style={{marginTop:16}}>
-              <div style={{fontSize:12,color:"rgba(255,255,255,0.6)",marginBottom:8}}>
-                Sudden Death {"\u2014"} flip the top of your Hero Deck.
+          {/* Sudden Death (\u00a74.4.3). Shown while the game is TIED, and kept on screen
+              after it resolves \u2014 the flip decides the game, so hiding the two cards the
+              instant a winner is set means you never see what beat you. `sudden` holds
+              the last pair flipped; it's cleared only when both tie and you flip again. */}
+          {(G.result === "tie" || (G.sudden && (G.sudden[seat] || G.sudden[foe]))) && (
+            <div style={{marginTop:16,padding:"14px 12px",borderRadius:10,
+                         background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.35)"}}>
+              <div style={{fontSize:11,fontWeight:900,letterSpacing:2,color:"#FBBF24",marginBottom:8}}>
+                SUDDEN DEATH
               </div>
-              {G.sudden?.[seat]
-                ? <div style={{fontSize:12,color:"#fff"}}>
-                    You flipped <b>{G.sudden[seat].hero}</b> ({G.sudden[seat].power}).
-                    {G.sudden[foe] ? "" : " Waiting\u2026"}
+              {(G.sudden?.[seat] || G.sudden?.[foe]) ? (
+                <>
+                  <div style={{display:"flex",gap:14,justifyContent:"center",alignItems:"center",flexWrap:"wrap"}}>
+                    {[[seat, me?.name||"You"], [foe, them?.name||"Opponent"]].map(([s2,label]) => {
+                      const card = G.sudden?.[s2];
+                      const won  = G.result === s2;
+                      return (
+                        <div key={s2} style={{minWidth:120,textAlign:"center"}}>
+                          <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.5)",marginBottom:4}}>{label}</div>
+                          {card ? (
+                            <div style={{padding:"8px 10px",borderRadius:8,
+                                         border:`2px solid ${won ? "#22C55E" : "rgba(255,255,255,0.15)"}`,
+                                         background: won ? "rgba(34,197,94,0.12)" : "rgba(255,255,255,0.04)"}}>
+                              <div style={{fontSize:22,fontWeight:900,color:"#FBBF24",lineHeight:1}}>{card.power}</div>
+                              <div style={{fontSize:11,fontWeight:800,color:"#fff",marginTop:3}}>{card.hero}</div>
+                              <div style={{fontSize:10,color: WEAPON_COLORS?.[card.weapon] || "#888",fontWeight:700}}>{card.weapon}</div>
+                            </div>
+                          ) : (
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",padding:"14px 0"}}>waiting{"\u2026"}</div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                : <button onClick={suddenDeath}
+                  {G.result !== "tie" && G.sudden?.[seat] && G.sudden?.[foe] && (
+                    <div style={{fontSize:12,fontWeight:800,marginTop:10,
+                                 color: G.result === seat ? "#22C55E" : "#F87171"}}>
+                      {G.result === seat ? "You take it on the flip." : "They take it on the flip."}
+                      {G.sudden[seat].power === G.sudden[foe].power && (
+                        <span style={{color:"#FBBF24"}}> {"\u2014"} Power tied, Super Weapon decides</span>
+                      )}
+                    </div>
+                  )}
+                  {G.result === "tie" && G.sudden?.[seat] && !G.sudden?.[foe] && (
+                    <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",marginTop:8}}>Waiting for their flip{"\u2026"}</div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div style={{fontSize:12,color:"rgba(255,255,255,0.65)",marginBottom:10}}>
+                    3{"\u2013"}3 on trophies. Flip the top of your Hero Deck {"\u2014"} highest Power wins the game.
+                  </div>
+                  <button onClick={suddenDeath}
                     style={{padding:"12px 30px",borderRadius:9,border:"none",background:"#FBBF24",
                             color:"#000",fontWeight:900,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>
                     Flip Top Card
-                  </button>}
+                  </button>
+                </>
+              )}
+              {/* Both flipped equal Power with no Super \u2014 rules say flip again. */}
+              {G.result === "tie" && !G.sudden?.[seat] && !G.sudden?.[foe] && false}
             </div>
           )}
 
