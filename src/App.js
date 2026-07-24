@@ -28852,7 +28852,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, lots=[], foilDogs=0, setFoilDogs=()=>{}, kidGroups=[], kidOfCopy=null, otherDeckUse={}, proxyCards={}, onToggleProxy=null, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, lots=[], foilDogs=0, setFoilDogs=()=>{}, kidGroups=[], kidOfCopy=null, otherDeckUse={}, proxyCards={}, onToggleProxy=null, proxyNote=null, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -29968,10 +29968,11 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
             // you re-learn the layout at the worst moment, standing at a binder holding the paper.
             const rows = sorted.map((c)=>{
               const meta = [c.cardNum, c.weapon, c.treatment, c.setName].filter(Boolean).map(esc).join(' <span class="dim">\u00b7</span> ');
+              const pxNote = (typeof proxyCards[c.id] === "string" && proxyCards[c.id].trim()) ? proxyCards[c.id].trim() : "";
               return '<tr>'+
                 '<td class="tick" style="border-left:3px solid '+((WEAPON_COLORS[canonWeapon(c.weapon)]||"#e8e8e8"))+'"><span class="box"></span></td>'+
                 '<td class="px">'+(proxyCards[c.id]?'<span class="proxy">\u25C6</span>':'<span class="noproxy">\u25C7</span>')+'</td>'+
-                '<td><div class="hero">'+esc(c.hero||dash)+'</div><div class="meta">'+meta+'</div></td>'+
+                '<td><div class="hero">'+esc(c.hero||dash)+'</div><div class="meta">'+meta+'</div>'+(pxNote?'<div class="pxnote">'+esc(pxNote)+'</div>':'')+'</td>'+
                 '<td class="pw">'+esc(c.power??dash)+'</td>'+
                 '<td class="who">'+ownLabel(c)+'</td>'+
               '</tr>';
@@ -29996,6 +29997,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               '.proxy{color:#B45309;font-size:15px;} .noproxy{color:#ddd;font-size:15px;}'+
               '.hero{font-weight:800;font-size:14px;letter-spacing:-0.2px;}'+
               '.meta{font-size:10.5px;color:#999;margin-top:2px;} .dim{color:#ddd;}'+
+              '.pxnote{font-size:10px;color:#B45309;font-weight:700;margin-top:2px;}'+
               '.pw{text-align:right;font-size:18px;font-weight:900;letter-spacing:-0.5px;font-variant-numeric:tabular-nums;width:70px;}'+
               '.who{font-size:11.5px;font-weight:700;width:130px;}'+
               '.foot{margin-top:18px;padding-top:11px;border-top:1px solid #eee;font-size:10px;color:#bbb;'+
@@ -30132,6 +30134,23 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                             {c.treatment && <span>{c.treatment}</span>}
                             {c.setName && <span style={{color:"#bbb"}}>{c.setName}</span>}
                           </div>
+                          {/* The note is OPTIONAL and secondary: flagging must stay one tap, so adding a
+                              note is its own small action rather than a prompt in the way. Only offered
+                              once a card is actually a proxy. */}
+                          {isProxy && (
+                            <div onClick={e=>{
+                                e.stopPropagation();
+                                if (!onToggleProxy) return;
+                                const cur = proxyNote ? proxyNote(c.id) : "";
+                                const note = window.prompt("Proxy note (optional)", cur);
+                                if (note === null) return;
+                                onToggleProxy(c.id, note);
+                              }}
+                              style={{fontSize:10.5,marginTop:3,fontWeight:700,cursor:"text",
+                                color: (proxyNote && proxyNote(c.id)) ? "#B45309" : "#ccc"}}>
+                              {(proxyNote && proxyNote(c.id)) || "+ note"}
+                            </div>
+                          )}
                         </td>
                         {/* Power is the one number that matters in BoBA, so it is set as a figure, not
                             table data. */}
@@ -34820,14 +34839,24 @@ See you in there!
   }
 
   // Single-card toggle, for when you are looking at one card rather than working through a batch.
-  async function toggleProxy(cardId) {
+  // The stored value doubles as the note: `true` for a plain flag, or the note text itself. Every
+  // existing check is a truthiness test, so a non-empty string keeps them all working while carrying
+  // the extra detail \u2014 no migration, and old flags stay valid.
+  async function toggleProxy(cardId, note) {
     if (!user) { setSigningIn(true); return; }
     const next = {...proxyCards};
-    if (next[cardId]) delete next[cardId]; else next[cardId] = true;
+    if (next[cardId] && note === undefined) delete next[cardId];
+    else next[cardId] = (note && String(note).trim()) ? String(note).trim() : true;
     setProxyCards(next);
     try { await setDoc(doc(db,"boba_proxy",user.uid), next); }
     catch(e) { alert("Couldn't save: " + (e.message||e)); }
   }
+
+  // Read the note back, if there is one. Guards against the plain `true` flag.
+  const proxyNote = (cardId) => {
+    const v = proxyCards[cardId];
+    return (typeof v === "string" && v.trim()) ? v : "";
+  };
 
   async function bulkSetOwned(add) {
     if (!user) { setSigningIn(true); return; }
@@ -35918,6 +35947,7 @@ See you in there!
         <td class="set">${esc(c.setName||"\u2014")}</td>
         <td class="r">${(parseInt(owned[c.id]) || 1)}</td>
         <td class="note">${esc(deckNamesFor(c.id).join(", "))}</td>
+        <td class="note">${esc(typeof proxyCards[c.id]==="string" ? proxyCards[c.id] : "")}</td>
       </tr>`).join("");
     const totalCopies = rows.reduce((s,c) => s + (parseInt(owned[c.id]) || 1), 0);
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Proxy Print List</title>
@@ -35938,7 +35968,7 @@ See you in there!
       <h1>Proxy Print List</h1>
       <div class="sub"><strong>${totalCopies} proxy card${totalCopies===1?"":"s"} to print</strong> \u00b7 ${rows.length} distinct card${rows.length===1?"":"s"} \u00b7 ${esc(myUsername||user.email||"")} \u00b7 ${new Date().toLocaleDateString()}</div>
       <table>
-        <thead><tr><th>#</th><th>Card #</th><th>Hero</th><th>Treatment</th><th>Weapon</th><th class="r">Power</th><th>Set</th><th class="r">Copies</th><th>Used in</th></tr></thead>
+        <thead><tr><th>#</th><th>Card #</th><th>Hero</th><th>Treatment</th><th>Weapon</th><th class="r">Power</th><th>Set</th><th class="r">Copies</th><th>Used in</th><th>Note</th></tr></thead>
         <tbody>${body}</tbody>
       </table>
       <p class="noprint" style="margin-top:18px;">
@@ -44723,7 +44753,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             cards={cards} owned={owned} inp={inp}
             familyOwnerByCard={familyOwnerByCard} familyOwnsCard={familyOwnsCard} deckOwnedMerged={deckOwnedMerged}
             canAddToDeck={canAddToDeck} isMobile={isMobile} lots={lots} foilDogs={foilDogs} setFoilDogs={setFoilDogs}
-            kidGroups={kidGroups} kidOfCopy={kidOfCopy} otherDeckUse={otherDeckUse} proxyCards={proxyCards} onToggleProxy={toggleProxy}
+            kidGroups={kidGroups} kidOfCopy={kidOfCopy} otherDeckUse={otherDeckUse} proxyCards={proxyCards} onToggleProxy={toggleProxy} proxyNote={proxyNote}
             savedDecks={savedDecks} familyDecks={familyDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
             saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} giveDeckToFamily={giveDeckToFamily} takeBackDeck={takeBackDeck} familyList={familyList} givenDecks={givenDecks} setFanDeck={setFanDeck} setFanMode={setFanMode}
             deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} deckSource={deckSource} setDeckSource={setDeckSource} computeDeckProgress={computeDeckProgress} listings={listings} setActiveTab={setActiveTab} deckLegality={deckLegality}
