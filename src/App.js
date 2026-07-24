@@ -30118,6 +30118,11 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   const [myPriv,    setMyPriv]    = React.useState(null);   // my private doc
   const [joinCode,  setJoinCode]  = React.useState("");
   const [pickDeck,  setPickDeck]  = React.useState("");
+  // Game mode: rookie (heroes only), substitution (adds Bench + Hot Dogs).
+  // Playmaker (adds Plays) comes later; the selector already leaves room for it.
+  const [pickMode,  setPickMode]  = React.useState("rookie");
+  // Which bench slot is armed for a substitution into the current zone.
+  const [subOpen,   setSubOpen]   = React.useState(false);
   const [busy,      setBusy]      = React.useState(false);
   const [err,       setErr]       = React.useState(null);
   const [myGames,   setMyGames]   = React.useState([]);
@@ -30173,6 +30178,31 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       cardNum: c.cardNum != null ? String(c.cardNum) : "",
     };
   }, [cardById, canonWeapon]);
+
+  // Hot Dogs are the energy resource. They're identified in the checklist by a
+  // treatment of "hot dog" (any variant — Devin said not to distinguish kinds).
+  // We snapshot a shape parallel to heroes so the same rendering works; power
+  // and weapon are irrelevant for a Hot Dog and left blank.
+  const hotDogPool = React.useMemo(() => {
+    return (cards || [])
+      .filter(c => /hot ?dog/i.test(c?.treatment || ""))
+      .map(c => ({ id: c.id, hero: c.hero || "Hot Dog", img: c.imageUrl || "", isHotDog: true }));
+  }, [cards]);
+
+  // Build a 10-card Hot Dog deck by drawing (with replacement if the pool is
+  // small) from the pool. A real deck is 10 physical Hot Dogs; if the checklist
+  // has fewer distinct ones we repeat, since duplicates are fine as energy.
+  const buildHotDogDeck = React.useCallback(() => {
+    const pool = hotDogPool;
+    if (!pool.length) return [];
+    const out = [];
+    for (let i = 0; i < 10; i++) {
+      const pick = pool[Math.floor(Math.random() * pool.length)];
+      // Give each a unique instance id so keys don't collide when repeated.
+      out.push({ ...pick, uid: `hd_${i}_${Math.random().toString(36).slice(2,7)}` });
+    }
+    return out;
+  }, [hotDogPool]);
 
   // ---- deck legality (Rookie: §4.1.1) ------------------------------------
   // 60 cards, no more than 6 sharing a Power value, only 1 copy of each
@@ -30320,7 +30350,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       const code = Math.random().toString(36).slice(2, 8).toUpperCase();
       const id   = `game_${Date.now()}_${code}`;
       await setDoc(doc(db, "boba_games", id), {
-        id, code, mode: "rookie", status: "waiting",
+        id, code, mode: pickMode, status: "waiting",
         p1: { uid, name: myName, deckId: deck.id, deckName: deck.name || "Deck", ready: false },
         p2: null,
         // §4.1.1 — the randomly selected player chooses who goes first and the
@@ -30336,7 +30366,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
         log: [],
         createdAt: new Date().toISOString(),
       });
-      await stageMyDeck(id, deck);
+      await stageMyDeck(id, deck, pickMode);
       setGameId(id);
     } catch(e) {
       console.error("create game failed:", e);
@@ -30347,18 +30377,30 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   }
 
   // Shuffle my deck, draw 7, write them to MY private doc only.
-  async function stageMyDeck(gid, deck) {
+  // Substitution mode also draws a 4-hero Bench and builds a 10-card Hot Dog deck.
+  async function stageMyDeck(gid, deck, mode) {
     const snaps = (deck.cardIds||[]).map(snapCard).filter(Boolean);
     const shuffled = shuffle(snaps);
     const hand = shuffled.slice(0, 7);      // the 7 that will go into zones
-    const rest = shuffled.slice(7);         // remaining Hero Deck
-    await setDoc(doc(db, "boba_games", gid, "private", uid), {
+    let rest = shuffled.slice(7);           // remaining Hero Deck
+    const priv = {
       uid, deckId: deck.id,
       hand,                 // drawn, not yet placed
       placed: [null,null,null,null,null,null,null],
       deck: rest,
       updatedAt: new Date().toISOString(),
-    });
+    };
+    if (mode === "substitution") {
+      // §Substitution — Bench of 4 spare heroes, drawn from the top of the deck
+      // after the initial 7. Hot Dog deck of 10; hand starts empty (energy is
+      // drawn/tracked as a count via the deck array). Discard for swapped-out heroes.
+      priv.bench   = rest.slice(0, 4);
+      priv.deck    = rest.slice(4);
+      priv.hotdogs = buildHotDogDeck();     // 10 Hot Dogs
+      priv.discard = [];
+      priv.subUsedThisBattle = false;       // one substitution per battle
+    }
+    await setDoc(doc(db, "boba_games", gid, "private", uid), priv);
   }
 
   // ---- join --------------------------------------------------------------
@@ -30386,7 +30428,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
         status: "setup",
         chooser,
       });
-      await stageMyDeck(hit.id, deck);
+      await stageMyDeck(hit.id, deck, hit.mode);
       setGameId(hit.id);
     } catch(e) {
       console.error("join failed:", e);
@@ -30464,6 +30506,57 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
     hand.push(card);
     if (isCpu) { setCpuPriv(p => ({...p, placed, hand})); return; }
     await updateDoc(doc(db, "boba_games", gameId, "private", uid), { placed, hand });
+  }
+
+  // ---- substitution (Substitution mode) ----------------------------------
+  // Swap a placed hero for a Bench hero BEFORE its zone is revealed. Costs 2 Hot
+  // Dogs, limited to one per battle. The swapped-out hero goes to discard (gone
+  // for the game), and a fresh Bench hero is drawn from the deck to refill to 4.
+  //
+  // "Before revealed" is enforced two ways: the zone being substituted must not
+  // already hold a revealed card in the public doc, and it must be a zone that
+  // hasn't been settled. The UI only offers it on the current, unrevealed zone.
+  async function substituteHero(zoneIdx, benchIdx) {
+    if (!G || !P) return;
+    if (G.mode !== "substitution") return;
+    // Already revealed this zone? Too late.
+    if ((G.zones || [])[zoneIdx]?.[seat]) { setErr("That hero is already revealed."); return; }
+    if (P.subUsedThisBattle) { setErr("Only one substitution per battle."); return; }
+    const hotdogs = P.hotdogs || [];
+    if (hotdogs.length < 2) { setErr("Not enough Hot Dogs — a substitution costs 2."); return; }
+    const bench = (P.bench || []).slice();
+    const benchHero = bench[benchIdx];
+    if (!benchHero) { setErr("Pick a Bench hero to bring in."); return; }
+    const placed = (P.placed || []).slice();
+    const outgoing = placed[zoneIdx];
+    if (!outgoing) { setErr("No hero in that zone to substitute."); return; }
+
+    // Perform the swap.
+    placed[zoneIdx] = benchHero;
+    bench.splice(benchIdx, 1);
+    const discard = [ ...(P.discard || []), outgoing ];
+    const spentHotdogs = hotdogs.slice(2);       // pay 2
+    // Refill the bench to 4 from the top of the deck, if any remain.
+    let deck = (P.deck || []).slice();
+    while (bench.length < 4 && deck.length) bench.push(deck.shift());
+
+    const patch = {
+      placed, bench, discard, deck,
+      hotdogs: spentHotdogs,
+      subUsedThisBattle: true,
+      updatedAt: new Date().toISOString(),
+    };
+    if (isCpu) { setCpuPriv(p => ({ ...p, ...patch })); setErr(null); return; }
+    await updateDoc(doc(db, "boba_games", gameId, "private", uid), patch);
+    setErr(null);
+  }
+
+  // Reset the once-per-battle substitution flag when the battle advances. Called
+  // from the same place the zone index moves on.
+  async function clearSubFlag() {
+    if (G?.mode !== "substitution" || !P?.subUsedThisBattle) return;
+    if (isCpu) { setCpuPriv(p => ({ ...p, subUsedThisBattle: false })); return; }
+    await updateDoc(doc(db, "boba_games", gameId, "private", uid), { subUsedThisBattle: false });
   }
 
   async function confirmLineup() {
@@ -30590,7 +30683,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
     const done = outOfZones || !!clinch;
 
     if (isCpu) {
-      if (!done) { setCpu(g => ({...g, zoneIndex: next})); return; }
+      if (!done) { setCpu(g => ({...g, zoneIndex: next})); clearSubFlag(); return; }
       const res = clinch || (t0.p1 > t0.p2 ? "p1" : t0.p2 > t0.p1 ? "p2" : "tie");
       const mw2 = { ...(G.matchWins || {p1:0,p2:0}) };
       if (res !== "tie") mw2[res] = (mw2[res]||0) + 1;
@@ -30617,6 +30710,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       });
     } else {
       await updateDoc(doc(db, "boba_games", gameId), { zoneIndex: next });
+      clearSubFlag();
     }
   }
 
@@ -30652,7 +30746,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           "p2.ready": false,
         });
       }
-      await stageMyDeck(gameId, deck);
+      await stageMyDeck(gameId, deck, G?.mode);
       setDamage({});   // fresh board, no scars carried over
     } catch(e) {
       console.error("rematch failed:", e);
@@ -30863,9 +30957,10 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
 
       const first = Math.random() < 0.5 ? "p1" : "p2";
       setCpu({
-        id: "cpu", code: "CPU", mode: "rookie", status: "setup",
+        id: "cpu", code: "CPU", status: "setup",
         p1: { uid, name: myName, deckId: deck.id, deckName: deck.name||"Deck", ready:false },
         p2: { uid: "__cpu__", name: `CPU (${cpuLevel})`, deckName: "CPU Deck", ready:true },
+        mode: pickMode,
         chooser: "p1",           // you always choose vs the CPU
         first, direction: null,
         zoneIndex: 0,
@@ -30877,8 +30972,15 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
         cpuLevel, cpuTotal, myTotal, cpuNote: note, fmtShort: (fmt.short && fmt.short !== "—") ? fmt.short : null,
         createdAt: new Date().toISOString(),
       });
-      setCpuPriv({ uid, deckId: deck.id, hand: myShuf.slice(0,7), placed:[null,null,null,null,null,null,null], deck: myShuf.slice(7), updatedAt: new Date().toISOString() + ":" + Math.random().toString(36).slice(2,7) });
-      setCpuHidden({ placed: cpuPlaced, deck: cpuShuf.slice(7) });
+      const cpuPrivDoc = { uid, deckId: deck.id, hand: myShuf.slice(0,7), placed:[null,null,null,null,null,null,null], deck: myShuf.slice(7), updatedAt: new Date().toISOString() + ":" + Math.random().toString(36).slice(2,7) };
+      if (pickMode === "substitution") {
+        cpuPrivDoc.bench   = myShuf.slice(7, 11);
+        cpuPrivDoc.deck    = myShuf.slice(11);
+        cpuPrivDoc.hotdogs = buildHotDogDeck();
+        cpuPrivDoc.discard = [];
+        cpuPrivDoc.subUsedThisBattle = false;
+      }
+      setCpuPriv(cpuPrivDoc);
       setDamage({});
     } catch(e) {
       console.error("cpu game failed:", e);
@@ -30920,8 +31022,15 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       p1: { ...g.p1, ready:false },
       p2: { ...g.p2, ready:true },
     }));
-    setCpuPriv({ uid, deckId: deck.id, hand: myShuf.slice(0,7), placed:[null,null,null,null,null,null,null], deck: myShuf.slice(7), updatedAt: new Date().toISOString() + ":" + Math.random().toString(36).slice(2,7) });
-    setCpuHidden({ placed: shuffle(cpuShuf.slice(0,7)), deck: cpuShuf.slice(7) });
+    const cpuPrivDoc2 = { uid, deckId: deck.id, hand: myShuf.slice(0,7), placed:[null,null,null,null,null,null,null], deck: myShuf.slice(7), updatedAt: new Date().toISOString() + ":" + Math.random().toString(36).slice(2,7) };
+    if (cpu.mode === "substitution") {
+      cpuPrivDoc2.bench   = myShuf.slice(7, 11);
+      cpuPrivDoc2.deck    = myShuf.slice(11);
+      cpuPrivDoc2.hotdogs = buildHotDogDeck();
+      cpuPrivDoc2.discard = [];
+      cpuPrivDoc2.subUsedThisBattle = false;
+    }
+    setCpuPriv(cpuPrivDoc2);
     setDamage({});   // fresh board, no scars carried over
     setErr(null);
   }
@@ -30988,7 +31097,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
         <div style={{...panel, textAlign:"center"}}>
           <div style={{fontSize:24,fontWeight:900,color:"#22C55E",letterSpacing:1}}>THE ARENA</div>
           <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginTop:4}}>
-            Rookie Mode {"\u00B7"} 7 Battles {"\u00B7"} Live opponent
+            {pickMode === "substitution" ? "Substitution Mode" : "Rookie Mode"} {"\u00B7"} 7 Battles {"\u00B7"} Live or CPU
           </div>
         </div>
 
@@ -31004,10 +31113,34 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           {legality && (
             <div style={{marginTop:10, fontSize:12, color: legality.ok ? "#22C55E" : "#F87171"}}>
               {legality.ok
-                ? "\u2713 Legal for Rookie Mode."
+                ? "\u2713 Legal for " + (pickMode === "substitution" ? "Substitution" : "Rookie") + " Mode."
                 : legality.problems.map((p,i) => <div key={i}>{"\u2022 "}{p}</div>)}
             </div>
           )}
+        </div>
+
+        {/* Game mode. Rookie = heroes only. Substitution adds a Bench of 4 spare
+            heroes and a 10-card Hot Dog deck; spend 2 Hot Dogs to swap a hero
+            before it's revealed, once per battle. */}
+        <div style={panel}>
+          <div style={{fontSize:13,fontWeight:800,color:"#fff",marginBottom:10}}>2. Game mode</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            {[
+              { id:"rookie", name:"Rookie", desc:"Pure head-to-head. 7 heroes, highest power wins." },
+              { id:"substitution", name:"Substitution", desc:"Adds a 4-hero Bench + Hot Dogs. Swap heroes before reveal." },
+            ].map(m => {
+              const on = pickMode === m.id;
+              return (
+                <div key={m.id} onClick={()=>setPickMode(m.id)}
+                  style={{cursor:"pointer",borderRadius:10,padding:"12px 13px",
+                          border: on ? "2px solid #22C55E" : "2px solid rgba(255,255,255,0.12)",
+                          background: on ? "rgba(34,197,94,0.10)" : "rgba(255,255,255,0.02)"}}>
+                  <div style={{fontSize:13,fontWeight:900,color: on ? "#22C55E" : "#fff"}}>{m.name}</div>
+                  <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",marginTop:4,lineHeight:1.35}}>{m.desc}</div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         <div style={{display:"grid", gridTemplateColumns: isMobile?"1fr":"1fr 1fr", gap:16}}>
@@ -31132,6 +31265,10 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   const zones  = G.zones || [];
   const t      = G.trophies || {p1:0,p2:0};
   const iAmChooser = G.chooser === seat;
+  // Battle NUMBER for a zone index. Battles are numbered in resolution order, so
+  // when the chooser picks right-to-left, the rightmost zone is Battle 1 — not
+  // zone 7 counting down. The array index never changes; only the label does.
+  const battleNo = (i) => G.direction === "rtl" ? 7 - i : i + 1;
   const orderSet   = !!(G.first && G.direction);
 
   return (
@@ -31262,7 +31399,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
                   style={{cursor: (p || held) ? "pointer" : "default"}}>
                   <div style={{fontSize:9,color: isOver ? "#22C55E" : "rgba(255,255,255,0.4)",
                                textAlign:"center",marginBottom:3,fontWeight: isOver?900:400}}>
-                    ZONE {i+1}
+                    ZONE {battleNo(i)}
                   </div>
                   <div
                     draggable={!!p}
@@ -31405,7 +31542,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
               const z = zones[i] || {};
               const active = i === zi && G.status === "playing";
               const settled = !!(z.p1 && z.p2);
-              const label = !settled ? `${i+1}`
+              const label = !settled ? `${battleNo(i)}`
                           : z.winner === seat ? "WON"
                           : z.winner === foe  ? "LOST" : "DRAW";
               const color = !settled ? "rgba(255,255,255,0.3)"
@@ -31455,8 +31592,77 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           {!zones[zi]?.[seat] ? (
             <>
               <div style={{fontSize:14,fontWeight:800,color:"#fff",marginBottom:10}}>
-                Battle {zi+1} {"\u2014"} reveal your Hero
+                Battle {battleNo(zi)} {"\u2014"} reveal your Hero
               </div>
+
+              {/* Substitution (Substitution mode only). Before you reveal, you may
+                  swap the hero in THIS zone for a Bench hero — 2 Hot Dogs, once
+                  per battle. The swapped-out hero is discarded for the game. */}
+              {G.mode === "substitution" && (() => {
+                const bench = P?.bench || [];
+                const hotdogs = P?.hotdogs || [];
+                const usedThisBattle = !!P?.subUsedThisBattle;
+                const canAfford = hotdogs.length >= 2;
+                const placed = P?.placed?.[zi];
+                const blocked = usedThisBattle || !canAfford || !bench.length || !placed;
+                return (
+                  <div style={{marginBottom:14,padding:"10px 12px",borderRadius:9,
+                               border:"1px solid rgba(251,191,36,0.3)",background:"rgba(251,191,36,0.05)"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                      <span style={{fontSize:12,fontWeight:800,color:"#FBBF24"}}>
+                        {"\uD83C\uDF2D"} Hot Dogs: {hotdogs.length}  {"\u00B7"}  Bench: {bench.length}
+                      </span>
+                      {!subOpen ? (
+                        <button onClick={()=>setSubOpen(true)} disabled={blocked}
+                          style={{padding:"6px 12px",borderRadius:7,border:"none",
+                                  background: blocked ? "#333" : "#FBBF24",
+                                  color: blocked ? "rgba(255,255,255,0.4)" : "#000",
+                                  fontWeight:800,fontSize:11,cursor: blocked?"not-allowed":"pointer",fontFamily:"inherit"}}>
+                          Substitute (2 {"\uD83C\uDF2D"})
+                        </button>
+                      ) : (
+                        <button onClick={()=>setSubOpen(false)}
+                          style={{padding:"6px 12px",borderRadius:7,border:"1px solid rgba(255,255,255,0.2)",
+                                  background:"transparent",color:"rgba(255,255,255,0.6)",
+                                  fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                    {usedThisBattle && (
+                      <div style={{fontSize:10.5,color:"rgba(255,255,255,0.45)"}}>Already substituted this battle.</div>
+                    )}
+                    {!usedThisBattle && !canAfford && (
+                      <div style={{fontSize:10.5,color:"rgba(255,255,255,0.45)"}}>Need 2 Hot Dogs to substitute.</div>
+                    )}
+                    {!usedThisBattle && canAfford && !bench.length && (
+                      <div style={{fontSize:10.5,color:"rgba(255,255,255,0.45)"}}>Bench is empty.</div>
+                    )}
+                    {subOpen && !blocked && (
+                      <div>
+                        <div style={{fontSize:10.5,color:"rgba(255,255,255,0.5)",marginBottom:6}}>
+                          Bring in for {placed?.hero} (discarded):
+                        </div>
+                        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+                          {bench.map((b,bi) => (
+                            <div key={b.id+bi}
+                              onClick={()=>{ substituteHero(zi, bi); setSubOpen(false); }}
+                              style={{cursor:"pointer",borderRadius:6,overflow:"hidden",
+                                      border:"2px solid rgba(255,255,255,0.15)",background:"#111"}}>
+                              {b.img
+                                ? <img src={b.img} alt={b.hero} style={{width:"100%",aspectRatio:"5/7",objectFit:"cover",display:"block"}} />
+                                : <div style={{padding:6,fontSize:9,fontWeight:800,color:"#fff"}}>{b.hero}</div>}
+                              <div style={{fontSize:9,fontWeight:800,color:"#fff",textAlign:"center",padding:"2px 0",
+                                           background:"rgba(0,0,0,0.6)"}}>{b.power}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               <button onClick={revealMine}
                 style={{padding:"14px 40px",borderRadius:9,border:"none",background:"#22C55E",
                         color:"#000",fontWeight:900,fontSize:15,cursor:"pointer",fontFamily:"inherit"}}>
