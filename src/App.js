@@ -29965,26 +29965,58 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 // commentary on deck commitments belongs in the builder, not on the sheet in your hand.
                 return parts.join('<span style="color:#999"> + </span>');
               };
-              const rows = sorted.map((c,i)=>('<tr><td class="num">'+(i+1)+'</td><td>'+(proxyCards[c.id]?'<span style="color:#B45309;font-weight:700">PROXY</span>':'')+'</td><td class="mono">'+esc(c.cardNum||dash)+'</td><td class="hero">'+esc(c.hero||dash)+'</td><td class="r">'+esc(c.power)+'</td><td>'+esc(c.weapon||dash)+'</td><td>'+esc(c.treatment||dash)+'</td><td class="set">'+esc(c.setName||dash)+'</td><td>'+ownLabel(c)+'</td></tr>')).join("");
-              const script = autoPrint ? '<scr'+'ipt>window.onload=function(){setTimeout(function(){window.print();},250);};</scr'+'ipt>' : '';
-              const html = '<!DOCTYPE html><html><head><title>'+esc(deckName||"My Deck")+' '+dash+' Pick List</title>'+
-                '<style>*{box-sizing:border-box;} body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:24px;color:#111;}'+
-                'h1{font-size:20px;font-weight:900;margin:0 0 2px;} .sub{font-size:12px;color:#888;margin-bottom:16px;}'+
-                'table{width:100%;border-collapse:collapse;font-size:12.5px;} thead{display:table-header-group;}'+
-                'th{text-align:left;background:#f3f3f3;border-bottom:2px solid #ccc;padding:7px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#555;}'+
-                'td{padding:6px;border-bottom:1px solid #e5e5e5;} tr{page-break-inside:avoid;}'+
-                'td.num{text-align:center;color:#999;} td.mono{font-family:monospace;color:#555;} td.hero{font-weight:700;}'+
-                'td.r{text-align:right;font-weight:800;} th.r{text-align:right;} td.set{color:#888;font-size:11.5px;}'+
-                '.foot{margin-top:16px;font-size:11px;color:#aaa;text-align:center;}'+
-                '.btns{margin-bottom:18px;} button{background:#111;color:#fff;border:none;border-radius:7px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;margin-right:8px;}'+
-                '@page{margin:14mm;} @media print{.btns{display:none;}}</style></head><body>'+
-                '<div class="btns"><button onclick="window.print()">Print</button><button onclick="window.print()">Save as PDF</button><button onclick="window.close()" style="background:#666">Close</button></div>'+
-                '<h1>'+esc(deckName||"My Deck")+' '+dash+' Pick List</h1>'+
-                '<div class="sub">'+sorted.length+' cards '+dot+' generated '+new Date().toLocaleDateString()+'</div>'+
-                '<table><thead><tr><th>#</th><th>Proxy</th><th>Card #</th><th>Hero</th><th class="r">Power</th><th>Weapon</th><th>Treatment</th><th>Set</th><th>Who has it</th></tr></thead>'+
-                '<tbody>'+rows+'</tbody></table>'+
-                '<div class="foot">Bazooka Dash '+dot+' '+esc(deckName||"My Deck")+'</div>'+script+
-                '</body></html>';
+            // The printed sheet is the SAME document as the on-screen one \u2014 same two-line rows, same
+            // power figure, same amber proxy marker. A print that looks nothing like the screen makes
+            // you re-learn the layout at the worst moment, standing at a binder holding the paper.
+            const rows = sorted.map((c)=>{
+              const meta = [c.cardNum, c.weapon, c.treatment, c.setName].filter(Boolean).map(esc).join(' <span class="dim">\u00b7</span> ');
+              return '<tr>'+
+                '<td class="tick" style="border-left:3px solid '+((WEAPON_COLORS[canonWeapon(c.weapon)]||"#e8e8e8"))+'"><span class="box"></span></td>'+
+                '<td class="px">'+(proxyCards[c.id]?'<span class="proxy">\u25C6</span>':'<span class="noproxy">\u25C7</span>')+'</td>'+
+                '<td><div class="hero">'+esc(c.hero||dash)+'</div><div class="meta">'+meta+'</div></td>'+
+                '<td class="pw">'+esc(c.power??dash)+'</td>'+
+                '<td class="who">'+ownLabel(c)+'</td>'+
+              '</tr>';
+            }).join("");
+            const proxyCount = sorted.filter(c=>proxyCards[c.id]).length;
+            const script = autoPrint ? '<scr'+'ipt>window.onload=function(){setTimeout(function(){window.print();},250);};</scr'+'ipt>' : '';
+            const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+esc(deckName||"My Deck")+' '+dash+' Pick List</title>'+
+              '<style>*{box-sizing:border-box;} body{font-family:"Trebuchet MS",Arial,Helvetica,sans-serif;margin:0;padding:26px 28px;color:#111;}'+
+              '.eyebrow{font-size:10px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:#B45309;margin-bottom:4px;}'+
+              'h1{font-size:25px;font-weight:900;letter-spacing:-0.6px;margin:0;line-height:1.05;}'+
+              '.stats{display:flex;gap:16px;margin-top:8px;font-size:12px;flex-wrap:wrap;}'+
+              '.stats b{font-weight:800;} .stats .lt{color:#999;font-weight:600;} .stats .px{color:#B45309;font-weight:800;}'+
+              '.rule{border-bottom:3px solid #111;margin:14px 0 0;}'+
+              'table{width:100%;border-collapse:collapse;font-size:13px;margin-top:2px;} thead{display:table-header-group;}'+
+              'th{text-align:left;border-bottom:1.5px solid #111;padding:8px 6px;font-size:9.5px;font-weight:800;'+
+                'letter-spacing:0.8px;text-transform:uppercase;color:#999;}'+
+              'th.r{text-align:right;} th.c{text-align:center;}'+
+              'td{padding:9px 6px;border-bottom:1px solid #ededed;vertical-align:top;} tr{page-break-inside:avoid;}'+
+              '.tick{width:34px;text-align:center;}'+
+              '.box{display:inline-block;width:17px;height:17px;border:1.5px solid #bbb;border-radius:4px;}'+
+              '.px{width:40px;text-align:center;}'+
+              '.proxy{color:#B45309;font-size:15px;} .noproxy{color:#ddd;font-size:15px;}'+
+              '.hero{font-weight:800;font-size:14px;letter-spacing:-0.2px;}'+
+              '.meta{font-size:10.5px;color:#999;margin-top:2px;} .dim{color:#ddd;}'+
+              '.pw{text-align:right;font-size:18px;font-weight:900;letter-spacing:-0.5px;font-variant-numeric:tabular-nums;width:70px;}'+
+              '.who{font-size:11.5px;font-weight:700;width:130px;}'+
+              '.foot{margin-top:18px;padding-top:11px;border-top:1px solid #eee;font-size:10px;color:#bbb;'+
+                'display:flex;justify-content:space-between;letter-spacing:0.3px;}'+
+              '.foot b{color:#999;font-weight:800;}'+
+              '.btns{margin-bottom:18px;} button{background:#111;color:#fff;border:none;border-radius:9px;padding:9px 18px;'+
+                'font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;margin-right:8px;}'+
+              '@page{margin:13mm;} @media print{.btns{display:none;}}</style></head><body>'+
+              '<div class="btns"><button onclick="window.print()">Print</button></div>'+
+              '<div class="eyebrow">Pick list</div>'+
+              '<h1>'+esc(deckName||"My Deck")+'</h1>'+
+              '<div class="stats"><span><b>'+sorted.length+'</b><span class="lt"> cards</span></span>'+
+                (proxyCount?'<span class="px">'+proxyCount+' to proxy</span>':'')+
+                '<span class="lt">sorted by '+(pickSort==="cardnum"?"card number":pickSort)+'</span></div>'+
+              '<div class="rule"></div>'+
+              '<table><thead><tr><th class="c">Got</th><th class="c">Proxy</th><th>Card</th><th class="r">Power</th><th>Who has it</th></tr></thead>'+
+              '<tbody>'+rows+'</tbody></table>'+
+              '<div class="foot"><b>BAZOOKA DASH</b><span>'+new Date().toLocaleDateString()+'</span></div>'+script+
+              '</body></html>';
               const w = window.open("","_blank","width=900,height=1000");
               if (!w) { alert("Please allow pop-ups for this site to print or save the pick list."); return; }
               w.document.write(html); w.document.close();
@@ -30046,7 +30078,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                   <thead>
                     <tr style={{borderBottom:"1.5px solid #111",textAlign:"left"}}>
-                      <th style={{padding:"0 6px 8px",width:38}}/>
+                      <th style={{padding:"0 6px 8px",width:38,textAlign:"center",fontSize:10,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Got</th>
                       <th style={{padding:"0 6px 8px",width:44,textAlign:"center",fontSize:10,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Proxy</th>
                       <th style={{padding:"0 6px 8px",fontSize:10,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Card</th>
                       <th style={{padding:"0 6px 8px",textAlign:"right",fontSize:10,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Power</th>
@@ -30064,7 +30096,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                           opacity: done ? 0.45 : 1, transition:"opacity 140ms ease, background 140ms ease"}}>
                         {/* Pulled. The whole row is the hit area \\u2014 you are tapping this one-handed while
                             holding cards, so precision targeting is the wrong ask. */}
-                        <td style={{padding:"10px 6px",textAlign:"center"}}>
+                        <td style={{padding:"10px 6px",textAlign:"center",borderLeft:`3px solid ${WEAPON_COLORS[canonWeapon(c.weapon)]||"#e8e8e8"}`}}>
                           <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",
                             width:19,height:19,borderRadius:5,
                             border:"1.5px solid " + (done ? "#111" : "#ccc"),
