@@ -29290,30 +29290,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
     document.head.appendChild(el);
   }, []);
 
-  // In a LIVE game only the player who pushed the final reveal runs the settle
-  // code — the opponent just receives a Firestore update. So BOTH browsers watch
-  // for a zone becoming settled and fire the strike locally. Direction is computed
-  // from each viewer's own seat, so the two screens show mirrored animations.
-  const lastFxZone = React.useRef(null);
-  React.useEffect(() => {
-    if (isCpu || !G) return;                    // CPU path triggers directly
-    const zs = G.zones || [];
-    const zi2 = G.zoneIndex;
-    const z = zs[zi2];
-    if (!z || !z.p1 || !z.p2) return;           // both cards not up yet
-    // Wait for the settled result before claiming this zone. `winner` lives inside
-    // `zones` while `trophies` is a sibling field, so a snapshot COULD in principle
-    // arrive with both heroes present but no winner yet. Marking the zone handled
-    // at that point would swallow the animation for this player entirely — so the
-    // "already played" stamp is only written once there's a real result to show.
-    if (!("winner" in z)) return;
-    const stamp = `${G.gameNumber||1}:${zi2}`;
-    if (lastFxZone.current === stamp) return;   // already played this one
-    lastFxZone.current = stamp;
-    if (!z.winner) return;                      // draw — nobody struck
-    const w = z[z.winner]?.weapon;
-    if (w) setFx({ zone: zi2, weapon: w, up: z.winner === seat, key: Date.now() });
-  }, [G, isCpu, seat]);
+
 
   // Clear a strike after it plays out. Longest animation is ~900ms.
   React.useEffect(() => {
@@ -29430,6 +29407,36 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   const foe   = seat === "p1" ? "p2" : "p1";
   const me    = seat ? G[seat] : null;
   const them  = seat ? G[foe]  : null;
+
+  // NOTE: this effect MUST live below the seat helpers above. Its dependency
+  // array references G / isCpu / seat, and a dep array is evaluated immediately
+  // when the effect registers — not deferred like the callback body — so having
+  // it earlier in the component threw "Cannot access before initialization" the
+  // moment the Arena tab mounted.
+  // In a LIVE game only the player who pushed the final reveal runs the settle
+  // code — the opponent just receives a Firestore update. So BOTH browsers watch
+  // for a zone becoming settled and fire the strike locally. Direction is computed
+  // from each viewer's own seat, so the two screens show mirrored animations.
+  const lastFxZone = React.useRef(null);
+  React.useEffect(() => {
+    if (isCpu || !G) return;                    // CPU path triggers directly
+    const zs = G.zones || [];
+    const zi2 = G.zoneIndex;
+    const z = zs[zi2];
+    if (!z || !z.p1 || !z.p2) return;           // both cards not up yet
+    // Wait for the settled result before claiming this zone. `winner` lives inside
+    // `zones` while `trophies` is a sibling field, so a snapshot COULD in principle
+    // arrive with both heroes present but no winner yet. Marking the zone handled
+    // at that point would swallow the animation for this player entirely — so the
+    // "already played" stamp is only written once there's a real result to show.
+    if (!("winner" in z)) return;
+    const stamp = `${G.gameNumber||1}:${zi2}`;
+    if (lastFxZone.current === stamp) return;   // already played this one
+    lastFxZone.current = stamp;
+    if (!z.winner) return;                      // draw — nobody struck
+    const w = z[z.winner]?.weapon;
+    if (w) setFx({ zone: zi2, weapon: w, up: z.winner === seat, key: Date.now() });
+  }, [G, isCpu, seat]);
 
   // ---- create ------------------------------------------------------------
   async function createGame() {
