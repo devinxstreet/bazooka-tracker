@@ -35825,6 +35825,16 @@ See you in there!
                   || String(a.cardNum||"").localeCompare(String(b.cardNum||""), undefined, {numeric:true}));
     if (!rows.length) { alert("No cards are marked as proxies yet.\n\nSelect cards in the grid, then use \u201cMark as proxy\u201d."); return; }
     const esc = s => String(s==null?"":s).replace(/[&<>"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
+    // Which decks each proxy is for. Built here rather than reusing deckLocationText because that
+    // helper phrases things for the deck builder ("your copy is in \u2026"); on a print list you just
+    // want the deck names, and a card used in three decks should say so.
+    const deckNamesFor = (cid) => {
+      const names = [];
+      (savedDecks||[]).forEach(d => {
+        if ((d.cardIds||[]).includes(cid)) names.push(d.name || "Untitled deck");
+      });
+      return names;
+    };
     const body = rows.map((c,i) => `
       <tr>
         <td class="num">${i+1}</td>
@@ -35835,6 +35845,7 @@ See you in there!
         <td class="r">${esc(c.power??"")}</td>
         <td class="set">${esc(c.setName||"\u2014")}</td>
         <td class="r">${(parseInt(owned[c.id]) || 1)}</td>
+        <td class="note">${esc(deckNamesFor(c.id).join(", "))}</td>
       </tr>`).join("");
     const totalCopies = rows.reduce((s,c) => s + (parseInt(owned[c.id]) || 1), 0);
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Proxy Print List</title>
@@ -35849,12 +35860,13 @@ See you in there!
         .num{color:#999;width:34px;}
         .r{text-align:right;font-weight:700;}
         .set{color:#777;}
+        .note{color:#555;font-size:11.5px;max-width:220px;}
         @media print{ body{margin:0;} .noprint{display:none;} }
       </style></head><body>
       <h1>Proxy Print List</h1>
       <div class="sub"><strong>${totalCopies} proxy card${totalCopies===1?"":"s"} to print</strong> \u00b7 ${rows.length} distinct card${rows.length===1?"":"s"} \u00b7 ${esc(myUsername||user.email||"")} \u00b7 ${new Date().toLocaleDateString()}</div>
       <table>
-        <thead><tr><th>#</th><th>Card #</th><th>Hero</th><th>Treatment</th><th>Weapon</th><th class="r">Power</th><th>Set</th><th class="r">Copies</th></tr></thead>
+        <thead><tr><th>#</th><th>Card #</th><th>Hero</th><th>Treatment</th><th>Weapon</th><th class="r">Power</th><th>Set</th><th class="r">Copies</th><th>Used in</th></tr></thead>
         <tbody>${body}</tbody>
       </table>
       <p class="noprint" style="margin-top:18px;">
