@@ -29945,26 +29945,24 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               // read as simply "You" \u2014 hiding both that a second copy exists and whose it is. Every
               // holder is listed, and copies already committed to a deck are called out, because a
               // committed copy is not one you can go and fetch.
-              const ownLabel = c => {
-                const parts = [];
-                const myQty = (owned && owned[c.id]) ? (parseInt(owned[c.id]) || 0) : 0;
-                if (myQty > 0) {
-                  const mine = [];
-                  for (let i = 0; i < myQty; i++) {
-                    const k = kidOfCopy ? kidOfCopy(c.id, i) : null;
-                    const name = k ? ((kidGroups.find(g=>g.id===k)||{}).name || "Kid") : "You";
-                    if (!mine.includes(name)) mine.push(name);
-                  }
-                  const kidsOnly = !mine.includes("You");
-                  parts.push('<span style="color:'+(kidsOnly?"#B45309":"#1a7a3a")+';font-weight:700">'+esc(mine.join(" + "))+'</span>');
+            // ONE holder \u2014 the answer to "where do I get this". Your own copy wins when you have both,
+            // because that is the one you can actually reach.
+            const ownLabel = c => {
+              const myQty = (owned && owned[c.id]) ? (parseInt(owned[c.id]) || 0) : 0;
+              if (myQty > 0) {
+                const who = [];
+                for (let i = 0; i < myQty; i++) {
+                  const k = kidOfCopy ? kidOfCopy(c.id, i) : null;
+                  const name = k ? ((kidGroups.find(g=>g.id===k)||{}).name || "Kid") : "You";
+                  if (!who.includes(name)) who.push(name);
                 }
-                const fam = (familyOwnerByCard && familyOwnerByCard[c.id]) || (familyOwnsCard && familyOwnsCard[c.id]);
-                if (fam) parts.push('<span style="color:#7B2FF7;font-weight:700">'+esc(fam.name||"Family")+'</span>');
-                if (!parts.length) return '<span style="color:#c0392b;font-weight:700">Not owned</span>';
-                // Just WHO has it. The pick list is used while physically pulling cards — a running
-                // commentary on deck commitments belongs in the builder, not on the sheet in your hand.
-                return parts.join('<span style="color:#999"> + </span>');
-              };
+                const label = who.includes("You") ? "You" : who[0];
+                return '<span style="color:'+(label==="You"?"#1a7a3a":"#B45309")+';font-weight:700">'+esc(label)+'</span>';
+              }
+              const fam = (familyOwnerByCard && familyOwnerByCard[c.id]) || (familyOwnsCard && familyOwnsCard[c.id]);
+              if (fam) return '<span style="color:#7B2FF7;font-weight:700">'+esc(fam.name||"Family")+'</span>';
+              return '<span style="color:#c0392b;font-weight:700">Not owned</span>';
+            };
             // The printed sheet is the SAME document as the on-screen one \u2014 same two-line rows, same
             // power figure, same amber proxy marker. A print that looks nothing like the screen makes
             // you re-learn the layout at the worst moment, standing at a binder holding the paper.
@@ -30142,9 +30140,10 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                             fontVariantNumeric:"tabular-nums"}}>{c.power ?? "\u2014"}</span>
                         </td>
                         <td style={{padding:"10px 6px",fontSize:12,fontWeight:700,verticalAlign:"top"}}>{(() => {
-                          // Just WHO has it. Every holder, not only the first match.
+                          // ONE answer: where do I get this card. If a copy is yours, that is the answer
+                          // and a relative's copy is irrelevant \u2014 listing both sent you reading a name you
+                          // have no reason to act on. Family only shows when you do not have one yourself.
                           const myQty = (owned && owned[c.id]) ? (parseInt(owned[c.id]) || 0) : 0;
-                          const bits = [];
                           if (myQty > 0) {
                             const who = [];
                             for (let i = 0; i < myQty; i++) {
@@ -30152,12 +30151,12 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                               const nm = k ? ((kidGroups.find(g=>g.id===k)||{}).name || "Kid") : "You";
                               if (!who.includes(nm)) who.push(nm);
                             }
-                            const kidsOnly = !who.includes("You");
-                            bits.push(<span key="me" style={{color: kidsOnly ? "#B45309" : "#1a7a3a"}}>{who.join(" + ")}</span>);
+                            // Prefer your own copy when you have both: it is the one you can reach.
+                            const label = who.includes("You") ? "You" : who[0];
+                            return <span style={{color: label==="You" ? "#1a7a3a" : "#B45309"}}>{label}</span>;
                           }
                           const famHolder = (familyOwnerByCard && familyOwnerByCard[c.id]) || (familyOwnsCard && familyOwnsCard[c.id]);
-                          if (famHolder) bits.push(<span key="fam" style={{color:"#7B2FF7"}}>{famHolder.name||"Family"}</span>);
-                          if (bits.length) return <span>{bits.map((b,bi)=>(<span key={bi}>{bi>0 && <span style={{color:"#ccc"}}> + </span>}{b}</span>))}</span>;
+                          if (famHolder) return <span style={{color:"#7B2FF7"}}>{famHolder.name||"Family"}</span>;
                           return <span style={{color:"#c0392b"}}>Not owned</span>;
                         })()}</td>
                       </tr>
