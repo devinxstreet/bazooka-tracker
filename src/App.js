@@ -17195,7 +17195,7 @@ function BobaCardImpl({ c, isOwned, isBorrowed=false, ownedQty, flippedCard, set
         )}
         <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transition:"transform 0.2s ease, box-shadow 0.2s ease", borderRadius:10, cursor:"pointer", willChange:"transform" }} onClick={handleClick}>
          <div className="boba-flipper" style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.55s cubic-bezier(0.34,1.3,0.5,1)", transform:isFlipped?"rotateY(180deg)":"rotateY(0deg)", willChange:"transform" }}>
-          <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isOwned?"#4ade80":"#1a1a1a"}`, boxShadow:isOwned?"0 0 0 1px rgba(74,222,128,0.35), 0 4px 18px rgba(74,222,128,0.22)":"none" }}>
+          <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isBorrowed?"#7B9CFF":isOwned?"#4ade80":"#1a1a1a"}`, boxShadow:isBorrowed?"0 0 0 1px rgba(123,156,255,0.4), 0 4px 18px rgba(123,156,255,0.25)":isOwned?"0 0 0 1px rgba(74,222,128,0.35), 0 4px 18px rgba(74,222,128,0.22)":"none" }}>
             <img src={_displayImg} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
               onError={e=>{ e.currentTarget.style.visibility="hidden"; }}/>
             {_isScanImg && <div style={{ position:"absolute", top:6, left:6, zIndex:4, background:"rgba(0,0,0,0.7)", border:"1px solid rgba(74,222,128,0.5)", color:"#4ade80", borderRadius:6, padding:"2px 7px", fontSize:9, fontWeight:800, letterSpacing:0.5, backdropFilter:"blur(3px)" }}>📸 Your scan</div>}
@@ -17309,7 +17309,7 @@ function BobaCardImpl({ c, isOwned, isBorrowed=false, ownedQty, flippedCard, set
     );
   }
   return (
-    <div onClick={handleClick} style={{ aspectRatio:"3/4", background:isOwned?"linear-gradient(160deg,#0d2416,#0a1a0a)":"#111111", border:`2px solid ${isOwned?"#4ade80":"#1a1a1a"}`, boxShadow:isOwned?"0 0 0 1px rgba(74,222,128,0.3), 0 4px 16px rgba(74,222,128,0.18)":"none", borderRadius:10, overflow:"hidden", display:"flex", flexDirection:"column", cursor:"pointer" }}>
+    <div onClick={handleClick} style={{ aspectRatio:"3/4", background:isBorrowed?"linear-gradient(160deg,#0d1424,#0a0f1a)":isOwned?"linear-gradient(160deg,#0d2416,#0a1a0a)":"#111111", border:`2px solid ${isBorrowed?"#7B9CFF":isOwned?"#4ade80":"#1a1a1a"}`, boxShadow:isBorrowed?"0 0 0 1px rgba(123,156,255,0.35), 0 4px 16px rgba(123,156,255,0.2)":isOwned?"0 0 0 1px rgba(74,222,128,0.3), 0 4px 16px rgba(74,222,128,0.18)":"none", borderRadius:10, overflow:"hidden", display:"flex", flexDirection:"column", cursor:"pointer" }}>
       {/* "Image coming soon" art placeholder — fills the card-art area */}
       <div {...dropProps} style={{ position:"relative", flex:"1 1 58%", minHeight:0, background:`linear-gradient(135deg, ${wc}18, #0a0a0a 70%)`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", borderBottom:`1px solid ${wc}22` }}>
         {(dragOver||dropBusy) && (
@@ -17323,14 +17323,6 @@ function BobaCardImpl({ c, isOwned, isBorrowed=false, ownedQty, flippedCard, set
         <div style={{ fontSize:30, opacity:0.35, marginBottom:6 }}>🃏</div>
         <div style={{ fontSize:9, fontWeight:800, color:"rgba(255,255,255,0.4)", letterSpacing:1.5, textTransform:"uppercase" }}>Image coming soon</div>
         {c.power ? <div style={{ position:"absolute", top:8, right:10, fontSize:13, fontWeight:900, color:wc }}>{c.power}⚡</div> : null}
-        {/* Borrowed copies must not read as owned. A green tick on someone else's card is exactly
-            the confusion this whole feature exists to prevent, so it gets its own blue marker and
-            a blue frame \u2014 colour alone is easy to miss in a dense grid. */}
-        {isBorrowed && (
-          <div aria-hidden="true" style={{ position:"absolute", inset:0, zIndex:6, borderRadius:10,
-            border:"2px solid #7B9CFF", boxShadow:"inset 0 0 0 1px rgba(123,156,255,0.35)",
-            pointerEvents:"none" }}/>
-        )}
         {isOwned && (
           <div title={isBorrowed ? "Borrowed \u2014 not yours" : "In your collection"}
             style={{ position:"absolute", top:6, left:8, fontSize:15 }}>
