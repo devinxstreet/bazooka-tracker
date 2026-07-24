@@ -29721,23 +29721,52 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   }
 
   // Advance to the next zone in the established direction (§4.1.2).
+  // Has someone already won, with battles still unplayed?
+  //
+  // Four trophies out of seven is a majority and ends it outright. But a lead can
+  // also become unassailable BELOW four when draws have burned battles: at 3-1 with
+  // one draw, only two battles remain, so the trailing player tops out at 3. Rather
+  // than hard-coding "4", this compares each player's trophies against the best the
+  // other could still reach — which covers both cases and the draw-heavy ones.
+  //
+  // Returns "p1" | "p2" | null. Never ends a game that's still live: a 3-3 with one
+  // battle left is undecided and must be played.
+  function clinchedWinner(trophies, zones, zoneIndex, direction) {
+    const t = trophies || {p1:0,p2:0};
+    const step = direction === "rtl" ? -1 : 1;
+    // Battles after the current one, in the established direction.
+    let remaining = 0;
+    for (let i = zoneIndex + step; i >= 0 && i <= 6; i += step) remaining++;
+    const p1 = t.p1||0, p2 = t.p2||0;
+    if (p1 > p2 + remaining) return "p1";
+    if (p2 > p1 + remaining) return "p2";
+    return null;
+  }
+
   async function nextBattle() {
     if (!G) return;
     const step = G.direction === "rtl" ? -1 : 1;
     const next = G.zoneIndex + step;
-    const done = next < 0 || next > 6;
+    const outOfZones = next < 0 || next > 6;
+    const t0 = G.trophies || {p1:0,p2:0};
+    // Stop as soon as the result can no longer change — playing out dead battles
+    // is just clicking through a decided game.
+    const clinch = clinchedWinner(t0, G.zones, G.zoneIndex, G.direction);
+    const done = outOfZones || !!clinch;
+
     if (isCpu) {
       if (!done) { setCpu(g => ({...g, zoneIndex: next})); return; }
-      const t2 = G.trophies || {p1:0,p2:0};
-      const res = t2.p1 > t2.p2 ? "p1" : t2.p2 > t2.p1 ? "p2" : "tie";
+      const res = clinch || (t0.p1 > t0.p2 ? "p1" : t0.p2 > t0.p1 ? "p2" : "tie");
       const mw2 = { ...(G.matchWins || {p1:0,p2:0}) };
       if (res !== "tie") mw2[res] = (mw2[res]||0) + 1;
-      setCpu(g => ({...g, status:"finished", result:res, matchWins:mw2, finishedAt:new Date().toISOString()}));
+      setCpu(g => ({...g, status:"finished", result:res, matchWins:mw2,
+                    clinchedEarly: !!clinch && !outOfZones,
+                    finishedAt:new Date().toISOString()}));
       return;
     }
     if (done) {
       const t = game.trophies || {p1:0,p2:0};
-      const result = t.p1 > t.p2 ? "p1" : t.p2 > t.p1 ? "p2" : "tie";
+      const result = clinch || (t.p1 > t.p2 ? "p1" : t.p2 > t.p1 ? "p2" : "tie");
       // A BoBA match is best of 3, so finishing a GAME isn't finishing the MATCH.
       // matchWins is the running score across games in this match; a tied game
       // advances neither side but still counts as a game played.
@@ -29748,6 +29777,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
         result,
         matchWins: mw,
         gameNumber: game.gameNumber || 1,
+        clinchedEarly: !!clinch && !outOfZones,
         finishedAt: new Date().toISOString(),
       });
     } else {
@@ -30490,7 +30520,9 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
               <button onClick={nextBattle}
                 style={{padding:"12px 34px",borderRadius:9,border:"none",background:"#3B82F6",
                         color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>
-                {(G.direction==="rtl" ? zi-1 < 0 : zi+1 > 6) ? "Finish Game" : "Next Battle"}
+                {/* Once the result is locked in, stop offering another battle. */}
+                {(clinchedWinner(G.trophies, G.zones, zi, G.direction)
+                  || (G.direction==="rtl" ? zi-1 < 0 : zi+1 > 6)) ? "Finish Game" : "Next Battle"}
               </button>
             </>
           )}
@@ -30522,6 +30554,12 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           <div style={{fontSize:13,color:"rgba(255,255,255,0.6)",marginTop:6}}>
             {t[seat]||0} {"\u2014"} {t[foe]||0} on trophies
           </div>
+          {/* Explains why zones are still face-down: the lead became unassailable. */}
+          {G.clinchedEarly && (
+            <div style={{fontSize:11,fontWeight:800,color:"#FBBF24",marginTop:4,letterSpacing:0.5}}>
+              CLINCHED {"\u2014"} remaining battles couldn{"\u2019"}t change the result
+            </div>
+          )}
           {/* Match score. This is the number that actually matters between games. */}
           <div style={{fontSize:15,fontWeight:900,marginTop:10,color:"#fff"}}>
             Match {mw[seat]||0} {"\u2014"} {mw[foe]||0}
