@@ -17414,6 +17414,9 @@ function BobaCardImpl({ c, isOwned, isBorrowed=false, ownedQty, flippedCard, set
 const BobaCard = React.memo(BobaCardImpl, (prev, next) => {
   if (prev.c !== next.c) return false;
   if (prev.isOwned !== next.isOwned) return false;
+  // Without this the memo skips the re-render and a borrowed card keeps the green owned styling
+  // even after the flag flips \u2014 the prop was being passed correctly and simply never read.
+  if (prev.isBorrowed !== next.isBorrowed) return false;
   if (prev.ownedQty !== next.ownedQty) return false;
   if (prev.isAdmin !== next.isAdmin) return false;
   if (prev.lotCount !== next.lotCount) return false;
@@ -41440,11 +41443,22 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                         }} style={{background:"rgba(74,222,128,0.12)",border:"1px solid rgba(74,222,128,0.45)",color:"#4ade80",borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
                           {borrowed ? "Gave it back" : "Got it back"}
                         </button>
-                        {/* Undo a mis-tag without touching the copy itself \u2014 the card stays exactly as
-                            it was, only the loan status is cleared. */}
-                        <button onClick={()=>{ clearLoanOn(lot.id); setToast("Loan tag removed"); }}
+                        {/* Two different intentions, so two buttons. For a BORROWED copy "remove"
+                            means the card leaves the collection (it was never yours); clearing the
+                            tag instead would silently claim someone else's card as owned. */}
+                        {borrowed && (
+                          <button onClick={async ()=>{
+                            if (!window.confirm(`Remove ${card.hero||"this card"} from your collection?\n\nUse this if you no longer have it.`)) return;
+                            await returnBorrowedCopy(lot);
+                            setToast("\u2713 Removed from your collection");
+                          }} style={{background:"rgba(239,68,68,0.12)",border:"1px solid rgba(239,68,68,0.45)",color:"#EF4444",borderRadius:8,padding:"6px 10px",fontSize:10.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                            Remove card
+                          </button>
+                        )}
+                        <button onClick={()=>{ clearLoanOn(lot.id); setToast(borrowed ? "Now marked as yours" : "Loan tag removed"); }}
+                          title={borrowed ? "Keep the card and treat it as yours" : "Clear the loan tag"}
                           style={{background:"none",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-3)",borderRadius:8,padding:"6px 10px",fontSize:10.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-                          Not on loan
+                          {borrowed ? "It\u2019s mine now" : "Not on loan"}
                         </button>
                       </div>
                     </div>
