@@ -29961,14 +29961,9 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 const fam = (familyOwnerByCard && familyOwnerByCard[c.id]) || (familyOwnsCard && familyOwnsCard[c.id]);
                 if (fam) parts.push('<span style="color:#7B2FF7;font-weight:700">'+esc(fam.name||"Family")+'</span>');
                 if (!parts.length) return '<span style="color:#c0392b;font-weight:700">Not owned</span>';
-                // Copies of MINE already spoken for by another deck. Without this the list implies a
-                // card is available when every copy is already committed elsewhere.
-                const committed = (otherDeckUse && otherDeckUse[c.id]) || 0;
-                const free = Math.max(0, myQty - committed);
-                const note = (myQty > 0 && committed > 0)
-                  ? '<span style="color:#B45309;font-size:11px;"> \u00b7 '+committed+' in a deck'+(free>0?', '+free+' free':'')+'</span>'
-                  : "";
-                return parts.join('<span style="color:#999"> + </span>') + note;
+                // Just WHO has it. The pick list is used while physically pulling cards — a running
+                // commentary on deck commitments belongs in the builder, not on the sheet in your hand.
+                return parts.join('<span style="color:#999"> + </span>');
               };
               const rows = sorted.map((c,i)=>('<tr><td class="num">'+(i+1)+'</td><td>'+(proxyCards[c.id]?'<span style="color:#B45309;font-weight:700">PROXY</span>':'')+'</td><td class="mono">'+esc(c.cardNum||dash)+'</td><td class="hero">'+esc(c.hero||dash)+'</td><td class="r">'+esc(c.power)+'</td><td>'+esc(c.weapon||dash)+'</td><td>'+esc(c.treatment||dash)+'</td><td class="set">'+esc(c.setName||dash)+'</td><td>'+ownLabel(c)+'</td></tr>')).join("");
               const script = autoPrint ? '<scr'+'ipt>window.onload=function(){setTimeout(function(){window.print();},250);};</scr'+'ipt>' : '';
@@ -30041,12 +30036,13 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                           <td style={{padding:"6px",textAlign:"center"}}>
                             <button onClick={e=>{ e.stopPropagation(); onToggleProxy && onToggleProxy(c.id); }}
                               title={proxyCards[c.id] ? "Marked as a proxy \u2014 tap to clear" : "Mark this card as a proxy"}
-                              style={{cursor:"pointer",fontFamily:"inherit",borderRadius:6,padding:"2px 7px",
-                                fontSize:10,fontWeight:800,
-                                background: proxyCards[c.id] ? "rgba(180,83,9,0.15)" : "transparent",
-                                border: "1px solid " + (proxyCards[c.id] ? "rgba(180,83,9,0.6)" : "rgba(255,255,255,0.15)"),
-                                color: proxyCards[c.id] ? "#B45309" : "#555"}}>
-                              {proxyCards[c.id] ? "PROXY" : "+"}
+                              style={{cursor:"pointer",fontFamily:"inherit",borderRadius:7,
+                                width:32,height:32,display:"inline-flex",alignItems:"center",justifyContent:"center",
+                                fontSize:16,lineHeight:1,padding:0,
+                                background: proxyCards[c.id] ? "rgba(180,83,9,0.22)" : "rgba(255,255,255,0.05)",
+                                border: "1px solid " + (proxyCards[c.id] ? "#B45309" : "rgba(255,255,255,0.22)"),
+                                color: proxyCards[c.id] ? "#B45309" : "#777"}}>
+                              {proxyCards[c.id] ? "\uD83C\uDFF7\ufe0f" : "\u2295"}
                             </button>
                           </td>
                         <td style={{padding:"6px",fontFamily:"monospace",color:"#555"}}>{c.cardNum||"—"}</td>
@@ -30073,14 +30069,11 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                           const famHolder = (familyOwnerByCard && familyOwnerByCard[c.id]) || (familyOwnsCard && familyOwnsCard[c.id]);
                           if (famHolder) bits.push(<span key="fam" style={{color:"#7B2FF7"}}>{famHolder.name||"Family"}</span>);
                           if (bits.length) {
-                            const committed = (otherDeckUse && otherDeckUse[c.id]) || 0;
-                            const free = Math.max(0, myQty - committed);
+                            // Just WHO has it — no deck-commitment commentary. This sheet gets used while
+                            // pulling cards, so the only useful answer is whose binder to open.
                             return (
                               <span>
                                 {bits.map((b,bi)=>(<span key={bi}>{bi>0 && <span style={{color:"#666"}}> + </span>}{b}</span>))}
-                                {myQty>0 && committed>0 && (
-                                  <span style={{color:"#B45309",fontSize:10.5}}> {"\u00b7"} {committed} in a deck{free>0?`, ${free} free`:""}</span>
-                                )}
                               </span>
                             );
                           }
