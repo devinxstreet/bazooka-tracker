@@ -29991,69 +29991,126 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
             };
             return (
             <div onClick={()=>setShowPickList(false)} className="pick-list-overlay" style={{position:"fixed",inset:0,zIndex:13000,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:24,overflowY:"auto"}}>
-              <div onClick={e=>e.stopPropagation()} className="pick-list-sheet" style={{width:"100%",maxWidth:720,background:"#fff",color:"#111",borderRadius:12,padding:"28px 30px",boxShadow:"0 24px 80px rgba(0,0,0,0.6)",position:"relative",margin:"auto"}}>
+              <div onClick={e=>e.stopPropagation()} className="pick-list-sheet" style={{width:"100%",maxWidth:760,background:"#fff",color:"#111",borderRadius:14,padding:"26px 30px 30px",boxShadow:"0 24px 80px rgba(0,0,0,0.6)",position:"relative",margin:"auto"}}>
                 {/* Screen-only controls (hidden when printing) */}
-                <div className="pick-list-controls" style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:18,borderBottom:"2px solid #eee",paddingBottom:14}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                    <span style={{fontSize:12,fontWeight:700,color:"#666"}}>Sort:</span>
-                    {[["power","⚡ Power"],["cardnum","# Card No."],["weapon","🗡 Weapon"],["treatment","✨ Treatment"]].map(([k,label])=>(
-                      <button key={k} onClick={()=>setPickSort(k)} style={{background:pickSort===k?"#7B2FF7":"#f0f0f0",color:pickSort===k?"#fff":"#444",border:"none",borderRadius:7,padding:"6px 12px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
+                <div className="pick-list-controls" style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:18}}>
+                  {/* Sort is a segmented control rather than loose buttons: the options are mutually
+                      exclusive, and grouping them says so without needing a label. */}
+                  <div style={{display:"inline-flex",border:"1.5px solid #e3e3e3",borderRadius:9,overflow:"hidden"}}>
+                    {[["power","Power"],["cardnum","Card no."],["weapon","Weapon"],["treatment","Treatment"]].map(([k,label],idx)=>(
+                      <button key={k} onClick={()=>setPickSort(k)}
+                        style={{background:pickSort===k?"#111":"#fff",color:pickSort===k?"#fff":"#777",
+                          border:"none",borderLeft: idx===0?"none":"1px solid #e3e3e3",
+                          padding:"8px 13px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit",
+                          letterSpacing:"0.2px",transition:"background 120ms ease"}}>
+                        {label}
+                      </button>
                     ))}
                   </div>
                   <div style={{display:"flex",gap:8}}>
-                    <button onClick={()=>openPickPrint(true)} style={{background:"#111",color:"#fff",border:"none",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🖨 Print</button>
-                    <button onClick={()=>openPickPrint(false)} style={{background:"#7B2FF7",color:"#fff",border:"none",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>📄 Save PDF</button>
-                    <button onClick={()=>setShowPickList(false)} style={{background:"#f0f0f0",color:"#444",border:"none",borderRadius:7,padding:"6px 14px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
+                    <button onClick={()=>openPickPrint(true)}
+                      style={{background:"#111",color:"#fff",border:"1.5px solid #111",borderRadius:9,padding:"8px 16px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                      Print
+                    </button>
+                    <button onClick={()=>openPickPrint(false)}
+                      style={{background:"#fff",color:"#111",border:"1.5px solid #ddd",borderRadius:9,padding:"8px 16px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                      Save PDF
+                    </button>
+                    <button onClick={()=>setShowPickList(false)} aria-label="Close pick list"
+                      style={{background:"#fff",color:"#999",border:"1.5px solid #ddd",borderRadius:9,width:36,height:36,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:"inherit",lineHeight:1}}>
+                      {"\u00d7"}
+                    </button>
                   </div>
                 </div>
-                {/* Header */}
-                <div style={{marginBottom:16}}>
-                  <div style={{fontSize:22,fontWeight:900,letterSpacing:"-0.3px"}}>{deckName||"My Deck"} — Pick List</div>
-                  <div style={{fontSize:12,color:"#666",marginTop:3}}>{inDeck.length} cards · {pulled} pulled · {inDeck.filter(x=>proxyCards[x.id]).length} proxy · sorted by {pickSort==="power"?"power (high→low)":pickSort==="cardnum"?"card number":pickSort==="weapon"?"weapon":"treatment"}</div>
+                {/* Header. The deck name is the title of a working document, so it is set large and
+                    tight; the counts underneath are the only status that matters while pulling. */}
+                <div style={{marginBottom:18,paddingBottom:14,borderBottom:"3px solid #111"}}>
+                  <div style={{fontSize:11,fontWeight:800,letterSpacing:"1.6px",textTransform:"uppercase",color:"#B45309",marginBottom:4}}>Pick list</div>
+                  <div style={{fontSize:26,fontWeight:900,letterSpacing:"-0.6px",lineHeight:1.05}}>{deckName||"My Deck"}</div>
+                  <div style={{display:"flex",gap:16,marginTop:9,flexWrap:"wrap",fontSize:12}}>
+                    <span style={{fontWeight:800}}>{pulled}<span style={{color:"#999",fontWeight:600}}> / {inDeck.length} pulled</span></span>
+                    {inDeck.filter(x=>proxyCards[x.id]).length > 0 && (
+                      <span style={{fontWeight:800,color:"#B45309"}}>
+                        {inDeck.filter(x=>proxyCards[x.id]).length}<span style={{fontWeight:600}}> to proxy</span>
+                      </span>
+                    )}
+                    <span style={{color:"#999"}}>sorted by {pickSort==="cardnum"?"card number":pickSort}</span>
+                  </div>
+                  {/* Progress. A thin rule rather than a bar: it reads at a glance without taking space
+                      from the list, which is the part you are actually working from. */}
+                  <div style={{height:3,background:"#eee",borderRadius:2,marginTop:11,overflow:"hidden"}}>
+                    <div style={{height:"100%",width:`${inDeck.length?Math.round(pulled/inDeck.length*100):0}%`,
+                      background:"#111",transition:"width 220ms ease"}}/>
+                  </div>
                 </div>
-                {/* Table */}
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                   <thead>
-                    <tr style={{borderBottom:"2px solid #111",textAlign:"left"}}>
-                      <th style={{padding:"7px 6px",width:34,textAlign:"center"}}>✓</th>
-                      <th style={{padding:"7px 6px",width:52,textAlign:"center"}}>Proxy</th>
-                      <th style={{padding:"7px 6px"}}>Card #</th>
-                      <th style={{padding:"7px 6px"}}>Hero</th>
-                      <th style={{padding:"7px 6px",textAlign:"right"}}>Power</th>
-                      <th style={{padding:"7px 6px"}}>Weapon</th>
-                      <th style={{padding:"7px 6px"}}>Treatment</th>
-                      <th style={{padding:"7px 6px"}}>Set</th>
-                          <th style={{padding:"7px 6px"}}>Who has it</th>
+                    <tr style={{borderBottom:"1.5px solid #111",textAlign:"left"}}>
+                      <th style={{padding:"0 6px 8px",width:38}}/>
+                      <th style={{padding:"0 6px 8px",width:44,textAlign:"center",fontSize:10,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Proxy</th>
+                      <th style={{padding:"0 6px 8px",fontSize:10,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Card</th>
+                      <th style={{padding:"0 6px 8px",textAlign:"right",fontSize:10,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Power</th>
+                      <th style={{padding:"0 6px 8px",fontSize:10,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Who has it</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {sorted.map((c,i)=>(
-                      <tr key={c.id} onClick={()=>setPickChecked(p=>({...p,[c.id]:!p[c.id]}))} style={{borderBottom:"1px solid #e5e5e5",cursor:"pointer",background:pickChecked[c.id]?"#f3f0fb":(i%2?"#fafafa":"#fff")}}>
-                        <td style={{padding:"6px",textAlign:"center"}}><span style={{display:"inline-block",width:15,height:15,border:"1.5px solid #999",borderRadius:3,lineHeight:"13px",fontSize:11,color:"#7B2FF7",fontWeight:900}}>{pickChecked[c.id]?"✓":""}</span></td>
-                          {/* Flagging happens HERE because this is where you notice it: you are holding
-                              the slab, realising you cannot play it. stopPropagation so it does not also
-                              tick the row's "pulled" checkbox. */}
-                          <td style={{padding:"6px",textAlign:"center"}}>
-                            <button onClick={e=>{ e.stopPropagation(); onToggleProxy && onToggleProxy(c.id); }}
-                              title={proxyCards[c.id] ? "Marked as a proxy \u2014 tap to clear" : "Mark this card as a proxy"}
-                              style={{cursor:"pointer",fontFamily:"inherit",borderRadius:7,
-                                width:32,height:32,display:"inline-flex",alignItems:"center",justifyContent:"center",
-                                fontSize:16,lineHeight:1,padding:0,
-                                background: proxyCards[c.id] ? "rgba(180,83,9,0.22)" : "rgba(255,255,255,0.05)",
-                                border: "1px solid " + (proxyCards[c.id] ? "#B45309" : "rgba(255,255,255,0.22)"),
-                                color: proxyCards[c.id] ? "#B45309" : "#777"}}>
-                              {proxyCards[c.id] ? "\uD83C\uDFF7\ufe0f" : "\u2295"}
-                            </button>
-                          </td>
-                        <td style={{padding:"6px",fontFamily:"monospace",color:"#555"}}>{c.cardNum||"—"}</td>
-                        <td style={{padding:"6px",fontWeight:700,textDecoration:pickChecked[c.id]?"line-through":"none",color:pickChecked[c.id]?"#999":"#111"}}>{c.hero}</td>
-                        <td style={{padding:"6px",textAlign:"right",fontWeight:800}}>{c.power}</td>
-                        <td style={{padding:"6px"}}>{c.weapon||"—"}</td>
-                        <td style={{padding:"6px",color:"#555"}}>{c.treatment||"—"}</td>
-                        <td style={{padding:"6px",color:"#888",fontSize:12}}>{c.setName||"—"}</td>
-                        <td style={{padding:"6px",fontSize:12,fontWeight:700}}>{(() => {
-                          // List EVERY holder, not just the first match. Returning early on "I own
-                          // one" hid the fact that a relative also has a copy \u2014 and hid whose it was.
+                    {sorted.map((c,i)=>{
+                      const done = !!pickChecked[c.id];
+                      const isProxy = !!proxyCards[c.id];
+                      return (
+                      <tr key={c.id} onClick={()=>setPickChecked(p=>({...p,[c.id]:!p[c.id]}))}
+                        style={{borderBottom:"1px solid #ededed",cursor:"pointer",
+                          background: done ? "#fafafa" : "transparent",
+                          opacity: done ? 0.45 : 1, transition:"opacity 140ms ease, background 140ms ease"}}>
+                        {/* Pulled. The whole row is the hit area \\u2014 you are tapping this one-handed while
+                            holding cards, so precision targeting is the wrong ask. */}
+                        <td style={{padding:"10px 6px",textAlign:"center"}}>
+                          <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",
+                            width:19,height:19,borderRadius:5,
+                            border:"1.5px solid " + (done ? "#111" : "#ccc"),
+                            background: done ? "#111" : "#fff",
+                            color:"#fff",fontSize:12,fontWeight:900,lineHeight:1}}>
+                            {done ? "\u2713" : ""}
+                          </span>
+                        </td>
+                        {/* Proxy. Second action on the row, so it gets its own column and a real tap
+                            target \\u2014 amber only when set, so an unflagged sheet stays calm. */}
+                        <td style={{padding:"10px 6px",textAlign:"center"}}>
+                          <button onClick={e=>{ e.stopPropagation(); onToggleProxy && onToggleProxy(c.id); }}
+                            title={isProxy ? "Proxy \\u2014 tap to clear" : "Mark as proxy"}
+                            aria-pressed={isProxy}
+                            style={{cursor:"pointer",fontFamily:"inherit",borderRadius:8,
+                              width:34,height:34,display:"inline-flex",alignItems:"center",justifyContent:"center",
+                              fontSize:13,fontWeight:900,lineHeight:1,padding:0,
+                              background: isProxy ? "#B45309" : "#fff",
+                              border: "1.5px solid " + (isProxy ? "#B45309" : "#ddd"),
+                              color: isProxy ? "#fff" : "#bbb",
+                              transition:"all 120ms ease"}}>
+                            {isProxy ? "\u25C6" : "\u25C7"}
+                          </button>
+                        </td>
+                        {/* Card identity. Hero leads because that is what you read off the card; the
+                            number and finish sit underneath as the confirming detail. */}
+                        <td style={{padding:"10px 6px"}}>
+                          <div style={{fontWeight:800,fontSize:14,letterSpacing:"-0.2px",
+                            textDecoration: done ? "line-through" : "none"}}>
+                            {c.hero||"\u2014"}
+                          </div>
+                          <div style={{fontSize:11,color:"#999",marginTop:2,display:"flex",gap:7,flexWrap:"wrap"}}>
+                            <span style={{fontFamily:"ui-monospace,monospace",color:"#666"}}>{c.cardNum||"\u2014"}</span>
+                            {c.weapon && <span>{c.weapon}</span>}
+                            {c.treatment && <span>{c.treatment}</span>}
+                            {c.setName && <span style={{color:"#bbb"}}>{c.setName}</span>}
+                          </div>
+                        </td>
+                        {/* Power is the one number that matters in BoBA, so it is set as a figure, not
+                            table data. */}
+                        <td style={{padding:"10px 6px",textAlign:"right",verticalAlign:"top"}}>
+                          <span style={{fontSize:19,fontWeight:900,letterSpacing:"-0.5px",
+                            fontVariantNumeric:"tabular-nums"}}>{c.power ?? "\u2014"}</span>
+                        </td>
+                        <td style={{padding:"10px 6px",fontSize:12,fontWeight:700,verticalAlign:"top"}}>{(() => {
+                          // Just WHO has it. Every holder, not only the first match.
                           const myQty = (owned && owned[c.id]) ? (parseInt(owned[c.id]) || 0) : 0;
                           const bits = [];
                           if (myQty > 0) {
@@ -30068,24 +30125,15 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                           }
                           const famHolder = (familyOwnerByCard && familyOwnerByCard[c.id]) || (familyOwnsCard && familyOwnsCard[c.id]);
                           if (famHolder) bits.push(<span key="fam" style={{color:"#7B2FF7"}}>{famHolder.name||"Family"}</span>);
-                          if (bits.length) {
-                            // Just WHO has it — no deck-commitment commentary. This sheet gets used while
-                            // pulling cards, so the only useful answer is whose binder to open.
-                            return (
-                              <span>
-                                {bits.map((b,bi)=>(<span key={bi}>{bi>0 && <span style={{color:"#666"}}> + </span>}{b}</span>))}
-                              </span>
-                            );
-                          }
-                          const fam = (familyOwnerByCard && familyOwnerByCard[c.id]) || (familyOwnsCard && familyOwnsCard[c.id]);
-                          if (fam) return <span style={{color:"#7B2FF7"}}>{fam.name || "Family"}</span>;
+                          if (bits.length) return <span>{bits.map((b,bi)=>(<span key={bi}>{bi>0 && <span style={{color:"#ccc"}}> + </span>}{b}</span>))}</span>;
                           return <span style={{color:"#c0392b"}}>Not owned</span>;
                         })()}</td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
-                <div style={{marginTop:16,fontSize:11,color:"#aaa",textAlign:"center"}}>Bazooka Dash · generated {new Date().toLocaleDateString()}</div>
+                <div style={{marginTop:20,paddingTop:12,borderTop:"1px solid #eee",fontSize:10.5,color:"#bbb",display:"flex",justifyContent:"space-between",letterSpacing:"0.3px"}}><span style={{fontWeight:800,color:"#999"}}>BAZOOKA DASH</span><span>{new Date().toLocaleDateString()}</span></div>
               </div>
             </div>
             );
