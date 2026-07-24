@@ -38402,12 +38402,16 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
         (d.cardIds||[]).forEach(cid => {
           if (seen.has(cid)) return;
           seen.add(cid);
-          if (owned[cid]) m[cid] = (m[cid]||0) + 1;   // only MY cards can be locked for me
+          // A family member using THEIR OWN copy must not lock mine. Two people owning the same card
+          // share one card id, so "this id is in Derrik's deck" said nothing about whose physical
+          // card it was \u2014 and my copy got marked unavailable while his sat in his own deck.
+          const theirs = (friendOwned[group.friendUid] || {})[cid];
+          if (owned[cid] && !theirs) m[cid] = (m[cid]||0) + 1;
         });
       });
     });
     return m;
-  }, [familyDecks, owned]);
+  }, [familyDecks, owned, friendOwned]);
 
   // Where each card is committed, so the builder can TELL you where a locked card lives instead of
   // just greying it out. Maps cardId -> [{ where:"mine"|"family", deck:"<deck name>", who:"<name>" }].
@@ -38424,17 +38428,25 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
         (d.cardIds||[]).forEach(cid => {
           // Only surface family placements of cards I own (those are the ones that lock me out).
           if(seen.has(cid))return; seen.add(cid);
-          if(owned[cid]) push(cid, { where:"family", deck: d.name || "Untitled deck", who: group.friendName || "Family" });
+          // Same rule for the "where is it" label: only surface a family placement when it is
+          // genuinely MY copy sitting in their deck.
+          const theirsToo = (friendOwned[group.friendUid] || {})[cid];
+          if(owned[cid] && !theirsToo) push(cid, { where:"family", deck: d.name || "Untitled deck", who: group.friendName || "Family" });
         });
       });
     });
     return m;
-  }, [savedDecks, familyDecks, owned]);
+  }, [savedDecks, familyDecks, owned, friendOwned]);
   // Human-readable "where is this card" string for a locked card.
   const deckLocationText = (cid) => {
     const locs = deckLocations[cid] || [];
     if(!locs.length) return "";
-    return locs.map(l => l.where==="mine" ? `your "${l.deck}"` : `${l.who}'s "${l.deck}"`).join(", ");
+    // Name whose COPY is committed, not just whose deck it sits in. When two people own the same
+    // card these read identically otherwise \u2014 "in Alpha Trilogy Playmaker" on both sides, with no
+    // way to tell which physical card is spoken for.
+    return locs.map(l => l.where==="mine"
+      ? `your copy is in your "${l.deck}"`
+      : `your copy is in ${l.who}'s "${l.deck}"`).join(", ");
   };
 
 
