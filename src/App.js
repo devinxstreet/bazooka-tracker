@@ -485,6 +485,40 @@ async function readCardSnapshot(bust) {
   return Array.isArray(arr) ? arr : null;
 }
 
+// ── Card back image ──────────────────────────────────────────────────────────
+// The BoBA card back, used everywhere a face-down or shuffled card shows: the
+// shuffle ceremony and the face-down heroes in the arena. Stored in Firebase
+// Storage so it can be swapped without a code change.
+//
+// Resolved once and memoised. The promise is cached (not just the URL) so a
+// burst of cards asking at once triggers a single fetch. A CSS diamond pattern
+// stays as the fallback if the image can't be reached, so a face-down card is
+// never blank.
+const CARD_BACK_PATH = "card_data/hero_back.webp";
+const CARD_BACK_FALLBACK =
+  "repeating-linear-gradient(45deg,#7f1d1d,#7f1d1d 6px,#991b1b 6px,#991b1b 12px)";
+let _cardBackPromise = null;
+let _cardBackUrl = null;
+function loadCardBackUrl() {
+  if (_cardBackUrl) return Promise.resolve(_cardBackUrl);
+  if (_cardBackPromise) return _cardBackPromise;
+  _cardBackPromise = getDownloadURL(ref(storage, CARD_BACK_PATH))
+    .then(u => { _cardBackUrl = u; return u; })
+    .catch(() => { _cardBackPromise = null; return null; });   // allow a retry later
+  return _cardBackPromise;
+}
+// Hook: returns the back-image URL once resolved, else null (use the fallback).
+function useCardBack() {
+  const [url, setUrl] = React.useState(_cardBackUrl);
+  React.useEffect(() => {
+    if (url) return;
+    let alive = true;
+    loadCardBackUrl().then(u => { if (alive && u) setUrl(u); });
+    return () => { alive = false; };
+  }, [url]);
+  return url;
+}
+
 // ── IndexedDB cache (localStorage caps ~5MB; the 12MB card list needs IndexedDB) ──
 function _idbOpen() {
   return new Promise((resolve, reject) => {
@@ -29373,6 +29407,7 @@ function ArenaShuffleCeremony({ hand, onDone, isMobile }) {
   // phase: "riffle" -> "draw" -> "deal" -> done
   const [phase, setPhase] = React.useState("riffle");
   const [dealt, setDealt] = React.useState(0);
+  const cardBackUrl = useCardBack();   // BoBA back image, or null -> CSS fallback
 
   React.useEffect(() => {
     if (document.getElementById("bz-arena-shuffle")) return;
@@ -29402,7 +29437,10 @@ function ArenaShuffleCeremony({ hand, onDone, isMobile }) {
   };
   const cardBackStyle = {
     position: "absolute", width: isMobile ? 46 : 58, aspectRatio: "5/7", borderRadius: 6,
-    background: "repeating-linear-gradient(45deg,#7f1d1d,#7f1d1d 5px,#991b1b 5px,#991b1b 10px)",
+    overflow: "hidden",
+    background: cardBackUrl
+      ? `#111 center/cover url(${JSON.stringify(cardBackUrl)})`
+      : "repeating-linear-gradient(45deg,#7f1d1d,#7f1d1d 5px,#991b1b 5px,#991b1b 10px)",
     border: "2px solid #dc2626", boxShadow: "0 3px 10px rgba(0,0,0,0.55)",
   };
 
@@ -30048,6 +30086,29 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   // where HTML5 drag events don't fire.
   const [held,      setHeld]      = React.useState(null);
   const [overZone,  setOverZone]  = React.useState(null);
+  const cardBackUrl = useCardBack();   // BoBA back image, or null -> CSS fallback
+  const [backUploading, setBackUploading] = React.useState(false);
+
+  // One-time admin action: push a chosen image to the Storage path the whole app
+  // reads the card back from. Lives in the arena because that's where backs show
+  // and the tab is already admin-gated.
+  async function uploadCardBack(file) {
+    if (!file) return;
+    setBackUploading(true);
+    try {
+      const r = ref(storage, CARD_BACK_PATH);
+      await uploadBytes(r, file, { contentType: file.type || "image/webp",
+                                   cacheControl: "public,max-age=86400" });
+      const url = await getDownloadURL(r);
+      _cardBackUrl = url;                       // prime the module cache now
+      _cardBackPromise = Promise.resolve(url);
+      setToast && setToast("\u2713 Card back updated \u2014 shuffle a deck to see it");
+    } catch (e) {
+      setErr("Couldn't upload the card back: " + (e?.message || e));
+    } finally {
+      setBackUploading(false);
+    }
+  }
   const [game,      setGame]      = React.useState(null);   // public doc
   const [myPriv,    setMyPriv]    = React.useState(null);   // my private doc
   const [joinCode,  setJoinCode]  = React.useState("");
@@ -30865,11 +30926,16 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   // ========================= RENDER =======================================
   const cardBack = (label) => (
     <div style={{
-      width:"100%", aspectRatio:"5/7", borderRadius:8,
-      background:"repeating-linear-gradient(45deg,#7f1d1d,#7f1d1d 6px,#991b1b 6px,#991b1b 12px)",
+      width:"100%", aspectRatio:"5/7", borderRadius:8, overflow:"hidden", position:"relative",
+      background: cardBackUrl ? "#111" : CARD_BACK_FALLBACK,
       border:"2px solid #dc2626", display:"flex", alignItems:"center", justifyContent:"center",
       color:"rgba(255,255,255,0.55)", fontSize:10, fontWeight:800, textAlign:"center", padding:4,
-    }}>{label}</div>
+    }}>
+      {cardBackUrl
+        ? <img src={cardBackUrl} alt="card back"
+               style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} />
+        : label}
+    </div>
   );
 
   // `struck` = the winning weapon landing on THIS card, or null. Cosmetic only.
@@ -30997,6 +31063,41 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
         </div>
 
         {err && <div style={{...panel, borderColor:"#F87171", color:"#F87171", fontSize:12, whiteSpace:"pre-line"}}>{err}</div>}
+
+        {/* Card-back image. Admin-only, and this whole tab is already admin-gated.
+            Shows the current back plus a replace control. */}
+        <div style={panel}>
+          <div style={{fontSize:13,fontWeight:800,color:"#fff",marginBottom:4}}>Card back</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.45)",marginBottom:12}}>
+            Used for shuffling and face-down heroes. Upload the BoBA back once; it's stored for everyone.
+          </div>
+          <div style={{display:"flex",gap:14,alignItems:"center"}}>
+            <div style={{width:70,aspectRatio:"5/7",borderRadius:7,overflow:"hidden",flexShrink:0,
+                         border:"2px solid #dc2626",
+                         background: cardBackUrl ? "#111" : CARD_BACK_FALLBACK,
+                         display:"flex",alignItems:"center",justifyContent:"center"}}>
+              {cardBackUrl
+                ? <img src={cardBackUrl} alt="current card back"
+                       style={{width:"100%",height:"100%",objectFit:"cover"}} />
+                : <span style={{fontSize:9,color:"rgba(255,255,255,0.5)",textAlign:"center",padding:4}}>
+                    default
+                  </span>}
+            </div>
+            <div>
+              <label style={{display:"inline-block",padding:"9px 16px",borderRadius:8,
+                             background: backUploading ? "#333" : "#22C55E", color:"#000",
+                             fontWeight:900,fontSize:13,cursor: backUploading?"default":"pointer"}}>
+                {backUploading ? "Uploading\u2026" : cardBackUrl ? "Replace image" : "Upload back image"}
+                <input type="file" accept="image/*" disabled={backUploading}
+                       onChange={e => { const f = e.target.files?.[0]; e.target.value=""; uploadCardBack(f); }}
+                       style={{display:"none"}} />
+              </label>
+              <div style={{fontSize:10.5,color:"rgba(255,255,255,0.4)",marginTop:6}}>
+                PNG, JPG or WebP {"\u00b7"} 5:7 works best
+              </div>
+            </div>
+          </div>
+        </div>
 
         {myGames.length > 0 && (
           <div style={panel}>
