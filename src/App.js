@@ -499,23 +499,29 @@ const CARD_BACK_FALLBACK =
   "repeating-linear-gradient(45deg,#7f1d1d,#7f1d1d 6px,#991b1b 6px,#991b1b 12px)";
 let _cardBackPromise = null;
 let _cardBackUrl = null;
+const _cardBackSubs = new Set();   // hook setters waiting on the URL
+function _cardBackNotify() { _cardBackSubs.forEach(fn => { try { fn(_cardBackUrl); } catch (e) {} }); }
 function loadCardBackUrl() {
   if (_cardBackUrl) return Promise.resolve(_cardBackUrl);
   if (_cardBackPromise) return _cardBackPromise;
   _cardBackPromise = getDownloadURL(ref(storage, CARD_BACK_PATH))
-    .then(u => { _cardBackUrl = u; return u; })
+    .then(u => { _cardBackUrl = u; _cardBackNotify(); return u; })
     .catch(() => { _cardBackPromise = null; return null; });   // allow a retry later
   return _cardBackPromise;
 }
+// Call after an upload to push the new URL to every mounted card back at once.
+function setCardBackUrl(u) { _cardBackUrl = u; _cardBackPromise = Promise.resolve(u); _cardBackNotify(); }
 // Hook: returns the back-image URL once resolved, else null (use the fallback).
+// Subscribes to the shared cache so ANY component that resolves or uploads the
+// image updates every other card back on screen, not just its own.
 function useCardBack() {
   const [url, setUrl] = React.useState(_cardBackUrl);
   React.useEffect(() => {
-    if (url) return;
-    let alive = true;
-    loadCardBackUrl().then(u => { if (alive && u) setUrl(u); });
-    return () => { alive = false; };
-  }, [url]);
+    _cardBackSubs.add(setUrl);
+    if (!_cardBackUrl) loadCardBackUrl();
+    else setUrl(_cardBackUrl);
+    return () => { _cardBackSubs.delete(setUrl); };
+  }, []);
   return url;
 }
 
@@ -30100,8 +30106,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       await uploadBytes(r, file, { contentType: file.type || "image/webp",
                                    cacheControl: "public,max-age=86400" });
       const url = await getDownloadURL(r);
-      _cardBackUrl = url;                       // prime the module cache now
-      _cardBackPromise = Promise.resolve(url);
+      setCardBackUrl(url);                      // push to every card back on screen
       setToast && setToast("\u2713 Card back updated \u2014 shuffle a deck to see it");
     } catch (e) {
       setErr("Couldn't upload the card back: " + (e?.message || e));
@@ -30927,14 +30932,15 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   const cardBack = (label) => (
     <div style={{
       width:"100%", aspectRatio:"5/7", borderRadius:8, overflow:"hidden", position:"relative",
-      background: cardBackUrl ? "#111" : CARD_BACK_FALLBACK,
+      // Same CSS-background approach the shuffle ceremony uses (which renders
+      // correctly). The <img> version failed to show here, so match what works.
+      background: cardBackUrl
+        ? `#111 center/cover no-repeat url(${JSON.stringify(cardBackUrl)})`
+        : CARD_BACK_FALLBACK,
       border:"2px solid #dc2626", display:"flex", alignItems:"center", justifyContent:"center",
       color:"rgba(255,255,255,0.55)", fontSize:10, fontWeight:800, textAlign:"center", padding:4,
     }}>
-      {cardBackUrl
-        ? <img src={cardBackUrl} alt="card back"
-               style={{position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"cover"}} />
-        : label}
+      {cardBackUrl ? null : label}
     </div>
   );
 
