@@ -28941,14 +28941,16 @@ const ARENA_FX_CSS = `
   100%{opacity:0;transform:scale(1.4)}
 }
 @keyframes bzFrost {
-  0%{opacity:0;backdrop-filter:blur(0px)}
-  35%{opacity:1}
-  100%{opacity:0.92}
+  0%{opacity:0}
+  30%{opacity:1}
+  70%{opacity:1}
+  100%{opacity:0}
 }
 @keyframes bzDrip {
   0%{transform:translateY(-14px);opacity:0}
-  30%{opacity:1}
-  100%{transform:translateY(0);opacity:1}
+  25%{opacity:1}
+  72%{opacity:1}
+  100%{transform:translateY(0);opacity:0}
 }
 @keyframes bzGlitch {
   0%,100%{transform:translate(0);filter:none}
@@ -28973,7 +28975,8 @@ const ARENA_FX_CSS = `
   100%{transform:translate(-50%,-50%) rotate(420deg) scale(1.5);opacity:0}
 }
 @keyframes bzCrack {
-  0%{opacity:0;transform:scale(0.7)} 30%{opacity:1;transform:scale(1)} 100%{opacity:0.85;transform:scale(1)}
+  0%{opacity:0;transform:scale(0.7)} 28%{opacity:1;transform:scale(1)}
+  70%{opacity:1;transform:scale(1)} 100%{opacity:0;transform:scale(1)}
 }
 @keyframes bzFlash {
   0%{opacity:0} 10%{opacity:0.9} 100%{opacity:0}
@@ -29313,21 +29316,37 @@ function ArenaProjectile({ w, up }) {
 // ============================================================================
 
 const ARENA_SHUFFLE_CSS = `
+/* Riffle, done properly. The old version slid two rigid stacks apart and back,
+   which read as "two rectangles wobbling". A real riffle has each card lift, arc
+   over the bridge, and FALL into the middle at its own moment — so each card gets
+   its own delay and a springy landing, and the halves stay visually distinct until
+   they interleave. --lift/--tilt are per-card so no two move identically. */
 @keyframes bzRiffleL {
-  0%   { transform: translate(-50%,-50%) translateX(0) rotate(0deg); }
-  22%  { transform: translate(-50%,-50%) translateX(-78px) rotate(-11deg); }
-  58%  { transform: translate(-50%,-50%) translateX(-14px) rotate(-3deg); }
-  100% { transform: translate(-50%,-50%) translateX(0) rotate(0deg); }
+  0%   { transform: translate(-50%,-50%) translate(0,0) rotate(0deg); }
+  18%  { transform: translate(-50%,-50%) translate(-84px,var(--lift)) rotate(calc(var(--tilt) * -1)); }
+  46%  { transform: translate(-50%,-50%) translate(-58px,calc(var(--lift) * 1.5)) rotate(calc(var(--tilt) * -0.6)); }
+  72%  { transform: translate(-50%,-50%) translate(-6px,4px) rotate(2deg); }
+  86%  { transform: translate(-50%,-50%) translate(2px,-2px) rotate(-1deg); }
+  100% { transform: translate(-50%,-50%) translate(0,0) rotate(0deg); }
 }
 @keyframes bzRiffleR {
-  0%   { transform: translate(-50%,-50%) translateX(0) rotate(0deg); }
-  22%  { transform: translate(-50%,-50%) translateX(78px) rotate(11deg); }
-  58%  { transform: translate(-50%,-50%) translateX(14px) rotate(3deg); }
-  100% { transform: translate(-50%,-50%) translateX(0) rotate(0deg); }
+  0%   { transform: translate(-50%,-50%) translate(0,0) rotate(0deg); }
+  18%  { transform: translate(-50%,-50%) translate(84px,var(--lift)) rotate(var(--tilt)); }
+  46%  { transform: translate(-50%,-50%) translate(58px,calc(var(--lift) * 1.5)) rotate(calc(var(--tilt) * 0.6)); }
+  72%  { transform: translate(-50%,-50%) translate(6px,4px) rotate(-2deg); }
+  86%  { transform: translate(-50%,-50%) translate(-2px,-2px) rotate(1deg); }
+  100% { transform: translate(-50%,-50%) translate(0,0) rotate(0deg); }
 }
 @keyframes bzBridge {
-  0%,100% { transform: translate(-50%,-50%) scaleY(1); }
-  40%     { transform: translate(-50%,-56%) scaleY(1.16); }
+  0%,100% { transform: translate(-50%,-50%) scaleY(1) rotate(0deg); }
+  30%     { transform: translate(-50%,-54%) scaleY(1.10) rotate(-0.6deg); }
+  62%     { transform: translate(-50%,-50%) scaleY(0.96) rotate(0.4deg); }
+}
+/* The pack settling after the halves merge — a small squash on impact. */
+@keyframes bzSettle {
+  0%   { transform: translate(-50%,-50%) scale(1.06,0.92); }
+  55%  { transform: translate(-50%,-50%) scale(0.98,1.03); }
+  100% { transform: translate(-50%,-50%) scale(1,1); }
 }
 @keyframes bzDeckPulse {
   0%,100% { box-shadow: 0 0 0 rgba(232,49,122,0); }
@@ -29339,8 +29358,9 @@ const ARENA_SHUFFLE_CSS = `
   100% { transform: translate(-50%,-190%) scale(1.05); opacity: 1; }
 }
 @keyframes bzDealOut {
-  0%   { transform: translate(var(--fx), var(--fy)) scale(0.55) rotate(-8deg); opacity: 0; }
-  15%  { opacity: 1; }
+  0%   { transform: translate(var(--fx), var(--fy)) scale(0.5) rotate(var(--spin,-14deg)); opacity: 0; }
+  12%  { opacity: 1; }
+  72%  { transform: translate(0,-5px) scale(1.04) rotate(2deg); opacity: 1; }
   100% { transform: translate(0,0) scale(1) rotate(0deg); opacity: 1; }
 }
 @keyframes bzFlipIn {
@@ -29365,12 +29385,13 @@ function ArenaShuffleCeremony({ hand, onDone, isMobile }) {
   React.useEffect(() => {
     const timers = [];
     // Two riffle passes, then the draw, then cards deal out one at a time.
-    timers.push(setTimeout(() => setPhase("draw"), 1750));
-    timers.push(setTimeout(() => setPhase("deal"), 2650));
+    // Two full riffle passes at 720ms, then a beat before the draw.
+    timers.push(setTimeout(() => setPhase("draw"), 1600));
+    timers.push(setTimeout(() => setPhase("deal"), 2500));
     for (let i = 1; i <= 7; i++) {
-      timers.push(setTimeout(() => setDealt(i), 2650 + i * 190));
+      timers.push(setTimeout(() => setDealt(i), 2500 + i * 200));
     }
-    timers.push(setTimeout(() => { onDone && onDone(); }, 2650 + 7 * 190 + 520));
+    timers.push(setTimeout(() => { onDone && onDone(); }, 2500 + 7 * 200 + 560));
     return () => timers.forEach(clearTimeout);
   }, [onDone]);
 
@@ -29398,20 +29419,32 @@ function ArenaShuffleCeremony({ hand, onDone, isMobile }) {
       {phase !== "deal" && (
         <div style={{ position: "absolute", left: "50%", top: "62%",
                       animation: phase === "riffle" ? "bzBridge 560ms ease-in-out infinite" : undefined }}>
-          {/* Two halves splitting apart and coming back together. */}
+          {/* Two halves that interleave. Each card carries its own lift height,
+              tilt and delay so the fall staggers instead of moving as one block —
+              that uniformity was what made the first version look mechanical. */}
           {[0, 1].map(side => (
             <div key={side}>
-              {Array.from({ length: 9 }).map((_, i) => (
-                <div key={i} style={{
-                  ...cardBackStyle, left: 0, top: 0,
-                  transform: "translate(-50%,-50%)",
-                  marginTop: -i * 1.6,
-                  animation: phase === "riffle"
-                    ? `${side ? "bzRiffleR" : "bzRiffleL"} 560ms ease-in-out ${i * 26}ms infinite`
-                    : undefined,
-                  opacity: 1 - i * 0.05,
-                }} />
-              ))}
+              {Array.from({ length: 13 }).map((_, i) => {
+                // Deterministic pseudo-random per card: same every render, but
+                // varied enough that no two cards travel identically.
+                const seed = (i * 37 + side * 91) % 100;
+                const lift = -(16 + (seed % 13));
+                const tilt = 7 + (seed % 9);
+                return (
+                  <div key={i} style={{
+                    ...cardBackStyle, left: 0, top: 0,
+                    transform: "translate(-50%,-50%)",
+                    marginTop: -i * 1.5,
+                    "--lift": `${lift}px`,
+                    "--tilt": `${tilt}deg`,
+                    animation: phase === "riffle"
+                      ? `${side ? "bzRiffleR" : "bzRiffleL"} 720ms cubic-bezier(.34,.9,.4,1) ${i * 34 + side * 17}ms infinite`
+                      : undefined,
+                    opacity: 1 - i * 0.035,
+                    zIndex: side ? i * 2 + 1 : i * 2,   // true interleave, not one stack over the other
+                  }} />
+                );
+              })}
             </div>
           ))}
         </div>
@@ -29450,7 +29483,8 @@ function ArenaShuffleCeremony({ hand, onDone, isMobile }) {
                     overflow: "hidden", position: "relative",
                     opacity: landed ? 1 : 0,
                     "--fx": fromX, "--fy": "90px",
-                    animation: landed ? "bzDealOut 420ms cubic-bezier(.2,.8,.3,1) both" : undefined,
+                    "--spin": `${-18 + (i * 7) % 26}deg`,
+                    animation: landed ? "bzDealOut 460ms cubic-bezier(.22,.85,.3,1) both" : undefined,
                   }}>
                     {landed && c && (c.img
                       ? <img src={c.img} alt={c.hero} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -30009,6 +30043,11 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   // for, so it runs once per fresh deal instead of on every snapshot.
   const [shuffleFor, setShuffleFor] = React.useState(null);
   const [showShuffle, setShowShuffle] = React.useState(false);
+  // Placement: which card is picked up. { from:"hand"|"zone", index }.
+  // Drag-and-drop drives desktop; the same state powers tap-select on touch,
+  // where HTML5 drag events don't fire.
+  const [held,      setHeld]      = React.useState(null);
+  const [overZone,  setOverZone]  = React.useState(null);
   const [game,      setGame]      = React.useState(null);   // public doc
   const [myPriv,    setMyPriv]    = React.useState(null);   // my private doc
   const [joinCode,  setJoinCode]  = React.useState("");
@@ -30032,10 +30071,17 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
 
 
 
-  // Clear a strike after it plays out. Longest animation is ~900ms.
+  // Clear a strike after it plays out, which UNMOUNTS every transient effect.
+  //
+  // This matters more than it looks: several on-card keyframes use fill-mode
+  // `forwards`, so a finished animation holds its last frame forever. If the
+  // element is still mounted when that happens, the effect appears frozen on the
+  // card. The persistent scar is ArenaDamage's job, not this one — so the window
+  // here has to outlast the LONGEST animation (900ms on-card, ~1100ms for the
+  // strike layer rings) with margin, then tear everything down.
   React.useEffect(() => {
     if (!fx) return;
-    const t = setTimeout(() => setFx(null), 1100);
+    const t = setTimeout(() => setFx(null), 1400);
     return () => clearTimeout(t);
   }, [fx]);
 
@@ -30302,6 +30348,44 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
     hand.splice(handIdx, 1);
     if (isCpu) { setCpuPriv(p => ({...p, placed, hand})); return; }
     await updateDoc(doc(db, "boba_games", gameId, "private", uid), { placed, hand });
+  }
+
+  // Move a hero already in a zone to another zone. If the target is occupied the
+  // two swap, because that's what you'd do physically with cards on a mat — and
+  // making you pull one out first would be a worse version of the same action.
+  async function moveZone(fromIdx, toIdx) {
+    if (!P || fromIdx === toIdx) return;
+    const placed = (P.placed || []).slice();
+    const a = placed[fromIdx];
+    if (!a) return;
+    placed[fromIdx] = placed[toIdx] || null;
+    placed[toIdx] = a;
+    if (isCpu) { setCpuPriv(p => ({...p, placed})); return; }
+    await updateDoc(doc(db, "boba_games", gameId, "private", uid), { placed });
+  }
+
+  // Place from hand into a SPECIFIC zone. If that zone is taken, the card there
+  // goes back to hand rather than being silently dropped.
+  async function placeAt(handIdx, zoneIdx) {
+    if (!P) return;
+    const placed = (P.placed || []).slice();
+    const hand   = (P.hand   || []).slice();
+    const card = hand[handIdx];
+    if (!card) return;
+    const displaced = placed[zoneIdx] || null;
+    placed[zoneIdx] = card;
+    hand.splice(handIdx, 1);
+    if (displaced) hand.push(displaced);
+    if (isCpu) { setCpuPriv(p => ({...p, placed, hand})); return; }
+    await updateDoc(doc(db, "boba_games", gameId, "private", uid), { placed, hand });
+  }
+
+  // One entry point for "the held card lands on zone N", used by both drop and tap.
+  function dropOnZone(zoneIdx) {
+    if (!held) return;
+    if (held.from === "hand") placeAt(held.index, zoneIdx);
+    else moveZone(held.index, zoneIdx);
+    setHeld(null); setOverZone(null);
   }
 
   async function unplaceHero(zoneIdx) {
@@ -31046,35 +31130,104 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           </div>
           <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",marginBottom:12}}>
             Battles resolve {G.direction === "rtl" ? "right to left" : "left to right"}.
-            {" "}Tap a Hero, then tap a Battle Zone. {(P?.hand||[]).length} left to place.
+            {" "}Drag a Hero into any zone {"\u2014"} or tap to pick up, then tap a zone.
+            {" "}Drop onto an occupied zone to swap. {(P?.hand||[]).length} left to place.
           </div>
+          {/* Zone row. Every zone is a drop target: from hand, or from another zone
+              (which swaps). The order you place in is yours to choose — the old
+              behaviour filled the leftmost empty slot, which took that decision away. */}
           <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,marginBottom:14}}>
             {Array.from({length:7}).map((_,i) => {
               const p = P?.placed?.[i];
+              const isOver   = overZone === i;
+              const isSource = held?.from === "zone" && held.index === i;
+              const armed    = !!held;
               return (
-                <div key={i} onClick={()=>p && unplaceHero(i)}
-                     style={{cursor:p?"pointer":"default"}}>
-                  <div style={{fontSize:9,color:"rgba(255,255,255,0.4)",textAlign:"center",marginBottom:3}}>
+                <div key={i}
+                  onDragOver={e=>{ e.preventDefault(); setOverZone(i); }}
+                  onDragLeave={()=>setOverZone(z => z === i ? null : z)}
+                  onDrop={e=>{ e.preventDefault(); dropOnZone(i); }}
+                  onClick={()=>{
+                    // Tap-to-place for touch, where HTML5 drag events never fire.
+                    if (held) { dropOnZone(i); return; }
+                    if (p) setHeld({ from:"zone", index:i });
+                  }}
+                  style={{cursor: (p || held) ? "pointer" : "default"}}>
+                  <div style={{fontSize:9,color: isOver ? "#22C55E" : "rgba(255,255,255,0.4)",
+                               textAlign:"center",marginBottom:3,fontWeight: isOver?900:400}}>
                     ZONE {i+1}
                   </div>
-                  {p ? heroCard(p) : (
-                    <div style={{width:"100%",aspectRatio:"5/7",borderRadius:8,
-                                 border:"2px dashed rgba(255,255,255,0.22)",display:"flex",
-                                 alignItems:"center",justifyContent:"center",
-                                 color:"rgba(255,255,255,0.3)",fontSize:20}}>+</div>
+                  <div
+                    draggable={!!p}
+                    onDragStart={e=>{ if(!p) return; setHeld({from:"zone",index:i}); try{e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain","z"+i);}catch(err){} }}
+                    onDragEnd={()=>{ setHeld(null); setOverZone(null); }}
+                    style={{
+                      borderRadius:8,
+                      outline: isOver ? "3px solid #22C55E" : isSource ? "3px solid #FBBF24" : "none",
+                      outlineOffset: 2,
+                      transform: isOver ? "translateY(-4px)" : "none",
+                      transition: "transform 120ms ease, outline-color 120ms ease",
+                      opacity: isSource ? 0.5 : 1,
+                    }}>
+                    {p ? heroCard(p) : (
+                      <div style={{width:"100%",aspectRatio:"5/7",borderRadius:8,
+                                   border: isOver ? "2px solid #22C55E"
+                                         : armed ? "2px dashed rgba(34,197,94,0.55)"
+                                         : "2px dashed rgba(255,255,255,0.22)",
+                                   background: isOver ? "rgba(34,197,94,0.12)" : "transparent",
+                                   display:"flex",alignItems:"center",justifyContent:"center",
+                                   color: isOver ? "#22C55E" : "rgba(255,255,255,0.3)",fontSize:20,
+                                   transition:"all 120ms ease"}}>+</div>
+                    )}
+                  </div>
+                  {/* Sending a card back to hand shouldn't require a drag. */}
+                  {p && !held && (
+                    <div onClick={e=>{ e.stopPropagation(); unplaceHero(i); }}
+                      style={{textAlign:"center",fontSize:9,fontWeight:800,marginTop:2,
+                              color:"rgba(255,255,255,0.35)",cursor:"pointer"}}>
+                      remove
+                    </div>
                   )}
                 </div>
               );
             })}
           </div>
-          <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.55)",marginBottom:6}}>YOUR HAND</div>
+          <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.55)",marginBottom:6,
+                       display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span>YOUR HAND</span>
+            {held && (
+              <span style={{fontSize:10,fontWeight:800,color:"#FBBF24"}}>
+                holding a card {"\u2014"} tap a zone to place
+                <span onClick={()=>{setHeld(null);setOverZone(null);}}
+                      style={{marginLeft:8,color:"rgba(255,255,255,0.45)",cursor:"pointer",textDecoration:"underline"}}>
+                  cancel
+                </span>
+              </span>
+            )}
+          </div>
+          {/* Hand cards drag into any zone. Tap works too, for touch. */}
           <div style={{display:"grid",gridTemplateColumns:`repeat(${isMobile?4:7},1fr)`,gap:6,marginBottom:14}}>
-            {(P?.hand||[]).map((c,i) => (
-              <div key={c.id+i} onClick={()=>{
-                const openZone = (P?.placed||[]).findIndex(x => !x);
-                if (openZone >= 0) placeHero(openZone, i);
-              }} style={{cursor:"pointer"}}>{heroCard(c)}</div>
-            ))}
+            {(P?.hand||[]).map((c,i) => {
+              const holding = held?.from === "hand" && held.index === i;
+              return (
+                <div key={c.id+i}
+                  draggable
+                  onDragStart={e=>{ setHeld({from:"hand",index:i}); try{e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain","h"+i);}catch(err){} }}
+                  onDragEnd={()=>{ setHeld(null); setOverZone(null); }}
+                  onClick={()=>{
+                    // Tap the held card again to put it down.
+                    if (holding) { setHeld(null); return; }
+                    setHeld({from:"hand",index:i});
+                  }}
+                  style={{cursor:"grab",
+                          outline: holding ? "3px solid #FBBF24" : "none", outlineOffset:2,
+                          borderRadius:8,
+                          transform: holding ? "translateY(-6px)" : "none",
+                          transition:"transform 120ms ease"}}>
+                  {heroCard(c)}
+                </div>
+              );
+            })}
           </div>
           <button onClick={confirmLineup}
             disabled={(P?.placed||[]).filter(Boolean).length !== 7}
