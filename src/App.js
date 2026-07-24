@@ -29284,6 +29284,665 @@ function ArenaProjectile({ w, up }) {
 // 7-wide grid, which is why the first version felt small. This renders ACROSS the
 // whole arena: a tint wash in the weapon's colour, a burst at the impact column,
 // and sparks thrown outward. Cosmetic only.
+// ============================================================================
+// CANVAS PARTICLE STRIKE LAYER
+//
+// Replaces the CSS/emoji effects with a real particle system on a single canvas
+// stretched over the arena. Cosmetic only — nothing here touches game state.
+//
+// Why canvas: CSS keyframes can move a handful of DOM nodes, but fire needs a few
+// hundred embers with turbulence and additive blending, and ice needs crystals
+// that branch along fracture lines. Those are per-frame maths, not transitions.
+//
+// One rAF loop drives every live particle. It shuts itself off when the array
+// empties, so an idle board costs nothing.
+// ============================================================================
+
+// ============================================================================
+// SHUFFLE + DEAL CEREMONY
+//
+// Three phases: riffle -> draw 7 -> deal into the battle zones.
+//
+// Honest note about what this is: the shuffle already happened in stageMyDeck
+// (Fisher-Yates, instant) before this component ever mounts. So the riffle is
+// theatre over a settled result — it shows you A shuffle, not THE shuffle. That's
+// normal for card games and it's why the deal phase matters more: those really are
+// your seven cards, arriving in the order they were drawn.
+//
+// Pure CSS transforms on a fixed number of nodes (~36), so it stays cheap.
+// ============================================================================
+
+const ARENA_SHUFFLE_CSS = `
+@keyframes bzRiffleL {
+  0%   { transform: translate(-50%,-50%) translateX(0) rotate(0deg); }
+  22%  { transform: translate(-50%,-50%) translateX(-78px) rotate(-11deg); }
+  58%  { transform: translate(-50%,-50%) translateX(-14px) rotate(-3deg); }
+  100% { transform: translate(-50%,-50%) translateX(0) rotate(0deg); }
+}
+@keyframes bzRiffleR {
+  0%   { transform: translate(-50%,-50%) translateX(0) rotate(0deg); }
+  22%  { transform: translate(-50%,-50%) translateX(78px) rotate(11deg); }
+  58%  { transform: translate(-50%,-50%) translateX(14px) rotate(3deg); }
+  100% { transform: translate(-50%,-50%) translateX(0) rotate(0deg); }
+}
+@keyframes bzBridge {
+  0%,100% { transform: translate(-50%,-50%) scaleY(1); }
+  40%     { transform: translate(-50%,-56%) scaleY(1.16); }
+}
+@keyframes bzDeckPulse {
+  0%,100% { box-shadow: 0 0 0 rgba(232,49,122,0); }
+  50%     { box-shadow: 0 0 34px rgba(232,49,122,0.75); }
+}
+@keyframes bzDrawUp {
+  0%   { transform: translate(-50%,-50%) scale(0.9); opacity: 0; }
+  25%  { opacity: 1; }
+  100% { transform: translate(-50%,-190%) scale(1.05); opacity: 1; }
+}
+@keyframes bzDealOut {
+  0%   { transform: translate(var(--fx), var(--fy)) scale(0.55) rotate(-8deg); opacity: 0; }
+  15%  { opacity: 1; }
+  100% { transform: translate(0,0) scale(1) rotate(0deg); opacity: 1; }
+}
+@keyframes bzFlipIn {
+  0%   { transform: rotateY(90deg); }
+  100% { transform: rotateY(0deg); }
+}
+`;
+
+function ArenaShuffleCeremony({ hand, onDone, isMobile }) {
+  // phase: "riffle" -> "draw" -> "deal" -> done
+  const [phase, setPhase] = React.useState("riffle");
+  const [dealt, setDealt] = React.useState(0);
+
+  React.useEffect(() => {
+    if (document.getElementById("bz-arena-shuffle")) return;
+    const el = document.createElement("style");
+    el.id = "bz-arena-shuffle";
+    el.textContent = ARENA_SHUFFLE_CSS;
+    document.head.appendChild(el);
+  }, []);
+
+  React.useEffect(() => {
+    const timers = [];
+    // Two riffle passes, then the draw, then cards deal out one at a time.
+    timers.push(setTimeout(() => setPhase("draw"), 1750));
+    timers.push(setTimeout(() => setPhase("deal"), 2650));
+    for (let i = 1; i <= 7; i++) {
+      timers.push(setTimeout(() => setDealt(i), 2650 + i * 190));
+    }
+    timers.push(setTimeout(() => { onDone && onDone(); }, 2650 + 7 * 190 + 520));
+    return () => timers.forEach(clearTimeout);
+  }, [onDone]);
+
+  const wrap = {
+    position: "relative", width: "100%", height: isMobile ? 300 : 360,
+    borderRadius: 12, overflow: "hidden",
+    background: "radial-gradient(circle at 50% 62%, rgba(232,49,122,0.10), transparent 62%)",
+  };
+  const cardBackStyle = {
+    position: "absolute", width: isMobile ? 46 : 58, aspectRatio: "5/7", borderRadius: 6,
+    background: "repeating-linear-gradient(45deg,#7f1d1d,#7f1d1d 5px,#991b1b 5px,#991b1b 10px)",
+    border: "2px solid #dc2626", boxShadow: "0 3px 10px rgba(0,0,0,0.55)",
+  };
+
+  return (
+    <div style={wrap}>
+      <div style={{ position: "absolute", top: 14, left: 0, right: 0, textAlign: "center",
+                    fontSize: 11, fontWeight: 900, letterSpacing: 2.5, color: "rgba(255,255,255,0.55)" }}>
+        {phase === "riffle" ? "SHUFFLING HERO DECK"
+         : phase === "draw" ? "DRAWING 7"
+         : "DEALING TO BATTLE ZONES"}
+      </div>
+
+      {/* The deck, centred low. Both riffle halves and the draw originate here. */}
+      {phase !== "deal" && (
+        <div style={{ position: "absolute", left: "50%", top: "62%",
+                      animation: phase === "riffle" ? "bzBridge 560ms ease-in-out infinite" : undefined }}>
+          {/* Two halves splitting apart and coming back together. */}
+          {[0, 1].map(side => (
+            <div key={side}>
+              {Array.from({ length: 9 }).map((_, i) => (
+                <div key={i} style={{
+                  ...cardBackStyle, left: 0, top: 0,
+                  transform: "translate(-50%,-50%)",
+                  marginTop: -i * 1.6,
+                  animation: phase === "riffle"
+                    ? `${side ? "bzRiffleR" : "bzRiffleL"} 560ms ease-in-out ${i * 26}ms infinite`
+                    : undefined,
+                  opacity: 1 - i * 0.05,
+                }} />
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Draw phase: seven backs lift off the deck as a fan. */}
+      {phase === "draw" && (
+        <div style={{ position: "absolute", left: "50%", top: "62%" }}>
+          {Array.from({ length: 7 }).map((_, i) => (
+            <div key={i} style={{
+              ...cardBackStyle, left: 0, top: 0,
+              transform: "translate(-50%,-50%)",
+              marginLeft: (i - 3) * (isMobile ? 26 : 40),
+              animation: `bzDrawUp 620ms cubic-bezier(.2,.8,.3,1) ${i * 55}ms both`,
+            }} />
+          ))}
+        </div>
+      )}
+
+      {/* Deal phase: the real cards land in their zones, face up, one at a time. */}
+      {phase === "deal" && (
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center",
+                      justifyContent: "center", padding: isMobile ? "0 6px" : "0 18px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: isMobile ? 4 : 8, width: "100%" }}>
+            {Array.from({ length: 7 }).map((_, i) => {
+              const c = hand[i];
+              const landed = i < dealt;
+              // Each card flies from the deck position (centre-low) to its zone.
+              const fromX = `${(3 - i) * (isMobile ? 40 : 74)}px`;
+              return (
+                <div key={i} style={{ position: "relative" }}>
+                  <div style={{
+                    width: "100%", aspectRatio: "5/7", borderRadius: 7,
+                    border: landed ? "2px solid rgba(255,255,255,0.22)" : "2px dashed rgba(255,255,255,0.13)",
+                    background: landed ? "#111" : "transparent",
+                    overflow: "hidden", position: "relative",
+                    opacity: landed ? 1 : 0,
+                    "--fx": fromX, "--fy": "90px",
+                    animation: landed ? "bzDealOut 420ms cubic-bezier(.2,.8,.3,1) both" : undefined,
+                  }}>
+                    {landed && c && (c.img
+                      ? <img src={c.img} alt={c.hero} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      : <div style={{ padding: 5, fontSize: 9, fontWeight: 800, color: "#fff" }}>{c.hero}</div>)}
+                    {landed && c && (
+                      <div style={{ position: "absolute", top: 2, right: 3, background: "rgba(0,0,0,0.82)",
+                                    color: "#FBBF24", borderRadius: 4, padding: "0 4px",
+                                    fontSize: 10, fontWeight: 900 }}>{c.power}</div>
+                    )}
+                  </div>
+                  <div style={{ textAlign: "center", fontSize: 8.5, fontWeight: 800,
+                                color: "rgba(255,255,255,0.3)", marginTop: 3 }}>
+                    {i + 1}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <button onClick={() => onDone && onDone()}
+        style={{ position: "absolute", right: 12, bottom: 10, padding: "6px 14px", borderRadius: 7,
+                 border: "1px solid rgba(255,255,255,0.2)", background: "rgba(0,0,0,0.4)",
+                 color: "rgba(255,255,255,0.65)", fontSize: 11, fontWeight: 800,
+                 cursor: "pointer", fontFamily: "inherit" }}>
+        Skip
+      </button>
+    </div>
+  );
+}
+
+function ArenaCanvasFx({ strike, onDone }) {
+  const canvasRef = React.useRef(null);
+  const partsRef  = React.useRef([]);
+  const rafRef    = React.useRef(0);
+  const runRef    = React.useRef(false);
+
+  // Spawn the particle set for a weapon. (x,y) is the impact point in canvas px,
+  // dir is -1 when the strike travels up the board, +1 when it travels down.
+  const spawn = React.useCallback((w, x, y, dir, W, H) => {
+    const P = partsRef.current;
+    const R = (a,b) => a + Math.random()*(b-a);
+    const originY = dir < 0 ? H*0.80 : H*0.20;   // the winner's row
+
+    const push = o => P.push(Object.assign({
+      x, y, vx:0, vy:0, life:1, decay:0.02, size:3, col:"#fff",
+      grav:0, drag:0.99, glow:12, kind:"dot", rot:0, vrot:0, warm:0,
+    }, o));
+
+    switch (w) {
+      case "Fire": {
+        // Travelling fireball: a dense core plus a trailing plume. Embers rise
+        // against their own velocity so the flame licks upward on impact.
+        for (let i=0;i<26;i++) push({
+          x: x + R(-14,14), y: originY + R(-10,10),
+          vx: R(-0.7,0.7), vy: dir * R(7,11),
+          size: R(7,15), life: 1, decay: R(0.012,0.02),
+          col: i%3 ? "#FF7A00" : "#FFD400", kind:"blob", glow: 26, warm: 1,
+        });
+        for (let i=0;i<160;i++) {
+          const d = R(0,1);
+          push({
+            x: x + R(-26,26), y: y + R(-22,22),
+            vx: R(-3.4,3.4), vy: R(-5.2,-0.4) + dir*R(0,1.6),
+            size: R(2,7)*(1-d*0.5), life: R(0.65,1), decay: R(0.014,0.03),
+            col: d<0.35 ? "#FFF1A8" : d<0.7 ? "#FF8A00" : "#E23B00",
+            grav: -0.055, drag: 0.975, kind:"ember", glow: 20, warm: 1,
+          });
+        }
+        for (let i=0;i<34;i++) push({          // smoke, lingers after the flame
+          x: x + R(-20,20), y: y + R(-16,16),
+          vx: R(-1.1,1.1), vy: R(-2.4,-0.5),
+          size: R(9,20), life: R(0.4,0.7), decay: R(0.006,0.012),
+          col:"rgba(40,25,20,0.5)", grav:-0.02, drag:0.985, kind:"smoke", glow:0,
+        });
+        break;
+      }
+      case "Ice": {
+        // Shards fly in, then crystals grow outward along fracture angles.
+        for (let i=0;i<70;i++) {
+          const a = R(0, Math.PI*2);
+          push({
+            x, y, vx: Math.cos(a)*R(2,9), vy: Math.sin(a)*R(2,9) + dir*1.5,
+            size: R(3,10), life: 1, decay: R(0.012,0.024),
+            col: i%4 ? "#BFEFFF" : "#FFFFFF", kind:"shard",
+            rot: a, vrot: R(-0.3,0.3), glow: 18,
+          });
+        }
+        for (let i=0;i<40;i++) push({          // frost motes drifting down
+          x: x + R(-40,40), y: y + R(-30,30),
+          vx: R(-0.8,0.8), vy: R(0.3,1.6),
+          size: R(1.5,4), life: 1, decay: R(0.006,0.014),
+          col:"#EAF9FF", grav:0.02, drag:0.99, kind:"dot", glow:10,
+        });
+        break;
+      }
+      case "Brawl": {
+        // Heavy single impact: shockwave plus knuckle debris.
+        push({ x, y, size: 8, life:1, decay:0.045, col:"#FFFFFF", kind:"ring", glow:30 });
+        push({ x, y, size: 8, life:1, decay:0.03,  col:"#F87171", kind:"ring", glow:24 });
+        for (let i=0;i<80;i++) {
+          const a = R(0,Math.PI*2), s = R(3,13);
+          push({
+            x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s,
+            size: R(2,6), life:1, decay: R(0.02,0.04),
+            col: i%5 ? "#FCA5A5" : "#FFFFFF", grav:0.28, drag:0.96, kind:"dot", glow:12,
+          });
+        }
+        break;
+      }
+      case "Steel": {
+        // Blade pass: a bright slash line, then sparks that fall with gravity.
+        push({ x, y, size: 1, life:1, decay:0.05, col:"#F8FAFC", kind:"slash", rot: -0.72, glow:34 });
+        for (let i=0;i<150;i++) {
+          const a = -0.72 + R(-0.5,0.5) + (Math.random()<0.5?Math.PI:0);
+          const s = R(4,16);
+          push({
+            x: x + R(-30,30), y: y + R(-30,30),
+            vx: Math.cos(a)*s, vy: Math.sin(a)*s,
+            size: R(1,3.2), life:1, decay: R(0.018,0.04),
+            col: i%4 ? "#FFE9A8" : "#FFFFFF", grav:0.34, drag:0.965, kind:"spark", glow:16,
+          });
+        }
+        break;
+      }
+      case "Gum": {
+        // Wet splat: a blob flies in, bursts, then strands drip downward.
+        push({ x, y:originY, vx:0, vy: dir*9, size: 22, life:1, decay:0.02,
+               col:"#FF69B4", kind:"blob", glow:22 });
+        for (let i=0;i<70;i++) {
+          const a = R(0,Math.PI*2);
+          push({
+            x, y, vx: Math.cos(a)*R(1,7), vy: Math.sin(a)*R(1,7),
+            size: R(3,11), life:1, decay: R(0.01,0.022),
+            col: i%3 ? "#FF69B4" : "#FFB6D9", grav:0.16, drag:0.97, kind:"blob", glow:14,
+          });
+        }
+        for (let i=0;i<16;i++) push({          // strands
+          x: x + R(-30,30), y: y + R(-10,10),
+          vx: R(-0.3,0.3), vy: R(0.6,2.2),
+          size: R(3,7), life:1, decay: R(0.006,0.012),
+          col:"#FF69B4", grav:0.05, kind:"strand", glow:10,
+        });
+        break;
+      }
+      case "Hex": {
+        // Arcane: counter-rotating hex rings and orbiting motes.
+        for (let i=0;i<3;i++) push({
+          x, y, size: 10+i*6, life:1, decay: 0.016+i*0.003,
+          col: i%2 ? "#D8B4FE" : "#A855F7", kind:"hexring",
+          rot: R(0,Math.PI), vrot: (i%2?1:-1)*R(0.04,0.09), glow:28,
+        });
+        for (let i=0;i<90;i++) {
+          const a = R(0,Math.PI*2), r0 = R(6,50);
+          push({
+            x: x + Math.cos(a)*r0, y: y + Math.sin(a)*r0,
+            vx: -Math.cos(a)*R(0.4,2.2), vy: -Math.sin(a)*R(0.4,2.2),
+            size: R(2,5), life:1, decay: R(0.012,0.026),
+            col: i%3 ? "#C084FC" : "#F0ABFC", drag:0.985, kind:"dot", glow:18,
+          });
+        }
+        break;
+      }
+      case "Glow": {
+        // Radiance: a bloom core with light rays fanning out.
+        push({ x, y, size: 10, life:1, decay:0.022, col:"#FFF7CC", kind:"ring", glow:40 });
+        for (let i=0;i<22;i++) push({
+          x, y, size: R(50,130), life:1, decay: R(0.02,0.035),
+          col:"#FDE68A", kind:"ray", rot: (i/22)*Math.PI*2 + R(-0.1,0.1), glow:26,
+        });
+        for (let i=0;i<110;i++) {
+          const a = R(0,Math.PI*2), s = R(1,7);
+          push({
+            x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s,
+            size: R(1.5,5), life:1, decay: R(0.012,0.028),
+            col: i%2 ? "#FFFFFF" : "#FDE68A", drag:0.98, kind:"dot", glow:22,
+          });
+        }
+        break;
+      }
+      case "Cyber": {
+        // Digital: scan sweep, then data-bit squares that fall apart.
+        push({ x: W/2, y, size: W, life:1, decay:0.028, col:"#00FFC8", kind:"scan", glow:26 });
+        for (let i=0;i<130;i++) push({
+          x: x + R(-60,60), y: y + R(-45,45),
+          vx: R(-2.5,2.5), vy: R(-2.5,2.5),
+          size: R(2,7), life:1, decay: R(0.014,0.032),
+          col: i%4 ? "#00FFC8" : "#B9FFF0", drag:0.985, kind:"bit", glow:16,
+        });
+        break;
+      }
+      case "Alt": {
+        // Glitch: RGB-split bars that tear horizontally.
+        for (let i=0;i<26;i++) push({
+          x: W/2, y: y + R(-55,55),
+          vx: R(-9,9), vy: 0,
+          size: R(8,26), life:1, decay: R(0.02,0.05),
+          col: i%3===0 ? "rgba(255,0,110,0.85)" : i%3===1 ? "rgba(0,229,255,0.85)" : "rgba(255,255,255,0.8)",
+          kind:"tear", glow:0,
+        });
+        for (let i=0;i<70;i++) {
+          const a = R(0,Math.PI*2);
+          push({
+            x, y, vx: Math.cos(a)*R(2,9), vy: Math.sin(a)*R(2,9),
+            size: R(2,6), life:1, decay: R(0.02,0.04),
+            col: i%2 ? "#FF006E" : "#00E5FF", kind:"bit", glow:14,
+          });
+        }
+        break;
+      }
+      case "Super":
+      case "Medal":
+      case "Metallic": {
+        const gold = w !== "Metallic";
+        const c1 = gold ? "#FFD700" : "#E2E8F0";
+        const c2 = gold ? "#FFF3B0" : "#FFFFFF";
+        for (let i=0;i<4;i++) push({
+          x, y, size: 12, life:1, decay: 0.012+i*0.002, col: c1, kind:"ring", glow:44,
+        });
+        for (let i=0;i<24;i++) push({
+          x, y, size: R(60,190), life:1, decay: R(0.014,0.026),
+          col: c2, kind:"ray", rot: (i/24)*Math.PI*2, glow:30,
+        });
+        for (let i=0;i<220;i++) {
+          const a = R(0,Math.PI*2), s = R(2,16);
+          push({
+            x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s,
+            size: R(1.5,6), life:1, decay: R(0.01,0.028),
+            col: i%3 ? c1 : c2, grav:0.06, drag:0.978, kind:"spark", glow:24,
+          });
+        }
+        break;
+      }
+      default: {
+        for (let i=0;i<90;i++) {
+          const a = R(0,Math.PI*2), s = R(2,10);
+          push({ x, y, vx:Math.cos(a)*s, vy:Math.sin(a)*s, size:R(2,6),
+                 life:1, decay:R(0.015,0.035), col:"#FFFFFF", drag:0.97, kind:"dot", glow:14 });
+        }
+      }
+    }
+  }, []);
+
+  // Draw one particle. Kinds differ enough that a switch is clearer than
+  // trying to unify them behind a generic renderer.
+  const draw = (ctx, p) => {
+    const a = Math.max(0, Math.min(1, p.life));
+    ctx.globalAlpha = a;
+    ctx.shadowBlur = p.glow;
+    ctx.shadowColor = p.col;
+    ctx.fillStyle = p.col;
+    ctx.strokeStyle = p.col;
+
+    switch (p.kind) {
+      case "ring":
+        ctx.lineWidth = Math.max(1, 9*a);
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size*(1 + (1-a)*7), 0, Math.PI*2); ctx.stroke();
+        break;
+      case "ray": {
+        ctx.lineWidth = Math.max(1, 5*a);
+        const len = p.size*(0.5 + (1-a)*1.4);
+        ctx.beginPath();
+        ctx.moveTo(p.x + Math.cos(p.rot)*8, p.y + Math.sin(p.rot)*8);
+        ctx.lineTo(p.x + Math.cos(p.rot)*len, p.y + Math.sin(p.rot)*len);
+        ctx.stroke();
+        break;
+      }
+      case "slash": {
+        ctx.lineWidth = Math.max(1, 16*a);
+        const L = 240*(0.4 + (1-a));
+        ctx.beginPath();
+        ctx.moveTo(p.x - Math.cos(p.rot)*L, p.y - Math.sin(p.rot)*L);
+        ctx.lineTo(p.x + Math.cos(p.rot)*L, p.y + Math.sin(p.rot)*L);
+        ctx.stroke();
+        break;
+      }
+      case "scan":
+        ctx.lineWidth = Math.max(1, 10*a);
+        ctx.beginPath(); ctx.moveTo(p.x - p.size/2, p.y); ctx.lineTo(p.x + p.size/2, p.y); ctx.stroke();
+        break;
+      case "tear":
+        ctx.fillRect(p.x - 200, p.y, 400, p.size*a);
+        break;
+      case "hexring": {
+        ctx.lineWidth = Math.max(1, 4.5*a);
+        const r = p.size*(1 + (1-a)*5);
+        ctx.beginPath();
+        for (let k=0;k<6;k++) {
+          const ang = p.rot + k*Math.PI/3;
+          const px = p.x + Math.cos(ang)*r, py = p.y + Math.sin(ang)*r;
+          k ? ctx.lineTo(px,py) : ctx.moveTo(px,py);
+        }
+        ctx.closePath(); ctx.stroke();
+        break;
+      }
+      case "shard": {
+        ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+        ctx.beginPath();
+        ctx.moveTo(0,-p.size); ctx.lineTo(p.size*0.38,0);
+        ctx.lineTo(0,p.size); ctx.lineTo(-p.size*0.38,0);
+        ctx.closePath(); ctx.fill(); ctx.restore();
+        break;
+      }
+      case "spark": {
+        ctx.lineWidth = Math.max(1, p.size);
+        ctx.beginPath(); ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x - p.vx*1.8, p.y - p.vy*1.8); ctx.stroke();
+        break;
+      }
+      case "bit":
+        ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
+        break;
+      case "strand":
+        ctx.lineWidth = p.size;
+        ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(p.x, p.y - 16); ctx.lineTo(p.x, p.y + 16*(1-a)); ctx.stroke();
+        break;
+      case "smoke":
+        ctx.globalAlpha = a*0.5;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size*(1+(1-a)*1.6), 0, Math.PI*2); ctx.fill();
+        break;
+      default:
+        ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(0.5,p.size*a), 0, Math.PI*2); ctx.fill();
+    }
+  };
+
+  const tick = React.useCallback(() => {
+    const cv = canvasRef.current;
+    if (!cv) { runRef.current = false; return; }
+    const ctx = cv.getContext("2d");
+    const P = partsRef.current;
+    ctx.clearRect(0,0,cv.width,cv.height);
+    ctx.globalCompositeOperation = "lighter";   // additive: fire and sparks glow
+
+    for (let i = P.length - 1; i >= 0; i--) {
+      const p = P[i];
+      p.vy += p.grav;
+      p.vx *= p.drag; p.vy *= p.drag;
+      p.x += p.vx; p.y += p.vy;
+      p.rot += p.vrot;
+      p.life -= p.decay;
+      if (p.life <= 0) { P.splice(i,1); continue; }
+      draw(ctx, p);
+    }
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    ctx.globalCompositeOperation = "source-over";
+
+    if (P.length) rafRef.current = requestAnimationFrame(tick);
+    else { runRef.current = false; onDone && onDone(); }
+  }, [onDone]);
+
+  React.useEffect(() => {
+    if (!strike) return;
+    const cv = canvasRef.current;
+    if (!cv) return;
+    const rect = cv.parentElement.getBoundingClientRect();
+    // Match the backing store to CSS pixels so nothing looks soft on retina.
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width  = Math.max(1, Math.floor(rect.width * dpr));
+    cv.height = Math.max(1, Math.floor(rect.height * dpr));
+    cv.style.width = rect.width + "px";
+    cv.style.height = rect.height + "px";
+    const ctx = cv.getContext("2d");
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+
+    const W = rect.width, H = rect.height;
+    const x = ((strike.zone + 0.5) / 7) * W;
+    const y = strike.up ? H*0.22 : H*0.78;
+    spawn(strike.weapon, x, y, strike.up ? -1 : 1, W, H);
+
+    if (!runRef.current) { runRef.current = true; rafRef.current = requestAnimationFrame(tick); }
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [strike, spawn, tick]);
+
+  return (
+    <canvas ref={canvasRef}
+      style={{position:"absolute",inset:0,pointerEvents:"none",zIndex:46,width:"100%",height:"100%"}} />
+  );
+}
+
+// ============================================================================
+// PERSISTENT DAMAGE
+//
+// The mark a weapon leaves stays on the losing card for the rest of the game.
+// You asked for Ice to freeze the opponent's card — freezing that evaporates
+// after 900ms isn't freezing, so every weapon now leaves a lasting scar and the
+// board reads as a history of what happened.
+//
+// Rendered INSIDE the card (which is overflow:hidden), so it clips correctly.
+// ============================================================================
+
+function ArenaDamage({ w }) {
+  if (!w) return null;
+  const base = { position:"absolute", inset:0, pointerEvents:"none", zIndex:4 };
+
+  switch (w) {
+    case "Ice":
+      return (
+        <div style={base}>
+          <div style={{position:"absolute",inset:0,
+            background:"linear-gradient(160deg,rgba(191,232,255,0.62),rgba(120,190,240,0.30) 45%,rgba(230,248,255,0.58))",
+            boxShadow:"inset 0 0 26px rgba(255,255,255,0.85)"}}/>
+          <svg viewBox="0 0 50 70" preserveAspectRatio="none"
+               style={{position:"absolute",inset:0,width:"100%",height:"100%",opacity:0.9}}>
+            <g stroke="#fff" strokeWidth="0.65" fill="none">
+              <path d="M25 0 L25 26 L14 40 M25 26 L37 41 M25 40 L25 70"/>
+              <path d="M0 22 L16 30 M50 20 L34 29"/>
+              <path d="M6 62 L18 48 M44 60 L33 49"/>
+              <path d="M14 40 L6 44 M37 41 L45 46"/>
+            </g>
+          </svg>
+        </div>
+      );
+    case "Fire":
+      return (
+        <div style={{...base,
+          background:"radial-gradient(circle at 50% 62%,rgba(60,20,0,0.72) 0%,rgba(120,40,0,0.42) 34%,rgba(0,0,0,0.30) 68%)",
+          boxShadow:"inset 0 -22px 30px rgba(0,0,0,0.55)"}}/>
+      );
+    case "Gum":
+      return (
+        <div style={base}>
+          <div style={{position:"absolute",left:"14%",top:"22%",width:"72%",height:"46%",
+            borderRadius:"48% 52% 44% 56% / 52% 44% 56% 48%",
+            background:"radial-gradient(circle at 38% 34%,rgba(255,182,217,0.92),rgba(255,105,180,0.85) 60%,rgba(219,39,119,0.8))",
+            boxShadow:"0 0 18px rgba(255,105,180,0.6)"}}/>
+          {[20,42,64,80].map((x,i)=>(
+            <div key={i} style={{position:"absolute",left:x+"%",top:"56%",width:6,
+              height:14+(i%3)*12,borderRadius:"0 0 60% 60%",background:"rgba(255,105,180,0.88)"}}/>
+          ))}
+        </div>
+      );
+    case "Steel":
+      return (
+        <svg viewBox="0 0 50 70" preserveAspectRatio="none" style={{...base,width:"100%",height:"100%"}}>
+          <path d="M2 62 L48 10" stroke="#F1F5F9" strokeWidth="2.6" fill="none" opacity="0.92"/>
+          <path d="M9 68 L44 20" stroke="#94A3B8" strokeWidth="1.2" fill="none" opacity="0.7"/>
+          <path d="M2 62 L48 10" stroke="#000" strokeWidth="5" fill="none" opacity="0.28"/>
+        </svg>
+      );
+    case "Hex":
+      return (
+        <div style={base}>
+          <div style={{position:"absolute",inset:0,
+            background:"radial-gradient(circle at 50% 50%,rgba(168,85,247,0.42),rgba(88,28,135,0.30) 58%,transparent 80%)",
+            mixBlendMode:"screen"}}/>
+          <svg viewBox="0 0 100 100" preserveAspectRatio="none"
+               style={{position:"absolute",inset:0,width:"100%",height:"100%",opacity:0.75}}>
+            <polygon points="50,8 88,29 88,71 50,92 12,71 12,29" fill="none" stroke="#D8B4FE" strokeWidth="2.2"/>
+          </svg>
+        </div>
+      );
+    case "Glow":
+      return <div style={{...base,
+        background:"radial-gradient(circle at 50% 50%,rgba(255,255,255,0.55) 0%,rgba(255,240,170,0.30) 40%,transparent 74%)"}}/>;
+    case "Cyber":
+      return (
+        <div style={base}>
+          <div style={{position:"absolute",inset:0,opacity:0.45,
+            background:"repeating-linear-gradient(0deg,rgba(0,255,200,0.20) 0 1px,transparent 1px 4px)"}}/>
+          <div style={{position:"absolute",inset:"12%",border:"1.5px solid rgba(0,255,200,0.7)"}}/>
+        </div>
+      );
+    case "Alt":
+      return (
+        <div style={base}>
+          {[18,44,70].map((t,i)=>(
+            <div key={i} style={{position:"absolute",left:0,right:0,top:t+"%",height:6+i*3,
+              background: i%2 ? "rgba(0,229,255,0.5)" : "rgba(255,0,110,0.5)",
+              transform:`translateX(${i%2?6:-6}px)`,mixBlendMode:"screen"}}/>
+          ))}
+        </div>
+      );
+    case "Brawl":
+      return <div style={{...base,
+        background:"radial-gradient(circle at 50% 48%,rgba(0,0,0,0.55) 0%,rgba(120,20,20,0.40) 32%,transparent 66%)",
+        boxShadow:"inset 0 0 24px rgba(0,0,0,0.6)"}}/>;
+    case "Super":
+    case "Medal":
+      return <div style={{...base,
+        background:"radial-gradient(circle at 50% 50%,rgba(255,215,0,0.40),rgba(255,60,0,0.22) 52%,transparent 78%)",
+        boxShadow:"inset 0 0 30px rgba(255,215,0,0.5)"}}/>;
+    case "Metallic":
+      return <div style={{...base,
+        background:"linear-gradient(100deg,transparent 32%,rgba(226,232,240,0.55) 48%,rgba(100,116,139,0.45) 56%,transparent 72%)"}}/>;
+    default:
+      return null;
+  }
+}
+
 function ArenaStrikeLayer({ w, up, zone }) {
   if (!w) return null;
   const TONE = {
@@ -29342,6 +30001,14 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   // a timer. `key` forces a remount so replaying the same weapon restarts the
   // animation instead of React reusing the finished one.
   const [fx,        setFx]        = React.useState(null);
+  // Persistent damage: { [zoneIndex]: weaponThatStruck }. The mark a weapon leaves
+  // stays for the rest of the game, so the board reads as a record of what happened
+  // rather than resetting to clean cards after every animation.
+  const [damage,    setDamage]    = React.useState({});
+  // Shuffle ceremony. `shuffleFor` holds the private-doc stamp we last played it
+  // for, so it runs once per fresh deal instead of on every snapshot.
+  const [shuffleFor, setShuffleFor] = React.useState(null);
+  const [showShuffle, setShowShuffle] = React.useState(false);
   const [game,      setGame]      = React.useState(null);   // public doc
   const [myPriv,    setMyPriv]    = React.useState(null);   // my private doc
   const [joinCode,  setJoinCode]  = React.useState("");
@@ -29469,6 +30136,20 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
     return unsub;
   }, [gameId, uid]);
 
+  // Play the ceremony when a FRESH deal arrives: 7 in hand, nothing placed yet.
+  // Keyed on the private doc's updatedAt so a rematch replays it, but re-renders
+  // and placement edits don't.
+  React.useEffect(() => {
+    const P0 = cpu ? cpuPriv : myPriv;
+    if (!P0) return;
+    const untouched = (P0.hand || []).length === 7 && !(P0.placed || []).some(Boolean);
+    const stamp = P0.updatedAt || (cpu ? "cpu:" + (cpu.gameNumber || 1) : null);
+    if (!untouched || !stamp) return;
+    if (shuffleFor === stamp) return;
+    setShuffleFor(stamp);
+    setShowShuffle(true);
+  }, [myPriv, cpuPriv, cpu, shuffleFor]);
+
   // ---- seat helpers ------------------------------------------------------
   // A CPU game substitutes local state for the two Firestore docs. Everything
   // downstream — board render, battle logic, match scoring — reads these two
@@ -29508,7 +30189,10 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
     lastFxZone.current = stamp;
     if (!z.winner) return;                      // draw — nobody struck
     const w = z[z.winner]?.weapon;
-    if (w) setFx({ zone: zi2, weapon: w, up: z.winner === seat, key: Date.now() });
+    if (w) {
+      setFx({ zone: zi2, weapon: w, up: z.winner === seat, key: Date.now() });
+      setDamage(d => ({ ...d, [zi2]: w }));
+    }
   }, [G, isCpu, seat]);
 
   // ---- create ------------------------------------------------------------
@@ -29661,6 +30345,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
     const w = z[winner]?.weapon;
     if (!w) return;
     setFx({ zone: zoneIdx, weapon: w, up: winner === seat, key: Date.now() });
+    setDamage(d => ({ ...d, [zoneIdx]: w }));   // the scar stays
   }
 
   // Settle a completed pair. Pulled out of revealMine so the CPU path and the
@@ -29818,6 +30503,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
         });
       }
       await stageMyDeck(gameId, deck);
+      setDamage({});   // fresh board, no scars carried over
     } catch(e) {
       console.error("rematch failed:", e);
       setErr("Couldn't start the next game: " + (e?.message||e));
@@ -30041,8 +30727,9 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
         cpuLevel, cpuTotal, myTotal, cpuNote: note, fmtShort: (fmt.short && fmt.short !== "—") ? fmt.short : null,
         createdAt: new Date().toISOString(),
       });
-      setCpuPriv({ uid, deckId: deck.id, hand: myShuf.slice(0,7), placed:[null,null,null,null,null,null,null], deck: myShuf.slice(7) });
+      setCpuPriv({ uid, deckId: deck.id, hand: myShuf.slice(0,7), placed:[null,null,null,null,null,null,null], deck: myShuf.slice(7), updatedAt: new Date().toISOString() + ":" + Math.random().toString(36).slice(2,7) });
       setCpuHidden({ placed: cpuPlaced, deck: cpuShuf.slice(7) });
+      setDamage({});
     } catch(e) {
       console.error("cpu game failed:", e);
       setErr("Couldn't start the CPU game: " + (e?.message||e));
@@ -30083,12 +30770,13 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       p1: { ...g.p1, ready:false },
       p2: { ...g.p2, ready:true },
     }));
-    setCpuPriv({ uid, deckId: deck.id, hand: myShuf.slice(0,7), placed:[null,null,null,null,null,null,null], deck: myShuf.slice(7) });
+    setCpuPriv({ uid, deckId: deck.id, hand: myShuf.slice(0,7), placed:[null,null,null,null,null,null,null], deck: myShuf.slice(7), updatedAt: new Date().toISOString() + ":" + Math.random().toString(36).slice(2,7) });
     setCpuHidden({ placed: shuffle(cpuShuf.slice(0,7)), deck: cpuShuf.slice(7) });
+    setDamage({});   // fresh board, no scars carried over
     setErr(null);
   }
 
-  async function leaveGame() { setGameId(null); setGame(null); setMyPriv(null); setCpu(null); setCpuPriv(null); setCpuHidden(null); setErr(null); }
+  async function leaveGame() { setGameId(null); setGame(null); setMyPriv(null); setCpu(null); setCpuPriv(null); setCpuHidden(null); setDamage({}); setFx(null); setErr(null); }
 
   // ========================= RENDER =======================================
   const cardBack = (label) => (
@@ -30101,7 +30789,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   );
 
   // `struck` = the winning weapon landing on THIS card, or null. Cosmetic only.
-  const heroCard = (c, dim, struck, fxKey, striking) => {
+  const heroCard = (c, dim, struck, fxKey, striking, scar) => {
     if (!c) return null;
     const wc = WEAPON_COLORS?.[c.weapon] || "#666";
     return (
@@ -30126,6 +30814,8 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
                      overflow:"hidden",textOverflow:"ellipsis"}}>
           {c.hero} <span style={{color:wc}}>{c.weapon}</span>
         </div>
+        {/* Lasting mark from whatever last beat this card — persists all game. */}
+        {scar && <ArenaDamage w={scar} />}
         {struck && <ArenaOnCardFx key={fxKey} w={struck} />}
       </div>
     );
@@ -30338,7 +31028,18 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       )}
 
       {/* lineup placement */}
-      {G.status === "setup" && orderSet && !me?.ready && (
+      {/* Shuffle -> draw -> deal, before you start placing. */}
+      {G.status === "setup" && orderSet && !me?.ready && showShuffle && (
+        <div style={panel}>
+          <ArenaShuffleCeremony
+            hand={P?.hand || []}
+            isMobile={isMobile}
+            onDone={() => setShowShuffle(false)}
+          />
+        </div>
+      )}
+
+      {G.status === "setup" && orderSet && !me?.ready && !showShuffle && (
         <div style={panel}>
           <div style={{fontSize:13,fontWeight:800,color:"#fff",marginBottom:4}}>
             Place your 7 Heroes face-down
@@ -30401,6 +31102,9 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
               thing that happens in a game. */}
           {/* Board-wide strike for EVERY weapon — the per-card effect alone was too
               small to register on a 7-across grid. */}
+          {/* Real particle system. The CSS version couldn't do turbulent embers or
+              crystal growth — that needs per-frame maths, not transitions. */}
+          <ArenaCanvasFx strike={fx} />
           {fx && <ArenaStrikeLayer key={"sl"+fx.key} w={fx.weapon} up={fx.up} zone={fx.zone} />}
           {fx && fx.weapon === "Super" && (
             <div key={fx.key} className="bz-fx-layer" style={{position:"absolute",inset:0,overflow:"hidden",borderRadius:12}}>
@@ -30426,7 +31130,8 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
               const striking = fx && fx.zone === i && !fx.up;   // they struck downward
               return (
                 <div key={i} style={{position:"relative"}}>
-                  {c ? heroCard(c, zones[i]?.winner && zones[i].winner !== foe, hit, fx?.key, striking)
+                  {c ? heroCard(c, zones[i]?.winner && zones[i].winner !== foe, hit, fx?.key, striking,
+                                zones[i]?.winner === seat ? damage[i] : null)
                      : cardBack("FACE\nDOWN")}
                   {hit && <div className="bz-fx-layer"><ArenaProjectile key={fx.key} w={fx.weapon} up={true} /></div>}
                 </div>
@@ -30467,7 +31172,8 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
               const striking = fx && fx.zone === i && fx.up;    // I struck upward
               if (revealed) return (
                 <div key={i} style={{position:"relative"}}>
-                  {heroCard(revealed, zones[i]?.winner && zones[i].winner !== seat, hit, fx?.key, striking)}
+                  {heroCard(revealed, zones[i]?.winner && zones[i].winner !== seat, hit, fx?.key, striking,
+                            zones[i]?.winner === foe ? damage[i] : null)}
                   {hit && <div className="bz-fx-layer"><ArenaProjectile key={fx.key} w={fx.weapon} up={false} /></div>}
                 </div>
               );
