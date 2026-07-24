@@ -28860,7 +28860,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, lots=[], foilDogs=0, setFoilDogs=()=>{}, kidGroups=[], kidOfCopy=null, otherDeckUse={}, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, lots=[], foilDogs=0, setFoilDogs=()=>{}, kidGroups=[], kidOfCopy=null, otherDeckUse={}, proxyCards={}, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -29978,7 +29978,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                   : "";
                 return parts.join('<span style="color:#999"> + </span>') + note;
               };
-              const rows = sorted.map((c,i)=>('<tr><td class="num">'+(i+1)+'</td><td class="mono">'+esc(c.cardNum||dash)+'</td><td class="hero">'+esc(c.hero||dash)+'</td><td class="r">'+esc(c.power)+'</td><td>'+esc(c.weapon||dash)+'</td><td>'+esc(c.treatment||dash)+'</td><td class="set">'+esc(c.setName||dash)+'</td><td>'+ownLabel(c)+'</td></tr>')).join("");
+              const rows = sorted.map((c,i)=>('<tr><td class="num">'+(i+1)+'</td><td class="mono">'+esc(c.cardNum||dash)+'</td><td class="hero">'+esc(c.hero||dash)+'</td><td class="r">'+esc(c.power)+'</td><td>'+esc(c.weapon||dash)+'</td><td>'+esc(c.treatment||dash)+'</td><td class="set">'+esc(c.setName||dash)+'</td><td>'+ownLabel(c)+'</td><td>'+(proxyCards[c.id]?'<span style="color:#B45309;font-weight:700">PROXY</span>':'')+'</td></tr>')).join("");
               const script = autoPrint ? '<scr'+'ipt>window.onload=function(){setTimeout(function(){window.print();},250);};</scr'+'ipt>' : '';
               const html = '<!DOCTYPE html><html><head><title>'+esc(deckName||"My Deck")+' '+dash+' Pick List</title>'+
                 '<style>*{box-sizing:border-box;} body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:24px;color:#111;}'+
@@ -29994,7 +29994,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 '<div class="btns"><button onclick="window.print()">Print</button><button onclick="window.print()">Save as PDF</button><button onclick="window.close()" style="background:#666">Close</button></div>'+
                 '<h1>'+esc(deckName||"My Deck")+' '+dash+' Pick List</h1>'+
                 '<div class="sub">'+sorted.length+' cards '+dot+' generated '+new Date().toLocaleDateString()+'</div>'+
-                '<table><thead><tr><th>#</th><th>Card #</th><th>Hero</th><th class="r">Power</th><th>Weapon</th><th>Treatment</th><th>Set</th><th>Who has it</th></tr></thead>'+
+                '<table><thead><tr><th>#</th><th>Card #</th><th>Hero</th><th class="r">Power</th><th>Weapon</th><th>Treatment</th><th>Set</th><th>Who has it</th><th>Proxy</th></tr></thead>'+
                 '<tbody>'+rows+'</tbody></table>'+
                 '<div class="foot">Bazooka Dash '+dot+' '+esc(deckName||"My Deck")+'</div>'+script+
                 '</body></html>';
@@ -30036,6 +30036,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       <th style={{padding:"7px 6px"}}>Treatment</th>
                       <th style={{padding:"7px 6px"}}>Set</th>
                           <th style={{padding:"7px 6px"}}>Who has it</th>
+                          <th style={{padding:"7px 6px"}}>Proxy</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -30081,6 +30082,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                           if (fam) return <span style={{color:"#7B2FF7"}}>{fam.name || "Family"}</span>;
                           return <span style={{color:"#c0392b"}}>Not owned</span>;
                         })()}</td>
+                          <td style={{padding:"6px",textAlign:"center"}}>{proxyCards[c.id] ? <span style={{color:"#B45309",fontWeight:800,fontSize:10.5}}>PROXY</span> : null}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -32586,6 +32588,11 @@ See you in there!
   const [publicCards,   setPublicCards]   = useState({});
   const [trackerAutoPublic, setTrackerAutoPublic] = useState(() => { try { const c=localStorage.getItem("trackerAutoPublic_v1"); return c?JSON.parse(c):{}; } catch { return {}; } }); // cards made public because a tracker covering them is public
   const [tradeBait,     setTradeBait]     = useState({}); // {cardId: true} manually flagged for trade
+
+  // Cards you own but won't play with \u2014 typically graded slabs. Flagged here so the deck list can
+  // show them as proxies and IMC can be sent a print list. Same shape as tradeBait: a simple
+  // {cardId:true} map in its own doc, so a flag survives independently of quantity or lots.
+  const [proxyCards,    setProxyCards]    = useState({});
   const [lots,          setLots]          = useState([]); // [{id,cardId,cost,value,method,date,notes}]
 
   const [foilDogs, setFoilDogs] = useState(0);  // Foil Hot Dog count for Madness (manual, 0-4)
@@ -33757,6 +33764,7 @@ See you in there!
           try { const trSnap = await getDoc(doc(db,"boba_intransit",u.uid)); setInTransit(trSnap.exists() ? trSnap.data() : {}); transitLoadedRef.current = true; } catch(e){}
           setPublicCards(_ok(prvSnap) ? prvSnap.data() : {});
           try { const tbSnap = await getDoc(doc(db,"boba_tradebait",u.uid)); setTradeBait(tbSnap.exists() ? tbSnap.data() : {}); } catch(e){}
+          try { const pxSnap = await getDoc(doc(db,"boba_proxy",u.uid)); setProxyCards(pxSnap.exists() ? (pxSnap.data()||{}) : {}); } catch(e) {}
           // Are they listed as a trade partner? Read the index doc itself rather than a flag on the
           // profile \u2014 the doc IS the truth, and a stale flag saying "public" when no index exists
           // (or vice versa) would be worse than no flag at all.
@@ -34713,6 +34721,37 @@ See you in there!
   // app: someone who has a full insert can filter to it, Select shown, and claim the lot in one tap
   // instead of clicking 60 cards one at a time. Adding only sets cards you don't already have, so
   // re-running it never inflates quantities on copies you'd already logged.
+  // Flag or unflag the selected cards as proxies. Same select-then-act flow as bulk-owning, because
+  // proxying is usually decided in batches — you get a run of slabs graded and none of them can be
+  // played with.
+  async function bulkSetProxy(makeProxy) {
+    if (!user) { setSigningIn(true); return; }
+    if (selectedIds.size === 0) return;
+    const next = {...proxyCards};
+    let changed = 0;
+    selectedIds.forEach(id => {
+      if (makeProxy) { if (!next[id]) { next[id] = true; changed++; } }
+      else { if (next[id]) { delete next[id]; changed++; } }
+    });
+    setProxyCards(next);
+    try { await setDoc(doc(db,"boba_proxy",user.uid), next); }
+    catch(e) { alert("Couldn't save proxy flags: " + (e.message||e)); return; }
+    setToast(changed
+      ? `\u2713 ${changed} card${changed===1?"":"s"} ${makeProxy?"marked as proxy":"no longer proxies"}`
+      : "No changes \u2014 those were already set that way");
+    clearSelection();
+  }
+
+  // Single-card toggle, for when you are looking at one card rather than working through a batch.
+  async function toggleProxy(cardId) {
+    if (!user) { setSigningIn(true); return; }
+    const next = {...proxyCards};
+    if (next[cardId]) delete next[cardId]; else next[cardId] = true;
+    setProxyCards(next);
+    try { await setDoc(doc(db,"boba_proxy",user.uid), next); }
+    catch(e) { alert("Couldn't save: " + (e.message||e)); }
+  }
+
   async function bulkSetOwned(add) {
     if (!user) { setSigningIn(true); return; }
     if (selectedIds.size === 0) return;
@@ -35767,6 +35806,61 @@ See you in there!
     });
     if (saved) queueOwnedSave(saved);
   }
+
+  // Proxy print list for IMC. Deliberately a clean printable page rather than a CSV: this gets sent
+  // to someone who has to read it and print from it, not loaded into a spreadsheet. Deduped by card,
+  // because the same slab proxied into three decks still only needs printing once.
+  function printProxyReport() {
+    if (!user) { setSigningIn(true); return; }
+    // One row per COPY, not per card. Three graded Amon-Ras that you cannot play with need three
+    // printed proxies \u2014 deduping by card would under-order every time you own multiples.
+    const rows = cards
+      .filter(c => proxyCards[c.id])
+      .sort((a,b) => String(a.setName||"").localeCompare(String(b.setName||""))
+                  || String(a.cardNum||"").localeCompare(String(b.cardNum||""), undefined, {numeric:true}));
+    if (!rows.length) { alert("No cards are marked as proxies yet.\n\nSelect cards in the grid, then use \u201cMark as proxy\u201d."); return; }
+    const esc = s => String(s==null?"":s).replace(/[&<>"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
+    const body = rows.map((c,i) => `
+      <tr>
+        <td class="num">${i+1}</td>
+        <td class="mono">${esc(c.cardNum||"\u2014")}</td>
+        <td><strong>${esc(c.hero||c.playName||"\u2014")}</strong></td>
+        <td>${esc(c.treatment||"\u2014")}</td>
+        <td>${esc(c.weapon||"\u2014")}</td>
+        <td class="r">${esc(c.power??"")}</td>
+        <td class="set">${esc(c.setName||"\u2014")}</td>
+        <td class="r">${(parseInt(owned[c.id]) || 1)}</td>
+      </tr>`).join("");
+    const totalCopies = rows.reduce((s,c) => s + (parseInt(owned[c.id]) || 1), 0);
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Proxy Print List</title>
+      <style>
+        body{font-family:'Trebuchet MS',sans-serif;margin:28px;color:#111;}
+        h1{font-size:19px;margin:0 0 2px;}
+        .sub{color:#666;font-size:12px;margin-bottom:16px;}
+        table{border-collapse:collapse;width:100%;font-size:12.5px;}
+        th{text-align:left;border-bottom:2px solid #111;padding:6px 8px;font-size:11px;text-transform:uppercase;letter-spacing:0.4px;}
+        td{border-bottom:1px solid #ddd;padding:7px 8px;}
+        .mono{font-family:ui-monospace,monospace;}
+        .num{color:#999;width:34px;}
+        .r{text-align:right;font-weight:700;}
+        .set{color:#777;}
+        @media print{ body{margin:0;} .noprint{display:none;} }
+      </style></head><body>
+      <h1>Proxy Print List</h1>
+      <div class="sub"><strong>${totalCopies} proxy card${totalCopies===1?"":"s"} to print</strong> \u00b7 ${rows.length} distinct card${rows.length===1?"":"s"} \u00b7 ${esc(myUsername||user.email||"")} \u00b7 ${new Date().toLocaleDateString()}</div>
+      <table>
+        <thead><tr><th>#</th><th>Card #</th><th>Hero</th><th>Treatment</th><th>Weapon</th><th class="r">Power</th><th>Set</th><th class="r">Copies</th></tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+      <p class="noprint" style="margin-top:18px;">
+        <button onclick="window.print()" style="padding:8px 16px;font-size:13px;cursor:pointer;">Print</button>
+      </p>
+      </body></html>`;
+    const w = window.open("", "_blank");
+    if (!w) { alert("Your browser blocked the report window. Allow pop-ups for this site and try again."); return; }
+    w.document.write(html); w.document.close();
+  }
+
 
   function printLoanReport(which) {
     if (!user) { setSigningIn(true); return; }
@@ -38199,6 +38293,9 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     if(filterWeapon.size>0 && !filterWeapon.has(canonWeapon(c.weapon))) return false;
     if(filterTreat.size>0  && !filterTreat.has(c.treatment)) return false;
     if(filterOwned==="owned"   && !owned[c.id])  return false;
+    // Proxy-only view. This is what makes the IMC print list possible: filter to proxies, then the
+    // existing filtered export produces exactly the list of cards that need printing.
+    if(filterOwned==="proxy"   && !proxyCards[c.id]) return false;
     // Kid collections: a card shows under a kid if ANY of its copies is tagged to them; it shows
     // under "Mine" if any copy is untagged. (You can own 2 and have one be Brooks' — so the same
     // card can legitimately appear under both.)
@@ -38572,7 +38669,12 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     // (as deckOwnedMerged does) let a card you own exactly one of, and have already slotted into a
     // saved deck, still look addable just because a relative also owns one. A copy already committed
     // to ANY deck (yours or a relative's) is spent and can't be added again.
-    const _myOwned   = (owned && owned[c.id]) ? (parseInt(owned[c.id]) || 0) : 0;
+    // Copies I physically HAVE, which is not the same as copies I own: a card lent to someone else
+    // is still mine but is not in my hands, so it cannot go in a deck. A borrowed copy is the
+    // reverse \u2014 not mine, but here, so it counts. Only loans with an actual per-copy record are
+    // subtracted; partial data must never hide a card you really do have.
+    const _lentOut   = (lots||[]).filter(l => l.cardId === c.id && l.lendState === "lent").length;
+    const _myOwned   = Math.max(0, ((owned && owned[c.id]) ? (parseInt(owned[c.id]) || 0) : 0) - _lentOut);
     // My copies that are free = what I own, minus copies committed to another of MY decks
     // (otherDeckUse) AND minus copies a FAMILY member has put in one of THEIR decks (familyDeckUse
     // only ever counts cards I own). If Derrik slots my card into his deck, it's spoken for.
@@ -38586,6 +38688,12 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     const _relevant  = _myOwned > 0 || (otherDeckUse[c.id]||0) > 0 || (familyDeckUse[c.id]||0) > 0 || (allDeckUse[c.id]||0) > 0 || _famFree > 0;
     if(_relevant && _totalFree <= 0){
       const _loc = deckLocationText(c.id);
+      // Name the loan explicitly. "In a deck" would be wrong and confusing when the real reason the
+      // card is unavailable is that someone else has it.
+      if (_lentOut > 0 && _myOwned <= 0) {
+        const who = (lots||[]).find(l => l.cardId === c.id && l.lendState === "lent")?.lendWho;
+        return {ok:false, reason: who ? `Lent to ${who}` : "Lent out"};
+      }
       return {ok:false, reason: _loc ? `In ${_loc}` : ((familyDeckUse[c.id]||0) > 0 ? "In a deck (yours or family)" : _myOwned===1 ? "In another deck" : `All ${_myOwned} copies are in other decks`)};
     }
 
@@ -40758,6 +40866,8 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                       {hdr("Collection")}
                       {item("🔢 Set quantity…", bulkSetQuantity)}
                       {item("➖ Remove from collection", ()=>bulkSetOwned(false))}
+                      {item("\uD83C\uDFF7\ufe0f Mark as proxy", ()=>bulkSetProxy(true))}
+                      {item("\u21a9\ufe0f Not a proxy", ()=>bulkSetProxy(false))}
                       {item("↗ Mark as sold", ()=>bulkSellSelected("sold"))}
                       {item("↗ Mark as traded", ()=>bulkSellSelected("traded"))}
                       {hdr("Visibility")}
@@ -42191,6 +42301,9 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   ...((lots||[]).some(l=>l.lendState)
                     ? [{label:"\uD83D\uDD01 Cards on loan", act:()=>setLoanMgr(
                         (lots||[]).some(l=>l.lendState==="borrowed") ? "borrowed" : "lent")}] : []),
+                  // Only when something is actually flagged — an empty print list is not worth a menu slot.
+                  ...(Object.keys(proxyCards).length
+                    ? [{label:"\uD83C\uDFF7\ufe0f Proxy print list (IMC)", act:printProxyReport}] : []),
                   {label:"\uD83D\uDCBE Full Backup (JSON)",act:exportFullBackup},
                   {label:"\u267B\uFE0F Restore from Backup",act:()=>setRestoreModal({pick:true})},
                   {label:"\uD83D\uDD17 Share Collection",act:()=>{ const url=`${window.location.origin}/showcase?uid=${user.uid}`; if(navigator.share){navigator.share({title:"My Bazooka Collection",url}).catch(()=>{});} else { navigator.clipboard.writeText(url).then(()=>showToast("Collection link copied!")).catch(()=>{}); } }},
@@ -43678,7 +43791,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
               </div>}
               {user&&(
                 <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                  {[["all","All"],["owned","\u2705 Owned"],["missing","\u274C Missing"],["free","\uD83D\uDD13 Free to trade"],["indeck","\uD83D\uDCD8 In a deck"]].map(([v,l])=>(
+                  {[["all","All"],["owned","\u2705 Owned"],["missing","\u274C Missing"],["free","\uD83D\uDD13 Free to trade"],["indeck","\uD83D\uDCD8 In a deck"],["proxy","\uD83C\uDFF7\ufe0f Proxies"]].map(([v,l])=>(
                     <button key={v} onClick={()=>{setFilterOwned(v);preserveScroll();setPage(1);}} style={{background:filterOwned===v?"rgba(232,49,122,0.15)":"transparent",color:filterOwned===v?"#E8317A":"rgba(255,255,255,0.4)",border:`1.5px solid ${filterOwned===v?"#E8317A":"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>{l}</button>
                   ))}
                 </div>
@@ -44521,7 +44634,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             cards={cards} owned={owned} inp={inp}
             familyOwnerByCard={familyOwnerByCard} familyOwnsCard={familyOwnsCard} deckOwnedMerged={deckOwnedMerged}
             canAddToDeck={canAddToDeck} isMobile={isMobile} lots={lots} foilDogs={foilDogs} setFoilDogs={setFoilDogs}
-            kidGroups={kidGroups} kidOfCopy={kidOfCopy} otherDeckUse={otherDeckUse}
+            kidGroups={kidGroups} kidOfCopy={kidOfCopy} otherDeckUse={otherDeckUse} proxyCards={proxyCards}
             savedDecks={savedDecks} familyDecks={familyDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
             saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} giveDeckToFamily={giveDeckToFamily} takeBackDeck={takeBackDeck} familyList={familyList} givenDecks={givenDecks} setFanDeck={setFanDeck} setFanMode={setFanMode}
             deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} deckSource={deckSource} setDeckSource={setDeckSource} computeDeckProgress={computeDeckProgress} listings={listings} setActiveTab={setActiveTab} deckLegality={deckLegality}
