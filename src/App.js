@@ -36577,7 +36577,13 @@ See you in there!
   // (the card grid, bulk selection) rather than per copy.
   const anyProxy = (cardId) => {
     if (proxyCards[cardId]) return true;
-    for (let i = 0; i < 12; i++) if (proxyCards[proxyKey(cardId,i)]) return true;
+    // Scan the ACTUAL keys rather than guessing an upper bound on copy count. A fixed
+    // ceiling (this was 12) silently hides a flag stored above it, which then drops the
+    // card out of the IMC report entirely.
+    const pre = cardId + "#";
+    for (const k in proxyCards) {
+      if (k.startsWith(pre) && proxyCards[k]) return true;
+    }
     return false;
   };
 
@@ -37668,14 +37674,55 @@ See you in there!
     // which meant two copies of the same card shared a single note line \u2014 exactly the
     // thing the notes exist to prevent. A card you own twice, with only the vault copy
     // flagged, now prints one row for that copy and says which one it is.
+    // One row per FLAGGED COPY, driven by what is ACTUALLY STORED rather than by the
+    // owned count.
+    //
+    // The previous version scanned copy indices 0..owned-1, which silently dropped any
+    // note living at an index at or beyond the current owned quantity — a note written
+    // when you had three copies vanished from this report the moment the count fell to
+    // two, taking the row with it. Notes are the whole reason this sheet exists, so the
+    // report must never quietly discard one: read the real keys for this card, and treat
+    // the owned count as a display hint only.
+    const flaggedCopies = (cid) => {
+      const idxs = new Set();
+      if (proxyCards[cid] !== undefined) idxs.add(0);            // legacy flat key
+      const pre = cid + "#";
+      Object.keys(proxyCards).forEach(k => {
+        if (!k.startsWith(pre)) return;
+        const n = parseInt(k.slice(pre.length), 10);
+        if (!isNaN(n) && proxyCards[k]) idxs.add(n);
+      });
+      return [...idxs].sort((a,b) => a-b);
+    };
     const rows = cards
       .filter(c => anyProxy ? anyProxy(c.id) : proxyCards[c.id])
       .flatMap(c => {
-        const q = Math.max(1, parseInt(owned[c.id]) || 0);
-        return Array.from({length:q}, (_,ci) => ({ c, ci, q }))
-          .filter(({ci}) => isProxyCopy ? isProxyCopy(c.id, ci) : true);
+        const owns = parseInt(owned[c.id]) || 0;
+        const idxs = flaggedCopies(c.id);
+        // q is what the COPY x OF y label reads. If a note outlives the owned count,
+        // widen it rather than hiding the row.
+        const q = Math.max(owns, ...idxs.map(i => i+1), 1);
+        return idxs.map(ci => ({ c, ci, q, orphan: ci >= owns }));
       })
-      .map(x => x)
+      // Any flagged copy whose CARD isn't in the loaded checklist would otherwise
+      // vanish without trace — the card list can lag or a card id can change. Emit a
+      // stub row so the note still reaches IMC and the gap is visible instead of silent.
+      .concat((() => {
+        const known = new Set(cards.map(c => c.id));
+        const seen = new Set();
+        const out = [];
+        Object.keys(proxyCards).forEach(k => {
+          if (!proxyCards[k]) return;
+          const cid = k.includes("#") ? k.slice(0, k.lastIndexOf("#")) : k;
+          if (known.has(cid)) return;
+          const ci = k.includes("#") ? (parseInt(k.slice(k.lastIndexOf("#")+1), 10) || 0) : 0;
+          const sig = cid + "#" + ci;
+          if (seen.has(sig)) return;
+          seen.add(sig);
+          out.push({ c: { id: cid, hero: "(card not in checklist)", cardNum: cid }, ci, q: 1, orphan: true });
+        });
+        return out;
+      })())
       .sort((x,y) => String(x.c.setName||"").localeCompare(String(y.c.setName||""))
                   || String(x.c.cardNum||"").localeCompare(String(y.c.cardNum||""), undefined, {numeric:true})
                   || x.ci - y.ci);
@@ -37701,11 +37748,11 @@ See you in there!
       }
       return "";   // this copy isn't committed to any deck
     };
-    const body = rows.map(({c, ci, q}, i) => `
+    const body = rows.map(({c, ci, q, orphan}, i) => `
       <tr>
         <td class="num">${i+1}</td>
         <td class="mono">${esc(c.cardNum||"\u2014")}</td>
-        <td><strong>${esc(c.hero||c.playName||"\u2014")}</strong>${q>1?` <span class="copy">copy ${ci+1}/${q}</span>`:""}</td>
+        <td><strong>${esc(c.hero||c.playName||"\u2014")}</strong>${q>1?` <span class="copy">copy ${ci+1}/${q}</span>`:""}${orphan?` <span class="orphan">copy no longer owned</span>`:""}</td>
         <td>${esc(c.variation||"\u2014")}</td>
         <td>${esc(c.treatment||"\u2014")}</td>
         <td>${esc(c.weapon||"\u2014")}</td>
@@ -37715,6 +37762,13 @@ See you in there!
         <td class="note">${esc(proxyNote ? proxyNote(c.id, ci) : "")}</td>
       </tr>`).join("");
     const totalCopies = rows.length;
+    // Reconciliation. Count every note actually stored, so the sheet can prove it is
+    // showing all of them rather than asking you to take it on trust.
+    const storedNotes = Object.keys(proxyCards).filter(k => {
+      const v = proxyCards[k];
+      return typeof v === "string" && v.trim();
+    }).length;
+    const shownNotes = rows.filter(({c,ci}) => (proxyNote ? proxyNote(c.id, ci) : "").trim()).length;
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Proxy Print List</title>
       <style>
         body{font-family:'Trebuchet MS',sans-serif;margin:28px;color:#111;}
@@ -37725,6 +37779,7 @@ See you in there!
         td{border-bottom:1px solid #ddd;padding:7px 8px;}
         .mono{font-family:ui-monospace,monospace;}
         .copy{font-size:9.5px;font-weight:900;color:#B45309;background:#FEF3C7;border:1px solid #FDE68A;border-radius:4px;padding:0 4px;}
+        .orphan{font-size:9.5px;font-weight:900;color:#991B1B;background:#FEE2E2;border:1px solid #FCA5A5;border-radius:4px;padding:0 4px;margin-left:4px;}
         .num{color:#999;width:34px;}
         .r{text-align:right;font-weight:700;}
         .set{color:#777;}
@@ -37732,7 +37787,7 @@ See you in there!
         @media print{ body{margin:0;} .noprint{display:none;} }
       </style></head><body>
       <h1>Proxy Print List</h1>
-      <div class="sub"><strong>${totalCopies} proxy card${totalCopies===1?"":"s"} to print</strong> \u00b7 ${rows.length} distinct card${rows.length===1?"":"s"} \u00b7 ${esc(myUsername||user.email||"")} \u00b7 ${new Date().toLocaleDateString()}</div>
+      <div class="sub"><strong>${totalCopies} proxy card${totalCopies===1?"":"s"} to print</strong> \u00b7 ${new Set(rows.map(r=>r.c.id)).size} distinct card${new Set(rows.map(r=>r.c.id)).size===1?"":"s"} \u00b7 ${shownNotes} note${shownNotes===1?"":"s"}${shownNotes<storedNotes?` <span style="color:#991B1B;font-weight:800">(${storedNotes-shownNotes} stored note${storedNotes-shownNotes===1?"":"s"} not shown \u2014 tell Claude)</span>`:""} \u00b7 ${esc(myUsername||user.email||"")} \u00b7 ${new Date().toLocaleDateString()}</div>
       <table>
         <thead><tr><th>#</th><th>Card #</th><th>Hero</th><th>Variation</th><th>Treatment</th><th>Weapon</th><th class="r">Power</th><th>Set</th><th>Used in</th><th>Note</th></tr></thead>
         <tbody>${body}</tbody>
