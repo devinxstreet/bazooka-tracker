@@ -28860,7 +28860,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, lots=[], foilDogs=0, setFoilDogs=()=>{}, kidGroups=[], kidOfCopy=null, otherDeckUse={}, proxyCards={}, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, lots=[], foilDogs=0, setFoilDogs=()=>{}, kidGroups=[], kidOfCopy=null, otherDeckUse={}, proxyCards={}, onToggleProxy=null, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -29978,7 +29978,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                   : "";
                 return parts.join('<span style="color:#999"> + </span>') + note;
               };
-              const rows = sorted.map((c,i)=>('<tr><td class="num">'+(i+1)+'</td><td class="mono">'+esc(c.cardNum||dash)+'</td><td class="hero">'+esc(c.hero||dash)+'</td><td class="r">'+esc(c.power)+'</td><td>'+esc(c.weapon||dash)+'</td><td>'+esc(c.treatment||dash)+'</td><td class="set">'+esc(c.setName||dash)+'</td><td>'+ownLabel(c)+'</td><td>'+(proxyCards[c.id]?'<span style="color:#B45309;font-weight:700">PROXY</span>':'')+'</td></tr>')).join("");
+              const rows = sorted.map((c,i)=>('<tr><td class="num">'+(i+1)+'</td><td>'+(proxyCards[c.id]?'<span style="color:#B45309;font-weight:700">PROXY</span>':'')+'</td><td class="mono">'+esc(c.cardNum||dash)+'</td><td class="hero">'+esc(c.hero||dash)+'</td><td class="r">'+esc(c.power)+'</td><td>'+esc(c.weapon||dash)+'</td><td>'+esc(c.treatment||dash)+'</td><td class="set">'+esc(c.setName||dash)+'</td><td>'+ownLabel(c)+'</td></tr>')).join("");
               const script = autoPrint ? '<scr'+'ipt>window.onload=function(){setTimeout(function(){window.print();},250);};</scr'+'ipt>' : '';
               const html = '<!DOCTYPE html><html><head><title>'+esc(deckName||"My Deck")+' '+dash+' Pick List</title>'+
                 '<style>*{box-sizing:border-box;} body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:24px;color:#111;}'+
@@ -29994,7 +29994,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 '<div class="btns"><button onclick="window.print()">Print</button><button onclick="window.print()">Save as PDF</button><button onclick="window.close()" style="background:#666">Close</button></div>'+
                 '<h1>'+esc(deckName||"My Deck")+' '+dash+' Pick List</h1>'+
                 '<div class="sub">'+sorted.length+' cards '+dot+' generated '+new Date().toLocaleDateString()+'</div>'+
-                '<table><thead><tr><th>#</th><th>Card #</th><th>Hero</th><th class="r">Power</th><th>Weapon</th><th>Treatment</th><th>Set</th><th>Who has it</th><th>Proxy</th></tr></thead>'+
+                '<table><thead><tr><th>#</th><th>Proxy</th><th>Card #</th><th>Hero</th><th class="r">Power</th><th>Weapon</th><th>Treatment</th><th>Set</th><th>Who has it</th></tr></thead>'+
                 '<tbody>'+rows+'</tbody></table>'+
                 '<div class="foot">Bazooka Dash '+dot+' '+esc(deckName||"My Deck")+'</div>'+script+
                 '</body></html>';
@@ -30022,13 +30022,14 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 {/* Header */}
                 <div style={{marginBottom:16}}>
                   <div style={{fontSize:22,fontWeight:900,letterSpacing:"-0.3px"}}>{deckName||"My Deck"} — Pick List</div>
-                  <div style={{fontSize:12,color:"#666",marginTop:3}}>{inDeck.length} cards · {pulled} pulled · sorted by {pickSort==="power"?"power (high→low)":pickSort==="cardnum"?"card number":pickSort==="weapon"?"weapon":"treatment"}</div>
+                  <div style={{fontSize:12,color:"#666",marginTop:3}}>{inDeck.length} cards · {pulled} pulled · {inDeck.filter(x=>proxyCards[x.id]).length} proxy · sorted by {pickSort==="power"?"power (high→low)":pickSort==="cardnum"?"card number":pickSort==="weapon"?"weapon":"treatment"}</div>
                 </div>
                 {/* Table */}
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                   <thead>
                     <tr style={{borderBottom:"2px solid #111",textAlign:"left"}}>
                       <th style={{padding:"7px 6px",width:34,textAlign:"center"}}>✓</th>
+                      <th style={{padding:"7px 6px",width:52,textAlign:"center"}}>Proxy</th>
                       <th style={{padding:"7px 6px"}}>Card #</th>
                       <th style={{padding:"7px 6px"}}>Hero</th>
                       <th style={{padding:"7px 6px",textAlign:"right"}}>Power</th>
@@ -30036,13 +30037,26 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       <th style={{padding:"7px 6px"}}>Treatment</th>
                       <th style={{padding:"7px 6px"}}>Set</th>
                           <th style={{padding:"7px 6px"}}>Who has it</th>
-                          <th style={{padding:"7px 6px"}}>Proxy</th>
                     </tr>
                   </thead>
                   <tbody>
                     {sorted.map((c,i)=>(
                       <tr key={c.id} onClick={()=>setPickChecked(p=>({...p,[c.id]:!p[c.id]}))} style={{borderBottom:"1px solid #e5e5e5",cursor:"pointer",background:pickChecked[c.id]?"#f3f0fb":(i%2?"#fafafa":"#fff")}}>
                         <td style={{padding:"6px",textAlign:"center"}}><span style={{display:"inline-block",width:15,height:15,border:"1.5px solid #999",borderRadius:3,lineHeight:"13px",fontSize:11,color:"#7B2FF7",fontWeight:900}}>{pickChecked[c.id]?"✓":""}</span></td>
+                          {/* Flagging happens HERE because this is where you notice it: you are holding
+                              the slab, realising you cannot play it. stopPropagation so it does not also
+                              tick the row's "pulled" checkbox. */}
+                          <td style={{padding:"6px",textAlign:"center"}}>
+                            <button onClick={e=>{ e.stopPropagation(); onToggleProxy && onToggleProxy(c.id); }}
+                              title={proxyCards[c.id] ? "Marked as a proxy \u2014 tap to clear" : "Mark this card as a proxy"}
+                              style={{cursor:"pointer",fontFamily:"inherit",borderRadius:6,padding:"2px 7px",
+                                fontSize:10,fontWeight:800,
+                                background: proxyCards[c.id] ? "rgba(180,83,9,0.15)" : "transparent",
+                                border: "1px solid " + (proxyCards[c.id] ? "rgba(180,83,9,0.6)" : "rgba(255,255,255,0.15)"),
+                                color: proxyCards[c.id] ? "#B45309" : "#555"}}>
+                              {proxyCards[c.id] ? "PROXY" : "+"}
+                            </button>
+                          </td>
                         <td style={{padding:"6px",fontFamily:"monospace",color:"#555"}}>{c.cardNum||"—"}</td>
                         <td style={{padding:"6px",fontWeight:700,textDecoration:pickChecked[c.id]?"line-through":"none",color:pickChecked[c.id]?"#999":"#111"}}>{c.hero}</td>
                         <td style={{padding:"6px",textAlign:"right",fontWeight:800}}>{c.power}</td>
@@ -30082,7 +30096,6 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                           if (fam) return <span style={{color:"#7B2FF7"}}>{fam.name || "Family"}</span>;
                           return <span style={{color:"#c0392b"}}>Not owned</span>;
                         })()}</td>
-                          <td style={{padding:"6px",textAlign:"center"}}>{proxyCards[c.id] ? <span style={{color:"#B45309",fontWeight:800,fontSize:10.5}}>PROXY</span> : null}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -44634,7 +44647,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             cards={cards} owned={owned} inp={inp}
             familyOwnerByCard={familyOwnerByCard} familyOwnsCard={familyOwnsCard} deckOwnedMerged={deckOwnedMerged}
             canAddToDeck={canAddToDeck} isMobile={isMobile} lots={lots} foilDogs={foilDogs} setFoilDogs={setFoilDogs}
-            kidGroups={kidGroups} kidOfCopy={kidOfCopy} otherDeckUse={otherDeckUse} proxyCards={proxyCards}
+            kidGroups={kidGroups} kidOfCopy={kidOfCopy} otherDeckUse={otherDeckUse} proxyCards={proxyCards} onToggleProxy={toggleProxy}
             savedDecks={savedDecks} familyDecks={familyDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
             saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} giveDeckToFamily={giveDeckToFamily} takeBackDeck={takeBackDeck} familyList={familyList} givenDecks={givenDecks} setFanDeck={setFanDeck} setFanMode={setFanMode}
             deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} deckSource={deckSource} setDeckSource={setDeckSource} computeDeckProgress={computeDeckProgress} listings={listings} setActiveTab={setActiveTab} deckLegality={deckLegality}
