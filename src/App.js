@@ -29935,8 +29935,8 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               if(pickSort==="treatment") return String(a.treatment||"").localeCompare(String(b.treatment||"")) || (parseFloat(b.power)||0)-(parseFloat(a.power)||0);
               return 0;
             });
-            // Build clean printable HTML and open it in a popup window. Print vs Save PDF share this
-            // helper; "Print" auto-fires the dialog, "Save PDF" opens the window with a Save button.
+            // Build clean printable HTML and open it in a popup window. The browser print dialog is
+            // where both printing and "save as PDF" happen, so this one path serves both.
             const openPickPrint = (autoPrint) => {
               const esc = s => String(s==null?"":s).replace(/[&<>"]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
               const dash = "\u2014", dot = "\u00b7";
@@ -30040,13 +30040,13 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     ))}
                   </div>
                   <div style={{display:"flex",gap:8}}>
+                    {/* One button. Print and "Save PDF" opened the identical window — the only
+                        difference was whether the dialog fired automatically. Saving a PDF is a choice
+                        inside that dialog on every platform, so a separate button promised an outcome
+                        that never existed. */}
                     <button onClick={()=>openPickPrint(true)}
-                      style={{background:"#111",color:"#fff",border:"1.5px solid #111",borderRadius:9,padding:"8px 16px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
-                      Print
-                    </button>
-                    <button onClick={()=>openPickPrint(false)}
-                      style={{background:"#fff",color:"#111",border:"1.5px solid #ddd",borderRadius:9,padding:"8px 16px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
-                      Save PDF
+                      style={{background:"#111",color:"#fff",border:"1.5px solid #111",borderRadius:9,padding:"8px 18px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                      Print / PDF
                     </button>
                     <button onClick={()=>setShowPickList(false)} aria-label="Close pick list"
                       style={{background:"#fff",color:"#999",border:"1.5px solid #ddd",borderRadius:9,width:36,height:36,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:"inherit",lineHeight:1}}>
