@@ -37778,6 +37778,29 @@ See you in there!
       return typeof v === "string" && v.trim();
     }).length;
     const shownNotes = rows.filter(({c,ci}) => (proxyNote ? proxyNote(c.id, ci) : "").trim()).length;
+    // CSV built from the SAME rows as the printed table, so the two can't drift.
+    // RFC4180 quoting: wrap every field and double any embedded quote. Notes are
+    // free text and will contain commas, quotes and line breaks eventually.
+    const csvCell = v => '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+    const csvHeader = ["#","Card #","Hero","Copy","Variation","Treatment","Weapon","Power","Set","Used in","Note"];
+    const csvRows = rows.map(({c, ci, q}, i) => [
+      i + 1,
+      c.cardNum || "",
+      c.hero || c.playName || "",
+      q > 1 ? `copy ${ci+1} of ${q}` : "",
+      c.variation || "",
+      c.treatment || "",
+      c.weapon || "",
+      c.power == null ? "" : c.power,
+      c.setName || "",
+      deckForCopy(c.id, ci) || "",
+      proxyNote ? proxyNote(c.id, ci) : "",
+    ].map(csvCell).join(","));
+    // BOM so Excel opens UTF-8 correctly — without it, card names with accents or
+    // the \u2014 dash arrive as mojibake.
+    const csvText = "\ufeff" + [csvHeader.map(csvCell).join(","), ...csvRows].join("\r\n");
+    const csvFile = `proxy-list-${new Date().toISOString().slice(0,10)}.csv`;
+
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Proxy Print List</title>
       <style>
         body{font-family:'Trebuchet MS',sans-serif;margin:28px;color:#111;}
@@ -37801,9 +37824,31 @@ See you in there!
         <thead><tr><th>#</th><th>Card #</th><th>Hero</th><th>Variation</th><th>Treatment</th><th>Weapon</th><th class="r">Power</th><th>Set</th><th>Used in</th><th>Note</th></tr></thead>
         <tbody>${body}</tbody>
       </table>
-      <p class="noprint" style="margin-top:18px;">
-        <button onclick="window.print()" style="padding:8px 16px;font-size:13px;cursor:pointer;">Print</button>
+      <p class="noprint" style="margin-top:18px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <button onclick="window.print()" style="padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;border-radius:7px;border:1px solid #111;background:#111;color:#fff;">Print / Save as PDF</button>
+        <button id="dlcsv" style="padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;border-radius:7px;border:1px solid #111;background:#fff;color:#111;">Download CSV</button>
+        <span style="font-size:11.5px;color:#777;">For a PDF, choose <strong>Save as PDF</strong> as the destination in the print dialog.</span>
       </p>
+      <script>
+        // The CSV is embedded as base64 so the string survives being written into this
+        // document — raw text with quotes and newlines would terminate the script early.
+        (function(){
+          var b64 = "${(typeof btoa === "function"
+              ? btoa(unescape(encodeURIComponent(csvText)))
+              : Buffer.from(csvText, "utf8").toString("base64"))}";
+          var bin = atob(b64);
+          var bytes = new Uint8Array(bin.length);
+          for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          var blob = new Blob([bytes], { type: "text/csv;charset=utf-8;" });
+          document.getElementById("dlcsv").addEventListener("click", function(){
+            var a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = ${JSON.stringify(csvFile)};
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+          });
+        })();
+      <\/script>
       </body></html>`;
     const w = window.open("", "_blank");
     if (!w) { alert("Your browser blocked the report window. Allow pop-ups for this site and try again."); return; }
