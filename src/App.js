@@ -1,6 +1,6 @@
 /* eslint-disable */
 /* Bazooka Vault — access limited to @bazookabreaks.com until June 18 */
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { auth, db, googleProvider, storage } from "./firebase";
 import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, updateProfile, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from "firebase/auth";
@@ -32752,6 +32752,23 @@ See you in there!
     window.addEventListener("scroll", saveScroll, { passive:true });
     return () => window.removeEventListener("scroll", saveScroll);
   }, []);
+  // Hold the scroll position across a filter change. Narrowing the filters resets pagination to page
+  // 1, which shrinks the rendered list \u2014 the page then becomes shorter than the current scroll offset
+  // and the browser snaps to the top, losing your place in a 36k-card grid. Re-applying the offset
+  // after paint keeps you where you were whenever the page is still tall enough to hold it.
+  const keepScrollRef = useRef(null);
+  const preserveScroll = () => { keepScrollRef.current = window.scrollY; };
+  useLayoutEffect(() => {
+    const y = keepScrollRef.current;
+    if (y == null) return;
+    keepScrollRef.current = null;
+    requestAnimationFrame(() => {
+      // Only restore if the content still reaches that far; otherwise sit at the new bottom rather
+      // than fighting the browser for a position that no longer exists.
+      const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      window.scrollTo(0, Math.min(y, max));
+    });
+  });
   const scrollRestoredRef = useRef(false);
   useEffect(() => {
     if (scrollRestoredRef.current) return;
@@ -38297,15 +38314,17 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     }
     return m;
   }, [owned, kidAssign, kidGroups]);
+  // Counts what is actually YOURS. ownedNet is `owned` minus borrowed copies \u2014 a card you are
+  // holding for someone else should never show up in your collection totals or set completion.
   const { uniqueOwned, totalOwned } = useMemo(() => {
     let uniq = 0, total = 0;
-    for (const k of Object.keys(owned)) {
+    for (const k of Object.keys(ownedNet)) {
       if (!cardIdSet.has(_baseId(k))) continue;
       uniq += 1;
-      total += (owned[k] || 1);
+      total += (ownedNet[k] || 1);
     }
     return { uniqueOwned: uniq, totalOwned: total };
-  }, [owned, cardIdSet]);
+  }, [ownedNet, cardIdSet]);
   const collectionValue = useMemo(() => {
     // Build avg sale price per cardId from marketSales
     const priceMap={};
@@ -38315,13 +38334,14 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       priceMap[s.cardId].total+=s.price;
       priceMap[s.cardId].count+=1;
     });
-    return Object.keys(owned).reduce((sum,cid)=>{
-      const qty=owned[cid]||1;
+    // ownedNet: valuing a borrowed card would report someone else's property as your net worth.
+    return Object.keys(ownedNet).reduce((sum,cid)=>{
+      const qty=ownedNet[cid]||1;
       const base=String(cid).replace(/::foil$/,"");
       const avg=priceMap[base]?priceMap[base].total/priceMap[base].count:0;
       return sum+avg*qty;
     },0);
-  }, [marketSales, owned]);
+  }, [marketSales, ownedNet]);
 
   // -- Deck logic --
   // PERF: all of these were recomputing on every render (inDeck filters the full 36k checklist).
@@ -39376,7 +39396,8 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     const groupStats = allGroups.map(key => {
       const gcards = groupMap[key];
       const total = gcards.length;
-      const ownedCount = gcards.filter(c => owned[c.id]).length;
+      // ownedNet, not owned: a borrowed card must not count toward completing a set you do not own.
+      const ownedCount = gcards.filter(c => ownedNet[c.id]).length;
       const complete = total > 0 && ownedCount === total;
       // secondary breakdown tags
       const bySecondary = {};
@@ -41390,7 +41411,16 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-s1,#14141c)",border:"1px solid var(--bz-line-2)",borderRadius:14,width:"100%",maxWidth:620,maxHeight:"84vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
               <div style={{padding:"14px 16px 10px",borderBottom:"1px solid var(--bz-line)"}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-                  <div style={{fontSize:15,fontWeight:900,color:"var(--bz-ink)"}}>Cards on loan</div>
+                  <div>
+                    <div style={{fontSize:15,fontWeight:900,color:"var(--bz-ink)"}}>Cards on loan</div>
+                    {/* What the app actually holds. If a card looks borrowed on screen but is not
+                        listed here, it has no per-copy record \u2014 which is what drives every borrow
+                        behaviour, so nothing downstream can work. */}
+                    <div style={{fontSize:10,color:"var(--bz-ink-3)",marginTop:2}}>
+                      {(lots||[]).length} cop{(lots||[]).length===1?"y":"ies"} tracked {"\u00b7"} {all.length} on loan
+                      {" \u00b7 "}{(lots||[]).filter(l=>l.lendState==="borrowed").length} borrowed
+                    </div>
+                  </div>
                   <button onClick={()=>setLoanMgr(null)} style={{background:"none",border:"none",color:"var(--bz-ink-3)",fontSize:20,cursor:"pointer",lineHeight:1,fontFamily:"inherit"}}>{"\u00d7"}</button>
                 </div>
                 <div style={{display:"flex",gap:6}}>
@@ -43466,7 +43496,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
               );
             })()}
             <div className="filter-bar" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:"14px 18px",marginBottom:16,backdropFilter:"blur(10px)",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",position:"relative",zIndex:(powerMenuOpen||multiOpen)?10000:"auto"}}>
-              <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} placeholder="Search hero, card #, athlete, treatment..." style={{...inp,flex:2,minWidth:200}}/>
+              <input value={search} onChange={e=>{setSearch(e.target.value);preserveScroll();setPage(1);}} placeholder="Search hero, card #, athlete, treatment..." style={{...inp,flex:2,minWidth:200}}/>
               {/* Multi-select dropdown — set, treatment and weapon all work like the power filter now.
                   Same markup for each, so it's one helper rather than three near-identical blocks. */}
               {(() => {
@@ -43486,7 +43516,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                           <div className="filter-menu" style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:9999,background:"#141414",border:"1px solid #2a2a2a",borderRadius:10,padding:6,minWidth:200,maxHeight:320,overflowY:"auto",boxShadow:"0 10px 30px rgba(0,0,0,0.6)"}}>
                             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 8px 6px",borderBottom:"1px solid #222",marginBottom:4}}>
                               <span style={{fontSize:10,color:"var(--bz-ink-2)",fontWeight:700,letterSpacing:0.5}}>{label.toUpperCase()}</span>
-                              {sel.size>0 && <button onClick={()=>{setSel(new Set());setPage(1);}} style={{background:"none",border:"none",color:"var(--bz-ink-3)",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Clear</button>}
+                              {sel.size>0 && <button onClick={()=>{setSel(new Set());preserveScroll();setPage(1);}} style={{background:"none",border:"none",color:"var(--bz-ink-3)",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Clear</button>}
                             </div>
                             {options.map(o=>{
                               const on=sel.has(o);
@@ -43494,7 +43524,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                                 <label key={o} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 8px",borderRadius:6,cursor:"pointer",background:on?"rgba(232,49,122,0.12)":"transparent"}}
                                   onMouseEnter={e=>{if(!on)e.currentTarget.style.background="rgba(255,255,255,0.04)";}}
                                   onMouseLeave={e=>{if(!on)e.currentTarget.style.background="transparent";}}>
-                                  <input type="checkbox" checked={on} onChange={()=>{setSel(prev=>{const n=new Set(prev); n.has(o)?n.delete(o):n.add(o); return n;}); setPage(1);}} style={{accentColor:"#E8317A",cursor:"pointer"}}/>
+                                  <input type="checkbox" checked={on} onChange={()=>{setSel(prev=>{const n=new Set(prev); n.has(o)?n.delete(o):n.add(o); return n;}); preserveScroll();setPage(1);}} style={{accentColor:"#E8317A",cursor:"pointer"}}/>
                                   <span style={{fontSize:12,fontWeight:700,color:on?"#E8317A":"#ccc"}}>{o}</span>
                                 </label>
                               );
@@ -43573,11 +43603,11 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 if(subs.length<2) return null;
                 return (
                   <div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
-                    <button onClick={()=>{setFilterSubSet("");setPage(1);}} style={{background:!filterSubSet?"rgba(74,222,128,0.15)":"transparent",border:`1px solid ${!filterSubSet?"#4ade80":"rgba(255,255,255,0.12)"}`,color:!filterSubSet?"#4ade80":"rgba(255,255,255,0.45)",borderRadius:14,padding:"5px 11px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>All</button>
+                    <button onClick={()=>{setFilterSubSet("");preserveScroll();setPage(1);}} style={{background:!filterSubSet?"rgba(74,222,128,0.15)":"transparent",border:`1px solid ${!filterSubSet?"#4ade80":"rgba(255,255,255,0.12)"}`,color:!filterSubSet?"#4ade80":"rgba(255,255,255,0.45)",borderRadius:14,padding:"5px 11px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>All</button>
                     {subs.map(s=>{
                       const on=filterSubSet===s;
                       const n=cards.filter(c=>c.setName===theSet && c.subSet===s).length;
-                      return <button key={s} onClick={()=>{setFilterSubSet(on?"":s);setPage(1);}} style={{background:on?"rgba(123,156,255,0.18)":"transparent",border:`1px solid ${on?"#7B9CFF":"rgba(255,255,255,0.12)"}`,color:on?"#7B9CFF":"rgba(255,255,255,0.45)",borderRadius:14,padding:"5px 11px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{s} ({n})</button>;
+                      return <button key={s} onClick={()=>{setFilterSubSet(on?"":s);preserveScroll();setPage(1);}} style={{background:on?"rgba(123,156,255,0.18)":"transparent",border:`1px solid ${on?"#7B9CFF":"rgba(255,255,255,0.12)"}`,color:on?"#7B9CFF":"rgba(255,255,255,0.45)",borderRadius:14,padding:"5px 11px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>{s} ({n})</button>;
                     })}
                   </div>
                 );
@@ -43595,7 +43625,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                     <div className="filter-menu" style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:9999,background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",width:180,maxHeight:280,overflowY:"auto",padding:6}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 8px 6px",borderBottom:"1px solid #2a2a2a",marginBottom:4}}>
                         <span style={{fontSize:10,color:"var(--bz-ink-2)",fontWeight:700,letterSpacing:1}}>POWER LEVEL</span>
-                        {filterPower.size>0 && <button onClick={()=>{setFilterPower(new Set());setPage(1);}} style={{background:"none",border:"none",color:"#E8317A",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Clear</button>}
+                        {filterPower.size>0 && <button onClick={()=>{setFilterPower(new Set());preserveScroll();setPage(1);}} style={{background:"none",border:"none",color:"#E8317A",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Clear</button>}
                       </div>
                       {[250,200,195,190,185,180,175,170,165,160,155,150,145,140,135,130,125,120,115,110,105,100,95,90,85,80,75].map(p=>{
                         const on=filterPower.has(p);
@@ -43603,7 +43633,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                           <label key={p} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 8px",borderRadius:6,cursor:"pointer",background:on?"rgba(232,49,122,0.12)":"transparent"}}
                             onMouseEnter={e=>{if(!on)e.currentTarget.style.background="rgba(255,255,255,0.04)";}}
                             onMouseLeave={e=>{if(!on)e.currentTarget.style.background="transparent";}}>
-                            <input type="checkbox" checked={on} onChange={()=>{setFilterPower(prev=>{const n=new Set(prev);n.has(p)?n.delete(p):n.add(p);return n;});setPage(1);}} style={{accentColor:"#E8317A",cursor:"pointer"}}/>
+                            <input type="checkbox" checked={on} onChange={()=>{setFilterPower(prev=>{const n=new Set(prev);n.has(p)?n.delete(p):n.add(p);return n;});preserveScroll();setPage(1);}} style={{accentColor:"#E8317A",cursor:"pointer"}}/>
                             <span style={{fontSize:12,fontWeight:700,color:on?"#E8317A":"#ccc"}}>{p}</span>
                           </label>
                         );
@@ -43622,13 +43652,13 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   <button onClick={()=>{
                     setFilterSet(new Set()); setFilterTreat(new Set()); setFilterWeapon(new Set());
                     setFilterPower(new Set()); setFilterSubSet(""); setSearch(""); setFilterOwned("all");
-                    setMultiOpen(null); setPowerMenuOpen(false); setPage(1);
+                    setMultiOpen(null); setPowerMenuOpen(false); preserveScroll();setPage(1);
                   }} style={{background:"rgba(232,49,122,0.1)",border:"1px solid #E8317A55",color:"#E8317A",borderRadius:8,padding:"7px 12px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
                     {"\u2715"} Clear {active} filter{active>1?"s":""}
                   </button>
                 );
               })()}
-              <select value={sortBy} onChange={e=>{setSortBy(e.target.value);setPage(1);}} style={{...inp,width:isMobile?"auto":150,minWidth:110,cursor:"pointer"}}>
+              <select value={sortBy} onChange={e=>{setSortBy(e.target.value);preserveScroll();setPage(1);}} style={{...inp,width:isMobile?"auto":150,minWidth:110,cursor:"pointer"}}>
                 <option value="cardNum">Card #</option>
                 <option value="hero">{"Hero A\u2192Z"}</option>
                 <option value="power">{"Power (High \u2192 Low)"}</option>
@@ -43649,12 +43679,12 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
               {user&&(
                 <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
                   {[["all","All"],["owned","\u2705 Owned"],["missing","\u274C Missing"],["free","\uD83D\uDD13 Free to trade"],["indeck","\uD83D\uDCD8 In a deck"]].map(([v,l])=>(
-                    <button key={v} onClick={()=>{setFilterOwned(v);setPage(1);}} style={{background:filterOwned===v?"rgba(232,49,122,0.15)":"transparent",color:filterOwned===v?"#E8317A":"rgba(255,255,255,0.4)",border:`1.5px solid ${filterOwned===v?"#E8317A":"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>{l}</button>
+                    <button key={v} onClick={()=>{setFilterOwned(v);preserveScroll();setPage(1);}} style={{background:filterOwned===v?"rgba(232,49,122,0.15)":"transparent",color:filterOwned===v?"#E8317A":"rgba(255,255,255,0.4)",border:`1.5px solid ${filterOwned===v?"#E8317A":"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>{l}</button>
                   ))}
                 </div>
               )}
               {_cardAdmin && (
-                <button onClick={()=>{setFilterNoImg(v=>!v);setPage(1);}} title="Admin: show only cards that still need an image" style={{background:filterNoImg?"rgba(123,47,247,0.25)":"transparent",color:filterNoImg?"#b794f6":"rgba(255,255,255,0.4)",border:`1.5px solid ${filterNoImg?"#7B2FF7":"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>🖼 No Image{filterNoImg?" ✓":""}</button>
+                <button onClick={()=>{setFilterNoImg(v=>!v);preserveScroll();setPage(1);}} title="Admin: show only cards that still need an image" style={{background:filterNoImg?"rgba(123,47,247,0.25)":"transparent",color:filterNoImg?"#b794f6":"rgba(255,255,255,0.4)",border:`1.5px solid ${filterNoImg?"#7B2FF7":"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>🖼 No Image{filterNoImg?" ✓":""}</button>
               )}
               {/* Kid collections — whose binder a card lives in. Visually separated from the
                   owned/missing filters above, since they answer a different question (and both
@@ -43669,7 +43699,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                     const col = g ? g.color : (id==="mine" ? "#4ade80" : "#7B9CFF");
                     const count = id==="all" ? null : (id==="mine" ? (kidCounts.__mine||0) : (kidCounts[id]||0));
                     return (
-                      <button key={id} onClick={()=>{setKidFilter(id);setPage(1);}}
+                      <button key={id} onClick={()=>{setKidFilter(id);preserveScroll();setPage(1);}}
                         style={{background:on?`${col}26`:"transparent",color:on?col:"rgba(255,255,255,0.4)",border:`1.5px solid ${on?col:"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>
                         {g ? "🧒 " : ""}{label}{count!==null?` (${count})`:""}
                       </button>
@@ -43860,13 +43890,26 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                       {/* Count lives here now instead of on the artwork. Shown from 1 upward: it sits
                           beside the + button, so hiding it at exactly one copy left the row looking
                           like nothing was owned right after you added a card. */}
-                      {(parseInt(owned[c.id])||0) >= 1 && (
-                        <span title={`You own ${owned[c.id]}`} style={{ fontSize:10, fontWeight:900, color:"#4ade80",
-                          background:"rgba(74,222,128,0.13)", border:"1px solid rgba(74,222,128,0.4)",
-                          borderRadius:5, padding:"0 4px", lineHeight:1.5, flexShrink:0 }}>
-                          {"\u00d7"}{owned[c.id]}
-                        </span>
-                      )}
+                      {(parseInt(owned[c.id])||0) >= 1 && (()=>{
+                        // Split the count into what is yours and what you are holding for someone
+                        // else. A flat green "x1" on a borrowed card is the single most misleading
+                        // thing on the grid \u2014 it is the same badge an owned card gets.
+                        const total = parseInt(owned[c.id]) || 0;
+                        const bor   = borrowedByCard[c.id] || 0;
+                        const mine  = Math.max(0, total - bor);
+                        const col   = mine > 0 ? "#4ade80" : "#7B9CFF";
+                        const label = mine > 0 && bor > 0 ? `${mine}+${bor}` : String(total);
+                        return (
+                          <span title={mine>0 && bor>0 ? `${mine} yours, ${bor} borrowed`
+                                     : bor>0 ? `${bor} borrowed \u2014 not yours` : `You own ${total}`}
+                            style={{ fontSize:10, fontWeight:900, color:col,
+                              background: mine>0 ? "rgba(74,222,128,0.13)" : "rgba(123,156,255,0.15)",
+                              border:"1px solid " + (mine>0 ? "rgba(74,222,128,0.4)" : "rgba(123,156,255,0.5)"),
+                              borderRadius:5, padding:"0 4px", lineHeight:1.5, flexShrink:0 }}>
+                            {"\u00d7"}{label}
+                          </span>
+                        );
+                      })()}
                       {/* Quick-add lives here, off the artwork. On the card it had to vanish once you
                           owned a copy (it sat where the count needed to go), which meant adding a
                           second copy required opening the card. Down here it can simply stay. */}
