@@ -30710,6 +30710,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 '<td class="tick" style="border-left:3px solid '+((WEAPON_COLORS[canonWeapon(c.weapon)]||"#e8e8e8"))+'"><span class="box"></span></td>'+
                 '<td class="px">'+(proxyCards[c.id]?'<span class="proxy">\u25C6</span>':'<span class="noproxy">\u25C7</span>')+'</td>'+
                 '<td><div class="hero">'+esc(c.hero||dash)+'</div><div class="meta">'+meta+'</div>'+(pxNote?'<div class="pxnote">'+esc(pxNote)+'</div>':'')+'</td>'+
+                '<td class="var">'+esc(c.variation||dash)+'</td>'+
                 '<td class="pw">'+esc(c.power??dash)+'</td>'+
                 '<td class="who">'+ownLabel(c)+'</td>'+
               '</tr>';
@@ -30735,6 +30736,11 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               '.hero{font-weight:800;font-size:14px;letter-spacing:-0.2px;}'+
               '.meta{font-size:10.5px;color:#999;margin-top:2px;} .dim{color:#ddd;}'+
               '.pxnote{font-size:10px;color:#B45309;font-weight:700;margin-top:2px;}'+
+              // Variation = pose. IMC needs this to know WHICH print to pull: two Ice BoJax with
+              // different poses are different cards, so "BoJax, Ice" alone is ambiguous on a pick
+              // sheet. Given its own column rather than tucked into the meta line, because this is
+              // the field someone is scanning down when they're filling the order.
+              '.var{font-size:11.5px;font-weight:700;color:#444;width:120px;}'+
               '.pw{text-align:right;font-size:18px;font-weight:900;letter-spacing:-0.5px;font-variant-numeric:tabular-nums;width:70px;}'+
               '.who{font-size:11.5px;font-weight:700;width:130px;}'+
               '.foot{margin-top:18px;padding-top:11px;border-top:1px solid #eee;font-size:10px;color:#bbb;'+
@@ -30750,7 +30756,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 (proxyCount?'<span class="px">'+proxyCount+' to proxy</span>':'')+
                 '<span class="lt">sorted by '+(pickSort==="cardnum"?"card number":pickSort)+'</span></div>'+
               '<div class="rule"></div>'+
-              '<table><thead><tr><th class="c">Got</th><th class="c">Proxy</th><th>Card</th><th class="r">Power</th><th>Who has it</th></tr></thead>'+
+              '<table><thead><tr><th class="c">Got</th><th class="c">Proxy</th><th>Card</th><th>Variation</th><th class="r">Power</th><th>Who has it</th></tr></thead>'+
               '<tbody>'+rows+'</tbody></table>'+
               '<div class="foot"><b>BAZOOKA DASH</b><span>'+new Date().toLocaleDateString()+'</span></div>'+script+
               '</body></html>';
@@ -30818,6 +30824,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       <th style={{padding:"0 6px 8px",width:38,textAlign:"center",fontSize:10,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Got</th>
                       <th style={{padding:"0 6px 8px",width:44,textAlign:"center",fontSize:10,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Proxy</th>
                       <th style={{padding:"0 6px 8px",fontSize:10,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Card</th>
+                      <th style={{padding:"0 6px 8px",width:120,fontSize:10,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Variation</th>
                       <th style={{padding:"0 6px 8px",textAlign:"right",fontSize:10,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Power</th>
                       <th style={{padding:"0 6px 8px",fontSize:10,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Who has it</th>
                     </tr>
@@ -30888,6 +30895,13 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                               {(proxyNote && proxyNote(c.id)) || "+ note"}
                             </div>
                           )}
+                        </td>
+                        {/* Variation = pose. Its own column so it can be scanned down the page when
+                            filling an order — two Ice BoJax with different poses are different cards,
+                            so hero + weapon alone doesn't identify which print to pull. */}
+                        <td style={{padding:"10px 6px",fontSize:12,fontWeight:700,color:"#444",verticalAlign:"top",
+                          textDecoration: done ? "line-through" : "none"}}>
+                          {c.variation || "\u2014"}
                         </td>
                         {/* Power is the one number that matters in BoBA, so it is set as a figure, not
                             table data. */}
