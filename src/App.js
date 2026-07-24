@@ -16816,7 +16816,7 @@ function athleteSport(name) {
   return ATHLETE_SPORT[name.trim()] || ATHLETE_SPORT[name] || null;
 }
 
-function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand, myScanPhoto, cardWidthHint=200, kidGroups=[], kidTags=null, onAssignKid, onSell, foundInMap={} }) {
+function BobaCardImpl({ c, isOwned, isBorrowed=false, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand, myScanPhoto, cardWidthHint=200, kidGroups=[], kidTags=null, onAssignKid, onSell, foundInMap={} }) {
   const wc = WEAPON_COLORS[canonWeapon(c.weapon)] || "#444";
   // Image priority: official admin imageUrl → my own private scan photo → coming-soon placeholder.
   // Foil/shine overlays only apply to the official art, not to a raw scan photo.
@@ -17323,7 +17323,20 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
         <div style={{ fontSize:30, opacity:0.35, marginBottom:6 }}>🃏</div>
         <div style={{ fontSize:9, fontWeight:800, color:"rgba(255,255,255,0.4)", letterSpacing:1.5, textTransform:"uppercase" }}>Image coming soon</div>
         {c.power ? <div style={{ position:"absolute", top:8, right:10, fontSize:13, fontWeight:900, color:wc }}>{c.power}⚡</div> : null}
-        {isOwned && <div style={{ position:"absolute", top:6, left:8, fontSize:15 }}>{"\u2705"}</div>}
+        {/* Borrowed copies must not read as owned. A green tick on someone else's card is exactly
+            the confusion this whole feature exists to prevent, so it gets its own blue marker and
+            a blue frame \u2014 colour alone is easy to miss in a dense grid. */}
+        {isBorrowed && (
+          <div aria-hidden="true" style={{ position:"absolute", inset:0, zIndex:6, borderRadius:10,
+            border:"2px solid #7B9CFF", boxShadow:"inset 0 0 0 1px rgba(123,156,255,0.35)",
+            pointerEvents:"none" }}/>
+        )}
+        {isOwned && (
+          <div title={isBorrowed ? "Borrowed \u2014 not yours" : "In your collection"}
+            style={{ position:"absolute", top:6, left:8, fontSize:15 }}>
+            {isBorrowed ? "\uD83D\uDCE5" : "\u2705"}
+          </div>
+        )}
         {/* Label stops CLICKS so the card does not open. Drag events still reach the placeholder
             behind it, which is what carries the drop handler. */}
         {isAdmin && onImageUpload && (
@@ -17335,7 +17348,7 @@ function BobaCardImpl({ c, isOwned, ownedQty, flippedCard, setFlippedCard, toggl
       </div>
       {/* Card info */}
       <div style={{ flex:"0 0 auto", padding:"8px 10px", display:"flex", flexDirection:"column", gap:5 }}>
-        <div style={{ fontSize:13, fontWeight:900, color:isOwned?"#4ade80":"var(--bz-ink)", lineHeight:1.15, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{c.hero}</div>
+        <div style={{ fontSize:13, fontWeight:900, color:isOwned?(isBorrowed?"#7B9CFF":"#4ade80"):"var(--bz-ink)", lineHeight:1.15, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{c.hero}</div>
         <div style={{ display:"flex", gap:4, flexWrap:"wrap", alignItems:"center" }}>
           <span style={{ fontSize:9, color:"var(--bz-ink-3)", fontWeight:700 }}>#{c.cardNum}</span>
           {c.weapon && <span style={{ fontSize:9, color:wc, background:wc+"22", borderRadius:4, padding:"1px 5px", fontWeight:700 }}>{c.weapon}</span>}
@@ -35718,9 +35731,21 @@ See you in there!
   // A borrowed card was never yours, so giving it back means the copy leaves your collection
   // entirely \u2014 unlike a lent card coming home, which just clears its status.
   async function returnBorrowedCopy(lot) {
-    saveLots((lots||[]).filter(l => l.id !== lot.id));
-    const left = (parseInt(owned?.[lot.cardId]) || 0) - 1;
-    await setOwnedQty(lot.cardId, Math.max(0, left));
+    // Write BOTH updates directly rather than going through setOwnedQty. That helper re-reads
+    // `owned` from the render closure and can re-prompt for a print version, which is wrong here \u2014
+    // and the stale read meant the count sometimes never reached zero, so the card stayed in the
+    // collection after being returned. Functional updater keeps it correct under rapid clicks.
+    const nextLots = (lots||[]).filter(l => l.id !== lot.id);
+    saveLots(nextLots);
+    let saved = null;
+    setOwned(prev => {
+      const next = { ...prev };
+      const left = (parseInt(next[lot.cardId]) || 0) - 1;
+      if (left > 0) next[lot.cardId] = left; else delete next[lot.cardId];
+      saved = next;
+      return next;
+    });
+    if (saved) queueOwnedSave(saved);
   }
 
   function printLoanReport(which) {
@@ -43759,7 +43784,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                       })()}
                     </div>
                   )}
-                  <BobaCard c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
+                  <BobaCard c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0} isBorrowed={(borrowedByCard[c.id]||0) > 0}
                     flippedCard={flippedCard} setFlippedCard={setFlippedCard} onExpand={setExpandedCard}
                     toggleOwned={()=>{if(!user){setSigningIn(true);return;} toggleOwned(c.id);}}
                     setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
@@ -44243,7 +44268,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                           </div>
                           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:6 }}>
                             {groupCardList.filter(c => treatOwnedFilter==="owned" ? owned[c.id] : treatOwnedFilter==="missing" ? !owned[c.id] : true).map(c => (
-                              <BobaCard key={c.id} c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
+                              <BobaCard key={c.id} c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0} isBorrowed={(borrowedByCard[c.id]||0) > 0}
                                 flippedCard={flippedCard} setFlippedCard={setFlippedCard} onExpand={setExpandedCard}
                                 toggleOwned={()=>{ if(!user){setSigningIn(true);return;} toggleOwned(c.id); }}
                                 setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
@@ -44412,7 +44437,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             ):(
               <div className="pub-card-grid" style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:10}}>
                 {cards.filter(c=>wantList[c.id]).map(c=>(
-                  <BobaCard key={c.id} c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0}
+                  <BobaCard key={c.id} c={c} isOwned={!!owned[c.id]} ownedQty={owned[c.id]||0} isBorrowed={(borrowedByCard[c.id]||0) > 0}
                     flippedCard={flippedCard} setFlippedCard={setFlippedCard} onExpand={setExpandedCard}
                     toggleOwned={()=>toggleOwned(c.id)} setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
