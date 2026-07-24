@@ -37706,10 +37706,12 @@ See you in there!
       .flatMap(c => {
         const owns = parseInt(owned[c.id]) || 0;
         const idxs = flaggedCopies(c.id);
-        // q is what the COPY x OF y label reads. If a note outlives the owned count,
-        // widen it rather than hiding the row.
+        // q is what the "copy X of Y" label reads. It is the wider of what you own and
+        // the highest flagged index, so a note is never hidden just because the owned
+        // count is lower — which is normal: a proxy usually means you do NOT have the
+        // physical card.
         const q = Math.max(owns, ...idxs.map(i => i+1), 1);
-        return idxs.map(ci => ({ c, ci, q, orphan: ci >= owns }));
+        return idxs.map(ci => ({ c, ci, q }));
       })
       // Any flagged copy whose CARD isn't in the loaded checklist would otherwise
       // vanish without trace — the card list can lag or a card id can change. Emit a
@@ -37726,7 +37728,7 @@ See you in there!
           const sig = cid + "#" + ci;
           if (seen.has(sig)) return;
           seen.add(sig);
-          out.push({ c: { id: cid, hero: "(card not in checklist)", cardNum: cid }, ci, q: 1, orphan: true });
+          out.push({ c: { id: cid, hero: "(card not in checklist)", cardNum: cid }, ci, q: 1, notInChecklist: true });
         });
         return out;
       })())
@@ -37755,11 +37757,11 @@ See you in there!
       }
       return "";   // this copy isn't committed to any deck
     };
-    const body = rows.map(({c, ci, q, orphan}, i) => `
+    const body = rows.map(({c, ci, q, notInChecklist}, i) => `
       <tr>
         <td class="num">${i+1}</td>
         <td class="mono">${esc(c.cardNum||"\u2014")}</td>
-        <td><strong>${esc(c.hero||c.playName||"\u2014")}</strong>${q>1?` <span class="copy">copy ${ci+1}/${q}</span>`:""}${orphan?` <span class="orphan">copy no longer owned</span>`:""}</td>
+        <td><strong>${esc(c.hero||c.playName||"\u2014")}</strong>${q>1?` <span class="copy">copy ${ci+1}/${q}</span>`:""}${notInChecklist?` <span class="orphan">card not found in checklist</span>`:""}</td>
         <td>${esc(c.variation||"\u2014")}</td>
         <td>${esc(c.treatment||"\u2014")}</td>
         <td>${esc(c.weapon||"\u2014")}</td>
