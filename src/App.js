@@ -28852,6 +28852,743 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   );
 }
 
+// ============================================================================
+// BO JACKSON BATTLE ARENA — TABLETOP SIMULATOR
+// Rookie Mode, live 2-player over Firestore.
+//
+// PASTE THIS AS A NEW TOP-LEVEL FUNCTION in App.js, next to DeckBuilderTab
+// (around line 28840, before `function DeckBuilderTab(`).
+//
+// DATA MODEL
+//   boba_games/{gameId}
+//     Public state both players read. Contains ONLY information that is
+//     legally public under the rules: whose turn, current zone, trophies,
+//     direction, and REVEALED heroes.
+//
+//   boba_games/{gameId}/private/{uid}
+//     That player's face-down lineup + remaining deck. Firestore rules must
+//     restrict read to uid only. This is why face-down heroes are actually
+//     hidden instead of merely not-rendered — an opponent with devtools open
+//     cannot read this doc.
+//
+// When a zone is revealed, the hero is COPIED from the private doc up into
+// the public doc. That copy is the reveal.
+// ============================================================================
+
+function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobile, setToast, inp }) {
+  const [gameId,    setGameId]    = React.useState(null);
+  const [game,      setGame]      = React.useState(null);   // public doc
+  const [myPriv,    setMyPriv]    = React.useState(null);   // my private doc
+  const [joinCode,  setJoinCode]  = React.useState("");
+  const [pickDeck,  setPickDeck]  = React.useState("");
+  const [busy,      setBusy]      = React.useState(false);
+  const [err,       setErr]       = React.useState(null);
+  const [myGames,   setMyGames]   = React.useState([]);
+
+  const uid = user?.uid;
+  const myName = user?.displayName || user?.email?.split("@")[0] || "Player";
+
+  // ---- card lookup -------------------------------------------------------
+  const cardById = React.useMemo(() => {
+    const m = {};
+    (cards || []).forEach(c => { if (c?.id) m[c.id] = c; });
+    return m;
+  }, [cards]);
+
+  // Snapshot a card into the game. We freeze power/weapon/art AT GAME START on
+  // purpose: an admin editing a card mid-game must not silently change a hero
+  // already sitting face-down in a battle zone.
+  const snapCard = React.useCallback((id) => {
+    const c = cardById[id];
+    if (!c) return null;
+    return {
+      id,
+      hero:    c.hero || "Unknown",
+      power:   parseFloat(c.power) || 0,
+      weapon:  canonWeapon(c.weapon) || "",
+      img:     c.imageUrl || "",
+      cardNum: c.cardNum != null ? String(c.cardNum) : "",
+    };
+  }, [cardById, canonWeapon]);
+
+  // ---- deck legality (Rookie: §4.1.1) ------------------------------------
+  // 60 cards, no more than 6 sharing a Power value, only 1 copy of each
+  // variation. We check against the snapshot, not the raw ids, because two
+  // different ids can be the same printed variation.
+  function checkLegal(cardIds) {
+    const problems = [];
+    const snaps = (cardIds || []).map(snapCard);
+    const missing = snaps.filter(s => !s).length;
+    if (missing) problems.push(`${missing} card${missing>1?"s":""} in this deck no longer exist in the database.`);
+    const good = snaps.filter(Boolean);
+
+    if (good.length !== 60) problems.push(`Hero Deck must be exactly 60 cards — this deck has ${good.length}.`);
+
+    const byPower = {};
+    good.forEach(s => { const k = String(s.power); byPower[k] = (byPower[k]||0)+1; });
+    Object.entries(byPower).forEach(([p,n]) => {
+      if (n > 6) problems.push(`${n} Heroes share Power ${p} — the limit is 6.`);
+    });
+
+    const seen = {};
+    good.forEach(s => { seen[s.id] = (seen[s.id]||0)+1; });
+    const dupes = Object.entries(seen).filter(([,n]) => n > 1);
+    if (dupes.length) {
+      const names = dupes.slice(0,3).map(([id,n]) => `${cardById[id]?.hero||id} ×${n}`).join(", ");
+      problems.push(`Only 1 copy of each Hero variation allowed — found ${names}${dupes.length>3?` and ${dupes.length-3} more`:""}.`);
+    }
+    return { ok: problems.length === 0, problems };
+  }
+
+  // ---- shuffle -----------------------------------------------------------
+  // Fisher-Yates. §3.4 requires the order be unknown to all players; this runs
+  // client-side on your own deck only, so neither player sees the other's.
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  // ---- my open games list ------------------------------------------------
+  React.useEffect(() => {
+    if (!uid) { setMyGames([]); return; }
+    const unsub = onSnapshot(collection(db, "boba_games"), snap => {
+      const all = snap.docs.map(d => ({ ...d.data(), id: d.id }));
+      setMyGames(
+        all.filter(g => g.p1?.uid === uid || g.p2?.uid === uid)
+           .sort((a,b) => String(b.createdAt||"").localeCompare(String(a.createdAt||"")))
+           .slice(0, 8)
+      );
+    }, e => console.error("games list failed:", e));
+    return unsub;
+  }, [uid]);
+
+  // ---- subscribe to the active game -------------------------------------
+  React.useEffect(() => {
+    if (!gameId) { setGame(null); return; }
+    const unsub = onSnapshot(doc(db, "boba_games", gameId),
+      s => setGame(s.exists() ? { ...s.data(), id: s.id } : null),
+      e => { console.error("game sync failed:", e); setErr("Lost sync with the game: " + (e?.message||e)); }
+    );
+    return unsub;
+  }, [gameId]);
+
+  React.useEffect(() => {
+    if (!gameId || !uid) { setMyPriv(null); return; }
+    const unsub = onSnapshot(doc(db, "boba_games", gameId, "private", uid),
+      s => setMyPriv(s.exists() ? s.data() : null),
+      e => console.error("private sync failed:", e)
+    );
+    return unsub;
+  }, [gameId, uid]);
+
+  // ---- seat helpers ------------------------------------------------------
+  const seat  = !game ? null : (game.p1?.uid === uid ? "p1" : game.p2?.uid === uid ? "p2" : null);
+  const foe   = seat === "p1" ? "p2" : "p1";
+  const me    = seat ? game[seat] : null;
+  const them  = seat ? game[foe]  : null;
+
+  // ---- create ------------------------------------------------------------
+  async function createGame() {
+    if (!uid) return;
+    const deck = (savedDecks||[]).find(d => d.id === pickDeck);
+    if (!deck) { setErr("Pick a deck first."); return; }
+    const legal = checkLegal(deck.cardIds);
+    if (!legal.ok) { setErr(legal.problems.join("\n")); return; }
+
+    setBusy(true); setErr(null);
+    try {
+      const code = Math.random().toString(36).slice(2, 8).toUpperCase();
+      const id   = `game_${Date.now()}_${code}`;
+      await setDoc(doc(db, "boba_games", id), {
+        id, code, mode: "rookie", status: "waiting",
+        p1: { uid, name: myName, deckId: deck.id, deckName: deck.name || "Deck", ready: false },
+        p2: null,
+        // §4.1.1 — the randomly selected player chooses who goes first and the
+        // direction. We randomise the chooser at creation and let them pick at
+        // the ready step.
+        chooser: null, first: null, direction: null,
+        zoneIndex: 0,
+        zones: Array.from({length:7}, () => ({ p1: null, p2: null, winner: null })),
+        trophies: { p1: 0, p2: 0 },
+        log: [],
+        createdAt: new Date().toISOString(),
+      });
+      await stageMyDeck(id, deck);
+      setGameId(id);
+    } catch(e) {
+      console.error("create game failed:", e);
+      setErr(String(e?.code||"").includes("permission")
+        ? "Permission denied creating the game — the boba_games Firestore rule needs publishing (see the rules block below)."
+        : "Couldn't create the game: " + (e?.message||e));
+    } finally { setBusy(false); }
+  }
+
+  // Shuffle my deck, draw 7, write them to MY private doc only.
+  async function stageMyDeck(gid, deck) {
+    const snaps = (deck.cardIds||[]).map(snapCard).filter(Boolean);
+    const shuffled = shuffle(snaps);
+    const hand = shuffled.slice(0, 7);      // the 7 that will go into zones
+    const rest = shuffled.slice(7);         // remaining Hero Deck
+    await setDoc(doc(db, "boba_games", gid, "private", uid), {
+      uid, deckId: deck.id,
+      hand,                 // drawn, not yet placed
+      placed: [null,null,null,null,null,null,null],
+      deck: rest,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  // ---- join --------------------------------------------------------------
+  async function joinGame() {
+    if (!uid) return;
+    const deck = (savedDecks||[]).find(d => d.id === pickDeck);
+    if (!deck) { setErr("Pick a deck first."); return; }
+    const legal = checkLegal(deck.cardIds);
+    if (!legal.ok) { setErr(legal.problems.join("\n")); return; }
+
+    setBusy(true); setErr(null);
+    try {
+      const code = joinCode.trim().toUpperCase();
+      const snap = await getDocs(collection(db, "boba_games"));
+      const hit = snap.docs.map(d => ({...d.data(), id:d.id}))
+                          .find(g => g.code === code && g.status === "waiting");
+      if (!hit)                 throw new Error("No open game with that code.");
+      if (hit.p1?.uid === uid)  throw new Error("That's your own game — send the code to your opponent.");
+      if (hit.p2)               throw new Error("That game is already full.");
+
+      // Randomly pick the chooser now that both seats are known (§4.1.1).
+      const chooser = Math.random() < 0.5 ? "p1" : "p2";
+      await updateDoc(doc(db, "boba_games", hit.id), {
+        p2: { uid, name: myName, deckId: deck.id, deckName: deck.name || "Deck", ready: false },
+        status: "setup",
+        chooser,
+      });
+      await stageMyDeck(hit.id, deck);
+      setGameId(hit.id);
+    } catch(e) {
+      console.error("join failed:", e);
+      setErr(e?.message || String(e));
+    } finally { setBusy(false); }
+  }
+
+  // ---- chooser sets first player + direction (§4.1.1) --------------------
+  async function setOrder(first, direction) {
+    await updateDoc(doc(db, "boba_games", gameId), {
+      first, direction,
+      zoneIndex: direction === "rtl" ? 6 : 0,
+    });
+  }
+
+  // ---- placing heroes face-down -----------------------------------------
+  // Placement writes to MY private doc. The public doc only learns that I'm
+  // ready, never what I placed.
+  async function placeHero(zoneIdx, handIdx) {
+    if (!myPriv) return;
+    const placed = (myPriv.placed || []).slice();
+    const hand   = (myPriv.hand   || []).slice();
+    const card   = hand[handIdx];
+    if (!card || placed[zoneIdx]) return;
+    placed[zoneIdx] = card;
+    hand.splice(handIdx, 1);
+    await updateDoc(doc(db, "boba_games", gameId, "private", uid), { placed, hand });
+  }
+
+  async function unplaceHero(zoneIdx) {
+    if (!myPriv) return;
+    const placed = (myPriv.placed || []).slice();
+    const hand   = (myPriv.hand   || []).slice();
+    const card   = placed[zoneIdx];
+    if (!card) return;
+    placed[zoneIdx] = null;
+    hand.push(card);
+    await updateDoc(doc(db, "boba_games", gameId, "private", uid), { placed, hand });
+  }
+
+  async function confirmLineup() {
+    const placed = myPriv?.placed || [];
+    if (placed.filter(Boolean).length !== 7) { setErr("Place all 7 Heroes first."); return; }
+    setErr(null);
+    const patch = { [`${seat}.ready`]: true };
+    // Both ready -> the game is live.
+    const otherReady = game?.[foe]?.ready;
+    if (otherReady && game?.first && game?.direction) patch.status = "playing";
+    await updateDoc(doc(db, "boba_games", gameId), patch);
+  }
+
+  // ---- reveal (§4.1.2) ---------------------------------------------------
+  // Both players reveal SIMULTANEOUSLY. Each player pushes their own card up
+  // into the public doc; the winner is computed once both are present. This
+  // ordering matters: if one player could see the other's card before pushing
+  // their own, the reveal wouldn't be simultaneous.
+  async function revealMine() {
+    if (!game || !myPriv) return;
+    const zi = game.zoneIndex;
+    const zones = (game.zones || []).slice();
+    if (zones[zi]?.[seat]) return;                 // already revealed
+    const card = myPriv.placed?.[zi];
+    if (!card) { setErr("Nothing placed in this zone."); return; }
+
+    const z = { ...zones[zi], [seat]: card };
+    zones[zi] = z;
+
+    const patch = { zones };
+
+    // If that completed the pair, settle the battle.
+    if (z.p1 && z.p2) {
+      const a = z.p1.power, b = z.p2.power;
+      const winner = a > b ? "p1" : b > a ? "p2" : null;   // equal = draw, no trophy
+      zones[zi] = { ...z, winner };
+      const trophies = { ...(game.trophies || {p1:0,p2:0}) };
+      if (winner) trophies[winner] = (trophies[winner]||0) + 1;
+      patch.trophies = trophies;
+      patch.log = [
+        ...(game.log||[]),
+        { zone: zi, p1: z.p1.hero, p1p: a, p2: z.p2.hero, p2p: b, winner, at: new Date().toISOString() }
+      ];
+    }
+    await updateDoc(doc(db, "boba_games", gameId), patch);
+  }
+
+  // Advance to the next zone in the established direction (§4.1.2).
+  async function nextBattle() {
+    if (!game) return;
+    const step = game.direction === "rtl" ? -1 : 1;
+    const next = game.zoneIndex + step;
+    const done = next < 0 || next > 6;
+    if (done) {
+      const t = game.trophies || {p1:0,p2:0};
+      await updateDoc(doc(db, "boba_games", gameId), {
+        status: "finished",
+        result: t.p1 > t.p2 ? "p1" : t.p2 > t.p1 ? "p2" : "tie",
+        finishedAt: new Date().toISOString(),
+      });
+    } else {
+      await updateDoc(doc(db, "boba_games", gameId), { zoneIndex: next });
+    }
+  }
+
+  // ---- sudden death (§4.4.3) --------------------------------------------
+  // Only reachable on a 3-3 with one draw, etc. Each player flips the top of
+  // their remaining Hero Deck; higher Power wins; Super breaks a power tie.
+  async function suddenDeath() {
+    if (!myPriv) return;
+    const deck = (myPriv.deck||[]).slice();
+    const top = deck.shift();
+    if (!top) { setErr("Your Hero Deck is empty."); return; }
+    await updateDoc(doc(db, "boba_games", gameId, "private", uid), { deck });
+    const sd = { ...(game.sudden || {}) };
+    sd[seat] = top;
+    const patch = { sudden: sd };
+    if (sd.p1 && sd.p2) {
+      const a = sd.p1, b = sd.p2;
+      let w = a.power > b.power ? "p1" : b.power > a.power ? "p2" : null;
+      if (!w) {
+        // Super Weapon Type Rule — a Super beats a tie.
+        const aS = a.weapon === "Super", bS = b.weapon === "Super";
+        if (aS && !bS) w = "p1"; else if (bS && !aS) w = "p2";
+      }
+      if (w) { patch.result = w; patch.status = "finished"; }
+      else   { patch.sudden = {}; }   // still tied — flip again
+    }
+    await updateDoc(doc(db, "boba_games", gameId), patch);
+  }
+
+  async function leaveGame() { setGameId(null); setGame(null); setMyPriv(null); setErr(null); }
+
+  // ========================= RENDER =======================================
+  const cardBack = (label) => (
+    <div style={{
+      width:"100%", aspectRatio:"5/7", borderRadius:8,
+      background:"repeating-linear-gradient(45deg,#7f1d1d,#7f1d1d 6px,#991b1b 6px,#991b1b 12px)",
+      border:"2px solid #dc2626", display:"flex", alignItems:"center", justifyContent:"center",
+      color:"rgba(255,255,255,0.55)", fontSize:10, fontWeight:800, textAlign:"center", padding:4,
+    }}>{label}</div>
+  );
+
+  const heroCard = (c, dim) => {
+    if (!c) return null;
+    const wc = WEAPON_COLORS?.[c.weapon] || "#666";
+    return (
+      <div style={{
+        width:"100%", aspectRatio:"5/7", borderRadius:8, overflow:"hidden", position:"relative",
+        border:`2px solid ${wc}`, background:"#111", opacity: dim ? 0.55 : 1,
+      }}>
+        {c.img
+          ? <img src={c.img} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover"}} />
+          : <div style={{padding:6,fontSize:10,fontWeight:800,color:"#fff"}}>{c.hero}</div>}
+        <div style={{position:"absolute",top:3,right:4,background:"rgba(0,0,0,0.8)",color:"#FBBF24",
+                     borderRadius:5,padding:"1px 6px",fontSize:12,fontWeight:900}}>{c.power}</div>
+        <div style={{position:"absolute",bottom:0,left:0,right:0,background:"rgba(0,0,0,0.82)",
+                     padding:"3px 5px",fontSize:9,fontWeight:700,color:"#fff",whiteSpace:"nowrap",
+                     overflow:"hidden",textOverflow:"ellipsis"}}>
+          {c.hero} <span style={{color:wc}}>{c.weapon}</span>
+        </div>
+      </div>
+    );
+  };
+
+  const panel = { background:"rgba(0,0,0,0.45)", border:"1px solid rgba(255,255,255,0.12)",
+                  borderRadius:12, padding:16, marginBottom:16 };
+
+  // ---------- LOBBY ----------
+  if (!gameId || !game) {
+    const legality = pickDeck ? checkLegal((savedDecks||[]).find(d=>d.id===pickDeck)?.cardIds || []) : null;
+    return (
+      <div style={{maxWidth:900, margin:"0 auto"}}>
+        <div style={{...panel, textAlign:"center"}}>
+          <div style={{fontSize:24,fontWeight:900,color:"#22C55E",letterSpacing:1}}>THE ARENA</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginTop:4}}>
+            Rookie Mode {"\u00B7"} 7 Battles {"\u00B7"} Live opponent
+          </div>
+        </div>
+
+        <div style={panel}>
+          <div style={{fontSize:13,fontWeight:800,color:"#fff",marginBottom:10}}>1. Choose your Hero Deck</div>
+          <select value={pickDeck} onChange={e=>{setPickDeck(e.target.value); setErr(null);}}
+                  style={{...inp, width:"100%", fontSize:13}}>
+            <option value="">— Select a saved deck —</option>
+            {(savedDecks||[]).map(d =>
+              <option key={d.id} value={d.id}>{d.name} ({d.cardCount || d.cardIds?.length || 0} cards)</option>
+            )}
+          </select>
+          {legality && (
+            <div style={{marginTop:10, fontSize:12, color: legality.ok ? "#22C55E" : "#F87171"}}>
+              {legality.ok
+                ? "\u2713 Legal for Rookie Mode."
+                : legality.problems.map((p,i) => <div key={i}>{"\u2022 "}{p}</div>)}
+            </div>
+          )}
+        </div>
+
+        <div style={{display:"grid", gridTemplateColumns: isMobile?"1fr":"1fr 1fr", gap:16}}>
+          <div style={panel}>
+            <div style={{fontSize:13,fontWeight:800,color:"#fff",marginBottom:10}}>2a. Start a game</div>
+            <button disabled={busy || !pickDeck} onClick={createGame}
+              style={{width:"100%",padding:"12px",borderRadius:9,border:"none",cursor: busy||!pickDeck?"not-allowed":"pointer",
+                      background: busy||!pickDeck?"#333":"#22C55E", color:"#000", fontWeight:900, fontSize:14, fontFamily:"inherit"}}>
+              {busy ? "Creating\u2026" : "Create Game"}
+            </button>
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.45)",marginTop:8}}>
+              You'll get a 6-character code to send your opponent.
+            </div>
+          </div>
+
+          <div style={panel}>
+            <div style={{fontSize:13,fontWeight:800,color:"#fff",marginBottom:10}}>2b. Join a game</div>
+            <input value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())}
+                   placeholder="ABC123" maxLength={6}
+                   style={{...inp, width:"100%", fontSize:16, letterSpacing:3, textAlign:"center", fontWeight:900}} />
+            <button disabled={busy || !pickDeck || joinCode.length<6} onClick={joinGame}
+              style={{width:"100%",marginTop:10,padding:"12px",borderRadius:9,border:"none",
+                      cursor: busy||!pickDeck||joinCode.length<6?"not-allowed":"pointer",
+                      background: busy||!pickDeck||joinCode.length<6?"#333":"#3B82F6", color:"#fff",
+                      fontWeight:900, fontSize:14, fontFamily:"inherit"}}>
+              {busy ? "Joining\u2026" : "Join Game"}
+            </button>
+          </div>
+        </div>
+
+        {err && <div style={{...panel, borderColor:"#F87171", color:"#F87171", fontSize:12, whiteSpace:"pre-line"}}>{err}</div>}
+
+        {myGames.length > 0 && (
+          <div style={panel}>
+            <div style={{fontSize:13,fontWeight:800,color:"#fff",marginBottom:10}}>Recent games</div>
+            {myGames.map(g => (
+              <div key={g.id} onClick={()=>setGameId(g.id)}
+                   style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 10px",
+                           borderBottom:"1px solid rgba(255,255,255,0.07)",cursor:"pointer",fontSize:12,color:"#fff"}}>
+                <span>
+                  <b style={{color:"#22C55E"}}>{g.code}</b>{"  "}
+                  {g.p1?.name || "?"} vs {g.p2?.name || "waiting\u2026"}
+                </span>
+                <span style={{color:"rgba(255,255,255,0.4)"}}>
+                  {g.status}{g.status==="finished" && g.result ? ` \u00B7 ${g.result==="tie"?"tie":(g[g.result]?.name||g.result)+" won"}` : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ---------- IN GAME ----------
+  const zi     = game.zoneIndex;
+  const zones  = game.zones || [];
+  const t      = game.trophies || {p1:0,p2:0};
+  const iAmChooser = game.chooser === seat;
+  const orderSet   = !!(game.first && game.direction);
+
+  return (
+    <div style={{maxWidth:1200, margin:"0 auto"}}>
+      {/* header */}
+      <div style={{...panel, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10}}>
+        <div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.45)"}}>CODE</div>
+          <div style={{fontSize:20,fontWeight:900,color:"#22C55E",letterSpacing:3}}>{game.code}</div>
+        </div>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.45)"}}>TROPHIES</div>
+          <div style={{fontSize:18,fontWeight:900,color:"#fff"}}>
+            <span style={{color:"#3B82F6"}}>{me?.name||"You"} {t[seat]||0}</span>
+            {"  \u2014  "}
+            <span style={{color:"#F87171"}}>{t[foe]||0} {them?.name||"Opponent"}</span>
+          </div>
+        </div>
+        <button onClick={leaveGame} style={{...inp, cursor:"pointer", fontSize:12, padding:"8px 14px"}}>Exit</button>
+      </div>
+
+      {err && <div style={{...panel, borderColor:"#F87171", color:"#F87171", fontSize:12, whiteSpace:"pre-line"}}>{err}</div>}
+
+      {/* waiting for opponent */}
+      {game.status === "waiting" && (
+        <div style={{...panel, textAlign:"center"}}>
+          <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>Waiting for an opponent{"…"}</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginTop:6}}>
+            Send them the code <b style={{color:"#22C55E"}}>{game.code}</b>.
+          </div>
+        </div>
+      )}
+
+      {/* choose first player + direction */}
+      {game.status === "setup" && !orderSet && (
+        <div style={{...panel, textAlign:"center"}}>
+          {iAmChooser ? (
+            <>
+              <div style={{fontSize:14,fontWeight:800,color:"#fff",marginBottom:4}}>
+                You were randomly selected to choose.
+              </div>
+              <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginBottom:14}}>
+                Pick who goes first and which way Battles resolve.
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:10}}>
+                {[["ltr","Left \u2192 Right"],["rtl","Right \u2192 Left"]].map(([dir,dlabel]) =>
+                  [[seat,"Me first"],[foe,"Them first"]].map(([f,flabel]) => (
+                    <button key={dir+f} onClick={()=>setOrder(f,dir)}
+                      style={{padding:"12px",borderRadius:9,border:"1px solid rgba(255,255,255,0.2)",
+                              background:"rgba(255,255,255,0.06)",color:"#fff",fontWeight:800,fontSize:12,
+                              cursor:"pointer",fontFamily:"inherit"}}>
+                      {flabel} {"\u00B7"} {dlabel}
+                    </button>
+                  ))
+                )}
+              </div>
+            </>
+          ) : (
+            <div style={{fontSize:14,fontWeight:800,color:"#fff"}}>
+              {them?.name || "Your opponent"} was randomly selected to choose turn order and direction{"…"}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* lineup placement */}
+      {game.status === "setup" && orderSet && !me?.ready && (
+        <div style={panel}>
+          <div style={{fontSize:13,fontWeight:800,color:"#fff",marginBottom:4}}>
+            Place your 7 Heroes face-down
+          </div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",marginBottom:12}}>
+            Battles resolve {game.direction === "rtl" ? "right to left" : "left to right"}.
+            {" "}Tap a Hero, then tap a Battle Zone. {(myPriv?.hand||[]).length} left to place.
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,marginBottom:14}}>
+            {Array.from({length:7}).map((_,i) => {
+              const p = myPriv?.placed?.[i];
+              return (
+                <div key={i} onClick={()=>p && unplaceHero(i)}
+                     style={{cursor:p?"pointer":"default"}}>
+                  <div style={{fontSize:9,color:"rgba(255,255,255,0.4)",textAlign:"center",marginBottom:3}}>
+                    ZONE {i+1}
+                  </div>
+                  {p ? heroCard(p) : (
+                    <div style={{width:"100%",aspectRatio:"5/7",borderRadius:8,
+                                 border:"2px dashed rgba(255,255,255,0.22)",display:"flex",
+                                 alignItems:"center",justifyContent:"center",
+                                 color:"rgba(255,255,255,0.3)",fontSize:20}}>+</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.55)",marginBottom:6}}>YOUR HAND</div>
+          <div style={{display:"grid",gridTemplateColumns:`repeat(${isMobile?4:7},1fr)`,gap:6,marginBottom:14}}>
+            {(myPriv?.hand||[]).map((c,i) => (
+              <div key={c.id+i} onClick={()=>{
+                const openZone = (myPriv?.placed||[]).findIndex(x => !x);
+                if (openZone >= 0) placeHero(openZone, i);
+              }} style={{cursor:"pointer"}}>{heroCard(c)}</div>
+            ))}
+          </div>
+          <button onClick={confirmLineup}
+            disabled={(myPriv?.placed||[]).filter(Boolean).length !== 7}
+            style={{width:"100%",padding:"12px",borderRadius:9,border:"none",
+                    background:(myPriv?.placed||[]).filter(Boolean).length===7?"#22C55E":"#333",
+                    color:"#000",fontWeight:900,fontSize:14,
+                    cursor:(myPriv?.placed||[]).filter(Boolean).length===7?"pointer":"not-allowed",
+                    fontFamily:"inherit"}}>
+            Lock In Lineup
+          </button>
+        </div>
+      )}
+
+      {game.status === "setup" && orderSet && me?.ready && (
+        <div style={{...panel, textAlign:"center", fontSize:14, fontWeight:800, color:"#fff"}}>
+          Lineup locked. Waiting for {them?.name || "your opponent"}{"…"}
+        </div>
+      )}
+
+      {/* THE ARENA */}
+      {(game.status === "playing" || game.status === "finished") && (
+        <div style={panel}>
+          <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.5)",textAlign:"center",marginBottom:10,letterSpacing:2}}>
+            {them?.name || "OPPONENT"}
+          </div>
+          {/* opponent row */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,marginBottom:8}}>
+            {Array.from({length:7}).map((_,i) => {
+              const c = zones[i]?.[foe];
+              return <div key={i}>{c ? heroCard(c, zones[i]?.winner && zones[i].winner !== foe) : cardBack("FACE\nDOWN")}</div>;
+            })}
+          </div>
+
+          {/* zone strip */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,margin:"10px 0"}}>
+            {Array.from({length:7}).map((_,i) => {
+              const z = zones[i] || {};
+              const active = i === zi && game.status === "playing";
+              const settled = !!(z.p1 && z.p2);
+              const label = !settled ? `${i+1}`
+                          : z.winner === seat ? "WON"
+                          : z.winner === foe  ? "LOST" : "DRAW";
+              const color = !settled ? "rgba(255,255,255,0.3)"
+                          : z.winner === seat ? "#22C55E"
+                          : z.winner === foe  ? "#F87171" : "#FBBF24";
+              return (
+                <div key={i} style={{
+                  textAlign:"center", padding:"6px 2px", borderRadius:7, fontSize:10, fontWeight:900,
+                  color, letterSpacing:0.5,
+                  background: active ? "rgba(34,197,94,0.16)" : "rgba(255,255,255,0.04)",
+                  border: active ? "2px solid #22C55E" : "1px solid rgba(255,255,255,0.08)",
+                }}>{label}</div>
+              );
+            })}
+          </div>
+
+          {/* my row */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,marginTop:8}}>
+            {Array.from({length:7}).map((_,i) => {
+              const revealed = zones[i]?.[seat];
+              const mine     = myPriv?.placed?.[i];
+              if (revealed) return <div key={i}>{heroCard(revealed, zones[i]?.winner && zones[i].winner !== seat)}</div>;
+              // My own face-down cards are visible to ME only — I placed them.
+              return <div key={i} style={{opacity:0.5}}>{mine ? heroCard(mine) : cardBack("EMPTY")}</div>;
+            })}
+          </div>
+          <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.5)",textAlign:"center",marginTop:10,letterSpacing:2}}>
+            {me?.name || "YOU"}
+          </div>
+        </div>
+      )}
+
+      {/* battle controls */}
+      {game.status === "playing" && (
+        <div style={{...panel, textAlign:"center"}}>
+          {!zones[zi]?.[seat] ? (
+            <>
+              <div style={{fontSize:14,fontWeight:800,color:"#fff",marginBottom:10}}>
+                Battle {zi+1} {"\u2014"} reveal your Hero
+              </div>
+              <button onClick={revealMine}
+                style={{padding:"14px 40px",borderRadius:9,border:"none",background:"#22C55E",
+                        color:"#000",fontWeight:900,fontSize:15,cursor:"pointer",fontFamily:"inherit"}}>
+                REVEAL
+              </button>
+            </>
+          ) : !zones[zi]?.[foe] ? (
+            <div style={{fontSize:14,fontWeight:800,color:"#fff"}}>
+              Revealed. Waiting for {them?.name || "opponent"}{"…"}
+            </div>
+          ) : (
+            <>
+              <div style={{fontSize:16,fontWeight:900,marginBottom:10,
+                           color: zones[zi].winner === seat ? "#22C55E"
+                                : zones[zi].winner === foe  ? "#F87171" : "#FBBF24"}}>
+                {zones[zi].winner === seat ? "You win this battle!"
+                 : zones[zi].winner === foe ? "Opponent takes this one."
+                 : "Draw \u2014 no trophy."}
+                <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.6)",marginTop:4}}>
+                  {zones[zi][seat].hero} ({zones[zi][seat].power}) vs {zones[zi][foe].hero} ({zones[zi][foe].power})
+                </div>
+              </div>
+              <button onClick={nextBattle}
+                style={{padding:"12px 34px",borderRadius:9,border:"none",background:"#3B82F6",
+                        color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>
+                {(game.direction==="rtl" ? zi-1 < 0 : zi+1 > 6) ? "Finish Game" : "Next Battle"}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* finished */}
+      {game.status === "finished" && (
+        <div style={{...panel, textAlign:"center"}}>
+          <div style={{fontSize:26,fontWeight:900,
+                       color: game.result === seat ? "#22C55E" : game.result === "tie" ? "#FBBF24" : "#F87171"}}>
+            {game.result === seat ? "VICTORY" : game.result === "tie" ? "TIE GAME" : "DEFEAT"}
+          </div>
+          <div style={{fontSize:13,color:"rgba(255,255,255,0.6)",marginTop:6}}>
+            {t[seat]||0} {"\u2014"} {t[foe]||0} on trophies
+          </div>
+          {game.result === "tie" && (
+            <div style={{marginTop:16}}>
+              <div style={{fontSize:12,color:"rgba(255,255,255,0.6)",marginBottom:8}}>
+                Sudden Death {"\u2014"} flip the top of your Hero Deck.
+              </div>
+              {game.sudden?.[seat]
+                ? <div style={{fontSize:12,color:"#fff"}}>
+                    You flipped <b>{game.sudden[seat].hero}</b> ({game.sudden[seat].power}).
+                    {game.sudden[foe] ? "" : " Waiting\u2026"}
+                  </div>
+                : <button onClick={suddenDeath}
+                    style={{padding:"12px 30px",borderRadius:9,border:"none",background:"#FBBF24",
+                            color:"#000",fontWeight:900,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>
+                    Flip Top Card
+                  </button>}
+            </div>
+          )}
+          <button onClick={leaveGame}
+            style={{marginTop:18,padding:"10px 28px",borderRadius:9,border:"1px solid rgba(255,255,255,0.25)",
+                    background:"transparent",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
+            Back to Lobby
+          </button>
+        </div>
+      )}
+
+      {/* battle log */}
+      {(game.log||[]).length > 0 && (
+        <div style={panel}>
+          <div style={{fontSize:12,fontWeight:800,color:"rgba(255,255,255,0.55)",marginBottom:8}}>BATTLE LOG</div>
+          {(game.log||[]).map((l,i) => (
+            <div key={i} style={{fontSize:11,color:"rgba(255,255,255,0.7)",padding:"4px 0",
+                                 borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+              <b>Zone {l.zone+1}:</b> {l.p1} ({l.p1p}) vs {l.p2} ({l.p2p}) {"\u2014 "}
+              <span style={{color: l.winner ? (l.winner===seat?"#22C55E":"#F87171") : "#FBBF24", fontWeight:800}}>
+                {l.winner ? `${game[l.winner]?.name||l.winner} wins` : "draw"}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, lots=[], foilDogs=0, setFoilDogs=()=>{}, kidGroups=[], kidOfCopy=null, otherDeckUse={}, proxyCards={}, onToggleProxy=null, proxyNote=null, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
@@ -32738,7 +33475,7 @@ See you in there!
   const UI_STATE_KEY = "bazooka_vault_ui_v1";
   const loadUI = () => { try { return JSON.parse(sessionStorage.getItem(UI_STATE_KEY)||"{}"); } catch(e) { return {}; } };
   const savedUI = (typeof window !== "undefined") ? loadUI() : {};
-  const VALID_TABS = ["cards","rainbow","supers","1of1","bojax34","wants","tradebait","intransit","deck","playbook","market","messages","friends","team","ledger","leaderboard"];
+  const VALID_TABS = ["cards","rainbow","supers","1of1","bojax34","wants","tradebait","intransit","deck","playbook","arena","market","messages","friends","team","ledger","leaderboard"];
   const [activeTab,     setActiveTab]     = useState(()=>{ if(swancity) return "supers"; const p=(window.location.pathname||"").toLowerCase(); const PATH_TO_TAB={ "/cards":"cards","/rainbow":"rainbow","/supers":"supers","/1of1":"1of1","/34":"bojax34","/wants":"wants","/tradebait":"tradebait","/market":"market","/messages":"messages","/friends":"friends","/team":"team","/ledger":"ledger","/leaderboard":"leaderboard" }; if(PATH_TO_TAB[p]) return PATH_TO_TAB[p]; const h=(window.location.hash||"").replace("#","").trim(); if(VALID_TABS.includes(h)) return h; if(savedUI.activeTab && VALID_TABS.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
   const [headerLoaded,  setHeaderLoaded]  = useState(false);
   const [windowWidth,   setWindowWidth]   = useState(window.innerWidth);
@@ -42370,6 +43107,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             {navGroup("play","Deck Builder",[
               {id:"deck",label:"⚔️ Hero Deck",badge:0},
               {id:"playbook",label:"📖 Playbook",badge:0},
+              ...(_cardAdmin?[{id:"arena",label:"🏟️ Arena",badge:0}]:[]),
               ...(user?[{id:"team",label:"🏆 Team",badge:0}]:[]),
             ])}
             {/* The badge used to count ONLY unread notifications, so once you dismissed the
@@ -42697,6 +43435,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 { section:"Deck Builder" },
                 { id:"deck", label:"\u2694\uFE0F Hero Deck", badge:0 },
                 { id:"playbook", label:"\uD83D\uDCD6 Playbook", badge:0 },
+                ...(_cardAdmin?[{ id:"arena", label:"\uD83C\uDFDF\uFE0F Arena", badge:0 }]:[]),
                 ...(user?[{ id:"team", label:"\uD83C\uDFC6 Team", badge:0 }]:[]),
                 { section:"More" },
                 { id:"market", label:"\uD83E\uDD1D Marketplace", badge:marketBadge },
@@ -44770,6 +45509,21 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             pbName={pbName} setPbName={setPbName} setPbCards={setPbCards}
             savedPlaybooks={savedPlaybooks} pbSaving={pbSaving} pbSaved={pbSaved} pbLoadId={pbLoadId}
             savePbTab={savePbTab} deletePbTab={deletePbTab} loadPbTab={loadPbTab} newPbTab={newPbTab} setFanDeck={setFanDeck} setFanMode={setFanMode}
+          />
+        )}
+
+        {/* ARENA TAB -- admin only. The _cardAdmin check here is the real gate;
+            hiding the nav button alone would not stop someone typing #arena. */}
+        {activeTab==="arena" && _cardAdmin && (
+          <ArenaTab
+            user={user}
+            cards={cards}
+            savedDecks={savedDecks}
+            WEAPON_COLORS={WEAPON_COLORS}
+            canonWeapon={canonWeapon}
+            isMobile={isMobile}
+            setToast={setToast}
+            inp={inp}
           />
         )}
 
