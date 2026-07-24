@@ -28875,8 +28875,400 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
 // the public doc. That copy is the reveal.
 // ============================================================================
 
+// ============================================================================
+// WEAPON STRIKE ANIMATIONS
+//
+// Purely cosmetic. The winner's weapon type attacks the loser's card. Nothing
+// here touches game state — if every animation failed to render, the game would
+// play identically.
+//
+// Two layers, because the card is `overflow:hidden` with a rectangular image:
+//   - ON-CARD effects (frost, gum, glitch, scanlines) render INSIDE the loser's
+//     card, clipped to it.
+//   - PROJECTILES (flames, gloves, hex bolts) render in an absolutely-positioned
+//     overlay ABOVE the whole board so they can travel between rows.
+//
+// Direction matters: my row is below the zone strip, the opponent's above, so a
+// strike travels "up" or "down" depending on who won.
+// ============================================================================
+
+const ARENA_FX_CSS = `
+@keyframes bzShake {
+  0%,100%{transform:translate(0,0)} 15%{transform:translate(-3px,2px)}
+  30%{transform:translate(3px,-2px)} 45%{transform:translate(-2px,-2px)}
+  60%{transform:translate(2px,2px)} 80%{transform:translate(-1px,1px)}
+}
+@keyframes bzFlyUp {
+  0%{transform:translate(-50%,40px) scale(0.5);opacity:0}
+  18%{opacity:1}
+  100%{transform:translate(-50%,-110px) scale(1.25);opacity:0}
+}
+@keyframes bzFlyDown {
+  0%{transform:translate(-50%,-40px) scale(0.5);opacity:0}
+  18%{opacity:1}
+  100%{transform:translate(-50%,110px) scale(1.25);opacity:0}
+}
+@keyframes bzFadeBurst {
+  0%{opacity:0;transform:scale(0.4)}
+  25%{opacity:1;transform:scale(1.05)}
+  100%{opacity:0;transform:scale(1.4)}
+}
+@keyframes bzFrost {
+  0%{opacity:0;backdrop-filter:blur(0px)}
+  35%{opacity:1}
+  100%{opacity:0.92}
+}
+@keyframes bzDrip {
+  0%{transform:translateY(-14px);opacity:0}
+  30%{opacity:1}
+  100%{transform:translateY(0);opacity:1}
+}
+@keyframes bzGlitch {
+  0%,100%{transform:translate(0);filter:none}
+  20%{transform:translate(-5px,1px);filter:hue-rotate(90deg)}
+  40%{transform:translate(4px,-2px);filter:hue-rotate(-70deg)}
+  60%{transform:translate(-3px,-1px);filter:invert(0.35)}
+  80%{transform:translate(3px,2px);filter:hue-rotate(140deg)}
+}
+@keyframes bzScan {
+  0%{top:-12%;opacity:0} 12%{opacity:1} 88%{opacity:1} 100%{top:104%;opacity:0}
+}
+@keyframes bzRing {
+  0%{transform:translate(-50%,-50%) scale(0.15);opacity:0.95;border-width:8px}
+  100%{transform:translate(-50%,-50%) scale(3.6);opacity:0;border-width:1px}
+}
+@keyframes bzBloom {
+  0%{opacity:0} 30%{opacity:1} 100%{opacity:0}
+}
+@keyframes bzSpin {
+  0%{transform:translate(-50%,-50%) rotate(0deg) scale(0.4);opacity:0}
+  20%{opacity:1}
+  100%{transform:translate(-50%,-50%) rotate(420deg) scale(1.5);opacity:0}
+}
+@keyframes bzCrack {
+  0%{opacity:0;transform:scale(0.7)} 30%{opacity:1;transform:scale(1)} 100%{opacity:0.85;transform:scale(1)}
+}
+@keyframes bzFlash {
+  0%{opacity:0} 10%{opacity:0.9} 100%{opacity:0}
+}
+.bz-fx-layer{position:absolute;inset:0;pointer-events:none;z-index:40;overflow:visible;}
+.bz-oncard{position:absolute;inset:0;pointer-events:none;z-index:5;}
+`;
+
+// ---- ON-CARD EFFECT -------------------------------------------------------
+// Rendered INSIDE the losing card, so it's clipped to the card bounds.
+// `w` is the WINNER's weapon — the attack landing on this card.
+function ArenaOnCardFx({ w }) {
+  if (!w) return null;
+  const base = { position:"absolute", inset:0, pointerEvents:"none", zIndex:5 };
+
+  if (w === "Ice") {
+    // Frost creeps over the card and stays — the card is frozen.
+    return (
+      <div style={base}>
+        <div style={{position:"absolute",inset:0,animation:"bzFrost 700ms ease-out forwards",
+          background:"linear-gradient(160deg,rgba(191,232,255,0.72),rgba(120,190,240,0.35) 45%,rgba(230,248,255,0.66))",
+          boxShadow:"inset 0 0 26px rgba(255,255,255,0.9)"}}/>
+        <svg viewBox="0 0 50 70" preserveAspectRatio="none"
+             style={{position:"absolute",inset:0,width:"100%",height:"100%",
+                     animation:"bzCrack 700ms ease-out forwards",opacity:0}}>
+          <g stroke="#fff" strokeWidth="0.7" fill="none" opacity="0.95">
+            <path d="M25 0 L25 26 L14 40 M25 26 L37 41 M25 40 L25 70"/>
+            <path d="M0 22 L16 30 M50 20 L34 29"/>
+            <path d="M6 62 L18 48 M44 60 L33 49"/>
+          </g>
+        </svg>
+      </div>
+    );
+  }
+
+  if (w === "Gum") {
+    // Sticky pink splat with drips running down.
+    return (
+      <div style={base}>
+        <div style={{position:"absolute",inset:0,animation:"bzFadeBurst 620ms ease-out forwards",
+          background:"radial-gradient(circle at 50% 42%,rgba(255,105,180,0.92) 0%,rgba(255,105,180,0.75) 34%,rgba(255,105,180,0) 62%)"}}/>
+        <div style={{position:"absolute",inset:0,animation:"bzDrip 800ms ease-out forwards"}}>
+          {[18,38,58,78].map((x,i)=>(
+            <div key={i} style={{position:"absolute",left:x+"%",top:"34%",width:7,
+              height:16+(i%2)*13,borderRadius:"0 0 60% 60%",background:"rgba(255,105,180,0.9)",
+              boxShadow:"0 0 8px rgba(255,105,180,0.7)"}}/>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (w === "Alt") {
+    // Reality glitch — the card displaces and colour-shifts.
+    return (
+      <div style={{...base, animation:"bzGlitch 620ms steps(2,end) 2",
+        mixBlendMode:"screen", background:"rgba(255,0,110,0.16)"}}/>
+    );
+  }
+
+  if (w === "Cyber") {
+    // Digital lock-on: scanline sweep plus a targeting frame.
+    return (
+      <div style={base}>
+        <div style={{position:"absolute",left:0,right:0,height:"14%",
+          animation:"bzScan 900ms linear forwards",
+          background:"linear-gradient(180deg,rgba(0,255,200,0) 0%,rgba(0,255,200,0.85) 50%,rgba(0,255,200,0) 100%)",
+          boxShadow:"0 0 18px rgba(0,255,200,0.9)"}}/>
+        <div style={{position:"absolute",inset:"12%",border:"1.5px solid rgba(0,255,200,0.85)",
+          animation:"bzBloom 900ms ease-out forwards"}}/>
+        <div style={{position:"absolute",inset:0,opacity:0.35,
+          background:"repeating-linear-gradient(0deg,rgba(0,255,200,0.16) 0 1px,transparent 1px 4px)",
+          animation:"bzBloom 900ms ease-out forwards"}}/>
+      </div>
+    );
+  }
+
+  if (w === "Glow") {
+    // Radiance washes the card out.
+    return (
+      <div style={{...base, animation:"bzBloom 780ms ease-out forwards",
+        background:"radial-gradient(circle at 50% 50%,rgba(255,255,255,0.96) 0%,rgba(255,240,150,0.72) 35%,rgba(255,215,0,0) 72%)",
+        boxShadow:"inset 0 0 40px rgba(255,240,160,0.95)"}}/>
+    );
+  }
+
+  if (w === "Hex") {
+    // Purple hex warp, matching the treatment on the cards.
+    return (
+      <div style={base}>
+        <div style={{position:"absolute",inset:0,animation:"bzBloom 820ms ease-out forwards",
+          background:"radial-gradient(circle at 50% 50%,rgba(168,85,247,0.85),rgba(88,28,135,0.55) 55%,rgba(88,28,135,0) 78%)",
+          mixBlendMode:"screen"}}/>
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none"
+             style={{position:"absolute",inset:0,width:"100%",height:"100%",
+                     animation:"bzSpin 820ms ease-out forwards",transformOrigin:"50% 50%"}}>
+          <polygon points="50,8 88,29 88,71 50,92 12,71 12,29" fill="none"
+                   stroke="#D8B4FE" strokeWidth="2.5" opacity="0.95"/>
+          <polygon points="50,24 74,38 74,62 50,76 26,62 26,38" fill="none"
+                   stroke="#F0ABFC" strokeWidth="1.6" opacity="0.8"/>
+        </svg>
+      </div>
+    );
+  }
+
+  if (w === "Steel") {
+    // Blade slash — a hard diagonal cut with a metal sheen.
+    return (
+      <div style={base}>
+        <div style={{position:"absolute",inset:"-30%",animation:"bzFadeBurst 520ms ease-out forwards",
+          background:"linear-gradient(115deg,transparent 42%,rgba(255,255,255,0.98) 49%,rgba(203,213,225,0.9) 51%,transparent 58%)"}}/>
+        <svg viewBox="0 0 50 70" preserveAspectRatio="none"
+             style={{position:"absolute",inset:0,width:"100%",height:"100%",
+                     animation:"bzCrack 640ms ease-out forwards",opacity:0}}>
+          <path d="M2 60 L48 12" stroke="#E2E8F0" strokeWidth="2.2" fill="none" opacity="0.95"/>
+          <path d="M8 66 L44 20" stroke="#94A3B8" strokeWidth="1.1" fill="none" opacity="0.7"/>
+        </svg>
+      </div>
+    );
+  }
+
+  if (w === "Fire") {
+    // Scorch left behind after the flames land.
+    return (
+      <div style={{...base, animation:"bzFadeBurst 700ms ease-out forwards",
+        background:"radial-gradient(circle at 50% 60%,rgba(255,140,0,0.9) 0%,rgba(220,38,38,0.6) 38%,rgba(80,10,0,0) 70%)",
+        mixBlendMode:"screen"}}/>
+    );
+  }
+
+  if (w === "Brawl") {
+    // Impact bruise where the glove connected.
+    return (
+      <div style={{...base, animation:"bzFadeBurst 560ms ease-out forwards",
+        background:"radial-gradient(circle at 50% 50%,rgba(255,255,255,0.9) 0%,rgba(248,113,113,0.6) 30%,rgba(0,0,0,0) 62%)"}}/>
+    );
+  }
+
+  if (w === "Medal") {
+    // Gold medal shine — a sweeping metallic gleam.
+    return (
+      <div style={{...base, animation:"bzFadeBurst 640ms ease-out forwards",
+        background:"linear-gradient(120deg,transparent 35%,rgba(255,215,0,0.95) 48%,rgba(255,248,200,0.9) 52%,transparent 66%)"}}/>
+    );
+  }
+
+  if (w === "Metallic") {
+    // Chrome ripple.
+    return (
+      <div style={{...base, animation:"bzFadeBurst 640ms ease-out forwards",
+        background:"linear-gradient(100deg,rgba(148,163,184,0) 30%,rgba(226,232,240,0.95) 47%,rgba(100,116,139,0.85) 55%,rgba(148,163,184,0) 70%)"}}/>
+    );
+  }
+
+  if (w === "Super") {
+    // Full white-out — the rarest weapon should feel like the biggest hit.
+    return (
+      <div style={base}>
+        <div style={{position:"absolute",inset:0,animation:"bzFlash 900ms ease-out forwards",
+          background:"#fff"}}/>
+        <div style={{position:"absolute",inset:0,animation:"bzBloom 900ms ease-out forwards",
+          background:"radial-gradient(circle at 50% 50%,rgba(255,215,0,0.9),rgba(255,60,0,0.5) 50%,transparent 76%)",
+          mixBlendMode:"screen"}}/>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+// ---- PROJECTILE OVERLAY ---------------------------------------------------
+// Sits above the whole board so a strike can travel between rows.
+// `up` = travelling toward the opponent's row (I won).
+function ArenaProjectile({ w, up }) {
+  if (!w) return null;
+  const fly = up ? "bzFlyUp" : "bzFlyDown";
+  const wrap = { position:"absolute", left:"50%", top:"50%", pointerEvents:"none" };
+
+  if (w === "Fire") {
+    return (
+      <div style={wrap}>
+        {[0,1,2].map(i=>(
+          <div key={i} style={{position:"absolute",left:(i-1)*17,fontSize:30,
+            animation:`${fly} 760ms ease-out ${i*80}ms forwards`,
+            filter:"drop-shadow(0 0 12px rgba(255,120,0,0.95))"}}>🔥</div>
+        ))}
+      </div>
+    );
+  }
+  if (w === "Brawl") {
+    return (
+      <div style={wrap}>
+        <div style={{position:"absolute",fontSize:34,
+          animation:`${fly} 620ms cubic-bezier(.2,.8,.3,1) forwards`,
+          filter:"drop-shadow(0 0 10px rgba(248,113,113,0.9))"}}>🥊</div>
+      </div>
+    );
+  }
+  if (w === "Hex") {
+    return (
+      <div style={wrap}>
+        {[0,1].map(i=>(
+          <div key={i} style={{position:"absolute",left:(i?18:-18),width:22,height:22,
+            animation:`${fly} 780ms ease-out ${i*110}ms forwards`,
+            background:"conic-gradient(from 0deg,#A855F7,#F0ABFC,#6D28D9,#A855F7)",
+            clipPath:"polygon(50% 0%,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%)",
+            boxShadow:"0 0 16px rgba(168,85,247,0.95)"}}/>
+        ))}
+      </div>
+    );
+  }
+  if (w === "Gum") {
+    return (
+      <div style={wrap}>
+        <div style={{position:"absolute",width:26,height:26,borderRadius:"50%",
+          animation:`${fly} 700ms ease-in forwards`,
+          background:"radial-gradient(circle at 35% 30%,#FFB6D9,#FF69B4 60%,#DB2777)",
+          boxShadow:"0 0 14px rgba(255,105,180,0.9)"}}/>
+      </div>
+    );
+  }
+  if (w === "Steel") {
+    return (
+      <div style={wrap}>
+        <div style={{position:"absolute",width:5,height:52,borderRadius:3,
+          animation:`${fly} 520ms cubic-bezier(.3,.9,.2,1) forwards`,
+          background:"linear-gradient(180deg,#F8FAFC,#94A3B8,#475569)",
+          boxShadow:"0 0 16px rgba(226,232,240,0.95)"}}/>
+      </div>
+    );
+  }
+  if (w === "Ice") {
+    return (
+      <div style={wrap}>
+        {[0,1,2].map(i=>(
+          <div key={i} style={{position:"absolute",left:(i-1)*16,fontSize:24,
+            animation:`${fly} 740ms ease-out ${i*70}ms forwards`,
+            filter:"drop-shadow(0 0 10px rgba(147,220,255,0.95))"}}>❄️</div>
+        ))}
+      </div>
+    );
+  }
+  if (w === "Glow") {
+    return (
+      <div style={wrap}>
+        <div style={{position:"absolute",width:30,height:30,borderRadius:"50%",
+          animation:`${fly} 700ms ease-out forwards`,
+          background:"radial-gradient(circle,#fff,#FDE68A 55%,rgba(253,224,71,0))",
+          boxShadow:"0 0 30px rgba(255,240,150,1)"}}/>
+      </div>
+    );
+  }
+  if (w === "Cyber") {
+    return (
+      <div style={wrap}>
+        {[0,1,2].map(i=>(
+          <div key={i} style={{position:"absolute",left:(i-1)*12,width:3,height:26,
+            animation:`${fly} 560ms linear ${i*60}ms forwards`,
+            background:"linear-gradient(180deg,rgba(0,255,200,0),#00FFC8)",
+            boxShadow:"0 0 12px rgba(0,255,200,0.95)"}}/>
+        ))}
+      </div>
+    );
+  }
+  if (w === "Alt") {
+    return (
+      <div style={wrap}>
+        {[0,1].map(i=>(
+          <div key={i} style={{position:"absolute",left:(i?10:-10),width:20,height:20,
+            animation:`${fly} 660ms steps(6,end) ${i*90}ms forwards`,
+            background: i? "rgba(255,0,110,0.85)" : "rgba(0,229,255,0.85)",
+            mixBlendMode:"screen"}}/>
+        ))}
+      </div>
+    );
+  }
+  if (w === "Medal" || w === "Metallic") {
+    const gold = w === "Medal";
+    return (
+      <div style={wrap}>
+        <div style={{position:"absolute",width:24,height:24,borderRadius:"50%",
+          animation:`${fly} 660ms ease-out forwards`,
+          background: gold
+            ? "radial-gradient(circle at 35% 30%,#FFF7C2,#FFD700 55%,#B8860B)"
+            : "radial-gradient(circle at 35% 30%,#F8FAFC,#94A3B8 55%,#475569)",
+          boxShadow: gold ? "0 0 16px rgba(255,215,0,0.95)" : "0 0 16px rgba(226,232,240,0.9)"}}/>
+      </div>
+    );
+  }
+  if (w === "Super") {
+    // Expanding shockwave rings rather than a travelling object — it hits everything.
+    return (
+      <div style={wrap}>
+        {[0,1,2].map(i=>(
+          <div key={i} style={{position:"absolute",left:0,top:0,width:60,height:60,
+            borderRadius:"50%",border:"8px solid #FFD700",
+            transform:"translate(-50%,-50%)",
+            animation:`bzRing 900ms ease-out ${i*150}ms forwards`,
+            boxShadow:"0 0 30px rgba(255,215,0,0.95)"}}/>
+        ))}
+      </div>
+    );
+  }
+  return null;
+}
+
 function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobile, setToast, inp }) {
   const [gameId,    setGameId]    = React.useState(null);
+  // CPU games run ENTIRELY in local state, never in Firestore. Two reasons:
+  // the CPU has no uid to own a private doc, and more importantly its lineup
+  // would have to live somewhere this browser can read — which means devtools
+  // can read it too. Keeping it local makes that limitation honest rather than
+  // pretending to a secrecy the architecture can't provide. CPU games are
+  // practice: they don't persist and don't appear in the recent-games list.
+  const [cpu,       setCpu]       = React.useState(null);   // local mirror of `game`
+  const [cpuPriv,   setCpuPriv]   = React.useState(null);   // my private doc, local
+  const [cpuHidden, setCpuHidden] = React.useState(null);   // CPU's face-down lineup
+  const [cpuLevel,  setCpuLevel]  = React.useState("even");
+  // Active weapon strike: { zone, weapon, up, key }. Purely cosmetic — cleared on
+  // a timer. `key` forces a remount so replaying the same weapon restarts the
+  // animation instead of React reusing the finished one.
+  const [fx,        setFx]        = React.useState(null);
   const [game,      setGame]      = React.useState(null);   // public doc
   const [myPriv,    setMyPriv]    = React.useState(null);   // my private doc
   const [joinCode,  setJoinCode]  = React.useState("");
@@ -28887,6 +29279,48 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
 
   const uid = user?.uid;
   const myName = user?.displayName || user?.email?.split("@")[0] || "Player";
+
+  // Keyframes live in a single injected <style>. Injected once per mount rather
+  // than shipped in a CSS file because this component is self-contained.
+  React.useEffect(() => {
+    if (document.getElementById("bz-arena-fx")) return;
+    const el = document.createElement("style");
+    el.id = "bz-arena-fx";
+    el.textContent = ARENA_FX_CSS;
+    document.head.appendChild(el);
+  }, []);
+
+  // In a LIVE game only the player who pushed the final reveal runs the settle
+  // code — the opponent just receives a Firestore update. So BOTH browsers watch
+  // for a zone becoming settled and fire the strike locally. Direction is computed
+  // from each viewer's own seat, so the two screens show mirrored animations.
+  const lastFxZone = React.useRef(null);
+  React.useEffect(() => {
+    if (isCpu || !G) return;                    // CPU path triggers directly
+    const zs = G.zones || [];
+    const zi2 = G.zoneIndex;
+    const z = zs[zi2];
+    if (!z || !z.p1 || !z.p2) return;           // both cards not up yet
+    // Wait for the settled result before claiming this zone. `winner` lives inside
+    // `zones` while `trophies` is a sibling field, so a snapshot COULD in principle
+    // arrive with both heroes present but no winner yet. Marking the zone handled
+    // at that point would swallow the animation for this player entirely — so the
+    // "already played" stamp is only written once there's a real result to show.
+    if (!("winner" in z)) return;
+    const stamp = `${G.gameNumber||1}:${zi2}`;
+    if (lastFxZone.current === stamp) return;   // already played this one
+    lastFxZone.current = stamp;
+    if (!z.winner) return;                      // draw — nobody struck
+    const w = z[z.winner]?.weapon;
+    if (w) setFx({ zone: zi2, weapon: w, up: z.winner === seat, key: Date.now() });
+  }, [G, isCpu, seat]);
+
+  // Clear a strike after it plays out. Longest animation is ~900ms.
+  React.useEffect(() => {
+    if (!fx) return;
+    const t = setTimeout(() => setFx(null), 1100);
+    return () => clearTimeout(t);
+  }, [fx]);
 
   // ---- card lookup -------------------------------------------------------
   const cardById = React.useMemo(() => {
@@ -28986,10 +29420,16 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   }, [gameId, uid]);
 
   // ---- seat helpers ------------------------------------------------------
-  const seat  = !game ? null : (game.p1?.uid === uid ? "p1" : game.p2?.uid === uid ? "p2" : null);
+  // A CPU game substitutes local state for the two Firestore docs. Everything
+  // downstream — board render, battle logic, match scoring — reads these two
+  // names, so aliasing here is what lets one code path serve both modes.
+  const isCpu   = !!cpu;
+  const G       = isCpu ? cpu     : game;
+  const P       = isCpu ? cpuPriv : myPriv;
+  const seat  = !G ? null : (G.p1?.uid === uid ? "p1" : G.p2?.uid === uid ? "p2" : null);
   const foe   = seat === "p1" ? "p2" : "p1";
-  const me    = seat ? game[seat] : null;
-  const them  = seat ? game[foe]  : null;
+  const me    = seat ? G[seat] : null;
+  const them  = seat ? G[foe]  : null;
 
   // ---- create ------------------------------------------------------------
   async function createGame() {
@@ -29014,6 +29454,9 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
         zoneIndex: 0,
         zones: Array.from({length:7}, () => ({ p1: null, p2: null, winner: null })),
         trophies: { p1: 0, p2: 0 },
+        // Match-level score across a best-of-3. Individual games reset; this doesn't.
+        matchWins: { p1: 0, p2: 0 },
+        gameNumber: 1,
         log: [],
         createdAt: new Date().toISOString(),
       });
@@ -29077,41 +29520,47 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
 
   // ---- chooser sets first player + direction (§4.1.1) --------------------
   async function setOrder(first, direction) {
-    await updateDoc(doc(db, "boba_games", gameId), {
-      first, direction,
-      zoneIndex: direction === "rtl" ? 6 : 0,
-    });
+    const patch = { first, direction, zoneIndex: direction === "rtl" ? 6 : 0 };
+    if (isCpu) { setCpu(g => ({...g, ...patch})); return; }
+    await updateDoc(doc(db, "boba_games", gameId), patch);
   }
 
   // ---- placing heroes face-down -----------------------------------------
   // Placement writes to MY private doc. The public doc only learns that I'm
   // ready, never what I placed.
   async function placeHero(zoneIdx, handIdx) {
-    if (!myPriv) return;
-    const placed = (myPriv.placed || []).slice();
-    const hand   = (myPriv.hand   || []).slice();
+    if (!P) return;
+    const placed = (P.placed || []).slice();
+    const hand   = (P.hand   || []).slice();
     const card   = hand[handIdx];
     if (!card || placed[zoneIdx]) return;
     placed[zoneIdx] = card;
     hand.splice(handIdx, 1);
+    if (isCpu) { setCpuPriv(p => ({...p, placed, hand})); return; }
     await updateDoc(doc(db, "boba_games", gameId, "private", uid), { placed, hand });
   }
 
   async function unplaceHero(zoneIdx) {
-    if (!myPriv) return;
-    const placed = (myPriv.placed || []).slice();
-    const hand   = (myPriv.hand   || []).slice();
+    if (!P) return;
+    const placed = (P.placed || []).slice();
+    const hand   = (P.hand   || []).slice();
     const card   = placed[zoneIdx];
     if (!card) return;
     placed[zoneIdx] = null;
     hand.push(card);
+    if (isCpu) { setCpuPriv(p => ({...p, placed, hand})); return; }
     await updateDoc(doc(db, "boba_games", gameId, "private", uid), { placed, hand });
   }
 
   async function confirmLineup() {
-    const placed = myPriv?.placed || [];
+    const placed = P?.placed || [];
     if (placed.filter(Boolean).length !== 7) { setErr("Place all 7 Heroes first."); return; }
     setErr(null);
+    // The CPU is always ready, so locking in your lineup starts the game outright.
+    if (isCpu) {
+      setCpu(g => ({...g, p1:{...g.p1, ready:true}, status: (g.first && g.direction) ? "playing" : g.status}));
+      return;
+    }
     const patch = { [`${seat}.ready`]: true };
     // Both ready -> the game is live.
     const otherReady = game?.[foe]?.ready;
@@ -29124,46 +29573,101 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   // into the public doc; the winner is computed once both are present. This
   // ordering matters: if one player could see the other's card before pushing
   // their own, the reveal wouldn't be simultaneous.
+  // Fire the winner's weapon at the loser. No-op on a draw: nobody struck.
+  // `winner` is a seat ("p1"/"p2"); `up` means the strike travels toward the
+  // opponent's row, which is only true when I'm the winner.
+  function triggerFx(zoneIdx, z, winner) {
+    if (!winner) return;
+    const w = z[winner]?.weapon;
+    if (!w) return;
+    setFx({ zone: zoneIdx, weapon: w, up: winner === seat, key: Date.now() });
+  }
+
+  // Settle a completed pair. Pulled out of revealMine so the CPU path and the
+  // live path score battles with the exact same rules — a second implementation
+  // is how the Super tiebreak would end up applying in one mode and not the other.
+  function settleZone(z, zi, prevTrophies, prevLog) {
+    const a = z.p1.power, b = z.p2.power;
+    let winner = a > b ? "p1" : b > a ? "p2" : null;
+    let bySuper = false;
+    if (!winner) {
+      const aS = z.p1.weapon === "Super", bS = z.p2.weapon === "Super";
+      if (aS && !bS)      { winner = "p1"; bySuper = true; }
+      else if (bS && !aS) { winner = "p2"; bySuper = true; }
+    }
+    const trophies = { ...(prevTrophies || {p1:0,p2:0}) };
+    if (winner) trophies[winner] = (trophies[winner]||0) + 1;
+    const log = [ ...(prevLog||[]),
+      { zone: zi, p1: z.p1.hero, p1p: a, p2: z.p2.hero, p2p: b, winner, bySuper, at: new Date().toISOString() } ];
+    return { winner, bySuper, trophies, log };
+  }
+
   async function revealMine() {
-    if (!game || !myPriv) return;
-    const zi = game.zoneIndex;
-    const zones = (game.zones || []).slice();
+    if (!G || !P) return;
+    const zi = G.zoneIndex;
+    const zones = (G.zones || []).slice();
     if (zones[zi]?.[seat]) return;                 // already revealed
-    const card = myPriv.placed?.[zi];
+    const card = P.placed?.[zi];
     if (!card) { setErr("Nothing placed in this zone."); return; }
+
+    // CPU: both cards land at once, since there's no second human to wait for.
+    if (isCpu) {
+      const cpuCard = cpuHidden?.placed?.[zi];
+      if (!cpuCard) { setErr("CPU has nothing in this zone."); return; }
+      const z2 = { ...zones[zi], [seat]: card, [foe]: cpuCard };
+      const r = settleZone(z2, zi, G.trophies, G.log);
+      zones[zi] = { ...z2, winner: r.winner, bySuper: r.bySuper };
+      setCpu(g => ({ ...g, zones, trophies: r.trophies, log: r.log }));
+      triggerFx(zi, z2, r.winner);
+      return;
+    }
 
     const z = { ...zones[zi], [seat]: card };
     zones[zi] = z;
 
     const patch = { zones };
 
-    // If that completed the pair, settle the battle.
+    // If that completed the pair, settle the battle — shared with the CPU path.
     if (z.p1 && z.p2) {
-      const a = z.p1.power, b = z.p2.power;
-      const winner = a > b ? "p1" : b > a ? "p2" : null;   // equal = draw, no trophy
-      zones[zi] = { ...z, winner };
-      const trophies = { ...(game.trophies || {p1:0,p2:0}) };
-      if (winner) trophies[winner] = (trophies[winner]||0) + 1;
-      patch.trophies = trophies;
-      patch.log = [
-        ...(game.log||[]),
-        { zone: zi, p1: z.p1.hero, p1p: a, p2: z.p2.hero, p2p: b, winner, at: new Date().toISOString() }
-      ];
+      const r = settleZone(z, zi, game.trophies, game.log);
+      zones[zi] = { ...z, winner: r.winner, bySuper: r.bySuper };
+      patch.trophies = r.trophies;
+      patch.log = r.log;
+      // NOTE: no triggerFx here — the watcher above fires it for BOTH players
+      // off the settled zone. Calling it here too would double-play for the
+      // person who happened to reveal second.
     }
     await updateDoc(doc(db, "boba_games", gameId), patch);
   }
 
   // Advance to the next zone in the established direction (§4.1.2).
   async function nextBattle() {
-    if (!game) return;
-    const step = game.direction === "rtl" ? -1 : 1;
-    const next = game.zoneIndex + step;
+    if (!G) return;
+    const step = G.direction === "rtl" ? -1 : 1;
+    const next = G.zoneIndex + step;
     const done = next < 0 || next > 6;
+    if (isCpu) {
+      if (!done) { setCpu(g => ({...g, zoneIndex: next})); return; }
+      const t2 = G.trophies || {p1:0,p2:0};
+      const res = t2.p1 > t2.p2 ? "p1" : t2.p2 > t2.p1 ? "p2" : "tie";
+      const mw2 = { ...(G.matchWins || {p1:0,p2:0}) };
+      if (res !== "tie") mw2[res] = (mw2[res]||0) + 1;
+      setCpu(g => ({...g, status:"finished", result:res, matchWins:mw2, finishedAt:new Date().toISOString()}));
+      return;
+    }
     if (done) {
       const t = game.trophies || {p1:0,p2:0};
+      const result = t.p1 > t.p2 ? "p1" : t.p2 > t.p1 ? "p2" : "tie";
+      // A BoBA match is best of 3, so finishing a GAME isn't finishing the MATCH.
+      // matchWins is the running score across games in this match; a tied game
+      // advances neither side but still counts as a game played.
+      const mw = { ...(game.matchWins || {p1:0,p2:0}) };
+      if (result !== "tie") mw[result] = (mw[result]||0) + 1;
       await updateDoc(doc(db, "boba_games", gameId), {
         status: "finished",
-        result: t.p1 > t.p2 ? "p1" : t.p2 > t.p1 ? "p2" : "tie",
+        result,
+        matchWins: mw,
+        gameNumber: game.gameNumber || 1,
         finishedAt: new Date().toISOString(),
       });
     } else {
@@ -29171,14 +29675,74 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
     }
   }
 
+  // ---- rematch -----------------------------------------------------------
+  // Both players re-stage from their ORIGINAL saved decks: full reshuffle, new 7,
+  // zones and trophies cleared. matchWins carries over — that's what makes it a
+  // best-of-3 rather than a fresh match. Either player can start it; the second
+  // one to press simply re-stages themselves against the already-reset board.
+  //
+  // The chooser is re-randomised each game rather than inherited, so going first
+  // isn't a standing advantage across the match.
+  async function playAgain() {
+    if (!game || !uid) return;
+    const myDeckId = me?.deckId;
+    const deck = (savedDecks||[]).find(d => d.id === myDeckId);
+    if (!deck) { setErr("Couldn't find the deck you played with. Exit and start a new game."); return; }
+    setBusy(true); setErr(null);
+    try {
+      // Only reset the shared board once — whoever gets there first.
+      if (game.status === "finished") {
+        await updateDoc(doc(db, "boba_games", gameId), {
+          status: "setup",
+          gameNumber: (game.gameNumber || 1) + 1,
+          chooser: Math.random() < 0.5 ? "p1" : "p2",
+          first: null, direction: null,
+          zoneIndex: 0,
+          zones: Array.from({length:7}, () => ({ p1: null, p2: null, winner: null })),
+          trophies: { p1: 0, p2: 0 },
+          sudden: {},
+          result: null,
+          log: [],
+          "p1.ready": false,
+          "p2.ready": false,
+        });
+      }
+      await stageMyDeck(gameId, deck);
+    } catch(e) {
+      console.error("rematch failed:", e);
+      setErr("Couldn't start the next game: " + (e?.message||e));
+    } finally { setBusy(false); }
+  }
+
   // ---- sudden death (§4.4.3) --------------------------------------------
   // Only reachable on a 3-3 with one draw, etc. Each player flips the top of
   // their remaining Hero Deck; higher Power wins; Super breaks a power tie.
   async function suddenDeath() {
-    if (!myPriv) return;
-    const deck = (myPriv.deck||[]).slice();
+    if (!P) return;
+    const deck = (P.deck||[]).slice();
     const top = deck.shift();
     if (!top) { setErr("Your Hero Deck is empty."); return; }
+    // CPU flips at the same time — same comparison, Super breaks a power tie.
+    if (isCpu) {
+      const cdeck = (cpuHidden?.deck||[]).slice();
+      const ctop = cdeck.shift();
+      if (!ctop) { setErr("CPU's Hero Deck is empty."); return; }
+      let w = top.power > ctop.power ? seat : ctop.power > top.power ? foe : null;
+      if (!w) {
+        const mS = top.weapon === "Super", cS = ctop.weapon === "Super";
+        if (mS && !cS) w = seat; else if (cS && !mS) w = foe;
+      }
+      setCpuPriv(p => ({...p, deck}));
+      setCpuHidden(h => ({...h, deck: cdeck}));
+      if (w) {
+        const mw = { ...(G.matchWins || {p1:0,p2:0}) };
+        mw[w] = (mw[w]||0) + 1;
+        setCpu(g => ({...g, sudden:{[seat]:top,[foe]:ctop}, result:w, status:"finished", matchWins:mw}));
+      } else {
+        setCpu(g => ({...g, sudden:{}}));   // still tied, flip again
+      }
+      return;
+    }
     await updateDoc(doc(db, "boba_games", gameId, "private", uid), { deck });
     const sd = { ...(game.sudden || {}) };
     sd[seat] = top;
@@ -29191,13 +29755,230 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
         const aS = a.weapon === "Super", bS = b.weapon === "Super";
         if (aS && !bS) w = "p1"; else if (bS && !aS) w = "p2";
       }
-      if (w) { patch.result = w; patch.status = "finished"; }
+      if (w) {
+        // Sudden Death decides the GAME, so it feeds the match score the same way
+        // a normal finish does — otherwise a game won on a flip wouldn't count
+        // toward the best-of-3.
+        const mw = { ...(game.matchWins || {p1:0,p2:0}) };
+        mw[w] = (mw[w]||0) + 1;
+        patch.result = w; patch.status = "finished"; patch.matchWins = mw;
+      }
       else   { patch.sudden = {}; }   // still tied — flip again
     }
     await updateDoc(doc(db, "boba_games", gameId), patch);
   }
 
-  async function leaveGame() { setGameId(null); setGame(null); setMyPriv(null); setErr(null); }
+  // ========================= CPU OPPONENT ==================================
+  // Difficulty is RELATIVE to the deck you brought, not a fixed power band, so
+  // it scales whether you're testing a 900-power deck or a 1400-power one.
+  //   easy  -> ~85% of your total power
+  //   even  -> ~100%
+  //   hard  -> ~115%
+  const CPU_MULT = { easy: 0.85, even: 1.00, hard: 1.15 };
+
+  // Build a legal 60-card CPU deck aimed at a target total power.
+  //
+  // The 6-per-power-value cap is the thing that makes this non-obvious: it forces
+  // any legal 60-card deck across at least 10 distinct power values. So this works
+  // in TIERS rather than picking cards one at a time — it starts from the cheapest
+  // legal 60 (the achievable floor) and upgrades one card at a time to the highest
+  // tier that moves it toward the target.
+  //
+  // An earlier version picked cards "closest to the target average", which quietly
+  // produced the SAME deck at every difficulty: the cap meant it always grabbed six
+  // each of the ten power values nearest the pool median, regardless of target.
+  // Returns { deck, total, floor, ceiling } so the caller can tell the user when a
+  // target simply isn't reachable with the available cards.
+  function buildCpuDeck(targetPower, powerCap) {
+    // Respect the format's per-hero power cap. Without this, bringing a Spec deck
+    // (<=160) would face a CPU fielding 200-power heroes — technically a legal
+    // 60-card deck, but not the format you chose to practice.
+    const pool = (cards || [])
+      .filter(c => c && c.id && (parseFloat(c.power) || 0) > 0)
+      .filter(c => !powerCap || (parseFloat(c.power) || 0) <= powerCap)
+      .map(c => ({
+        id: c.id,
+        hero: c.hero || "Unknown",
+        power: parseFloat(c.power) || 0,
+        weapon: canonWeapon(c.weapon) || "",
+        img: c.imageUrl || "",
+        cardNum: c.cardNum != null ? String(c.cardNum) : "",
+      }));
+    if (pool.length < 60) return null;
+
+    // Group by power value. Each value can contribute at most 6 cards (rules), and
+    // at most as many distinct variations as actually exist.
+    const groups = {};
+    for (const c of pool) (groups[c.power] = groups[c.power] || []).push(c);
+    const powers = Object.keys(groups).map(Number).sort((a,b)=>a-b);
+    const cap = {};
+    powers.forEach(p => cap[p] = Math.min(6, groups[p].length));
+    if (powers.reduce((s,p)=>s+cap[p],0) < 60) return null;
+
+    // Cheapest legal 60 = the floor. Most expensive legal 60 = the ceiling.
+    const counts = {};
+    powers.forEach(p => counts[p] = 0);
+    let placed = 0;
+    for (const p of powers) {
+      if (placed >= 60) break;
+      const take = Math.min(cap[p], 60 - placed);
+      counts[p] = take; placed += take;
+    }
+    const floor = powers.reduce((s,p)=>s+p*counts[p],0);
+    let ceiling = 0, left = 60;
+    for (let i = powers.length-1; i >= 0 && left > 0; i--) {
+      const t = Math.min(cap[powers[i]], left);
+      ceiling += powers[i]*t; left -= t;
+    }
+
+    // Upgrade toward the target: move one card between tiers, best improvement first.
+    for (let iter = 0; iter < 5000; iter++) {
+      const total = powers.reduce((s,p)=>s+p*counts[p],0);
+      const gap = targetPower - total;
+      if (Math.abs(gap) <= 10) break;
+      let best = null;
+      if (gap > 0) {
+        for (const from of powers) {
+          if (!counts[from]) continue;
+          for (let i = powers.length-1; i >= 0; i--) {
+            const to = powers[i];
+            if (to <= from) break;
+            if (counts[to] >= cap[to]) continue;
+            const after = Math.abs(gap - (to-from));
+            if (after < Math.abs(gap) && (!best || after < best.after)) best = {from,to,after};
+          }
+        }
+      } else {
+        for (let i = powers.length-1; i >= 0; i--) {
+          const from = powers[i];
+          if (!counts[from]) continue;
+          for (const to of powers) {
+            if (to >= from) break;
+            if (counts[to] >= cap[to]) continue;
+            const after = Math.abs(gap - (to-from));
+            if (after < Math.abs(gap) && (!best || after < best.after)) best = {from,to,after};
+          }
+        }
+      }
+      if (!best) break;
+      counts[best.from]--; counts[best.to]++;
+    }
+
+    // Materialise: random distinct variations from each chosen tier.
+    const deck = [];
+    for (const p of powers) {
+      if (!counts[p]) continue;
+      deck.push(...shuffle(groups[p]).slice(0, counts[p]));
+    }
+    if (deck.length !== 60) return null;
+    return { deck: shuffle(deck), total: deck.reduce((s,c)=>s+c.power,0), floor, ceiling };
+  }
+
+  // Start a practice game against the CPU. Everything lives in local state and
+  // uses the SAME doc shape as a live game, so all the board rendering below
+  // works without a second code path.
+  function startCpuGame() {
+    const deck = (savedDecks||[]).find(d => d.id === pickDeck);
+    if (!deck) { setErr("Pick a deck first."); return; }
+    const legal = checkLegal(deck.cardIds);
+    if (!legal.ok) { setErr(legal.problems.join("\n")); return; }
+
+    setBusy(true); setErr(null);
+    try {
+      const mySnaps = (deck.cardIds||[]).map(snapCard).filter(Boolean);
+      const myTotal = mySnaps.reduce((s,c)=>s+c.power, 0);
+      const target  = Math.round(myTotal * (CPU_MULT[cpuLevel] || 1));
+
+      const fmt = DECK_FORMATS[deck.deckType || "none"] || {};
+      const built = buildCpuDeck(target, fmt.powerCap);
+      if (!built) {
+        setErr("Not enough cards in the database to build a legal CPU deck.");
+        setBusy(false); return;
+      }
+      const cpuTotal = built.total;
+      // The 6-per-power cap puts a hard floor and ceiling on what any legal 60-card
+      // deck can total. If the requested difficulty falls outside that range, say so
+      // rather than shipping a deck that silently ignores the setting.
+      let note = null;
+      if (Math.abs(cpuTotal - target) > Math.max(40, target * 0.05)) {
+        note = cpuTotal > target
+          ? "Card pool floor: the weakest legal 60-card deck is " + Math.round(built.floor)
+            + " power, so the CPU is stronger than \u201C" + cpuLevel + "\u201D would normally mean."
+          : "Card pool ceiling: the strongest legal 60-card deck is " + Math.round(built.ceiling)
+            + " power, below the " + target + " target.";
+      }
+
+      // Shuffle and draw for both sides.
+      const myShuf  = shuffle(mySnaps);
+      const cpuShuf = shuffle(built.deck);
+      // CPU places its 7 in random order — no lookahead, no saving bombs for
+      // later zones. That's the "luck of the draw" behaviour you asked for.
+      const cpuPlaced = shuffle(cpuShuf.slice(0,7));
+
+      const first = Math.random() < 0.5 ? "p1" : "p2";
+      setCpu({
+        id: "cpu", code: "CPU", mode: "rookie", status: "setup",
+        p1: { uid, name: myName, deckId: deck.id, deckName: deck.name||"Deck", ready:false },
+        p2: { uid: "__cpu__", name: `CPU (${cpuLevel})`, deckName: "CPU Deck", ready:true },
+        chooser: "p1",           // you always choose vs the CPU
+        first, direction: null,
+        zoneIndex: 0,
+        zones: Array.from({length:7}, () => ({ p1:null, p2:null, winner:null })),
+        trophies: { p1:0, p2:0 },
+        matchWins: { p1:0, p2:0 },
+        gameNumber: 1,
+        log: [],
+        cpuLevel, cpuTotal, myTotal, cpuNote: note, fmtShort: (fmt.short && fmt.short !== "—") ? fmt.short : null,
+        createdAt: new Date().toISOString(),
+      });
+      setCpuPriv({ uid, deckId: deck.id, hand: myShuf.slice(0,7), placed:[null,null,null,null,null,null,null], deck: myShuf.slice(7) });
+      setCpuHidden({ placed: cpuPlaced, deck: cpuShuf.slice(7) });
+    } catch(e) {
+      console.error("cpu game failed:", e);
+      setErr("Couldn't start the CPU game: " + (e?.message||e));
+    } finally { setBusy(false); }
+  }
+
+  // Rematch vs CPU — rebuilds the CPU deck at the same difficulty so it isn't
+  // the identical 60 cards every game, and carries matchWins for the best-of-3.
+  function cpuPlayAgain() {
+    if (!cpu) return;
+    const deck = (savedDecks||[]).find(d => d.id === cpu.p1?.deckId);
+    if (!deck) { setErr("Couldn't find your deck."); return; }
+    const mySnaps = (deck.cardIds||[]).map(snapCard).filter(Boolean);
+    const myTotal = mySnaps.reduce((s,c)=>s+c.power,0);
+    const target  = Math.round(myTotal * (CPU_MULT[cpu.cpuLevel] || 1));
+    const fmt2 = DECK_FORMATS[deck.deckType || "none"] || {};
+    const built = buildCpuDeck(target, fmt2.powerCap);
+    if (!built) { setErr("Couldn't rebuild the CPU deck."); return; }
+    const cpuDeck = built.deck;
+
+    const mw = cpu.matchWins || {p1:0,p2:0};
+    const matchOver = (mw.p1||0) >= 2 || (mw.p2||0) >= 2;
+    const myShuf  = shuffle(mySnaps);
+    const cpuShuf = shuffle(cpuDeck);
+
+    setCpu(g => ({
+      ...g,
+      status: "setup",
+      gameNumber: matchOver ? 1 : (g.gameNumber||1) + 1,
+      matchWins: matchOver ? {p1:0,p2:0} : mw,
+      first: Math.random() < 0.5 ? "p1" : "p2",
+      direction: null,
+      zoneIndex: 0,
+      zones: Array.from({length:7}, () => ({ p1:null, p2:null, winner:null })),
+      trophies: { p1:0, p2:0 },
+      sudden: {}, result: null, log: [],
+      cpuTotal: cpuShuf.reduce((s,c)=>s+c.power,0),
+      p1: { ...g.p1, ready:false },
+      p2: { ...g.p2, ready:true },
+    }));
+    setCpuPriv({ uid, deckId: deck.id, hand: myShuf.slice(0,7), placed:[null,null,null,null,null,null,null], deck: myShuf.slice(7) });
+    setCpuHidden({ placed: shuffle(cpuShuf.slice(0,7)), deck: cpuShuf.slice(7) });
+    setErr(null);
+  }
+
+  async function leaveGame() { setGameId(null); setGame(null); setMyPriv(null); setCpu(null); setCpuPriv(null); setCpuHidden(null); setErr(null); }
 
   // ========================= RENDER =======================================
   const cardBack = (label) => (
@@ -29209,13 +29990,15 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
     }}>{label}</div>
   );
 
-  const heroCard = (c, dim) => {
+  // `struck` = the winning weapon landing on THIS card, or null. Cosmetic only.
+  const heroCard = (c, dim, struck, fxKey) => {
     if (!c) return null;
     const wc = WEAPON_COLORS?.[c.weapon] || "#666";
     return (
       <div style={{
         width:"100%", aspectRatio:"5/7", borderRadius:8, overflow:"hidden", position:"relative",
         border:`2px solid ${wc}`, background:"#111", opacity: dim ? 0.55 : 1,
+        animation: struck ? "bzShake 480ms ease-in-out" : undefined,
       }}>
         {c.img
           ? <img src={c.img} alt={c.hero} style={{width:"100%",height:"100%",objectFit:"cover"}} />
@@ -29227,6 +30010,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
                      overflow:"hidden",textOverflow:"ellipsis"}}>
           {c.hero} <span style={{color:wc}}>{c.weapon}</span>
         </div>
+        {struck && <ArenaOnCardFx key={fxKey} w={struck} />}
       </div>
     );
   };
@@ -29235,7 +30019,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
                   borderRadius:12, padding:16, marginBottom:16 };
 
   // ---------- LOBBY ----------
-  if (!gameId || !game) {
+  if (!G) {
     const legality = pickDeck ? checkLegal((savedDecks||[]).find(d=>d.id===pickDeck)?.cardIds || []) : null;
     return (
       <div style={{maxWidth:900, margin:"0 auto"}}>
@@ -29292,6 +30076,36 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           </div>
         </div>
 
+        {/* CPU practice. Difficulty is relative to the deck you picked above, so
+            "hard" means a deck built ~15% above yours rather than a fixed number. */}
+        <div style={panel}>
+          <div style={{fontSize:13,fontWeight:800,color:"#fff",marginBottom:4}}>2c. Practice vs CPU</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.45)",marginBottom:12}}>
+            The CPU builds a legal 60-card deck scaled to yours. Practice games aren't saved.
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:12}}>
+            {[["easy","Easy","Weaker deck","\u221215%"],
+              ["even","Even","Matched power","\u00B10%"],
+              ["hard","Hard","Stronger deck","+15%"]].map(([id,label,sub,pct]) => (
+              <button key={id} onClick={()=>setCpuLevel(id)}
+                style={{padding:"10px 6px",borderRadius:9,cursor:"pointer",fontFamily:"inherit",
+                        border: cpuLevel===id ? "2px solid #22C55E" : "1px solid rgba(255,255,255,0.18)",
+                        background: cpuLevel===id ? "rgba(34,197,94,0.14)" : "rgba(255,255,255,0.04)",
+                        color:"#fff"}}>
+                <div style={{fontSize:13,fontWeight:900}}>{label}</div>
+                <div style={{fontSize:9.5,color:"rgba(255,255,255,0.5)",marginTop:2}}>{sub}</div>
+                <div style={{fontSize:10,fontWeight:800,color: cpuLevel===id ? "#22C55E":"rgba(255,255,255,0.35)",marginTop:2}}>{pct}</div>
+              </button>
+            ))}
+          </div>
+          <button disabled={busy || !pickDeck} onClick={startCpuGame}
+            style={{width:"100%",padding:"12px",borderRadius:9,border:"none",
+                    cursor: busy||!pickDeck?"not-allowed":"pointer",
+                    background: busy||!pickDeck?"#333":"#A855F7", color:"#fff", fontWeight:900, fontSize:14, fontFamily:"inherit"}}>
+            {busy ? "Building CPU deck\u2026" : "Play CPU"}
+          </button>
+        </div>
+
         {err && <div style={{...panel, borderColor:"#F87171", color:"#F87171", fontSize:12, whiteSpace:"pre-line"}}>{err}</div>}
 
         {myGames.length > 0 && (
@@ -29317,22 +30131,36 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   }
 
   // ---------- IN GAME ----------
-  const zi     = game.zoneIndex;
-  const zones  = game.zones || [];
-  const t      = game.trophies || {p1:0,p2:0};
-  const iAmChooser = game.chooser === seat;
-  const orderSet   = !!(game.first && game.direction);
+  const zi     = G.zoneIndex;
+  const zones  = G.zones || [];
+  const t      = G.trophies || {p1:0,p2:0};
+  const iAmChooser = G.chooser === seat;
+  const orderSet   = !!(G.first && G.direction);
 
   return (
     <div style={{maxWidth:1200, margin:"0 auto"}}>
       {/* header */}
       <div style={{...panel, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10}}>
         <div>
-          <div style={{fontSize:11,color:"rgba(255,255,255,0.45)"}}>CODE</div>
-          <div style={{fontSize:20,fontWeight:900,color:"#22C55E",letterSpacing:3}}>{game.code}</div>
-        </div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.45)"}}>{isCpu ? "PRACTICE" : "CODE"}</div>
+          <div style={{fontSize:20,fontWeight:900,color: isCpu ? "#A855F7" : "#22C55E",letterSpacing: isCpu?1:3}}>
+            {isCpu ? String(G.cpuLevel||"even").toUpperCase() : G.code}
+          </div>
+          {/* Deck power totals — the whole point of the difficulty setting, so it's
+              worth showing what it actually produced rather than trusting the label. */}
+          {isCpu && (
+            <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",marginTop:2}}>
+              you {Math.round(G.myTotal||0)} {"\u00B7"} cpu {Math.round(G.cpuTotal||0)}
+              {G.fmtShort && <span style={{marginLeft:6,color:"#A855F7",fontWeight:800}}>{G.fmtShort}</span>}
+            </div>
+          )}        </div>
         <div style={{textAlign:"center"}}>
-          <div style={{fontSize:11,color:"rgba(255,255,255,0.45)"}}>TROPHIES</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.45)"}}>
+            TROPHIES
+            <span style={{marginLeft:8,color:"rgba(255,255,255,0.3)"}}>
+              {"\u00B7"} GAME {G.gameNumber||1} {"\u00B7"} MATCH {(G.matchWins||{})[seat]||0}{"\u2013"}{(G.matchWins||{})[foe]||0}
+            </span>
+          </div>
           <div style={{fontSize:18,fontWeight:900,color:"#fff"}}>
             <span style={{color:"#3B82F6"}}>{me?.name||"You"} {t[seat]||0}</span>
             {"  \u2014  "}
@@ -29344,18 +30172,25 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
 
       {err && <div style={{...panel, borderColor:"#F87171", color:"#F87171", fontSize:12, whiteSpace:"pre-line"}}>{err}</div>}
 
+      {/* Pool-limit note: the difficulty setting couldn't be honoured exactly. */}
+      {isCpu && G.cpuNote && (
+        <div style={{...panel, borderColor:"rgba(168,85,247,0.5)", color:"#C4B5FD", fontSize:11.5}}>
+          {G.cpuNote}
+        </div>
+      )}
+
       {/* waiting for opponent */}
-      {game.status === "waiting" && (
+      {G.status === "waiting" && (
         <div style={{...panel, textAlign:"center"}}>
           <div style={{fontSize:15,fontWeight:800,color:"#fff"}}>Waiting for an opponent{"…"}</div>
           <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginTop:6}}>
-            Send them the code <b style={{color:"#22C55E"}}>{game.code}</b>.
+            Send them the code <b style={{color:"#22C55E"}}>{G.code}</b>.
           </div>
         </div>
       )}
 
       {/* choose first player + direction */}
-      {game.status === "setup" && !orderSet && (
+      {G.status === "setup" && !orderSet && (
         <div style={{...panel, textAlign:"center"}}>
           {iAmChooser ? (
             <>
@@ -29387,18 +30222,18 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       )}
 
       {/* lineup placement */}
-      {game.status === "setup" && orderSet && !me?.ready && (
+      {G.status === "setup" && orderSet && !me?.ready && (
         <div style={panel}>
           <div style={{fontSize:13,fontWeight:800,color:"#fff",marginBottom:4}}>
             Place your 7 Heroes face-down
           </div>
           <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",marginBottom:12}}>
-            Battles resolve {game.direction === "rtl" ? "right to left" : "left to right"}.
-            {" "}Tap a Hero, then tap a Battle Zone. {(myPriv?.hand||[]).length} left to place.
+            Battles resolve {G.direction === "rtl" ? "right to left" : "left to right"}.
+            {" "}Tap a Hero, then tap a Battle Zone. {(P?.hand||[]).length} left to place.
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,marginBottom:14}}>
             {Array.from({length:7}).map((_,i) => {
-              const p = myPriv?.placed?.[i];
+              const p = P?.placed?.[i];
               return (
                 <div key={i} onClick={()=>p && unplaceHero(i)}
                      style={{cursor:p?"pointer":"default"}}>
@@ -29417,34 +30252,49 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           </div>
           <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.55)",marginBottom:6}}>YOUR HAND</div>
           <div style={{display:"grid",gridTemplateColumns:`repeat(${isMobile?4:7},1fr)`,gap:6,marginBottom:14}}>
-            {(myPriv?.hand||[]).map((c,i) => (
+            {(P?.hand||[]).map((c,i) => (
               <div key={c.id+i} onClick={()=>{
-                const openZone = (myPriv?.placed||[]).findIndex(x => !x);
+                const openZone = (P?.placed||[]).findIndex(x => !x);
                 if (openZone >= 0) placeHero(openZone, i);
               }} style={{cursor:"pointer"}}>{heroCard(c)}</div>
             ))}
           </div>
           <button onClick={confirmLineup}
-            disabled={(myPriv?.placed||[]).filter(Boolean).length !== 7}
+            disabled={(P?.placed||[]).filter(Boolean).length !== 7}
             style={{width:"100%",padding:"12px",borderRadius:9,border:"none",
-                    background:(myPriv?.placed||[]).filter(Boolean).length===7?"#22C55E":"#333",
+                    background:(P?.placed||[]).filter(Boolean).length===7?"#22C55E":"#333",
                     color:"#000",fontWeight:900,fontSize:14,
-                    cursor:(myPriv?.placed||[]).filter(Boolean).length===7?"pointer":"not-allowed",
+                    cursor:(P?.placed||[]).filter(Boolean).length===7?"pointer":"not-allowed",
                     fontFamily:"inherit"}}>
             Lock In Lineup
           </button>
         </div>
       )}
 
-      {game.status === "setup" && orderSet && me?.ready && (
+      {!isCpu && G.status === "setup" && orderSet && me?.ready && (
         <div style={{...panel, textAlign:"center", fontSize:14, fontWeight:800, color:"#fff"}}>
           Lineup locked. Waiting for {them?.name || "your opponent"}{"…"}
         </div>
       )}
 
       {/* THE ARENA */}
-      {(game.status === "playing" || game.status === "finished") && (
-        <div style={panel}>
+      {(G.status === "playing" || G.status === "finished") && (
+        <div style={{...panel, position:"relative"}}>
+          {/* Super is a board-wide shockwave rather than a per-card hit — it is the
+              rarest weapon and the tiebreaker, so it should feel like the biggest
+              thing that happens in a game. */}
+          {fx && fx.weapon === "Super" && (
+            <div key={fx.key} className="bz-fx-layer" style={{position:"absolute",inset:0,overflow:"hidden",borderRadius:12}}>
+              <div style={{position:"absolute",inset:0,animation:"bzFlash 900ms ease-out forwards",
+                background:"radial-gradient(circle at 50% 50%,rgba(255,215,0,0.55),transparent 65%)"}}/>
+              {[0,1,2].map(i=>(
+                <div key={i} style={{position:"absolute",left:"50%",top:"50%",width:80,height:80,
+                  borderRadius:"50%",border:"8px solid #FFD700",
+                  animation:`bzRing 1000ms ease-out ${i*160}ms forwards`,
+                  boxShadow:"0 0 40px rgba(255,215,0,0.95)"}}/>
+              ))}
+            </div>
+          )}
           <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.5)",textAlign:"center",marginBottom:10,letterSpacing:2}}>
             {them?.name || "OPPONENT"}
           </div>
@@ -29452,7 +30302,15 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,marginBottom:8}}>
             {Array.from({length:7}).map((_,i) => {
               const c = zones[i]?.[foe];
-              return <div key={i}>{c ? heroCard(c, zones[i]?.winner && zones[i].winner !== foe) : cardBack("FACE\nDOWN")}</div>;
+              // The opponent's card is struck when the strike is aimed upward (I won).
+              const hit = fx && fx.zone === i && fx.up ? fx.weapon : null;
+              return (
+                <div key={i} style={{position:"relative"}}>
+                  {c ? heroCard(c, zones[i]?.winner && zones[i].winner !== foe, hit, fx?.key)
+                     : cardBack("FACE\nDOWN")}
+                  {hit && <div className="bz-fx-layer"><ArenaProjectile key={fx.key} w={fx.weapon} up={true} /></div>}
+                </div>
+              );
             })}
           </div>
 
@@ -29460,7 +30318,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,margin:"10px 0"}}>
             {Array.from({length:7}).map((_,i) => {
               const z = zones[i] || {};
-              const active = i === zi && game.status === "playing";
+              const active = i === zi && G.status === "playing";
               const settled = !!(z.p1 && z.p2);
               const label = !settled ? `${i+1}`
                           : z.winner === seat ? "WON"
@@ -29483,8 +30341,15 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,marginTop:8}}>
             {Array.from({length:7}).map((_,i) => {
               const revealed = zones[i]?.[seat];
-              const mine     = myPriv?.placed?.[i];
-              if (revealed) return <div key={i}>{heroCard(revealed, zones[i]?.winner && zones[i].winner !== seat)}</div>;
+              const mine     = P?.placed?.[i];
+              // My card is struck when the strike travels downward (opponent won).
+              const hit = fx && fx.zone === i && !fx.up ? fx.weapon : null;
+              if (revealed) return (
+                <div key={i} style={{position:"relative"}}>
+                  {heroCard(revealed, zones[i]?.winner && zones[i].winner !== seat, hit, fx?.key)}
+                  {hit && <div className="bz-fx-layer"><ArenaProjectile key={fx.key} w={fx.weapon} up={false} /></div>}
+                </div>
+              );
               // My own face-down cards are visible to ME only — I placed them.
               return <div key={i} style={{opacity:0.5}}>{mine ? heroCard(mine) : cardBack("EMPTY")}</div>;
             })}
@@ -29496,7 +30361,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       )}
 
       {/* battle controls */}
-      {game.status === "playing" && (
+      {G.status === "playing" && (
         <div style={{...panel, textAlign:"center"}}>
           {!zones[zi]?.[seat] ? (
             <>
@@ -29524,11 +30389,17 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
                 <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.6)",marginTop:4}}>
                   {zones[zi][seat].hero} ({zones[zi][seat].power}) vs {zones[zi][foe].hero} ({zones[zi][foe].power})
                 </div>
+                {/* A Super winning an equal-Power battle looks like a bug unless it says so. */}
+                {zones[zi].bySuper && (
+                  <div style={{fontSize:11,fontWeight:800,color:"#FBBF24",marginTop:3,letterSpacing:0.5}}>
+                    Power tied {"\u2014"} Super Weapon wins
+                  </div>
+                )}
               </div>
               <button onClick={nextBattle}
                 style={{padding:"12px 34px",borderRadius:9,border:"none",background:"#3B82F6",
                         color:"#fff",fontWeight:900,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>
-                {(game.direction==="rtl" ? zi-1 < 0 : zi+1 > 6) ? "Finish Game" : "Next Battle"}
+                {(G.direction==="rtl" ? zi-1 < 0 : zi+1 > 6) ? "Finish Game" : "Next Battle"}
               </button>
             </>
           )}
@@ -29536,24 +30407,47 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       )}
 
       {/* finished */}
-      {game.status === "finished" && (
+      {G.status === "finished" && (() => {
+        const mw      = G.matchWins || {p1:0,p2:0};
+        const gameNo  = G.gameNumber || 1;
+        // Best of 3: 2 games takes the match. A tied game advances nobody, so a
+        // match can run to a 3rd game on 1-1 with a draw in between.
+        const matchOver = (mw[seat]||0) >= 2 || (mw[foe]||0) >= 2;
+        const wonMatch  = (mw[seat]||0) >= 2;
+        return (
         <div style={{...panel, textAlign:"center"}}>
+          <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.4)",letterSpacing:2,marginBottom:4}}>
+            GAME {gameNo} {"\u00B7"} BEST OF 3
+          </div>
           <div style={{fontSize:26,fontWeight:900,
-                       color: game.result === seat ? "#22C55E" : game.result === "tie" ? "#FBBF24" : "#F87171"}}>
-            {game.result === seat ? "VICTORY" : game.result === "tie" ? "TIE GAME" : "DEFEAT"}
+                       color: matchOver ? (wonMatch ? "#22C55E" : "#F87171")
+                            : G.result === seat ? "#22C55E"
+                            : G.result === "tie" ? "#FBBF24" : "#F87171"}}>
+            {matchOver
+              ? (wonMatch ? "MATCH WON" : "MATCH LOST")
+              : G.result === seat ? "GAME WON"
+              : G.result === "tie" ? "TIE GAME" : "GAME LOST"}
           </div>
           <div style={{fontSize:13,color:"rgba(255,255,255,0.6)",marginTop:6}}>
             {t[seat]||0} {"\u2014"} {t[foe]||0} on trophies
           </div>
-          {game.result === "tie" && (
+          {/* Match score. This is the number that actually matters between games. */}
+          <div style={{fontSize:15,fontWeight:900,marginTop:10,color:"#fff"}}>
+            Match {mw[seat]||0} {"\u2014"} {mw[foe]||0}
+            <span style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.45)",marginLeft:8}}>
+              {me?.name||"You"} vs {them?.name||"Opponent"}
+            </span>
+          </div>
+
+          {G.result === "tie" && (
             <div style={{marginTop:16}}>
               <div style={{fontSize:12,color:"rgba(255,255,255,0.6)",marginBottom:8}}>
                 Sudden Death {"\u2014"} flip the top of your Hero Deck.
               </div>
-              {game.sudden?.[seat]
+              {G.sudden?.[seat]
                 ? <div style={{fontSize:12,color:"#fff"}}>
-                    You flipped <b>{game.sudden[seat].hero}</b> ({game.sudden[seat].power}).
-                    {game.sudden[foe] ? "" : " Waiting\u2026"}
+                    You flipped <b>{G.sudden[seat].hero}</b> ({G.sudden[seat].power}).
+                    {G.sudden[foe] ? "" : " Waiting\u2026"}
                   </div>
                 : <button onClick={suddenDeath}
                     style={{padding:"12px 30px",borderRadius:9,border:"none",background:"#FBBF24",
@@ -29562,24 +30456,37 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
                   </button>}
             </div>
           )}
-          <button onClick={leaveGame}
-            style={{marginTop:18,padding:"10px 28px",borderRadius:9,border:"1px solid rgba(255,255,255,0.25)",
-                    background:"transparent",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
-            Back to Lobby
-          </button>
+
+          {/* Play again is offered whether or not the match is decided: mid-match it
+              continues the best-of-3, and after it's decided it starts a fresh one
+              against the same opponent without going back to codes. */}
+          <div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap",marginTop:18}}>
+            <button onClick={isCpu ? cpuPlayAgain : playAgain} disabled={busy}
+              style={{padding:"12px 30px",borderRadius:9,border:"none",
+                      background: busy ? "#333" : "#22C55E", color:"#000", fontWeight:900, fontSize:14,
+                      cursor: busy?"not-allowed":"pointer", fontFamily:"inherit"}}>
+              {busy ? "Shuffling\u2026" : matchOver ? "New Match" : `Play Game ${gameNo+1}`}
+            </button>
+            <button onClick={leaveGame}
+              style={{padding:"12px 28px",borderRadius:9,border:"1px solid rgba(255,255,255,0.25)",
+                      background:"transparent",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
+              Back to Lobby
+            </button>
+          </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* battle log */}
-      {(game.log||[]).length > 0 && (
+      {(G.log||[]).length > 0 && (
         <div style={panel}>
           <div style={{fontSize:12,fontWeight:800,color:"rgba(255,255,255,0.55)",marginBottom:8}}>BATTLE LOG</div>
-          {(game.log||[]).map((l,i) => (
+          {(G.log||[]).map((l,i) => (
             <div key={i} style={{fontSize:11,color:"rgba(255,255,255,0.7)",padding:"4px 0",
                                  borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
               <b>Zone {l.zone+1}:</b> {l.p1} ({l.p1p}) vs {l.p2} ({l.p2p}) {"\u2014 "}
               <span style={{color: l.winner ? (l.winner===seat?"#22C55E":"#F87171") : "#FBBF24", fontWeight:800}}>
-                {l.winner ? `${game[l.winner]?.name||l.winner} wins` : "draw"}
+                {l.winner ? `${G[l.winner]?.name||l.winner} wins${l.bySuper ? " (Super)" : ""}` : "draw"}
               </span>
             </div>
           ))}
@@ -29589,7 +30496,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, lots=[], foilDogs=0, setFoilDogs=()=>{}, kidGroups=[], kidOfCopy=null, otherDeckUse={}, proxyCards={}, onToggleProxy=null, proxyNote=null, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, lots=[], foilDogs=0, setFoilDogs=()=>{}, kidGroups=[], kidOfCopy=null, otherDeckUse={}, proxyCards={}, onToggleProxy=null, proxyNote=null, isProxyCopy=null, anyProxy=null, copyForDeck=null, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -30703,19 +31610,32 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
             // The printed sheet is the SAME document as the on-screen one \u2014 same two-line rows, same
             // power figure, same amber proxy marker. A print that looks nothing like the screen makes
             // you re-learn the layout at the worst moment, standing at a binder holding the paper.
-            const rows = sorted.map((c)=>{
+            // Expand to one row PER PHYSICAL COPY, matching the screen. Two copies of the
+            // same card get two rows so each can carry its own note — which is the whole
+            // reason this sheet matters: "the vault one" and "the in-hand one" are
+            // different physical cards even though they share a card ID.
+            // One row per card, using THIS DECK's assigned copy \u2014 mirrors the screen.
+            // A deck holds one copy; which one is decided by deck age (see deckCopyIndex).
+            const copyRows = sorted.map((c)=>{
+              const q  = Math.max(1, parseInt(owned?.[c.id]) || 0);
+              const ci = copyForDeck ? copyForDeck(c.id, deckLoadId) : 0;
+              return { c, ci, q };
+            });
+            const rows = copyRows.map(({c, ci, q})=>{
               const meta = [c.cardNum, c.weapon, c.treatment, c.setName].filter(Boolean).map(esc).join(' <span class="dim">\u00b7</span> ');
-              const pxNote = (typeof proxyCards[c.id] === "string" && proxyCards[c.id].trim()) ? proxyCards[c.id].trim() : "";
+              const pxNote = proxyNote ? proxyNote(c.id, ci) : "";
+              const flagged = isProxyCopy ? isProxyCopy(c.id, ci) : !!proxyCards[c.id];
+              const copyTag = q > 1 ? ' <span class="copy">COPY '+(ci+1)+' OF '+q+'</span>' : '';
               return '<tr>'+
                 '<td class="tick" style="border-left:3px solid '+((WEAPON_COLORS[canonWeapon(c.weapon)]||"#e8e8e8"))+'"><span class="box"></span></td>'+
-                '<td class="px">'+(proxyCards[c.id]?'<span class="proxy">\u25C6</span>':'<span class="noproxy">\u25C7</span>')+'</td>'+
-                '<td><div class="hero">'+esc(c.hero||dash)+'</div><div class="meta">'+meta+'</div>'+(pxNote?'<div class="pxnote">'+esc(pxNote)+'</div>':'')+'</td>'+
+                '<td class="px">'+(flagged?'<span class="proxy">\u25C6</span>':'<span class="noproxy">\u25C7</span>')+'</td>'+
+                '<td><div class="hero">'+esc(c.hero||dash)+copyTag+'</div><div class="meta">'+meta+'</div>'+(pxNote?'<div class="pxnote">'+esc(pxNote)+'</div>':'')+'</td>'+
                 '<td class="var">'+esc(c.variation||dash)+'</td>'+
                 '<td class="pw">'+esc(c.power??dash)+'</td>'+
                 '<td class="who">'+ownLabel(c)+'</td>'+
               '</tr>';
             }).join("");
-            const proxyCount = sorted.filter(c=>proxyCards[c.id]).length;
+            const proxyCount = copyRows.filter(({c,ci})=> isProxyCopy ? isProxyCopy(c.id,ci) : !!proxyCards[c.id]).length;
             const script = autoPrint ? '<scr'+'ipt>window.onload=function(){setTimeout(function(){window.print();},250);};</scr'+'ipt>' : '';
             const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+esc(deckName||"My Deck")+' '+dash+' Pick List</title>'+
               '<style>*{box-sizing:border-box;} body{font-family:"Trebuchet MS",Arial,Helvetica,sans-serif;margin:0;padding:26px 28px;color:#111;}'+
@@ -30736,6 +31656,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               '.hero{font-weight:800;font-size:14px;letter-spacing:-0.2px;}'+
               '.meta{font-size:10.5px;color:#999;margin-top:2px;} .dim{color:#ddd;}'+
               '.pxnote{font-size:10px;color:#B45309;font-weight:700;margin-top:2px;}'+
+              '.copy{font-size:8.5px;font-weight:900;color:#B45309;background:#FEF3C7;border:1px solid #FDE68A;border-radius:4px;padding:0 4px;margin-left:5px;vertical-align:middle;}'+
               // Variation = pose. IMC needs this to know WHICH print to pull: two Ice BoJax with
               // different poses are different cards, so "BoJax, Ice" alone is ambiguous on a pick
               // sheet. Given its own column rather than tucked into the meta line, because this is
@@ -30804,11 +31725,11 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                   <div style={{fontSize:26,fontWeight:900,letterSpacing:"-0.6px",lineHeight:1.05}}>{deckName||"My Deck"}</div>
                   <div style={{display:"flex",gap:16,marginTop:9,flexWrap:"wrap",fontSize:12}}>
                     <span style={{fontWeight:800}}>{pulled}<span style={{color:"#999",fontWeight:600}}> / {inDeck.length} pulled</span></span>
-                    {inDeck.filter(x=>proxyCards[x.id]).length > 0 && (
+                    {(()=>{ const n = inDeck.reduce((s,x)=>{ const q=Math.max(1,parseInt(owned?.[x.id])||0); let k=0; for(let ci=0;ci<q;ci++) if(isProxyCopy?isProxyCopy(x.id,ci):!!proxyCards[x.id]) k++; return s+k; },0); return n>0 && (
                       <span style={{fontWeight:800,color:"#B45309"}}>
-                        {inDeck.filter(x=>proxyCards[x.id]).length}<span style={{fontWeight:600}}> to proxy</span>
+                        {n}<span style={{fontWeight:600}}> to proxy</span>
                       </span>
-                    )}
+                    ); })()}
                     <span style={{color:"#999"}}>sorted by {pickSort==="cardnum"?"card number":pickSort}</span>
                   </div>
                   {/* Progress. A thin rule rather than a bar: it reads at a glance without taking space
@@ -30830,11 +31751,24 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     </tr>
                   </thead>
                   <tbody>
-                    {sorted.map((c,i)=>{
-                      const done = !!pickChecked[c.id];
-                      const isProxy = !!proxyCards[c.id];
+                    {/* ONE row per card \u2014 a pick list is for ONE deck, and a deck holds
+                        exactly one copy of a card. When you own several, copyForDeck says
+                        WHICH physical copy this deck was assigned (oldest deck gets copy 1,
+                        next gets copy 2, and so on).
+
+                        This is what stops a proxy flag leaking between decks: marking the
+                        vault copy as needing a proxy used to make EVERY deck holding that
+                        card demand one, including the deck holding the copy you physically
+                        have in hand. Now each deck reads the flag for its own copy. */}
+                    {sorted.map((c)=>{
+                      const qty     = Math.max(1, parseInt(owned?.[c.id]) || 0);
+                      const ci      = copyForDeck ? copyForDeck(c.id, deckLoadId) : 0;
+                      const rowKey  = qty > 1 ? `${c.id}#${ci}` : c.id;
+                      const done    = !!pickChecked[rowKey];
+                      const isProxy = isProxyCopy ? isProxyCopy(c.id, ci) : !!proxyCards[c.id];
+                      const i = ci;
                       return (
-                      <tr key={c.id} onClick={()=>setPickChecked(p=>({...p,[c.id]:!p[c.id]}))}
+                      <tr key={rowKey} onClick={()=>setPickChecked(p=>({...p,[rowKey]:!p[rowKey]}))}
                         style={{borderBottom:"1px solid #ededed",cursor:"pointer",
                           background: done ? "#fafafa" : "transparent",
                           opacity: done ? 0.45 : 1, transition:"opacity 140ms ease, background 140ms ease"}}>
@@ -30852,7 +31786,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         {/* Proxy. Second action on the row, so it gets its own column and a real tap
                             target \\u2014 amber only when set, so an unflagged sheet stays calm. */}
                         <td style={{padding:"10px 6px",textAlign:"center"}}>
-                          <button onClick={e=>{ e.stopPropagation(); onToggleProxy && onToggleProxy(c.id); }}
+                          <button onClick={e=>{ e.stopPropagation(); onToggleProxy && onToggleProxy(c.id, undefined, ci); }}
                             title={isProxy ? "Proxy \\u2014 tap to clear" : "Mark as proxy"}
                             aria-pressed={isProxy}
                             style={{cursor:"pointer",fontFamily:"inherit",borderRadius:8,
@@ -30871,6 +31805,13 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                           <div style={{fontWeight:800,fontSize:14,letterSpacing:"-0.2px",
                             textDecoration: done ? "line-through" : "none"}}>
                             {c.hero||"\u2014"}
+                            {qty > 1 && (
+                              <span style={{marginLeft:7,fontSize:10,fontWeight:900,color:"#B45309",
+                                background:"#FEF3C7",border:"1px solid #FDE68A",borderRadius:5,
+                                padding:"1px 5px",verticalAlign:"middle"}}>
+                                THIS DECK: COPY {ci+1} OF {qty}
+                              </span>
+                            )}
                           </div>
                           <div style={{fontSize:11,color:"#999",marginTop:2,display:"flex",gap:7,flexWrap:"wrap"}}>
                             <span style={{fontFamily:"ui-monospace,monospace",color:"#666"}}>{c.cardNum||"\u2014"}</span>
@@ -30885,14 +31826,18 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                             <div onClick={e=>{
                                 e.stopPropagation();
                                 if (!onToggleProxy) return;
-                                const cur = proxyNote ? proxyNote(c.id) : "";
-                                const note = window.prompt("Proxy note (optional)", cur);
+                                const cur = proxyNote ? proxyNote(c.id, ci) : "";
+                                const note = window.prompt(
+                                  qty > 1
+                                    ? `Note for copy ${ci+1} of ${qty} \u2014 e.g. "Blokpax vault" or "in hand"`
+                                    : "Proxy note (optional)",
+                                  cur);
                                 if (note === null) return;
-                                onToggleProxy(c.id, note);
+                                onToggleProxy(c.id, note, ci);
                               }}
                               style={{fontSize:10.5,marginTop:3,fontWeight:700,cursor:"text",
-                                color: (proxyNote && proxyNote(c.id)) ? "#B45309" : "#ccc"}}>
-                              {(proxyNote && proxyNote(c.id)) || "+ note"}
+                                color: (proxyNote && proxyNote(c.id, ci)) ? "#B45309" : "#ccc"}}>
+                              {(proxyNote && proxyNote(c.id, ci)) || "+ note"}
                             </div>
                           )}
                         </td>
@@ -35574,17 +36519,31 @@ See you in there!
   async function bulkSetProxy(makeProxy) {
     if (!user) { setSigningIn(true); return; }
     if (selectedIds.size === 0) return;
+    // Bulk flagging works on EVERY copy you own of each selected card. Proxying is
+    // decided in batches ("none of these graded slabs can be played"), and that
+    // applies to the slab, not to one arbitrary copy. Notes stay per copy, so this
+    // never overwrites a note someone already wrote.
     const next = {...proxyCards};
     let changed = 0;
     selectedIds.forEach(id => {
-      if (makeProxy) { if (!next[id]) { next[id] = true; changed++; } }
-      else { if (next[id]) { delete next[id]; changed++; } }
+      const q = Math.max(1, parseInt(owned[id]) || 0);
+      // Fold a legacy flat key into copy 0 so it can't linger alongside the new keys.
+      if (next[id] !== undefined) {
+        const k0 = `${id}#0`;
+        if (next[k0] === undefined) next[k0] = next[id];
+        delete next[id];
+      }
+      for (let ci = 0; ci < q; ci++) {
+        const k = `${id}#${ci}`;
+        if (makeProxy) { if (!next[k]) { next[k] = true; changed++; } }
+        else { if (next[k]) { delete next[k]; changed++; } }
+      }
     });
     setProxyCards(next);
     try { await setDoc(doc(db,"boba_proxy",user.uid), next); }
     catch(e) { alert("Couldn't save proxy flags: " + (e.message||e)); return; }
     setToast(changed
-      ? `\u2713 ${changed} card${changed===1?"":"s"} ${makeProxy?"marked as proxy":"no longer proxies"}`
+      ? `\u2713 ${changed} cop${changed===1?"y":"ies"} ${makeProxy?"marked as proxy":"no longer proxies"}`
       : "No changes \u2014 those were already set that way");
     clearSelection();
   }
@@ -35593,19 +36552,55 @@ See you in there!
   // The stored value doubles as the note: `true` for a plain flag, or the note text itself. Every
   // existing check is a truthiness test, so a non-empty string keeps them all working while carrying
   // the extra detail \u2014 no migration, and old flags stay valid.
-  async function toggleProxy(cardId, note) {
+  // Proxy flags and notes are stored PER PHYSICAL COPY, not per card.
+  //
+  // You can own two of the same card — one in the Blokpax vault, one in hand — and the
+  // whole point of a note is telling those two apart. Keying on cardId alone meant both
+  // copies shared one note: writing "in the vault" on one made it appear on the other.
+  //
+  // The key is `${cardId}#${copyIndex}` (0-based), matching how kid tags already work.
+  // A bare cardId key from before this change is read as copy 0, so existing notes
+  // survive untouched and get rewritten to the new form the next time they're edited.
+  const proxyKey = (cardId, i=0) => `${cardId}#${i}`;
+
+  // Raw stored value for a copy: undefined | true | "note"
+  const proxyRaw = (cardId, i=0) => {
+    const v = proxyCards[proxyKey(cardId,i)];
+    if (v !== undefined) return v;
+    return i === 0 ? proxyCards[cardId] : undefined;   // legacy flat key = copy 0
+  };
+
+  // Is this specific copy flagged as a proxy?
+  const isProxyCopy = (cardId, i=0) => !!proxyRaw(cardId, i);
+
+  // Does ANY copy of this card carry a proxy flag? Used where a card is shown once
+  // (the card grid, bulk selection) rather than per copy.
+  const anyProxy = (cardId) => {
+    if (proxyCards[cardId]) return true;
+    for (let i = 0; i < 12; i++) if (proxyCards[proxyKey(cardId,i)]) return true;
+    return false;
+  };
+
+  async function toggleProxy(cardId, note, copyIndex = 0) {
     if (!user) { setSigningIn(true); return; }
     const next = {...proxyCards};
-    if (next[cardId] && note === undefined) delete next[cardId];
-    else next[cardId] = (note && String(note).trim()) ? String(note).trim() : true;
+    const k = proxyKey(cardId, copyIndex);
+    // Fold any legacy flat key into copy 0 so a card is never flagged twice under
+    // two different key shapes.
+    if (copyIndex === 0 && next[cardId] !== undefined) {
+      if (next[k] === undefined) next[k] = next[cardId];
+      delete next[cardId];
+    }
+    if (next[k] && note === undefined) delete next[k];
+    else next[k] = (note && String(note).trim()) ? String(note).trim() : true;
     setProxyCards(next);
     try { await setDoc(doc(db,"boba_proxy",user.uid), next); }
     catch(e) { alert("Couldn't save: " + (e.message||e)); }
   }
 
-  // Read the note back, if there is one. Guards against the plain `true` flag.
-  const proxyNote = (cardId) => {
-    const v = proxyCards[cardId];
+  // Read the note back for a specific copy. Guards against the plain `true` flag.
+  const proxyNote = (cardId, i=0) => {
+    const v = proxyRaw(cardId, i);
     return (typeof v === "string" && v.trim()) ? v : "";
   };
 
@@ -36669,38 +37664,57 @@ See you in there!
   // because the same slab proxied into three decks still only needs printing once.
   function printProxyReport() {
     if (!user) { setSigningIn(true); return; }
-    // One row per COPY, not per card. Three graded Amon-Ras that you cannot play with need three
-    // printed proxies \u2014 deduping by card would under-order every time you own multiples.
+    // One row per FLAGGED COPY. This used to render one row per CARD with a Qty column,
+    // which meant two copies of the same card shared a single note line \u2014 exactly the
+    // thing the notes exist to prevent. A card you own twice, with only the vault copy
+    // flagged, now prints one row for that copy and says which one it is.
     const rows = cards
-      .filter(c => proxyCards[c.id])
-      .sort((a,b) => String(a.setName||"").localeCompare(String(b.setName||""))
-                  || String(a.cardNum||"").localeCompare(String(b.cardNum||""), undefined, {numeric:true}));
+      .filter(c => anyProxy ? anyProxy(c.id) : proxyCards[c.id])
+      .flatMap(c => {
+        const q = Math.max(1, parseInt(owned[c.id]) || 0);
+        return Array.from({length:q}, (_,ci) => ({ c, ci, q }))
+          .filter(({ci}) => isProxyCopy ? isProxyCopy(c.id, ci) : true);
+      })
+      .map(x => x)
+      .sort((x,y) => String(x.c.setName||"").localeCompare(String(y.c.setName||""))
+                  || String(x.c.cardNum||"").localeCompare(String(y.c.cardNum||""), undefined, {numeric:true})
+                  || x.ci - y.ci);
     if (!rows.length) { alert("No cards are marked as proxies yet.\n\nSelect cards in the grid, then use \u201cMark as proxy\u201d."); return; }
     const esc = s => String(s==null?"":s).replace(/[&<>"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch]));
     // Which decks each proxy is for. Built here rather than reusing deckLocationText because that
     // helper phrases things for the deck builder ("your copy is in \u2026"); on a print list you just
     // want the deck names, and a card used in three decks should say so.
-    const deckNamesFor = (cid) => {
-      const names = [];
-      (savedDecks||[]).forEach(d => {
-        if ((d.cardIds||[]).includes(cid)) names.push(d.name || "Untitled deck");
-      });
-      return names;
+    // Which deck holds a SPECIFIC copy. Previously this listed every deck using the
+    // card on every copy's row, so a card in two decks printed "Deck A, Deck B" twice
+    // — telling IMC nothing about which physical card each line refers to. Copies are
+    // assigned by deck age (oldest deck gets copy 0), matching deckCopyIndex.
+    const deckForCopy = (cid, ci) => {
+      const byAge = (savedDecks||[]).slice().sort((a,b) =>
+        String(a.savedAt||"").localeCompare(String(b.savedAt||"")) ||
+        String(a.id||"").localeCompare(String(b.id||""))
+      );
+      let i = 0;
+      for (const d of byAge) {
+        if (!(d.cardIds||[]).includes(cid)) continue;
+        if (i === ci) return d.name || "Untitled deck";
+        i++;
+      }
+      return "";   // this copy isn't committed to any deck
     };
-    const body = rows.map((c,i) => `
+    const body = rows.map(({c, ci, q}, i) => `
       <tr>
         <td class="num">${i+1}</td>
         <td class="mono">${esc(c.cardNum||"\u2014")}</td>
-        <td><strong>${esc(c.hero||c.playName||"\u2014")}</strong></td>
+        <td><strong>${esc(c.hero||c.playName||"\u2014")}</strong>${q>1?` <span class="copy">copy ${ci+1}/${q}</span>`:""}</td>
+        <td>${esc(c.variation||"\u2014")}</td>
         <td>${esc(c.treatment||"\u2014")}</td>
         <td>${esc(c.weapon||"\u2014")}</td>
         <td class="r">${esc(c.power??"")}</td>
         <td class="set">${esc(c.setName||"\u2014")}</td>
-        <td class="r">${(parseInt(owned[c.id]) || 1)}</td>
-        <td class="note">${esc(deckNamesFor(c.id).join(", "))}</td>
-        <td class="note">${esc(typeof proxyCards[c.id]==="string" ? proxyCards[c.id] : "")}</td>
+        <td class="note">${esc(deckForCopy(c.id, ci) || "\u2014 not in a deck")}</td>
+        <td class="note">${esc(proxyNote ? proxyNote(c.id, ci) : "")}</td>
       </tr>`).join("");
-    const totalCopies = rows.reduce((s,c) => s + (parseInt(owned[c.id]) || 1), 0);
+    const totalCopies = rows.length;
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Proxy Print List</title>
       <style>
         body{font-family:'Trebuchet MS',sans-serif;margin:28px;color:#111;}
@@ -36710,6 +37724,7 @@ See you in there!
         th{text-align:left;border-bottom:2px solid #111;padding:6px 8px;font-size:11px;text-transform:uppercase;letter-spacing:0.4px;}
         td{border-bottom:1px solid #ddd;padding:7px 8px;}
         .mono{font-family:ui-monospace,monospace;}
+        .copy{font-size:9.5px;font-weight:900;color:#B45309;background:#FEF3C7;border:1px solid #FDE68A;border-radius:4px;padding:0 4px;}
         .num{color:#999;width:34px;}
         .r{text-align:right;font-weight:700;}
         .set{color:#777;}
@@ -36719,7 +37734,7 @@ See you in there!
       <h1>Proxy Print List</h1>
       <div class="sub"><strong>${totalCopies} proxy card${totalCopies===1?"":"s"} to print</strong> \u00b7 ${rows.length} distinct card${rows.length===1?"":"s"} \u00b7 ${esc(myUsername||user.email||"")} \u00b7 ${new Date().toLocaleDateString()}</div>
       <table>
-        <thead><tr><th>#</th><th>Card #</th><th>Hero</th><th>Treatment</th><th>Weapon</th><th class="r">Power</th><th>Set</th><th class="r">Copies</th><th>Used in</th><th>Note</th></tr></thead>
+        <thead><tr><th>#</th><th>Card #</th><th>Hero</th><th>Variation</th><th>Treatment</th><th>Weapon</th><th class="r">Power</th><th>Set</th><th>Used in</th><th>Note</th></tr></thead>
         <tbody>${body}</tbody>
       </table>
       <p class="noprint" style="margin-top:18px;">
@@ -39165,7 +40180,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     if(filterOwned==="owned"   && !owned[c.id])  return false;
     // Proxy-only view. This is what makes the IMC print list possible: filter to proxies, then the
     // existing filtered export produces exactly the list of cards that need printing.
-    if(filterOwned==="proxy"   && !proxyCards[c.id]) return false;
+    if(filterOwned==="proxy"   && !anyProxy(c.id)) return false;   // any copy flagged
     // Kid collections: a card shows under a kid if ANY of its copies is tagged to them; it shows
     // under "Mine" if any copy is untagged. (You can own 2 and have one be Brooks' — so the same
     // card can legitimately appear under both.)
@@ -39464,6 +40479,61 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       : `your copy is in ${l.who}'s "${l.deck}"`).join(", ");
   };
 
+
+  // ── AUTOMATIC COPY ASSIGNMENT ──────────────────────────────────────────────
+  // A deck stores bare card IDs, so when you own two of the same card and both are
+  // committed to decks, nothing recorded WHICH physical copy each deck holds. That
+  // matters for proxies: flagging the vault copy as "needs a proxy" was making the
+  // OTHER deck — which holds the copy you physically have — also demand a proxy.
+  //
+  // Rule from the game: one copy per deck, and a physical card can only be in one
+  // deck at a time. So copies are handed out deterministically in deck age order:
+  // the OLDEST deck using a card gets copy 0, the next gets copy 1, and so on.
+  //
+  // Age order (not the display order, which is newest-first) is deliberate: it means
+  // creating or deleting a NEWER deck never reshuffles the assignments of older ones.
+  // Deleting an old deck does shift things down, which is the honest behaviour —
+  // that copy genuinely became free.
+  //
+  // Returns { "cardId|deckId": copyIndex }.
+  const deckCopyIndex = useMemo(() => {
+    const byAge = (savedDecks || []).slice().sort((a,b) =>
+      String(a.savedAt||"").localeCompare(String(b.savedAt||"")) ||
+      String(a.id||"").localeCompare(String(b.id||""))
+    );
+    const nextIdx = {};   // cardId -> next copy index to hand out
+    const out = {};
+    byAge.forEach(d => {
+      // The deck open in the editor contributes its LIVE contents, not its saved
+      // snapshot — same reasoning as otherDeckUse above.
+      const ids = (deckLoadId && d.id === deckLoadId) ? (deckCards || []) : (d.cardIds || []);
+      const seen = new Set();
+      ids.forEach(cid => {
+        if (seen.has(cid)) return;      // a deck can only hold one copy of a card
+        seen.add(cid);
+        const i = nextIdx[cid] || 0;
+        out[`${cid}|${d.id}`] = i;
+        nextIdx[cid] = i + 1;
+      });
+    });
+    return out;
+  }, [savedDecks, deckLoadId, deckCards]);
+
+  // Which copy the given deck holds of a card. Unsaved/new decks fall back to the
+  // first copy not already claimed by a saved deck.
+  // useMemo rather than useCallback purely because useCallback is not imported in
+  // this file — same effect, one stable function identity per deckCopyIndex.
+  const copyForDeck = useMemo(() => (cardId, deckId) => {
+    if (deckId) {
+      const k = deckCopyIndex[`${cardId}|${deckId}`];
+      if (k !== undefined) return k;
+    }
+    let used = 0;
+    Object.keys(deckCopyIndex).forEach(key => {
+      if (key.slice(0, key.lastIndexOf("|")) === cardId) used++;
+    });
+    return used;
+  }, [deckCopyIndex]);
 
   // Same as otherDeckUse but counting EVERY saved deck, including the one open in the editor.
   // The quick builder is proposing a brand-new deck, so a card sitting in the currently-loaded
@@ -45506,7 +46576,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             cards={cards} owned={owned} inp={inp}
             familyOwnerByCard={familyOwnerByCard} familyOwnsCard={familyOwnsCard} deckOwnedMerged={deckOwnedMerged}
             canAddToDeck={canAddToDeck} isMobile={isMobile} lots={lots} foilDogs={foilDogs} setFoilDogs={setFoilDogs}
-            kidGroups={kidGroups} kidOfCopy={kidOfCopy} otherDeckUse={otherDeckUse} proxyCards={proxyCards} onToggleProxy={toggleProxy} proxyNote={proxyNote}
+            kidGroups={kidGroups} kidOfCopy={kidOfCopy} otherDeckUse={otherDeckUse} proxyCards={proxyCards} onToggleProxy={toggleProxy} proxyNote={proxyNote} isProxyCopy={isProxyCopy} anyProxy={anyProxy} copyForDeck={copyForDeck}
             savedDecks={savedDecks} familyDecks={familyDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
             saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} giveDeckToFamily={giveDeckToFamily} takeBackDeck={takeBackDeck} familyList={familyList} givenDecks={givenDecks} setFanDeck={setFanDeck} setFanMode={setFanMode}
             deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} deckSource={deckSource} setDeckSource={setDeckSource} computeDeckProgress={computeDeckProgress} listings={listings} setActiveTab={setActiveTab} deckLegality={deckLegality}
