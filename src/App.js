@@ -43832,7 +43832,19 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       .sort((a,b)=>a.days-b.days);
   }, [lots, cardById]);
 
-  const totalNotifs = friendReqs.length+teamInvites.length+marketNotifs.length+wantNotifs.length+unreadThreads+loansDue.length;
+  // Pending loan offers where I'm the borrower — someone sent me cards to accept.
+  // Surfaced in the notification bell so I don't have to dig into the Friends tab.
+  const incomingLoans = useMemo(() => {
+    if (!user) return [];
+    return (borrowLedger||[])
+      .filter(l => l.status==="pending" && l.borrowerUid===user.uid)
+      .map(l => {
+        const c = cardById.get(l.cardId);
+        return { entry:l, hero: (c?.hero) || l.cardLabel || "a card", from: l.ownerName || "someone", image: c?.imageUrl || l.cardImage || "" };
+      });
+  }, [borrowLedger, user, cardById]);
+
+  const totalNotifs = friendReqs.length+teamInvites.length+marketNotifs.length+wantNotifs.length+unreadThreads+loansDue.length+incomingLoans.length;
 
   if(loading) {
     const baseUrls = LOADING_CARD_IMAGES.urls.length > 0
@@ -44609,7 +44621,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   <button onClick={()=>{ setScanLoanMode("borrowed"); setLoanScanCard({ card:c, mode:"borrowed" }); setExpandedCard(null); }}
                     style={{width:"100%",background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.45)",
                     color:"#7B9CFF",borderRadius:9,padding:"9px",fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
-                    {"\uD83D\uDCE5"} I'm borrowing this card
+                    {"\uD83D\uDCE5"} I want to borrow this card
                   </button>
                 )}
                 {user && owned[c.id] && (
@@ -47179,6 +47191,31 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Incoming loan offers — someone sent me cards to accept. Accept/decline
+          right here, like the want-list bar, so no trip to the Friends tab. */}
+      {incomingLoans.length>0&&(
+        <div style={{background:"linear-gradient(135deg,rgba(74,222,128,0.1),rgba(96,165,250,0.06))",borderBottom:"1px solid rgba(74,222,128,0.2)",padding:"10px 24px"}}>
+          <div style={{maxWidth:1400,margin:"0 auto",display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
+            <span style={{fontSize:12,color:"#4ade80",fontWeight:800,whiteSpace:"nowrap"}}>
+              📥 {incomingLoans.length} card{incomingLoans.length===1?"":"s"} loaned to you
+            </span>
+            {incomingLoans.slice(0,4).map(({entry,hero,from,image})=>(
+              <span key={entry.id} style={{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(0,0,0,0.25)",border:"1px solid rgba(255,255,255,0.1)",borderRadius:8,padding:"4px 8px"}}>
+                {image ? <img src={image} alt="" style={{width:18,height:25,borderRadius:3,objectFit:"cover",flexShrink:0}}/> : null}
+                <span style={{fontSize:11.5,color:"rgba(255,255,255,0.8)",whiteSpace:"nowrap"}}>{hero} <span style={{color:"rgba(255,255,255,0.45)"}}>from {from}</span></span>
+                <button onClick={()=>acceptLoan(entry)} style={{fontSize:10.5,background:"rgba(74,222,128,0.18)",border:"1px solid #4ade80",color:"#4ade80",borderRadius:6,padding:"3px 9px",cursor:"pointer",fontFamily:"inherit",fontWeight:800,flexShrink:0}}>Accept</button>
+                <button onClick={()=>declineLoan(entry)} style={{fontSize:10.5,background:"transparent",border:"1px solid #555",color:"#999",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontFamily:"inherit",fontWeight:700,flexShrink:0}}>Decline</button>
+              </span>
+            ))}
+            {incomingLoans.length>4 && (
+              <span onClick={()=>setActiveTab("friends")} style={{fontSize:11,color:"rgba(255,255,255,0.5)",cursor:"pointer",textDecoration:"underline"}}>
+                +{incomingLoans.length-4} more
+              </span>
+            )}
           </div>
         </div>
       )}
