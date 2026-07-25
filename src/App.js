@@ -34892,6 +34892,7 @@ function LoanScanConfirm({ entry, cards, friends=[], inp, onCancel, onConfirm })
   const [mode, setMode] = React.useState(entry?.mode || "lent");
   const [who, setWho]   = React.useState("");
   const [friendUid, setFriendUid] = React.useState("");   // picked app-friend, if any
+  const [returnBy, setReturnBy] = React.useState("");     // optional return-by date
   const [q, setQ]       = React.useState("");
   // Manual search when the scan missed (or to correct a wrong match).
   const results = React.useMemo(() => {
@@ -34976,12 +34977,72 @@ function LoanScanConfirm({ entry, cards, friends=[], inp, onCancel, onConfirm })
           </div>
         )}
 
+        {/* Optional return-by date — drives the reminder + calendar. */}
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
+          <span style={{fontSize:11,color:"var(--bz-ink-3)",whiteSpace:"nowrap"}}>{mode==="lent"?"Want it back by":"Return by"}</span>
+          <input type="date" value={returnBy} onChange={e=>setReturnBy(e.target.value)}
+            style={{...inp,flex:1,colorScheme:"dark"}} />
+          {returnBy && <button onClick={()=>setReturnBy("")} style={{background:"none",border:"none",color:"var(--bz-ink-3)",fontSize:16,cursor:"pointer",fontFamily:"inherit",padding:0}}>×</button>}
+        </div>
+
         <div style={{display:"flex",gap:8}}>
           <button onClick={onCancel} style={{flex:1,background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-3)",borderRadius:10,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
           <button disabled={!card || !effectiveWho}
-            onClick={()=>onConfirm(card, mode, effectiveWho, friend)}
+            onClick={()=>onConfirm(card, mode, effectiveWho, friend, returnBy)}
             style={{flex:2,background:(!card||!effectiveWho)?"#333":"linear-gradient(135deg,#E8317A,#7B2FF7)",border:"none",color:"#fff",borderRadius:10,padding:"11px",fontSize:13,fontWeight:900,cursor:(!card||!effectiveWho)?"default":"pointer",fontFamily:"inherit"}}>
             {mode==="lent" ? (friend ? "Lend & send" : "Mark lent") : "Mark borrowed"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Bulk loan modal — same friend-picker + return-date flow as the single-card loan,
+// but applied to a batch. mode is "lent" or "borrowed"; count is how many cards.
+function BulkLoanModal({ mode, count, friends=[], inp, onCancel, onConfirm }) {
+  const [who, setWho]   = React.useState("");
+  const [friendUid, setFriendUid] = React.useState("");
+  const [returnBy, setReturnBy]   = React.useState("");
+  const friend = (friends||[]).find(f => f.friendUid === friendUid) || null;
+  const effectiveWho = friend ? (friend.friendName || friend.friendUid) : who.trim();
+  const lent = mode === "lent";
+  return (
+    <div onClick={onCancel} style={{position:"fixed",inset:0,zIndex:14000,background:"rgba(0,0,0,0.8)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-s1,#14141c)",border:"1px solid var(--bz-line-2)",borderRadius:16,width:"100%",maxWidth:420,padding:18}}>
+        <div style={{fontSize:15,fontWeight:900,color:"var(--bz-ink)",marginBottom:4}}>
+          {lent ? "Loan out" : "Borrow"} {count} card{count===1?"":"s"}
+        </div>
+        <div style={{fontSize:11.5,color:"var(--bz-ink-3)",marginBottom:14}}>
+          {lent ? "Same friend + return date applies to all selected." : "All marked borrowed from the same person."}
+        </div>
+        {(friends||[]).length > 0 && (
+          <select value={friendUid} onChange={e=>{ setFriendUid(e.target.value); if(e.target.value) setWho(""); }}
+            style={{...inp,width:"100%",marginBottom:8}}>
+            <option value="">{lent?"Pick a friend to send to…":"Pick a friend…"}</option>
+            {(friends||[]).map(f=>(<option key={f.friendUid} value={f.friendUid}>{f.friendName||f.friendUid}</option>))}
+          </select>
+        )}
+        <input value={who} onChange={e=>{ setWho(e.target.value); if(e.target.value) setFriendUid(""); }}
+          disabled={!!friendUid}
+          placeholder={friendUid ? "" : (friends||[]).length>0 ? "…or type a name (not on the app)" : (lent?"Who gets them?":"Who lent them?")}
+          style={{...inp,width:"100%",marginBottom:14,opacity: friendUid?0.5:1}} />
+        {lent && friend && (
+          <div style={{fontSize:10.5,color:"#60A5FA",marginTop:-8,marginBottom:12}}>
+            Sends all {count} to {friend.friendName} — they accept on their end.
+          </div>
+        )}
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14}}>
+          <span style={{fontSize:11,color:"var(--bz-ink-3)",whiteSpace:"nowrap"}}>{lent?"Want them back by":"Return by"}</span>
+          <input type="date" value={returnBy} onChange={e=>setReturnBy(e.target.value)} style={{...inp,flex:1,colorScheme:"dark"}} />
+          {returnBy && <button onClick={()=>setReturnBy("")} style={{background:"none",border:"none",color:"var(--bz-ink-3)",fontSize:16,cursor:"pointer",fontFamily:"inherit",padding:0}}>×</button>}
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={onCancel} style={{flex:1,background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-3)",borderRadius:10,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+          <button disabled={!effectiveWho}
+            onClick={()=>onConfirm(effectiveWho, friend, returnBy)}
+            style={{flex:2,background:!effectiveWho?"#333":"linear-gradient(135deg,#E8317A,#7B2FF7)",border:"none",color:"#fff",borderRadius:10,padding:"11px",fontSize:13,fontWeight:900,cursor:!effectiveWho?"default":"pointer",fontFamily:"inherit"}}>
+            {lent ? (friend ? "Lend & send all" : "Mark lent") : "Mark borrowed"}
           </button>
         </div>
       </div>
@@ -36678,6 +36739,7 @@ See you in there!
   // the matched card awaiting the who-prompt. A camera input ref feeds the scan.
   const [scanLoanMode,  setScanLoanMode]  = useState(null);
   const [loanScanCard,  setLoanScanCard]  = useState(null);
+  const [bulkLoanOpen,  setBulkLoanOpen]  = useState(null);   // "lent" | "borrowed" | null
   const loanScanInputRef = useRef(null);
 
   // -- Friends --
@@ -39343,7 +39405,7 @@ See you in there!
   //   - Otherwise create a lot for this copy so the loan has somewhere to live.
   // Returning it is the inverse (markCardReturned): clears the lend fields on the
   // most-recently-lent copy.
-  async function markCardLent(cardId, who) {
+  async function markCardLent(cardId, who, returnBy="") {
     const name = (who||"").trim();
     if (!name) return;
     const stamp = todayLocal();
@@ -39351,11 +39413,11 @@ See you in there!
     const idx = lots.findIndex(l => l.cardId===cardId && (l.lendState||"")==="");
     if (idx >= 0) {
       const next = lots.slice();
-      next[idx] = { ...next[idx], lendState:"lent", lendWho:name, lendDate:stamp };
+      next[idx] = { ...next[idx], lendState:"lent", lendWho:name, lendDate:stamp, returnBy: returnBy||"" };
       saveLots(next);
     } else {
       const lot = { id: uid(), cardId, cost:null, value:null, method:"owned",
-        date: stamp, notes:"", lendState:"lent", lendWho:name, lendWhy:"", lendDate:stamp };
+        date: stamp, notes:"", lendState:"lent", lendWho:name, lendWhy:"", lendDate:stamp, returnBy: returnBy||"" };
       saveLots([...lots, lot]);
     }
   }
@@ -39377,7 +39439,7 @@ See you in there!
   // accepts on their side, which flips the entry to "borrowed" and pulls the card
   // into their collection as borrowed-from-me. Nothing lands on their side without
   // their accept — I only ever write the shared borrow_ledger doc I'm a party to.
-  async function sendLoanToFriend(friend, cardIds) {
+  async function sendLoanToFriend(friend, cardIds, returnBy="") {
     if (!user || !friend?.friendUid || !cardIds?.length) return;
     const stamp = new Date().toISOString();
     const myName = user.displayName || user.email || "Someone";
@@ -39392,6 +39454,7 @@ See you in there!
         cardLabel: card ? `${card.hero} ${card.power}⚡ ${card.treatment||""}`.trim() : cid,
         cardImage: card?.imageUrl || "",
         deckName: "",
+        returnBy: returnBy || "",          // owner's requested return date, carried to borrower on accept
         status: "pending",                 // becomes "borrowed" on accept
         offeredAt: stamp,
         participantUids: [user.uid, friend.friendUid],
@@ -40193,49 +40256,64 @@ See you in there!
   // name, applied to every selected card you own. Tags an in-hand copy where one
   // exists, else creates a lot — same as the single-card markCardLent, batched
   // into a single save.
-  async function bulkMarkLent() {
+  // Bulk lend/borrow now open a modal (friend picker + return date) instead of a
+  // bare prompt, matching the single-card flow.
+  function bulkMarkLent() {
     if (!user || selectedIds.size===0) return;
     const ids = [...selectedIds].filter(id => owned[id]);
     if (!ids.length) { showToast("Select cards you own to lend out."); return; }
-    const who = window.prompt(`Lend ${ids.length} card${ids.length===1?"":"s"} to whom?`);
-    if (who === null || !who.trim()) return;
-    const name = who.trim();
+    setBulkLoanOpen("lent");
+  }
+  function bulkMarkBorrowed() {
+    if (!user || selectedIds.size===0) return;
+    setBulkLoanOpen("borrowed");
+  }
+
+  // Commit a bulk lend. who = name (friend name wins), friend = app-friend object
+  // (triggers send), returnBy = optional date stamped on each lot + ledger.
+  async function commitBulkLent(who, friend, returnBy) {
+    if (!user) return;
+    const ids = [...selectedIds].filter(id => owned[id]);
+    if (!ids.length) return;
+    const name = (who||"").trim();
+    if (!name) return;
     const stamp = todayLocal();
     let next = lots.slice();
     let n = 0;
     ids.forEach(cardId => {
       const idx = next.findIndex(l => l.cardId===cardId && (l.lendState||"")==="");
-      if (idx >= 0) { next[idx] = { ...next[idx], lendState:"lent", lendWho:name, lendDate:stamp }; n++; }
+      if (idx >= 0) { next[idx] = { ...next[idx], lendState:"lent", lendWho:name, lendDate:stamp, returnBy: returnBy||"" }; n++; }
       else { next = [...next, { id: uid(), cardId, cost:null, value:null, method:"owned",
-             date:stamp, notes:"", lendState:"lent", lendWho:name, lendWhy:"", lendDate:stamp }]; n++; }
+             date:stamp, notes:"", lendState:"lent", lendWho:name, lendWhy:"", lendDate:stamp, returnBy: returnBy||"" }]; n++; }
     });
     await saveLots(next);
-    showToast(`\uD83D\uDCE4 Marked ${n} card${n===1?"":"s"} lent to ${name}`);
-    clearSelection();
+    if (friend?.friendUid) {
+      const res = await sendLoanToFriend(friend, ids, returnBy);
+      showToast(res?.ok ? `\uD83D\uDCE4 Lent ${n} to ${name} \u2014 sent to accept` : `\uD83D\uDCE4 Lent ${n}, but send failed`);
+    } else {
+      showToast(`\uD83D\uDCE4 Marked ${n} card${n===1?"":"s"} lent to ${name}`);
+    }
+    setBulkLoanOpen(null); clearSelection();
   }
 
-  // Bulk-mark the selected cards as borrowed from one person. One prompt for the
-  // name; creates a borrowed copy per card (and bumps owned so it shows in the
-  // grid), mirroring the single-card addBorrowedCopy, batched into one save.
-  async function bulkMarkBorrowed() {
-    if (!user || selectedIds.size===0) return;
+  async function commitBulkBorrowed(who, _friend, returnBy) {
+    if (!user) return;
     const ids = [...selectedIds];
-    const who = window.prompt(`Borrow ${ids.length} card${ids.length===1?"":"s"} from whom?`);
-    if (who === null || !who.trim()) return;
-    const name = who.trim();
+    const name = (who||"").trim();
+    if (!name || !ids.length) return;
     const stamp = todayLocal();
     let next = lots.slice();
     const ownedNext = { ...(owned||{}) };
     ids.forEach(cardId => {
       next = [...next, { id: uid(), cardId, cost:null, value:null, method:"borrowed",
-             date:stamp, notes:"", lendState:"borrowed", lendWho:name, lendWhy:"", lendDate:stamp }];
+             date:stamp, notes:"", lendState:"borrowed", lendWho:name, lendWhy:"", lendDate:stamp, returnBy: returnBy||"" }];
       ownedNext[cardId] = (parseInt(ownedNext[cardId])||0) + 1;
     });
     await saveLots(next);
     setOwned(ownedNext);
     try { await setDoc(doc(db,"boba_owned",user.uid), ownedNext); } catch(e){ console.error("bulk borrow owned save failed:", e); }
     showToast(`\uD83D\uDCE5 Marked ${ids.length} card${ids.length===1?"":"s"} borrowed from ${name}`);
-    clearSelection();
+    setBulkLoanOpen(null); clearSelection();
   }
 
   async function bulkDeleteCards() {
@@ -44525,32 +44603,20 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 {/* Error-card flag. This existed only on the small card's BACK face, so opening the
                     full detail view \u2014 the place you go precisely to check a card \u2014 showed nothing. If a
                     card is a known misprint or has had its power corrected, that belongs here. */}
-                {/* One-tap "I'm borrowing this". Adds the copy already tagged as borrowed so it never
-                    counts as owned, instead of the two-step add-then-edit-details dance. */}
+                {/* Borrow / Lend — open the full loan flow (friend picker or free-text,
+                    plus a return-by date), pre-loaded with this card. */}
                 {user && (
-                  <button onClick={async ()=>{
-                    const who = window.prompt("Who are you borrowing this from?") ;
-                    if (who === null) return;   // cancelled
-                    const why = window.prompt("What are you borrowing it for? (optional)") || "";
-                    await addBorrowedCopy(c.id, who, why);
-                    setToast(`\uD83D\uDCE5 Added as borrowed${who?` from ${who}`:""}`);
-                  }} style={{width:"100%",background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.45)",
+                  <button onClick={()=>{ setScanLoanMode("borrowed"); setLoanScanCard({ card:c, mode:"borrowed" }); setExpandedCard(null); }}
+                    style={{width:"100%",background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.45)",
                     color:"#7B9CFF",borderRadius:9,padding:"9px",fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
                     {"\uD83D\uDCE5"} I'm borrowing this card
                   </button>
                 )}
-                {/* Lend this card out — sibling to the borrow action, since both answer
-                    "where is this card." Shown when you own it. One prompt for the name;
-                    tags a copy as lent (still owned, excluded from decking). */}
                 {user && owned[c.id] && (
-                  <button onClick={async ()=>{
-                    const who = window.prompt(`Lend ${c.hero||"this card"} to whom?`);
-                    if (who === null || !who.trim()) return;
-                    await markCardLent(c.id, who);
-                    setToast(`\uD83D\uDCE4 Marked as lent to ${who.trim()}`);
-                  }} style={{width:"100%",marginTop:8,background:"rgba(251,191,36,0.12)",border:"1px solid rgba(251,191,36,0.45)",
+                  <button onClick={()=>{ setScanLoanMode("lent"); setLoanScanCard({ card:c, mode:"lent" }); setExpandedCard(null); }}
+                    style={{width:"100%",marginTop:8,background:"rgba(251,191,36,0.12)",border:"1px solid rgba(251,191,36,0.45)",
                     color:"#FBBF24",borderRadius:9,padding:"9px",fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
-                    {"\uD83D\uDCE4"} I'm lending this card out
+                    {"\uD83D\uDCE4"} Loan this card out
                   </button>
                 )}
                 {(() => {
@@ -46027,12 +46093,12 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
           friends={friends}
           inp={inp}
           onCancel={()=>{ setLoanScanCard(null); setScanLoanMode(null); }}
-          onConfirm={async (card, mode, who, friend)=>{
+          onConfirm={async (card, mode, who, friend, returnBy)=>{
             if (mode==="lent") {
-              await markCardLent(card.id, who);
+              await markCardLent(card.id, who, returnBy);
               // Picked an app friend -> also send the loan so they can accept it.
               if (friend?.friendUid) {
-                const res = await sendLoanToFriend(friend, [card.id]);
+                const res = await sendLoanToFriend(friend, [card.id], returnBy);
                 setToast(res?.ok
                   ? `\uD83D\uDCE4 Lent ${card.hero||"card"} to ${who} \u2014 sent for them to accept`
                   : `\uD83D\uDCE4 Marked lent, but send failed: ${res?.error||"try again"}`);
@@ -46044,6 +46110,19 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
               setToast(`\uD83D\uDCE5 Borrowed ${card.hero||"card"} from ${who}`);
             }
             setLoanScanCard(null); setScanLoanMode(null);
+          }} />
+      )}
+
+      {bulkLoanOpen && (
+        <BulkLoanModal
+          mode={bulkLoanOpen}
+          count={bulkLoanOpen==="lent" ? [...selectedIds].filter(id=>owned[id]).length : selectedIds.size}
+          friends={friends}
+          inp={inp}
+          onCancel={()=>setBulkLoanOpen(null)}
+          onConfirm={(who, friend, returnBy)=>{
+            if (bulkLoanOpen==="lent") commitBulkLent(who, friend, returnBy);
+            else commitBulkBorrowed(who, friend, returnBy);
           }} />
       )}
 
@@ -48089,6 +48168,10 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                       </button>
                       {open && (
                         <>
+                          {/* Full-screen invisible catcher: any click off the menu closes it.
+                              zIndex sits below the menu (9999) but above page content. */}
+                          <div onPointerDown={(e)=>{ e.stopPropagation(); setMultiOpen(null); }}
+                               style={{position:"fixed",inset:0,zIndex:9990}}/>
                           <div className="filter-menu" style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:9999,background:"#141414",border:"1px solid #2a2a2a",borderRadius:10,padding:6,minWidth:200,maxHeight:320,overflowY:"auto",boxShadow:"0 10px 30px rgba(0,0,0,0.6)"}}>
                             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 8px 6px",borderBottom:"1px solid #222",marginBottom:4}}>
                               <span style={{fontSize:10,color:"var(--bz-ink-2)",fontWeight:700,letterSpacing:0.5}}>{label.toUpperCase()}</span>
@@ -48197,6 +48280,8 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 </button>
                 {powerMenuOpen && (
                   <>
+                    <div onPointerDown={(e)=>{ e.stopPropagation(); setPowerMenuOpen(false); }}
+                         style={{position:"fixed",inset:0,zIndex:9990}}/>
                     <div className="filter-menu" style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:9999,background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",width:180,maxHeight:280,overflowY:"auto",padding:6}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 8px 6px",borderBottom:"1px solid #2a2a2a",marginBottom:4}}>
                         <span style={{fontSize:10,color:"var(--bz-ink-2)",fontWeight:700,letterSpacing:1}}>POWER LEVEL</span>
