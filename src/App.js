@@ -30557,47 +30557,11 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   }
 
   // ---- substitution (Substitution mode) ----------------------------------
-  // Swap a placed hero for a Bench hero BEFORE its zone is revealed. Costs 2 Hot
-  // Dogs, limited to one per battle. The swapped-out hero goes to discard (gone
-  // for the game), and a fresh Bench hero is drawn from the deck to refill to 4.
-  //
-  // "Before revealed" is enforced two ways: the zone being substituted must not
-  // already hold a revealed card in the public doc, and it must be a zone that
-  // hasn't been settled. The UI only offers it on the current, unrevealed zone.
-  async function substituteHero(zoneIdx, benchIdx) {
-    if (!G || !P) return;
-    if (G.mode !== "substitution") return;
-    // Already revealed this zone? Too late.
-    if ((G.zones || [])[zoneIdx]?.[seat]) { setErr("That hero is already revealed."); return; }
-    if (P.subUsedThisBattle) { setErr("Only one substitution per battle."); return; }
-    const hotdogs = P.hotdogs || [];
-    if (hotdogs.length < 2) { setErr("Not enough Hot Dogs — a substitution costs 2."); return; }
-    const bench = (P.bench || []).slice();
-    const benchHero = bench[benchIdx];
-    if (!benchHero) { setErr("Pick a Bench hero to bring in."); return; }
-    const placed = (P.placed || []).slice();
-    const outgoing = placed[zoneIdx];
-    if (!outgoing) { setErr("No hero in that zone to substitute."); return; }
-
-    // Perform the swap.
-    placed[zoneIdx] = benchHero;
-    bench.splice(benchIdx, 1);
-    const discard = [ ...(P.discard || []), outgoing ];
-    const spentHotdogs = hotdogs.slice(2);       // pay 2
-    // Refill the bench to 4 from the top of the deck, if any remain.
-    let deck = (P.deck || []).slice();
-    while (bench.length < 4 && deck.length) bench.push(deck.shift());
-
-    const patch = {
-      placed, bench, discard, deck,
-      hotdogs: spentHotdogs,
-      subUsedThisBattle: true,
-      updatedAt: new Date().toISOString(),
-    };
-    if (isCpu) { setCpuPriv(p => ({ ...p, ...patch })); setErr(null); return; }
-    await updateDoc(doc(db, "boba_games", gameId, "private", uid), patch);
-    setErr(null);
-  }
+  // The substitution swap now happens inside commitBattle (below), as part of the
+  // sequential commit phase — honors player decides first, opponent responds, then
+  // both cards flip. The old "sub anytime before you reveal" path was removed
+  // because it let whoever revealed second peek at the first card, inverting the
+  // honors advantage the rules give the previous battle's winner.
 
   // Reset the once-per-battle substitution flag when the battle advances. Called
   // from the same place the zone index moves on.
@@ -30658,8 +30622,108 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
     return { winner, bySuper, trophies, log };
   }
 
+  // ---- honors (Substitution mode) ----------------------------------------
+  // The player who declares their substitution decision FIRST each battle.
+  // Battle 1: the game-start first player. After that: the winner of the
+  // previous battle. On a draw, honors stays with whoever held it going in.
+  // Returns a seat ("p1"/"p2"). Walks battles in resolution order so draws
+  // correctly carry honors forward from the last decisive battle (or the start).
+  function honorsSeat() {
+    if (!G) return "p1";
+    const step = G.direction === "rtl" ? -1 : 1;
+    const startZone = G.direction === "rtl" ? 6 : 0;
+    let holder = G.first || "p1";           // battle 1 honors
+    const zones = G.zones || [];
+    // Walk from the first battle up to (but not including) the current zone;
+    // each decisive result hands honors to its winner, draws leave it be.
+    for (let i = startZone; i !== G.zoneIndex; i += step) {
+      if (i < 0 || i > 6) break;
+      const w = zones[i]?.winner;
+      if (w) holder = w;                    // decisive battle moves honors
+      // draw: holder unchanged
+    }
+    return holder;
+  }
+
+  // ---- battle commit phase (Substitution mode) ---------------------------
+  // Before either card flips, each player commits "stay" or "sub". The honors
+  // player must commit FIRST; the opponent sees whether honors subbed or stayed,
+  // then commits in response. Commits are final. Once both are in, reveal fires.
+  //
+  // The decision is stored per-zone in the PUBLIC doc (commits.{zoneIndex}.{seat})
+  // so both clients agree on ordering. Only the DECISION is public — "sub" or
+  // "stay" — never the card, which stays in the private doc until the flip.
+  async function commitBattle(decision, benchIdx) {
+    if (!G || !P || G.mode !== "substitution") return;
+    const zi = G.zoneIndex;
+    const commits = { ...(G.commits || {}) };
+    const zc = { ...(commits[zi] || { p1: null, p2: null }) };
+    if (zc[seat]) { setErr("You've already committed this battle."); return; }
+
+    const honors = honorsSeat();
+    const iAmHonors = seat === honors;
+    const honorsCommitted = !!zc[honors];
+    // Enforce order: if I'm NOT honors, honors must have gone first.
+    if (!iAmHonors && !honorsCommitted) {
+      setErr("Waiting for the honors player to decide first."); return;
+    }
+
+    // If subbing, perform the swap now (same accounting as substituteHero) and
+    // record it so the card is ready at flip time. Costs 2 Hot Dogs.
+    if (decision === "sub") {
+      const hotdogs = P.hotdogs || [];
+      if (hotdogs.length < 2) { setErr("Not enough Hot Dogs — a sub costs 2."); return; }
+      const bench = (P.bench || []).slice();
+      const benchHero = bench[benchIdx];
+      if (!benchHero) { setErr("Pick a Bench hero."); return; }
+      const placed = (P.placed || []).slice();
+      const outgoing = placed[zi];
+      if (!outgoing) { setErr("No hero in this zone."); return; }
+      placed[zi] = benchHero;
+      bench.splice(benchIdx, 1);
+      const discard = [ ...(P.discard || []), outgoing ];
+      const spent = hotdogs.slice(2);
+      let deck = (P.deck || []).slice();
+      while (bench.length < 4 && deck.length) bench.push(deck.shift());
+      const privPatch = { placed, bench, discard, deck, hotdogs: spent,
+                          subUsedThisBattle: true, updatedAt: new Date().toISOString() };
+      if (isCpu) setCpuPriv(p => ({ ...p, ...privPatch }));
+      else await updateDoc(doc(db, "boba_games", gameId, "private", uid), privPatch);
+    }
+
+    zc[seat] = decision;         // "stay" | "sub"
+    commits[zi] = zc;
+    setErr(null);
+
+    if (isCpu) {
+      // vs CPU: the CPU never subs (v1), so it commits "stay" the moment it's
+      // its turn. If I'm honors I commit, then the CPU auto-commits "stay".
+      setCpu(g => {
+        const c2 = { ...(g.commits || {}) };
+        const z2 = { ...(c2[zi] || { p1: null, p2: null }) };
+        z2[seat] = decision;
+        if (!z2[foe]) z2[foe] = "stay";       // CPU stays
+        c2[zi] = z2;
+        return { ...g, commits: c2 };
+      });
+      return;
+    }
+    await updateDoc(doc(db, "boba_games", gameId), { [`commits.${zi}`]: zc });
+  }
+
+  // Both committed? Then the cards may flip. Derived, not stored.
+  function bothCommitted() {
+    if (G?.mode !== "substitution") return true;   // other modes: no commit gate
+    const zc = (G.commits || {})[G?.zoneIndex];
+    return !!(zc && zc.p1 && zc.p2);
+  }
+
   async function revealMine() {
     if (!G || !P) return;
+    // Substitution mode gates reveal behind the commit phase.
+    if (G.mode === "substitution" && !bothCommitted()) {
+      setErr("Both players must lock in their sub decision first."); return;
+    }
     const zi = G.zoneIndex;
     const zones = (G.zones || []).slice();
     if (zones[zi]?.[seat]) return;                 // already revealed
@@ -30788,6 +30852,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           zones: Array.from({length:7}, () => ({ p1: null, p2: null, winner: null })),
           trophies: { p1: 0, p2: 0 },
           sudden: {},
+          commits: {},
           result: null,
           log: [],
           "p1.ready": false,
@@ -31066,7 +31131,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       zoneIndex: 0,
       zones: Array.from({length:7}, () => ({ p1:null, p2:null, winner:null })),
       trophies: { p1:0, p2:0 },
-      sudden: {}, result: null, log: [],
+      sudden: {}, result: null, log: [], commits: {},
       cpuTotal: cpuShuf.reduce((s,c)=>s+c.power,0),
       p1: { ...g.p1, ready:false },
       p2: { ...g.p2, ready:true },
@@ -31086,6 +31151,39 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   }
 
   async function leaveGame() { setGameId(null); setGame(null); setMyPriv(null); setCpu(null); setCpuPriv(null); setCpuHidden(null); setDamage({}); setFx(null); setErr(null); }
+
+  // vs CPU in Substitution mode: the CPU never subs (v1). If the CPU holds honors
+  // this battle, it must commit "stay" FIRST so the human (going second) can then
+  // act. This effect fires that auto-commit as soon as a battle needs it.
+  React.useEffect(() => {
+    if (!isCpu || !cpu || cpu.mode !== "substitution" || cpu.status !== "playing") return;
+    const zi = cpu.zoneIndex;
+    const zc = (cpu.commits || {})[zi] || { p1:null, p2:null };
+    // Compute honors inline (honorsSeat reads G === cpu here).
+    const step = cpu.direction === "rtl" ? -1 : 1;
+    const startZone = cpu.direction === "rtl" ? 6 : 0;
+    let holder = cpu.first || "p1";
+    for (let i = startZone; i !== zi; i += step) {
+      if (i < 0 || i > 6) break;
+      const w = (cpu.zones||[])[i]?.winner;
+      if (w) holder = w;
+    }
+    const cpuSeat = foe;                    // the CPU is the opponent seat
+    const cpuHasHonors = holder === cpuSeat;
+    // CPU commits "stay" if: it's the CPU's turn to go (it has honors and hasn't
+    // committed), OR the human already committed and the CPU still hasn't.
+    const humanCommitted = !!zc[seat];
+    const needsCpuCommit = !zc[cpuSeat] && (cpuHasHonors || humanCommitted);
+    if (needsCpuCommit) {
+      setCpu(g => {
+        const c2 = { ...(g.commits || {}) };
+        const z2 = { ...(c2[zi] || { p1:null, p2:null }) };
+        if (!z2[cpuSeat]) z2[cpuSeat] = "stay";
+        c2[zi] = z2;
+        return { ...g, commits: c2 };
+      });
+    }
+  }, [isCpu, cpu, seat, foe]);
 
   // ========================= RENDER =======================================
   const cardBack = (label) => (
@@ -31664,7 +31762,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
             </div>
           )}
           <div style={{fontSize:10.5,color:"rgba(255,255,255,0.4)",marginTop:8,textAlign:"center"}}>
-            To swap: on the reveal step below, tap {"\u201C"}Substitute{"\u201D"} then pick a bench hero. Costs 2 Hot Dogs, once per battle.
+            Each battle: the honors player (previous winner) decides Stay or Substitute first, then you respond. Sub costs 2 Hot Dogs.
           </div>
         </div>
       )}
@@ -31674,82 +31772,117 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           {!zones[zi]?.[seat] ? (
             <>
               <div style={{fontSize:14,fontWeight:800,color:"#fff",marginBottom:10}}>
-                Battle {battleNo(zi)} {"\u2014"} reveal your Hero
+                Battle {battleNo(zi)} {"\u2014"} {G.mode === "substitution" && !bothCommitted() ? "sub decision" : "reveal your Hero"}
               </div>
 
-              {/* Substitution (Substitution mode only). Before you reveal, you may
-                  swap the hero in THIS zone for a Bench hero — 2 Hot Dogs, once
-                  per battle. The swapped-out hero is discarded for the game. */}
-              {G.mode === "substitution" && (() => {
+              {/* Substitution commit phase. Honors player decides first (stay or
+                  sub); the opponent sees THAT decision, then responds. Neither
+                  card flips until both have committed. */}
+              {G.mode === "substitution" && !bothCommitted() && (() => {
+                const zc = (G.commits || {})[zi] || { p1:null, p2:null };
+                const honors = honorsSeat();
+                const iAmHonors = seat === honors;
+                const iCommitted = !!zc[seat];
+                const oppCommitted = !!zc[foe];
+                const honorsDone = !!zc[honors];
                 const bench = P?.bench || [];
                 const hotdogs = P?.hotdogs || [];
-                const usedThisBattle = !!P?.subUsedThisBattle;
                 const canAfford = hotdogs.length >= 2;
                 const placed = P?.placed?.[zi];
-                const blocked = usedThisBattle || !canAfford || !bench.length || !placed;
+                const canSub = canAfford && bench.length && placed;
+                // My turn to act? Honors always may; non-honors only after honors commits.
+                const myTurn = !iCommitted && (iAmHonors || honorsDone);
+
                 return (
-                  <div style={{marginBottom:14,padding:"10px 12px",borderRadius:9,
-                               border:"1px solid rgba(251,191,36,0.3)",background:"rgba(251,191,36,0.05)"}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                      <span style={{fontSize:12,fontWeight:800,color:"#FBBF24"}}>
-                        {"\uD83C\uDF2D"} Hot Dogs: {hotdogs.length}  {"\u00B7"}  Bench: {bench.length}
-                      </span>
-                      {!subOpen ? (
-                        <button onClick={()=>setSubOpen(true)} disabled={blocked}
-                          style={{padding:"6px 12px",borderRadius:7,border:"none",
-                                  background: blocked ? "#333" : "#FBBF24",
-                                  color: blocked ? "rgba(255,255,255,0.4)" : "#000",
-                                  fontWeight:800,fontSize:11,cursor: blocked?"not-allowed":"pointer",fontFamily:"inherit"}}>
-                          Substitute (2 {"\uD83C\uDF2D"})
-                        </button>
-                      ) : (
-                        <button onClick={()=>setSubOpen(false)}
-                          style={{padding:"6px 12px",borderRadius:7,border:"1px solid rgba(255,255,255,0.2)",
-                                  background:"transparent",color:"rgba(255,255,255,0.6)",
-                                  fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
-                          Cancel
-                        </button>
-                      )}
+                  <div style={{marginBottom:14,padding:"12px 14px",borderRadius:10,
+                               border:"1px solid rgba(251,191,36,0.35)",background:"rgba(251,191,36,0.06)"}}>
+                    <div style={{fontSize:11,fontWeight:800,color:"#FBBF24",marginBottom:8,letterSpacing:0.5}}>
+                      {iAmHonors ? "\u2605 YOU HAVE HONORS \u2014 decide first" : "You go second this battle"}
+                      {"  \u00B7  "}{"\uD83C\uDF2D"} {hotdogs.length}
                     </div>
-                    {usedThisBattle && (
-                      <div style={{fontSize:10.5,color:"rgba(255,255,255,0.45)"}}>Already substituted this battle.</div>
+
+                    {/* What the opponent has declared, once they have. This is the
+                        second-player advantage: you see stay/sub before you choose. */}
+                    {!iAmHonors && (
+                      <div style={{fontSize:12,marginBottom:10,padding:"7px 10px",borderRadius:7,
+                                   background:"rgba(255,255,255,0.04)",
+                                   color: honorsDone ? "#fff" : "rgba(255,255,255,0.4)"}}>
+                        {honorsDone
+                          ? (zc[honors] === "sub"
+                              ? "\uD83D\uDD01 Opponent SUBBED \u2014 they likely brought in power."
+                              : "\u2713 Opponent STAYED with their placed hero.")
+                          : "Waiting for opponent to decide\u2026"}
+                      </div>
                     )}
-                    {!usedThisBattle && !canAfford && (
-                      <div style={{fontSize:10.5,color:"rgba(255,255,255,0.45)"}}>Need 2 Hot Dogs to substitute.</div>
-                    )}
-                    {!usedThisBattle && canAfford && !bench.length && (
-                      <div style={{fontSize:10.5,color:"rgba(255,255,255,0.45)"}}>Bench is empty.</div>
-                    )}
-                    {subOpen && !blocked && (
+
+                    {iCommitted ? (
+                      <div style={{fontSize:12,fontWeight:700,color:"#22C55E"}}>
+                        {"\u2713 You "}{zc[seat] === "sub" ? "substituted" : "stayed"}.
+                        {" "}{oppCommitted ? "Both locked in \u2014 reveal below." : "Waiting for opponent\u2026"}
+                      </div>
+                    ) : myTurn ? (
                       <div>
-                        <div style={{fontSize:10.5,color:"rgba(255,255,255,0.5)",marginBottom:6}}>
-                          Bring in for {placed?.hero} (discarded):
-                        </div>
-                        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
-                          {bench.map((b,bi) => (
-                            <div key={b.id+bi}
-                              onClick={()=>{ substituteHero(zi, bi); setSubOpen(false); }}
-                              style={{cursor:"pointer",borderRadius:6,overflow:"hidden",
-                                      border:"2px solid rgba(255,255,255,0.15)",background:"#111"}}>
-                              {b.img
-                                ? <img src={b.img} alt={b.hero} style={{width:"100%",aspectRatio:"5/7",objectFit:"cover",display:"block"}} />
-                                : <div style={{padding:6,fontSize:9,fontWeight:800,color:"#fff"}}>{b.hero}</div>}
-                              <div style={{fontSize:9,fontWeight:800,color:"#fff",textAlign:"center",padding:"2px 0",
-                                           background:"rgba(0,0,0,0.6)"}}>{b.power}</div>
+                        {!subOpen ? (
+                          <div style={{display:"flex",gap:8}}>
+                            <button onClick={()=>commitBattle("stay")}
+                              style={{flex:1,padding:"11px",borderRadius:8,border:"none",background:"#22C55E",
+                                      color:"#000",fontWeight:900,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
+                              Stay
+                            </button>
+                            <button onClick={()=> canSub ? setSubOpen(true) : setErr(canAfford ? "Bench is empty." : "Need 2 Hot Dogs to sub.")}
+                              disabled={!canSub}
+                              style={{flex:1,padding:"11px",borderRadius:8,border:"none",
+                                      background: canSub ? "#FBBF24" : "#333",
+                                      color: canSub ? "#000" : "rgba(255,255,255,0.4)",
+                                      fontWeight:900,fontSize:13,cursor: canSub?"pointer":"not-allowed",fontFamily:"inherit"}}>
+                              Substitute (2 {"\uD83C\uDF2D"})
+                            </button>
+                          </div>
+                        ) : (
+                          <div>
+                            <div style={{fontSize:11,color:"rgba(255,255,255,0.6)",marginBottom:6}}>
+                              Bring in for {placed?.hero} (discarded). This locks your decision:
                             </div>
-                          ))}
-                        </div>
+                            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+                              {bench.map((b,bi) => (
+                                <div key={b.id+bi}
+                                  onClick={()=>{ commitBattle("sub", bi); setSubOpen(false); }}
+                                  style={{cursor:"pointer",borderRadius:6,overflow:"hidden",
+                                          border:"2px solid rgba(251,191,36,0.4)",background:"#111",position:"relative"}}>
+                                  {b.img
+                                    ? <img src={b.img} alt={b.hero} style={{width:"100%",aspectRatio:"5/7",objectFit:"cover",display:"block"}} />
+                                    : <div style={{padding:6,fontSize:9,fontWeight:800,color:"#fff"}}>{b.hero}</div>}
+                                  <div style={{position:"absolute",top:2,right:3,background:"rgba(0,0,0,0.8)",color:"#FBBF24",
+                                               borderRadius:4,padding:"0 4px",fontSize:10,fontWeight:900}}>{b.power}</div>
+                                </div>
+                              ))}
+                            </div>
+                            <button onClick={()=>setSubOpen(false)}
+                              style={{marginTop:8,padding:"6px 12px",borderRadius:7,border:"1px solid rgba(255,255,255,0.2)",
+                                      background:"transparent",color:"rgba(255,255,255,0.6)",
+                                      fontWeight:800,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
+                              Back
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{fontSize:12,color:"rgba(255,255,255,0.5)"}}>
+                        Waiting for the honors player to decide first{"\u2026"}
                       </div>
                     )}
                   </div>
                 );
               })()}
 
-              <button onClick={revealMine}
-                style={{padding:"14px 40px",borderRadius:9,border:"none",background:"#22C55E",
-                        color:"#000",fontWeight:900,fontSize:15,cursor:"pointer",fontFamily:"inherit"}}>
-                REVEAL
-              </button>
+              {/* Reveal only unlocks once the commit phase is done (or in Rookie). */}
+              {bothCommitted() && (
+                <button onClick={revealMine}
+                  style={{padding:"14px 40px",borderRadius:9,border:"none",background:"#22C55E",
+                          color:"#000",fontWeight:900,fontSize:15,cursor:"pointer",fontFamily:"inherit"}}>
+                  REVEAL
+                </button>
+              )}
             </>
           ) : !zones[zi]?.[foe] ? (
             <div style={{fontSize:14,fontWeight:800,color:"#fff"}}>
