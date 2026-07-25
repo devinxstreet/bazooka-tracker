@@ -30227,6 +30227,9 @@ function ArenaStrikeLayer({ w, up, zone }) {
 }
 
 function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobile, setToast, inp }) {
+  // Arena itself is open to every dashboard user, but a few controls (the card-
+  // back uploader) stay admin-only. Same check the rest of the app uses.
+  const _cardAdmin = (user?.email||"").toLowerCase().endsWith("@bazookabreaks.com");
   const [gameId,    setGameId]    = React.useState(null);
   // CPU games run ENTIRELY in local state, never in Firestore. Two reasons:
   // the CPU has no uid to own a private doc, and more importantly its lineup
@@ -31500,8 +31503,10 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
 
         {err && <div style={{...panel, borderColor:"#F87171", color:"#F87171", fontSize:12, whiteSpace:"pre-line"}}>{err}</div>}
 
-        {/* Card-back image. Admin-only, and this whole tab is already admin-gated.
-            Shows the current back plus a replace control. */}
+        {/* Card-back image uploader — ADMIN ONLY. The Arena tab is now open to
+            every dashboard user, so this control must gate itself; it writes to a
+            shared Storage path that changes the card back for everyone. */}
+        {_cardAdmin && (
         <div style={panel}>
           <div style={{fontSize:13,fontWeight:800,color:"#fff",marginBottom:4}}>Card back</div>
           <div style={{fontSize:11,color:"rgba(255,255,255,0.45)",marginBottom:12}}>
@@ -31534,6 +31539,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
             </div>
           </div>
         </div>
+        )}
 
         {myGames.length > 0 && (
           <div style={panel}>
@@ -45993,7 +45999,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             {navGroup("play","Deck Builder",[
               {id:"deck",label:"⚔️ Hero Deck",badge:0},
               {id:"playbook",label:"📖 Playbook",badge:0},
-              ...(_cardAdmin?[{id:"arena",label:"🏟️ Arena",badge:0}]:[]),
+              {id:"arena",label:"🏟️ Arena",badge:0},
               ...(user?[{id:"team",label:"🏆 Team",badge:0}]:[]),
             ])}
             {/* The badge used to count ONLY unread notifications, so once you dismissed the
@@ -46321,7 +46327,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 { section:"Deck Builder" },
                 { id:"deck", label:"\u2694\uFE0F Hero Deck", badge:0 },
                 { id:"playbook", label:"\uD83D\uDCD6 Playbook", badge:0 },
-                ...(_cardAdmin?[{ id:"arena", label:"\uD83C\uDFDF\uFE0F Arena", badge:0 }]:[]),
+                { id:"arena", label:"\uD83C\uDFDF\uFE0F Arena", badge:0 },
                 ...(user?[{ id:"team", label:"\uD83C\uDFC6 Team", badge:0 }]:[]),
                 { section:"More" },
                 { id:"market", label:"\uD83E\uDD1D Marketplace", badge:marketBadge },
@@ -48400,7 +48406,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
 
         {/* ARENA TAB -- admin only. The _cardAdmin check here is the real gate;
             hiding the nav button alone would not stop someone typing #arena. */}
-        {activeTab==="arena" && _cardAdmin && (
+        {activeTab==="arena" && (
           <ArenaTab
             user={user}
             cards={cards}
