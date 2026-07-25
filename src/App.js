@@ -41330,7 +41330,11 @@ See you in there!
       if(candidates.length>0){ setPhotoScan({status:"candidates",candidates,detected:data,scanPhoto:display}); return; }
 
       setPhotoScan({status:"nomatch",identified:data});
-    } catch(e){setPhotoScan({status:"error",message:e.message});}
+    } catch(e){
+      // In loan mode, don't dead-end on a scan error — open manual entry.
+      if (scanLoanMode) { setLoanScanCard({card:null,mode:scanLoanMode}); setPhotoScan(null); setScanModal(false); }
+      else setPhotoScan({status:"error",message:e.message});
+    }
     finally { scanInFlight.current = false; }
   }
   // ── MULTI-CARD BINDER SCAN ──────────────────────────────────────────────────────────────────
@@ -45972,6 +45976,25 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
         style={{display:"none"}} />
 
       {/* Who-prompt after a scan match (or the manual-entry fallback). */}
+      {/* Loan scan in progress — same animated "Identifying…" indicator the
+          collection scanner shows, so a loan scan doesn't look like it stalled. */}
+      {scanLoanMode && photoScan?.status==="scanning" && (
+        <div style={{position:"fixed",inset:0,zIndex:14000,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div style={{textAlign:"center",padding:"40px 20px"}}>
+            <div style={{position:"relative",width:160,height:213,margin:"0 auto 24px",borderRadius:14,overflow:"hidden",background:"linear-gradient(135deg,rgba(232,49,122,0.08),rgba(123,47,247,0.08))",border:"2px solid rgba(232,49,122,0.3)"}}>
+              <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:48,opacity:0.25}}>🃏</div>
+              <div style={{position:"absolute",left:0,right:0,height:3,background:"linear-gradient(90deg,transparent,#E8317A,#FBBF24,#E8317A,transparent)",boxShadow:"0 0 16px rgba(232,49,122,0.9)",animation:"scanBeam 1.6s ease-in-out infinite"}}/>
+              <div style={{position:"absolute",top:8,left:8,width:20,height:20,borderTop:"2px solid #E8317A",borderLeft:"2px solid #E8317A"}}/>
+              <div style={{position:"absolute",top:8,right:8,width:20,height:20,borderTop:"2px solid #E8317A",borderRight:"2px solid #E8317A"}}/>
+              <div style={{position:"absolute",bottom:8,left:8,width:20,height:20,borderBottom:"2px solid #E8317A",borderLeft:"2px solid #E8317A"}}/>
+              <div style={{position:"absolute",bottom:8,right:8,width:20,height:20,borderBottom:"2px solid #E8317A",borderRight:"2px solid #E8317A"}}/>
+            </div>
+            <div style={{fontSize:16,fontWeight:800,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",marginBottom:6}}>Identifying your card…</div>
+            <div style={{fontSize:12,color:"rgba(255,255,255,0.4)"}}>Reading hero, weapon &amp; treatment <span style={{display:"inline-block",animation:"scanDots 1.4s infinite"}}>●●●</span></div>
+          </div>
+        </div>
+      )}
+
       {loanScanCard && (
         <LoanScanConfirm
           entry={loanScanCard}
