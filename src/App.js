@@ -22081,6 +22081,43 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
   const [builderName,      setBuilderName]      = useState("");
   const [builderTreatments,setBuilderTreatments]= useState([]);
   const [rainbowSetFilter, setRainbowSetFilter] = useState("");
+  // Rainbow stats are expensive — grouping ~30k cards by hero and tallying per-set
+  // ownership. This used to run inline on EVERY render (including each keystroke in
+  // the rainbow search box), which is what made the tab lag. Memoized so it only
+  // recomputes when the cards, ownership, or set filter actually change; search
+  // filtering happens cheaply downstream against this result.
+  const rainbowStats = useMemo(() => {
+    if (!cards.length) return { heroStats: [], availableSets: [], completedRainbows: 0, partialRainbows: 0 };
+    const rainbowCards = (rainbowSetFilter ? cards.filter(c => c.setName === rainbowSetFilter) : cards)
+      .filter(c => { const t=(c.treatment||"").toLowerCase(); return t!=="plays"&&t!=="bonus plays"&&t!=="home team discount"; });
+    const availableSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
+    const heroCards = {};
+    rainbowCards.forEach(c => {
+      if(!c.hero) return;
+      (heroCards[c.hero] = heroCards[c.hero] || []).push(c);
+    });
+    const allHeroes = Object.keys(heroCards).sort();
+    const heroStats = allHeroes.map(hero => {
+      const hcards = heroCards[hero];
+      const total = hcards.length;
+      let ownedCount = 0;
+      const bySets = {};
+      hcards.forEach(c => {
+        const own = !!owned[c.id];
+        if (own) ownedCount++;
+        const s = c.setName || "Unknown";
+        if(!bySets[s]) bySets[s] = { total:0, owned:0 };
+        bySets[s].total++;
+        if(own) bySets[s].owned++;
+      });
+      return { hero, total, ownedCount, complete: total>0 && ownedCount===total, bySets };
+    });
+    return {
+      heroStats, availableSets,
+      completedRainbows: heroStats.filter(h => h.complete).length,
+      partialRainbows:   heroStats.filter(h => h.ownedCount > 0 && !h.complete).length,
+    };
+  }, [cards, owned, rainbowSetFilter]);
   const [treatOwnedFilter, setTreatOwnedFilter] = useState("all"); // all | owned | missing
   const [sortBy,           setSortBy]           = useState("cardNum");
   const [weaponSetFilter,  setWeaponSetFilter]  = useState("");
@@ -24040,35 +24077,8 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
           );
         }
 
-        const rainbowCards = (rainbowSetFilter ? cards.filter(c => c.setName === rainbowSetFilter) : cards)
-          .filter(c => { const t=(c.treatment||"").toLowerCase(); return t!=="plays"&&t!=="bonus plays"&&t!=="home team discount"; });
-        const availableSets = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
-
-        // Group filtered cards by hero
-        const heroCards = {};
-        rainbowCards.forEach(c => {
-          if(!c.hero) return;
-          if(!heroCards[c.hero]) heroCards[c.hero] = [];
-          heroCards[c.hero].push(c);
-        });
-        const allHeroes = Object.keys(heroCards).sort();
-        const heroStats = allHeroes.map(hero => {
-          const hcards = heroCards[hero];
-          const total = hcards.length;
-          const ownedCount = hcards.filter(c => owned[c.id]).length;
-          const complete = total > 0 && ownedCount === total;
-          // Group by set for multi-set heroes
-          const bySets = {};
-          hcards.forEach(c => {
-            const s = c.setName || "Unknown";
-            if(!bySets[s]) bySets[s] = { total:0, owned:0 };
-            bySets[s].total++;
-            if(owned[c.id]) bySets[s].owned++;
-          });
-          return { hero, total, ownedCount, complete, bySets };
-        });
-        const completedRainbows = heroStats.filter(h => h.complete).length;
-        const partialRainbows   = heroStats.filter(h => h.ownedCount > 0 && !h.complete).length;
+        // Pulled from the memoized rainbowStats above — no per-render recompute.
+        const { heroStats, availableSets, completedRainbows, partialRainbows } = rainbowStats;
 
         const filteredHeroes = heroStats.filter(h =>
           !search || h.hero.toLowerCase().includes(search.toLowerCase())
@@ -24089,7 +24099,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
               {[
                 { l:"\uD83C\uDF08 Complete Rainbows", v:completedRainbows, c:"#4ade80" },
                 { l:"\uD83D\uDD36 In Progress",       v:partialRainbows,   c:"#FBBF24" },
-                { l:"\u2B1C Not Started",        v:allHeroes.length-completedRainbows-partialRainbows, c:"#555" },
+                { l:"\u2B1C Not Started",        v:heroStats.length-completedRainbows-partialRainbows, c:"#555" },
               ].map(({l,v,c})=>(
                 <div key={l} style={{ background:"var(--bz-s1)", border:"1px solid var(--bz-line)", borderRadius:12, padding:"12px 16px", textAlign:"center" }}>
                   <div style={{ fontSize:26, fontWeight:900, color:c }}>{v}</div>
@@ -36368,6 +36378,20 @@ See you in there!
   const [filterPower,   setFilterPower]   = useState(()=> new Set(Array.isArray(savedUI.filterPower) ? savedUI.filterPower : []));
   const [powerMenuOpen, setPowerMenuOpen] = useState(false);
   const [multiOpen,     setMultiOpen]     = useState(null); // "set" | "treat" | "weapon" | null
+  const filterBarRef = useRef(null);   // for click-outside to close filter dropdowns
+  // Close the set/treatment/weapon/power filter dropdowns when clicking anywhere
+  // outside the filter bar — so you can go straight to searching or the grid without
+  // having to click the same filter button again to dismiss it.
+  useEffect(() => {
+    if (!multiOpen && !powerMenuOpen) return;
+    const onDown = (e) => {
+      if (filterBarRef.current && !filterBarRef.current.contains(e.target)) {
+        setMultiOpen(null); setPowerMenuOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
+  }, [multiOpen, powerMenuOpen]);
   const [navMenu,       setNavMenu]       = useState(null); // "collect" | "play" | null (hover dropdowns)
   const navGroupItems = useRef({});
   const [msgPanelOpen,  setMsgPanelOpen]  = useState(false);
@@ -48048,8 +48072,8 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 </div>
               );
             })()}
-            <div className="filter-bar" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:"14px 18px",marginBottom:16,backdropFilter:"blur(10px)",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",position:"relative",zIndex:(powerMenuOpen||multiOpen)?10000:"auto"}}>
-              <input value={search} onChange={e=>{setSearch(e.target.value);preserveScroll();setPage(1);}} placeholder="Search hero, card #, athlete, treatment..." style={{...inp,flex:2,minWidth:200}}/>
+            <div ref={filterBarRef} className="filter-bar" style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:"14px 18px",marginBottom:16,backdropFilter:"blur(10px)",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",position:"relative",zIndex:(powerMenuOpen||multiOpen)?10000:"auto"}}>
+              <input value={search} onFocus={()=>{ if(multiOpen||powerMenuOpen){ setMultiOpen(null); setPowerMenuOpen(false); } }} onChange={e=>{setSearch(e.target.value);preserveScroll();setPage(1);}} placeholder="Search hero, card #, athlete, treatment..." style={{...inp,flex:2,minWidth:200}}/>
               {/* Multi-select dropdown — set, treatment and weapon all work like the power filter now.
                   Same markup for each, so it's one helper rather than three near-identical blocks. */}
               {(() => {
@@ -48065,7 +48089,6 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                       </button>
                       {open && (
                         <>
-                          <div onClick={()=>setMultiOpen(null)} style={{position:"fixed",inset:0,zIndex:9998}}/>
                           <div className="filter-menu" style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:9999,background:"#141414",border:"1px solid #2a2a2a",borderRadius:10,padding:6,minWidth:200,maxHeight:320,overflowY:"auto",boxShadow:"0 10px 30px rgba(0,0,0,0.6)"}}>
                             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 8px 6px",borderBottom:"1px solid #222",marginBottom:4}}>
                               <span style={{fontSize:10,color:"var(--bz-ink-2)",fontWeight:700,letterSpacing:0.5}}>{label.toUpperCase()}</span>
@@ -48174,7 +48197,6 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 </button>
                 {powerMenuOpen && (
                   <>
-                    <div onClick={()=>setPowerMenuOpen(false)} style={{position:"fixed",inset:0,zIndex:9998}}/>
                     <div className="filter-menu" style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:9999,background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",width:180,maxHeight:280,overflowY:"auto",padding:6}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 8px 6px",borderBottom:"1px solid #2a2a2a",marginBottom:4}}>
                         <span style={{fontSize:10,color:"var(--bz-ink-2)",fontWeight:700,letterSpacing:1}}>POWER LEVEL</span>
