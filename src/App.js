@@ -39992,6 +39992,55 @@ See you in there!
     }
   }
 
+  // Bulk-mark the selected cards as lent out to one person. One prompt for the
+  // name, applied to every selected card you own. Tags an in-hand copy where one
+  // exists, else creates a lot — same as the single-card markCardLent, batched
+  // into a single save.
+  async function bulkMarkLent() {
+    if (!user || selectedIds.size===0) return;
+    const ids = [...selectedIds].filter(id => owned[id]);
+    if (!ids.length) { showToast("Select cards you own to lend out."); return; }
+    const who = window.prompt(`Lend ${ids.length} card${ids.length===1?"":"s"} to whom?`);
+    if (who === null || !who.trim()) return;
+    const name = who.trim();
+    const stamp = todayLocal();
+    let next = lots.slice();
+    let n = 0;
+    ids.forEach(cardId => {
+      const idx = next.findIndex(l => l.cardId===cardId && (l.lendState||"")==="");
+      if (idx >= 0) { next[idx] = { ...next[idx], lendState:"lent", lendWho:name, lendDate:stamp }; n++; }
+      else { next = [...next, { id: uid(), cardId, cost:null, value:null, method:"owned",
+             date:stamp, notes:"", lendState:"lent", lendWho:name, lendWhy:"", lendDate:stamp }]; n++; }
+    });
+    await saveLots(next);
+    showToast(`\uD83D\uDCE4 Marked ${n} card${n===1?"":"s"} lent to ${name}`);
+    clearSelection();
+  }
+
+  // Bulk-mark the selected cards as borrowed from one person. One prompt for the
+  // name; creates a borrowed copy per card (and bumps owned so it shows in the
+  // grid), mirroring the single-card addBorrowedCopy, batched into one save.
+  async function bulkMarkBorrowed() {
+    if (!user || selectedIds.size===0) return;
+    const ids = [...selectedIds];
+    const who = window.prompt(`Borrow ${ids.length} card${ids.length===1?"":"s"} from whom?`);
+    if (who === null || !who.trim()) return;
+    const name = who.trim();
+    const stamp = todayLocal();
+    let next = lots.slice();
+    const ownedNext = { ...(owned||{}) };
+    ids.forEach(cardId => {
+      next = [...next, { id: uid(), cardId, cost:null, value:null, method:"borrowed",
+             date:stamp, notes:"", lendState:"borrowed", lendWho:name, lendWhy:"", lendDate:stamp }];
+      ownedNext[cardId] = (parseInt(ownedNext[cardId])||0) + 1;
+    });
+    await saveLots(next);
+    setOwned(ownedNext);
+    try { await setDoc(doc(db,"boba_owned",user.uid), ownedNext); } catch(e){ console.error("bulk borrow owned save failed:", e); }
+    showToast(`\uD83D\uDCE5 Marked ${ids.length} card${ids.length===1?"":"s"} borrowed from ${name}`);
+    clearSelection();
+  }
+
   async function bulkDeleteCards() {
     if (!_cardAdmin || selectedIds.size===0) return;
     setBulkDeleting(true);
@@ -44829,6 +44878,9 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                       {hdr("Want list")}
                       {item("❤️ Add to wants", ()=>bulkWant(true))}
                       {item("✕ Remove from wants", ()=>bulkWant(false))}
+                      {hdr("Loans")}
+                      {item("\uD83D\uDCE4 Mark as lent out…", bulkMarkLent)}
+                      {item("\uD83D\uDCE5 Mark as borrowed…", bulkMarkBorrowed)}
                       {hdr("Trading")}
                       {item("🤝 New trade package", ()=>{ setTpTitle(""); setTpNote(""); setTpContact(""); setTpLink(""); setTpValues({}); setTpRemoved(new Set()); setTpEditId(null); setTpModal(true); })}
                       {item("📦 My packages", ()=>{ setTpListOpen(true); loadMyTradePackages(); }, {needSel:false})}
