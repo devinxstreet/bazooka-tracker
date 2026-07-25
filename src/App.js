@@ -16885,7 +16885,7 @@ function athleteSport(name) {
   return ATHLETE_SPORT[name.trim()] || ATHLETE_SPORT[name] || null;
 }
 
-function BobaCardImpl({ c, isOwned, isBorrowed=false, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand, myScanPhoto, cardWidthHint=200, kidGroups=[], kidTags=null, onAssignKid, onSell, foundInMap={} }) {
+function BobaCardImpl({ c, isOwned, isBorrowed=false, ownedQty, flippedCard, setFlippedCard, toggleOwned, setOwnedQty, toggleWant, wantList, WEAPON_COLORS, isAdmin, onDelete, onComp, onImageUpload, onImageClear, onLotEdit, lotCount=0, onCardActivity, onExpand, myScanPhoto, cardWidthHint=200, kidGroups=[], kidTags=null, onAssignKid, onSell, foundInMap={}, lentCount=0, lentWho="", onLend, onReturn }) {
   const wc = WEAPON_COLORS[canonWeapon(c.weapon)] || "#444";
   // Image priority: official admin imageUrl → my own private scan photo → coming-soon placeholder.
   // Foil/shine overlays only apply to the official art, not to a raw scan photo.
@@ -17412,6 +17412,12 @@ function BobaCardImpl({ c, isOwned, isBorrowed=false, ownedQty, flippedCard, set
         <div style={{ fontSize:13, fontWeight:900, color:isOwned?(isBorrowed?"#7B9CFF":"#4ade80"):"var(--bz-ink)", lineHeight:1.15, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{c.hero}</div>
         <div style={{ display:"flex", gap:4, flexWrap:"wrap", alignItems:"center" }}>
           <span style={{ fontSize:9, color:"var(--bz-ink-3)", fontWeight:700 }}>#{c.cardNum}</span>
+          {lentCount > 0 && (
+            <span title={lentWho ? `Lent to ${lentWho}` : "Lent out"}
+              style={{ fontSize:9, color:"#FBBF24", background:"rgba(251,191,36,0.15)", borderRadius:4, padding:"1px 5px", fontWeight:800 }}>
+              {"\uD83D\uDCE4"} {lentWho ? lentWho : "lent"}
+            </span>
+          )}
           {c.weapon && <span style={{ fontSize:9, color:wc, background:wc+"22", borderRadius:4, padding:"1px 5px", fontWeight:700 }}>{c.weapon}</span>}
           {c.treatment && <span style={{ fontSize:9, color:"var(--bz-ink-2)", background:"#1a1a1a", borderRadius:4, padding:"1px 5px" }}>{c.treatment}</span>}
           {c.notation && <span style={{ fontSize:9, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 5px", fontWeight:700 }}>{c.notation}</span>}
@@ -17460,6 +17466,20 @@ function BobaCardImpl({ c, isOwned, isBorrowed=false, ownedQty, flippedCard, set
               <button onClick={e=>{e.stopPropagation(); onSell();}} title="Sold, traded, or gave this away"
                 style={{ background:"transparent", border:"1px solid #333", color:"#444", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>↗</button>
             )}
+            {/* One-click lend / return. Lent copies still count as owned but can't be
+                decked; this writes the same lot lendState the editor does. */}
+            {isOwned && onLend && (
+              lentCount > 0
+                ? <button onClick={e=>{e.stopPropagation(); onReturn && onReturn();}}
+                    title={lentWho ? `Lent to ${lentWho} — click when returned` : "Lent out — click when returned"}
+                    style={{ background:"rgba(251,191,36,0.12)", border:"1px solid #FBBF24", color:"#FBBF24", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                    {"\uD83D\uDCE4"} back?
+                  </button>
+                : <button onClick={e=>{e.stopPropagation(); onLend();}} title="Lend this card to someone"
+                    style={{ background:"transparent", border:"1px solid #333", color:"#444", borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                    {"\uD83D\uDCE4"}
+                  </button>
+            )}
           </div>
           <QtyControls/>
         </div>
@@ -17481,6 +17501,10 @@ const BobaCard = React.memo(BobaCardImpl, (prev, next) => {
   if (prev.ownedQty !== next.ownedQty) return false;
   if (prev.isAdmin !== next.isAdmin) return false;
   if (prev.lotCount !== next.lotCount) return false;
+  // Lent status for THIS card — without these the badge and button freeze after a
+  // lend/return because the memo skips the re-render.
+  if (prev.lentCount !== next.lentCount) return false;
+  if (prev.lentWho !== next.lentWho) return false;
   if (prev.myScanPhoto !== next.myScanPhoto) return false;
   // Which packs a card is found in. Without this the memo skips the re-render and the badge
   // keeps showing stale data even though the live map has already updated.
@@ -28104,7 +28128,7 @@ function OwnedIntegrityCheck({ uid, label, cards }) {
   );
 }
 
-function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail, addStatus, setAddStatus, friendOwned, viewingFriend, setViewingFriend, respondFriendReq, cards, owned, publicCards, WEAPON_COLORS, setSigningIn , inp, teamInvites, sendFriendRequest, respondTeamInvite, toggleFamily, borrowLedger=[]}) {
+function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail, addStatus, setAddStatus, friendOwned, viewingFriend, setViewingFriend, respondFriendReq, cards, owned, publicCards, WEAPON_COLORS, setSigningIn , inp, teamInvites, sendFriendRequest, respondTeamInvite, toggleFamily, borrowLedger=[], acceptLoan, declineLoan}) {
   // A family member's saved decks. boba_decks is already public-read (for share links), so this is
   // just a scoped query — no new permissions. Family means you're pooling cards; seeing the decks
   // built from that pool is the natural other half.
@@ -28222,6 +28246,26 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
                 </div>
 
                 {/* Borrowed cards paper trail (family lending) */}
+                {/* Pending loan offers sent TO me — accept to pull the card into my
+                    collection as borrowed, decline to remove the offer. */}
+                {borrowLedger.filter(l=>l.status==="pending" && l.borrowerUid===user.uid).length>0 && (
+                  <div style={{marginTop:8,marginBottom:20,background:"rgba(251,191,36,0.06)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:14,padding:16}}>
+                    <div style={{fontSize:14,fontWeight:800,color:"#FBBF24",marginBottom:4}}>📥 Incoming Loan Offers</div>
+                    <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginBottom:12}}>Cards a friend wants to lend you. Accept to add them to your collection as borrowed — you can build with them, and they never count as yours.</div>
+                    {borrowLedger.filter(l=>l.status==="pending" && l.borrowerUid===user.uid).map(l=>(
+                      <div key={l.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:"rgba(0,0,0,0.2)",borderRadius:10,marginBottom:6}}>
+                        <div style={{width:28,height:38,borderRadius:5,overflow:"hidden",flexShrink:0,background:"rgba(255,255,255,0.05)"}}>{l.cardImage?<img src={l.cardImage} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:null}</div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:12,fontWeight:700,color:"#fff"}}>{l.cardLabel}</div>
+                          <div style={{fontSize:11,color:"rgba(255,255,255,0.5)"}}>from <strong style={{color:"#C084FC"}}>{l.ownerName}</strong></div>
+                        </div>
+                        <button onClick={()=>acceptLoan&&acceptLoan(l)} style={{fontSize:11,background:"rgba(74,222,128,0.15)",border:"1px solid #4ade80",color:"#4ade80",borderRadius:7,padding:"5px 12px",cursor:"pointer",fontFamily:"inherit",fontWeight:700,flexShrink:0}}>Accept</button>
+                        <button onClick={()=>declineLoan&&declineLoan(l)} style={{fontSize:11,background:"transparent",border:"1px solid #555",color:"#888",borderRadius:7,padding:"5px 10px",cursor:"pointer",fontFamily:"inherit",fontWeight:700,flexShrink:0}}>Decline</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {borrowLedger.filter(l=>l.status==="borrowed").length>0 && (
                   <div style={{marginTop:8,marginBottom:20,background:"rgba(192,132,252,0.06)",border:"1px solid rgba(192,132,252,0.25)",borderRadius:14,padding:16}}>
                     <div style={{fontSize:14,fontWeight:800,color:"#C084FC",marginBottom:4}}>👪 Borrowed Cards — Paper Trail</div>
@@ -36122,6 +36166,22 @@ See you in there!
     (lots||[]).forEach(l => { if (l?.cardId && l.lendState === "borrowed") m[l.cardId] = (m[l.cardId]||0) + 1; });
     return m;
   }, [lots]);
+  // Cards I've lent out: count per card, plus who has the most recent one (for the
+  // card badge tooltip). Drives the one-click lend/return button on the card face.
+  const lentByCard = useMemo(() => {
+    const m = {};
+    (lots||[]).forEach(l => { if (l?.cardId && l.lendState === "lent") m[l.cardId] = (m[l.cardId]||0) + 1; });
+    return m;
+  }, [lots]);
+  const lentWhoByCard = useMemo(() => {
+    const m = {};
+    (lots||[]).forEach(l => {
+      if (l?.cardId && l.lendState === "lent") {
+        if (!m[l.cardId] || (l.lendDate||"") >= (m[l.cardId].date||"")) m[l.cardId] = { who: l.lendWho||"", date: l.lendDate||"" };
+      }
+    });
+    return m;
+  }, [lots]);
   const ownedNet = useMemo(() => {
     if (!Object.keys(borrowedByCard).length) return owned || {};
     const out = { ...(owned||{}) };
@@ -39099,6 +39159,101 @@ See you in there!
   function updateLot(lotId, data) {
     saveLots(lots.map(l => l.id===lotId ? { ...l, ...data } : l));
   }
+
+  // One-click lend: flag ONE in-hand copy of a card as lent to someone, without
+  // opening the lot editor. Reuses the same lot/lendState the editor writes, so it
+  // shows in the Lent Out list and blocks decking exactly the same way.
+  //   - If an in-hand lot already exists, tag that one (don't create duplicates).
+  //   - Otherwise create a lot for this copy so the loan has somewhere to live.
+  // Returning it is the inverse (markCardReturned): clears the lend fields on the
+  // most-recently-lent copy.
+  async function markCardLent(cardId, who) {
+    const name = (who||"").trim();
+    if (!name) return;
+    const stamp = todayLocal();
+    // Prefer an existing in-hand lot for this card.
+    const idx = lots.findIndex(l => l.cardId===cardId && (l.lendState||"")==="");
+    if (idx >= 0) {
+      const next = lots.slice();
+      next[idx] = { ...next[idx], lendState:"lent", lendWho:name, lendDate:stamp };
+      saveLots(next);
+    } else {
+      const lot = { id: uid(), cardId, cost:null, value:null, method:"owned",
+        date: stamp, notes:"", lendState:"lent", lendWho:name, lendWhy:"", lendDate:stamp };
+      saveLots([...lots, lot]);
+    }
+  }
+  // Return the most recently lent copy of a card (clears the lend flags).
+  async function markCardReturned(cardId) {
+    // Find the newest lent lot for this card.
+    let target = null;
+    for (const l of lots) {
+      if (l.cardId===cardId && (l.lendState||"")==="lent") {
+        if (!target || (l.lendDate||"") >= (target.lendDate||"")) target = l;
+      }
+    }
+    if (!target) return;
+    saveLots(lots.map(l => l.id===target.id ? { ...l, lendState:"", lendWho:"", lendWhy:"", lendDate:"" } : l));
+  }
+
+  // ---- send lent cards to a friend ---------------------------------------
+  // Push a batch of my lent cards to a friend as PENDING loan offers. The friend
+  // accepts on their side, which flips the entry to "borrowed" and pulls the card
+  // into their collection as borrowed-from-me. Nothing lands on their side without
+  // their accept — I only ever write the shared borrow_ledger doc I'm a party to.
+  async function sendLoanToFriend(friend, cardIds) {
+    if (!user || !friend?.friendUid || !cardIds?.length) return;
+    const stamp = new Date().toISOString();
+    const myName = user.displayName || user.email || "Someone";
+    const writes = cardIds.map(cid => {
+      const card = cardById?.[cid];
+      const id = `${friend.friendUid}_${cid}_${user.uid}`;   // borrower_card_owner, idempotent
+      return setDoc(doc(db, "borrow_ledger", id), {
+        id,
+        borrowerUid: friend.friendUid, borrowerName: friend.friendName || friend.friendUid,
+        ownerUid: user.uid, ownerName: myName,
+        cardId: cid,
+        cardLabel: card ? `${card.hero} ${card.power}⚡ ${card.treatment||""}`.trim() : cid,
+        cardImage: card?.imageUrl || "",
+        deckName: "",
+        status: "pending",                 // becomes "borrowed" on accept
+        offeredAt: stamp,
+        participantUids: [user.uid, friend.friendUid],
+      });
+    });
+    try { await Promise.all(writes); return { ok:true, count:writes.length }; }
+    catch (e) { console.error("send loan failed:", e); return { ok:false, error:e?.message||String(e) }; }
+  }
+
+  // Borrower accepts a pending loan -> it becomes a real borrow on their side, AND
+  // a borrowed lot is created so the card shows in their database as borrowed-from
+  // the owner (buildable, but never counted as theirs).
+  async function acceptLoan(entry) {
+    if (!user || entry?.borrowerUid !== user.uid) return;
+    try {
+      await setDoc(doc(db, "borrow_ledger", entry.id),
+        { status:"borrowed", borrowedAt:new Date().toISOString() }, { merge:true });
+      // Create the borrowed copy on my side (mirrors addBorrowedCopy). Idempotent:
+      // skip if a borrowed lot from this owner for this card already exists.
+      const already = (lots||[]).some(l => l.cardId===entry.cardId && l.lendState==="borrowed" && l.lendWho===entry.ownerName);
+      if (!already) {
+        const lot = { id: uid(), cardId: entry.cardId, cost:null, value:null, method:"borrowed",
+          date: todayLocal(), notes:"", lendState:"borrowed",
+          lendWho: entry.ownerName || "", lendWhy:"", lendDate: todayLocal(),
+          loanId: entry.id };   // link back so return can find it
+        saveLots([...(lots||[]), lot]);
+        await setOwnedQty(entry.cardId, (parseInt(owned?.[entry.cardId])||0) + 1);
+      }
+    } catch (e) { console.error("accept loan failed:", e); }
+  }
+
+  // Decline (borrower) or cancel (owner) a pending loan -> remove it.
+  async function declineLoan(entry) {
+    if (!user || !(entry?.participantUids||[]).includes(user.uid)) return;
+    try { await deleteDoc(doc(db, "borrow_ledger", entry.id)); }
+    catch (e) { console.error("decline loan failed:", e); }
+  }
+
   function removeLot(lotId) {
     saveLots(lots.filter(l => l.id!==lotId));
   }
@@ -39361,6 +39516,10 @@ See you in there!
   // mis-tagged card had no way back at all. This is the working list: see everything on loan and
   // act on it in one place.
   const [loanMgr, setLoanMgr] = useState(null);   // null | "borrowed" | "lent" | "all"
+  // Multi-select for sending lent cards to a friend from the loan manager.
+  const [loanSel, setLoanSel] = useState(new Set());   // set of lot ids checked
+  const [loanSendTo, setLoanSendTo] = useState("");    // friendUid to send to
+  const [loanSending, setLoanSending] = useState(false);
 
   // Clear the loan status on one copy, leaving the copy itself intact. Used for "returned to me"
   // and for undoing a mis-tag.
@@ -45284,7 +45443,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
               fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
         );
         return (
-          <div onClick={()=>setLoanMgr(null)} style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div onClick={()=>{setLoanMgr(null);setLoanSel(new Set());setLoanSendTo("");}} style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
             <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-s1,#14141c)",border:"1px solid var(--bz-line-2)",borderRadius:14,width:"100%",maxWidth:620,maxHeight:"84vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
               <div style={{padding:"14px 16px 10px",borderBottom:"1px solid var(--bz-line)"}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
@@ -45323,6 +45482,12 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   const col = borrowed ? "#7B9CFF" : "#FBBF24";
                   return (
                     <div key={lot.id} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"10px 2px",borderBottom:"1px solid var(--bz-line)"}}>
+                      {/* Select checkbox — only on LENT rows, for sending to a friend. */}
+                      {!borrowed && (
+                        <input type="checkbox" checked={loanSel.has(lot.id)}
+                          onChange={e=>{ const n=new Set(loanSel); if(e.target.checked)n.add(lot.id); else n.delete(lot.id); setLoanSel(n); }}
+                          style={{marginTop:3,width:16,height:16,accentColor:"#E8317A",cursor:"pointer",flexShrink:0}} />
+                      )}
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{fontSize:12.5,fontWeight:800,color:"var(--bz-ink)"}}>
                           {card.hero || card.playName || "(unknown card)"}
@@ -45372,6 +45537,57 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   );
                 })}
               </div>
+              {/* Send selected lent cards to a friend. Only shows on the Lent tab
+                  with a selection. The friend accepts on their side before the
+                  cards appear in their collection as borrowed-from-you. */}
+              {loanMgr==="lent" && loanSel.size>0 && (
+                <div style={{borderTop:"1px solid var(--bz-line)",padding:"12px 14px",background:"rgba(232,49,122,0.04)"}}>
+                  <div style={{fontSize:11,fontWeight:800,color:"var(--bz-ink-2)",marginBottom:8}}>
+                    Send {loanSel.size} selected card{loanSel.size===1?"":"s"} to a friend
+                  </div>
+                  <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                    <select value={loanSendTo} onChange={e=>setLoanSendTo(e.target.value)}
+                      style={{...inp,flex:"1 1 160px",fontSize:12,padding:"8px 10px"}}>
+                      <option value="">Choose a friend…</option>
+                      {(friends||[]).map(f=>(
+                        <option key={f.friendUid} value={f.friendUid}>{f.friendName||f.friendUid}</option>
+                      ))}
+                    </select>
+                    <button disabled={!loanSendTo || loanSending}
+                      onClick={async ()=>{
+                        const friend = (friends||[]).find(f=>f.friendUid===loanSendTo);
+                        if (!friend) return;
+                        // Map selected lot ids -> their cardIds.
+                        const cardIds = [...loanSel].map(id => (lots||[]).find(l=>l.id===id)?.cardId).filter(Boolean);
+                        if (!cardIds.length) return;
+                        setLoanSending(true);
+                        const res = await sendLoanToFriend(friend, cardIds);
+                        setLoanSending(false);
+                        if (res?.ok) {
+                          setToast(`\u2713 Sent ${res.count} card${res.count===1?"":"s"} to ${friend.friendName||"friend"} \u2014 they'll accept on their end`);
+                          setLoanSel(new Set()); setLoanSendTo("");
+                        } else {
+                          setToast("Couldn't send: " + (res?.error||"try again"));
+                        }
+                      }}
+                      style={{background: loanSendTo?"#E8317A":"#333",border:"none",color:"#fff",borderRadius:8,
+                              padding:"8px 16px",fontSize:12,fontWeight:800,cursor:loanSendTo?"pointer":"not-allowed",
+                              fontFamily:"inherit",flexShrink:0}}>
+                      {loanSending ? "Sending…" : "📤 Send"}
+                    </button>
+                    <button onClick={()=>{setLoanSel(new Set());setLoanSendTo("");}}
+                      style={{background:"none",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-3)",borderRadius:8,
+                              padding:"8px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>
+                      Clear
+                    </button>
+                  </div>
+                  {(friends||[]).length===0 && (
+                    <div style={{fontSize:10.5,color:"var(--bz-ink-3)",marginTop:6}}>
+                      Add a friend first (Friends tab) to send cards.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         );
@@ -47715,7 +47931,10 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                     toggleOwned={()=>{if(!user){setSigningIn(true);return;} toggleOwned(c.id);}}
                     setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                     toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear} kidGroups={kidGroups} kidTags={kidTagsByCard[c.id]} onAssignKid={assignCardToKid} onSell={user?()=>setSellModal(c):null} foundInMap={foundInMap}/>
+                    onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear} kidGroups={kidGroups} kidTags={kidTagsByCard[c.id]} onAssignKid={assignCardToKid} onSell={user?()=>setSellModal(c):null} foundInMap={foundInMap}
+                    lentCount={lentByCard[c.id]||0} lentWho={lentWhoByCard[c.id]?.who||""}
+                    onLend={user?()=>{const who=window.prompt("Lend "+c.hero+" to whom?");if(who&&who.trim())markCardLent(c.id,who);}:null}
+                    onReturn={user?()=>markCardReturned(c.id):null}/>
                   {/* Lock animation overlay */}
                   {privacyAnim===c.id&&(
                     <div style={{position:"absolute",inset:0,borderRadius:10,zIndex:20,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",pointerEvents:"none",animation:"lockFadeOut 1.2s ease forwards",background:"rgba(0,0,0,0.55)"}}>
@@ -48212,7 +48431,10 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                                 toggleOwned={()=>{ if(!user){setSigningIn(true);return;} toggleOwned(c.id); }}
                                 setOwnedQty={(id,qty)=>setOwnedQty(id,qty)}
                                 toggleWant={()=>toggleWant(c.id)} wantList={wantList} WEAPON_COLORS={PUBLIC_WEAPON_COLORS}
-                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear} kidGroups={kidGroups} kidTags={kidTagsByCard[c.id]} onAssignKid={assignCardToKid} onSell={user?()=>setSellModal(c):null} foundInMap={foundInMap}/>
+                                onComp={c=>setCompCard(c)} onLotEdit={user?()=>setLotModal({card:c}):null} lotCount={lotCountByCard[c.id]||0} myScanPhoto={scanPhotoByCard[c.id]} onCardActivity={resetFlipTimer} isAdmin={_cardAdmin} onImageUpload={handleCardImageUpload} onImageClear={handleCardImageClear} kidGroups={kidGroups} kidTags={kidTagsByCard[c.id]} onAssignKid={assignCardToKid} onSell={user?()=>setSellModal(c):null} foundInMap={foundInMap}
+                    lentCount={lentByCard[c.id]||0} lentWho={lentWhoByCard[c.id]?.who||""}
+                    onLend={user?()=>{const who=window.prompt("Lend "+c.hero+" to whom?");if(who&&who.trim())markCardLent(c.id,who);}:null}
+                    onReturn={user?()=>markCardReturned(c.id):null}/>
                             ))}
                           </div>
                           {user && (
@@ -48512,6 +48734,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             addStatus={addStatus} setAddStatus={setAddStatus}
             friendOwned={friendOwned} viewingFriend={viewingFriend} setViewingFriend={setViewingFriend}
             respondFriendReq={respondFriendReq} toggleFamily={toggleFamily} borrowLedger={borrowLedger}
+            acceptLoan={acceptLoan} declineLoan={declineLoan}
             sendFriendRequest={sendFriendRequest}
             cards={cards} owned={owned} publicCards={publicCards}
             WEAPON_COLORS={WEAPON_COLORS} setSigningIn={setSigningIn}
