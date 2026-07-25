@@ -15925,8 +15925,8 @@ function PublicDeckBuilder() {
   useEffect(() => onAuthStateChanged(auth, u => setUser(u)), []);
   useEffect(() => {
     if (!user) { setSavedDecks([]); return; }
-    const unsub = onSnapshot(collection(db, "boba_decks"), snap => {
-      setSavedDecks(snap.docs.map(d=>({...d.data(), id:d.id})).filter(d=>d.userId===user.uid).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")));
+    const unsub = onSnapshot(query(collection(db, "boba_decks"), where("userId","==",user.uid)), snap => {
+      setSavedDecks(snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")));
     }, e=>console.error("load decks failed:", e));
     return unsub;
   }, [user]);
@@ -16244,8 +16244,8 @@ function PublicPlaybookBuilder() {
   useEffect(() => onAuthStateChanged(auth, u => setUser(u)), []);
   useEffect(() => {
     if (!user) { setSavedPlaybooks([]); return; }
-    const unsub = onSnapshot(collection(db, "boba_playbooks"), snap => {
-      setSavedPlaybooks(snap.docs.map(d=>({...d.data(), id:d.id})).filter(d=>d.userId===user.uid).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")));
+    const unsub = onSnapshot(query(collection(db, "boba_playbooks"), where("userId","==",user.uid)), snap => {
+      setSavedPlaybooks(snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")));
     }, e=>console.error("load playbooks failed:", e));
     return unsub;
   }, [user]);
@@ -36589,8 +36589,8 @@ See you in there!
   const [pbSaved,       setPbSaved]       = useState(false);
   useEffect(() => {
     if (!user) { setSavedPlaybooks([]); return; }
-    const unsub = onSnapshot(collection(db, "boba_playbooks"), snap => {
-      setSavedPlaybooks(snap.docs.map(d=>({...d.data(), id:d.id})).filter(d=>d.userId===user.uid).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")));
+    const unsub = onSnapshot(query(collection(db, "boba_playbooks"), where("userId","==",user.uid)), snap => {
+      setSavedPlaybooks(snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||"")));
     }, e=>console.error("load playbooks failed:", e));
     return unsub;
   }, [user]);
@@ -36695,22 +36695,23 @@ See you in there!
   const [deckSaved,     setDeckSaved]     = useState(false);
   useEffect(() => {
     if (!user) { setSavedDecks([]); return; }
-    const unsub = onSnapshot(collection(db, "boba_decks"), snap => {
-      const all = snap.docs.map(d=>({...d.data(), id:d.id}));
-      const mine = all.filter(d=>d.userId===user.uid).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||""));
+    // Only MY decks, filtered server-side — was reading every user's decks and
+    // filtering on the client, which downloaded the entire collection on load.
+    const unsubMine = onSnapshot(query(collection(db, "boba_decks"), where("userId","==",user.uid)), snap => {
+      const mine = snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>(b.savedAt||"").localeCompare(a.savedAt||""));
       setSavedDecks(mine);
-      // Decks I handed to a family member and could still take back. boba_decks is public-read, so
-      // this comes free out of the same snapshot — no extra query.
-      setGivenDecks(all.filter(d => d.transferredFrom === user.uid && d.userId !== user.uid));
     }, e => {
-      // A denied read used to fail silently, leaving savedDecks empty \u2014 indistinguishable from
-      // "you have no decks". Surface it, because it's the difference between "empty" and "broken".
       console.error("load decks failed:", e);
       if (String(e?.code||"").includes("permission")) {
         setToast("Couldn't load your decks \u2014 permission denied. The boba_decks rule may need publishing.");
       }
     });
-    return unsub;
+    // Decks I handed to a family member and could still take back — a separate,
+    // small server-side query rather than scanning everyone's decks.
+    const unsubGiven = onSnapshot(query(collection(db, "boba_decks"), where("transferredFrom","==",user.uid)), snap => {
+      setGivenDecks(snap.docs.map(d=>({...d.data(), id:d.id})).filter(d => d.userId !== user.uid));
+    }, ()=>{});
+    return () => { unsubMine(); unsubGiven(); };
   }, [user]);
   async function saveDeckTab() {
     if (!deckName.trim() || deckCards.length === 0) { alert("Name your deck and add at least one card before saving."); return; }
