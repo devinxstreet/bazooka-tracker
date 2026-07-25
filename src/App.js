@@ -37562,8 +37562,8 @@ See you in there!
         }
       ),
       // Recent market sales (last 200)
-      onSnapshot(query(collection(db,"market_sales"), orderBy("soldAt","desc")),
-        snap => setMarketSales(snap.docs.map(d=>({...d.data(),id:d.id})).slice(0,200))
+      onSnapshot(query(collection(db,"market_sales"), orderBy("soldAt","desc"), limit(200)),
+        snap => setMarketSales(snap.docs.map(d=>({...d.data(),id:d.id})))
       ),
       // Trades where I'm either side. Two listeners because Firestore can't OR across fields.
       onSnapshot(query(collection(db,"trade_offers"), where("fromUid","==",uid2)),
