@@ -34877,10 +34877,11 @@ const LOT_METHODS = [
 // Loan-by-photo confirm step. Given a scanned card (or nothing, for manual entry),
 // pick lend vs borrow and type who. Built for speed at a table: two taps + a name.
 // entry = { card, mode } where mode is the pre-chosen "lent"/"borrowed", or null.
-function LoanScanConfirm({ entry, cards, inp, onCancel, onConfirm }) {
+function LoanScanConfirm({ entry, cards, friends=[], inp, onCancel, onConfirm }) {
   const [card, setCard] = React.useState(entry?.card || null);
   const [mode, setMode] = React.useState(entry?.mode || "lent");
   const [who, setWho]   = React.useState("");
+  const [friendUid, setFriendUid] = React.useState("");   // picked app-friend, if any
   const [q, setQ]       = React.useState("");
   // Manual search when the scan missed (or to correct a wrong match).
   const results = React.useMemo(() => {
@@ -34892,6 +34893,9 @@ function LoanScanConfirm({ entry, cards, inp, onCancel, onConfirm }) {
       (c.setName||"").toLowerCase().includes(s)
     ).slice(0, 8);
   }, [q, cards]);
+  const friend = (friends||[]).find(f => f.friendUid === friendUid) || null;
+  // The name to record: a picked friend's name wins, else the free-text field.
+  const effectiveWho = friend ? (friend.friendName || friend.friendUid) : who.trim();
 
   return (
     <div onClick={onCancel} style={{position:"fixed",inset:0,zIndex:14000,background:"rgba(0,0,0,0.8)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
@@ -34939,16 +34943,35 @@ function LoanScanConfirm({ entry, cards, inp, onCancel, onConfirm }) {
           ))}
         </div>
 
-        <input value={who} onChange={e=>setWho(e.target.value)}
-          placeholder={mode==="lent"?"Who has it?":"Who lent it to you?"}
-          style={{...inp,width:"100%",marginBottom:14}} />
+        {/* Who — pick an app friend (so the loan can actually be sent and they can
+            accept), or type any name for a non-app person. Picking a friend clears
+            the free-text and vice-versa. */}
+        {(friends||[]).length > 0 && (
+          <select value={friendUid} onChange={e=>{ setFriendUid(e.target.value); if(e.target.value) setWho(""); }}
+            style={{...inp,width:"100%",marginBottom:8}}>
+            <option value="">{mode==="lent"?"Pick a friend to send to…":"Pick a friend…"}</option>
+            {(friends||[]).map(f=>(
+              <option key={f.friendUid} value={f.friendUid}>{f.friendName||f.friendUid}</option>
+            ))}
+          </select>
+        )}
+        <input value={who} onChange={e=>{ setWho(e.target.value); if(e.target.value) setFriendUid(""); }}
+          disabled={!!friendUid}
+          placeholder={friendUid ? "" : (friends||[]).length>0 ? "…or type a name (not on the app)" : (mode==="lent"?"Who has it?":"Who lent it to you?")}
+          style={{...inp,width:"100%",marginBottom:14,opacity: friendUid?0.5:1}} />
+
+        {mode==="lent" && friend && (
+          <div style={{fontSize:10.5,color:"#60A5FA",marginTop:-8,marginBottom:12}}>
+            This will send {card?.hero||"the card"} to {friend.friendName} — they accept on their end.
+          </div>
+        )}
 
         <div style={{display:"flex",gap:8}}>
           <button onClick={onCancel} style={{flex:1,background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-3)",borderRadius:10,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-          <button disabled={!card || !who.trim()}
-            onClick={()=>onConfirm(card, mode, who.trim())}
-            style={{flex:2,background:(!card||!who.trim())?"#333":"linear-gradient(135deg,#E8317A,#7B2FF7)",border:"none",color:"#fff",borderRadius:10,padding:"11px",fontSize:13,fontWeight:900,cursor:(!card||!who.trim())?"default":"pointer",fontFamily:"inherit"}}>
-            {mode==="lent"?"Mark lent":"Mark borrowed"}
+          <button disabled={!card || !effectiveWho}
+            onClick={()=>onConfirm(card, mode, effectiveWho, friend)}
+            style={{flex:2,background:(!card||!effectiveWho)?"#333":"linear-gradient(135deg,#E8317A,#7B2FF7)",border:"none",color:"#fff",borderRadius:10,padding:"11px",fontSize:13,fontWeight:900,cursor:(!card||!effectiveWho)?"default":"pointer",fontFamily:"inherit"}}>
+            {mode==="lent" ? (friend ? "Lend & send" : "Mark lent") : "Mark borrowed"}
           </button>
         </div>
       </div>
@@ -45953,11 +45976,25 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
         <LoanScanConfirm
           entry={loanScanCard}
           cards={cards}
+          friends={friends}
           inp={inp}
           onCancel={()=>{ setLoanScanCard(null); setScanLoanMode(null); }}
-          onConfirm={async (card, mode, who)=>{
-            if (mode==="lent") { await markCardLent(card.id, who); setToast(`\uD83D\uDCE4 Lent ${card.hero||"card"} to ${who}`); }
-            else               { await addBorrowedCopy(card.id, who, ""); setToast(`\uD83D\uDCE5 Borrowed ${card.hero||"card"} from ${who}`); }
+          onConfirm={async (card, mode, who, friend)=>{
+            if (mode==="lent") {
+              await markCardLent(card.id, who);
+              // Picked an app friend -> also send the loan so they can accept it.
+              if (friend?.friendUid) {
+                const res = await sendLoanToFriend(friend, [card.id]);
+                setToast(res?.ok
+                  ? `\uD83D\uDCE4 Lent ${card.hero||"card"} to ${who} \u2014 sent for them to accept`
+                  : `\uD83D\uDCE4 Marked lent, but send failed: ${res?.error||"try again"}`);
+              } else {
+                setToast(`\uD83D\uDCE4 Lent ${card.hero||"card"} to ${who}`);
+              }
+            } else {
+              await addBorrowedCopy(card.id, who, "");
+              setToast(`\uD83D\uDCE5 Borrowed ${card.hero||"card"} from ${who}`);
+            }
             setLoanScanCard(null); setScanLoanMode(null);
           }} />
       )}
