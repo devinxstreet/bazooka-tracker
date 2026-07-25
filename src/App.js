@@ -22645,14 +22645,9 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
 
   const [photoScan,    setPhotoScan]    = useState(null); // {status, card}
   const [scanModal,    setScanModal]    = useState(false); // full-screen scan modal open
-  // Loan-by-photo: when set, a successful scan opens the loan prompt instead of the
-  // add-to-collection flow. "lent" or "borrowed" — chosen before the camera opens.
-  const [scanLoanMode, setScanLoanMode] = useState(null);
-  const [loanScanCard, setLoanScanCard] = useState(null);   // matched card awaiting who-prompt
   const [scanSession,  setScanSession]  = useState([]);    // [{card, qty, addedAt}]
   const [scanQty,      setScanQty]      = useState(1);     // qty selector for pending match
   const scanInputRef = useRef(null);
-  const loanScanInputRef = useRef(null);   // camera input for loan-by-photo
   const treatmentVisuals = useRef({}); // { treatmentName: ["hint1","hint2",...] }
 
   // Load treatment visual fingerprints once
@@ -22879,23 +22874,8 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
           setPhotoScan({ status:"candidates", candidates: cands, detected: data, scanPhoto: photoScan?.scanPhoto });
           return;
         }
-        // Loan mode + no match: open manual entry so an in-person loan isn't blocked.
-        if (scanLoanMode) {
-          setLoanScanCard({ card: null, mode: scanLoanMode });
-          setPhotoScan(null); setScanModal(false);
-          return;
-        }
         setPhotoScan({ status:"nomatch", card:null, identified: data });
         if (!scanModal) setTimeout(() => setPhotoScan(null), 5000);
-        return;
-      }
-
-      // Loan-by-photo: a match while in loan mode goes to the who-prompt, not the
-      // collection. The prompt (rendered below) asks who and finishes the loan.
-      if (scanLoanMode) {
-        setLoanScanCard({ card: match, mode: scanLoanMode });
-        setPhotoScan(null);
-        setScanModal(false);
         return;
       }
 
@@ -36647,6 +36627,11 @@ See you in there!
   const scanHintRecRef = useRef(null);
   const [scanSession,   setScanSession]   = useState([]);
   const [scanQty,       setScanQty]       = useState(1);
+  // Loan-by-photo: chosen mode ("lent"/"borrowed") before the camera opens, and
+  // the matched card awaiting the who-prompt. A camera input ref feeds the scan.
+  const [scanLoanMode,  setScanLoanMode]  = useState(null);
+  const [loanScanCard,  setLoanScanCard]  = useState(null);
+  const loanScanInputRef = useRef(null);
 
   // -- Friends --
   const [friends,       setFriends]       = useState([]);
@@ -41212,7 +41197,7 @@ See you in there!
       const resp=await fetch("/api/scan-card",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({imageBase64:full,cornerBase64:corner,mediaType:"image/jpeg"})});
       if(!resp.ok){const e=await resp.json().catch(()=>({}));setPhotoScan({status:"error",message:e.error||`HTTP ${resp.status}`});return;}
       const data=await resp.json();
-      if(!data.cardNum&&!data.hero){setPhotoScan({status:"nomatch"});setTimeout(()=>setPhotoScan(null),3000);return;}
+      if(!data.cardNum&&!data.hero){ if(scanLoanMode){ setLoanScanCard({card:null,mode:scanLoanMode}); setPhotoScan(null); setScanModal(false); return; } setPhotoScan({status:"nomatch"});setTimeout(()=>setPhotoScan(null),3000);return;}
 
       const normNum=n=>String(n||"").replace(/[\s\-_.#]/g,"").toLowerCase();
       const clean=s=>String(s||"").toLowerCase().replace(/[^a-z0-9]/g,"");
@@ -41296,7 +41281,11 @@ See you in there!
       // Fallback: if hero wasn't read at all, exact number + (if present) hero agreement — never number-alone across heroes
       if(!match&&!iHero&&iNum){const cands=cards.filter(c=>normNum(c.cardNum)===iNum);if(cands.length===1)match=cands[0];}
 
-      if(match){ setPhotoScan({status:"matched",card:match,detected:data,scanPhoto:display}); setScanQty(1); return; }
+      if(match){
+        // Loan-by-photo: a match in loan mode goes to the who-prompt, not collection.
+        if(scanLoanMode){ setLoanScanCard({card:match,mode:scanLoanMode}); setPhotoScan(null); setScanModal(false); return; }
+        setPhotoScan({status:"matched",card:match,detected:data,scanPhoto:display}); setScanQty(1); return;
+      }
 
       // No single confident match -- suggest candidates. Prefer this hero's cards (weapon/treatment/power ranking).
       let pool = heroCards.length ? heroCards : cards;
@@ -41312,6 +41301,9 @@ See you in there!
       }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score);
 
       const candidates=scored.slice(0,8).map(x=>x.card);
+      // Loan mode: even a fuzzy result opens the who-prompt with manual search,
+      // rather than the collection candidate picker — keep in-person loans fast.
+      if(scanLoanMode){ setLoanScanCard({card: candidates[0]||null, mode:scanLoanMode}); setPhotoScan(null); setScanModal(false); return; }
       if(candidates.length>0){ setPhotoScan({status:"candidates",candidates,detected:data,scanPhoto:display}); return; }
 
       setPhotoScan({status:"nomatch",identified:data});
