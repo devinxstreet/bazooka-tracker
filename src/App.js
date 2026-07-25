@@ -29455,7 +29455,122 @@ const ARENA_SHUFFLE_CSS = `
   0%   { transform: rotateY(90deg); }
   100% { transform: rotateY(0deg); }
 }
+/* Substitution sequence: outgoing hero flips face-up (opponent sees who was
+   benched), slides out to discard, then the incoming hero drops in face-down. */
+@keyframes bzSubFlip {
+  0%   { transform: rotateY(180deg); }
+  100% { transform: rotateY(0deg); }
+}
+@keyframes bzSubOut {
+  0%   { transform: translate(0,0) scale(1) rotate(0deg); opacity: 1; }
+  30%  { transform: translate(0,-10px) scale(1.05) rotate(-3deg); opacity: 1; }
+  100% { transform: translate(140%, -30%) scale(0.6) rotate(18deg); opacity: 0; }
+}
+@keyframes bzSubIn {
+  0%   { transform: translate(-160%, -40%) scale(0.55) rotate(-16deg); opacity: 0; }
+  20%  { opacity: 1; }
+  70%  { transform: translate(0,-6px) scale(1.05) rotate(3deg); opacity: 1; }
+  100% { transform: translate(0,0) scale(1) rotate(0deg); opacity: 1; }
+}
 `;
+
+// A fanned hand pinned to the bottom of the screen: overlapping cards tucked like
+// a real hand, each lifting on hover so you can read it. Used for BOTH the
+// placement hand and the battle bench, so moves never require scrolling.
+//   cards:      array of hero snapshots
+//   label:      caption ("YOUR HAND" / "YOUR BENCH")
+//   accent:     highlight colour
+//   heldIndex:  index currently picked up (lifts + outlines), or null
+//   onPick:     (index) => void, fired on click/tap
+//   onDragStart:(index) => void, for desktop drag
+//   renderCard: (card) => node, so each caller draws its own card face
+//   right:      optional node shown at the right of the label row (counts, hints)
+function FannedHand({ cards, label, accent = "#FBBF24", heldIndex, onPick, onDragStart, renderCard, right, isMobile }) {
+  const [hover, setHover] = React.useState(null);
+  if (!cards || !cards.length) return null;
+  const n = cards.length;
+  const cardW = isMobile ? 74 : 92;
+  // Overlap so the fan stays on one screen: tighter as the hand grows.
+  const overlap = Math.min(cardW * 0.55, (cardW * 0.42) + n * 2);
+  const step = cardW - overlap;
+  const totalW = step * (n - 1) + cardW;
+
+  return (
+    <div style={{position:"fixed", left:0, right:0, bottom:0, zIndex:40,
+                 padding:"6px 10px 10px", pointerEvents:"none",
+                 background:"linear-gradient(to top, rgba(10,10,14,0.96), rgba(10,10,14,0.72) 60%, transparent)"}}>
+      <div style={{display:"flex", justifyContent:"center", alignItems:"center", gap:10, marginBottom:4, pointerEvents:"auto"}}>
+        <span style={{fontSize:11,fontWeight:900,letterSpacing:2,color:accent}}>{label}</span>
+        {right}
+      </div>
+      <div style={{position:"relative", height: cardW*1.4 + 18, width: totalW, maxWidth:"100%",
+                   margin:"0 auto", pointerEvents:"auto"}}>
+        {cards.map((c, i) => {
+          const isHeld = heldIndex === i;
+          const isHover = hover === i;
+          const lift = isHeld ? 26 : isHover ? 20 : 0;
+          return (
+            <div key={(c.id||"c")+i}
+              draggable={!!onDragStart}
+              onDragStart={e=>{ onDragStart && onDragStart(i); try{e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain","f"+i);}catch(err){} }}
+              onMouseEnter={()=>setHover(i)} onMouseLeave={()=>setHover(h=>h===i?null:h)}
+              onClick={()=>onPick && onPick(i)}
+              style={{position:"absolute", left: step*i, bottom:0, width:cardW,
+                      transform:`translateY(${-lift}px)`,
+                      transition:"transform 130ms ease, box-shadow 130ms ease",
+                      cursor: onPick ? "pointer" : "grab",
+                      zIndex: isHeld ? 100 : isHover ? 90 : i,
+                      filter: isHeld ? `drop-shadow(0 8px 14px ${accent})` : "none",
+                      outline: isHeld ? `3px solid ${accent}` : "none", outlineOffset:2, borderRadius:9}}>
+              {renderCard(c)}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Substitution animation overlay. Shows the benched hero flipping face-up and
+// sliding out to discard, then a face-down card dropping in. Centered over the
+// board so both players see the same swap. `whose` is "you" or the opponent name.
+function SubAnimOverlay({ anim, whose, cardBackUrl, isMobile }) {
+  if (!anim) return null;
+  const b = anim.benched || {};
+  const cardW = isMobile ? 92 : 116;
+  return (
+    <div style={{position:"fixed", inset:0, zIndex:60, display:"flex", alignItems:"center",
+                 justifyContent:"center", pointerEvents:"none",
+                 background:"radial-gradient(circle at 50% 50%, rgba(0,0,0,0.55), rgba(0,0,0,0.25))"}}>
+      <div style={{textAlign:"center"}}>
+        <div style={{fontSize:12,fontWeight:900,letterSpacing:2,color:"#FBBF24",marginBottom:14}}>
+          {whose} SUBSTITUTED
+        </div>
+        <div style={{position:"relative", width:cardW, height:cardW*1.4, margin:"0 auto"}}>
+          {/* Outgoing hero: flips face-up, then slides out to discard. */}
+          <div style={{position:"absolute", inset:0, borderRadius:9, overflow:"hidden",
+                       border:"2px solid #F87171", background:"#111",
+                       transformStyle:"preserve-3d",
+                       animation:"bzSubFlip 360ms ease-out both, bzSubOut 900ms cubic-bezier(.5,0,.75,0) 620ms forwards"}}>
+            {b.img
+              ? <img src={b.img} alt={b.hero} style={{width:"100%",height:"100%",objectFit:"cover"}} />
+              : <div style={{padding:8,fontSize:12,fontWeight:800,color:"#fff"}}>{b.hero}</div>}
+            <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"3px 0",
+                         background:"rgba(0,0,0,0.75)",color:"#F87171",fontSize:11,fontWeight:900}}>
+              {"\u2192 DISCARD"}
+            </div>
+          </div>
+          {/* Incoming hero: drops in face-down after the outgoing leaves. */}
+          <div style={{position:"absolute", inset:0, borderRadius:9, overflow:"hidden",
+                       border:"2px solid #dc2626", opacity:0,
+                       background: cardBackUrl ? `#111 center/cover no-repeat url(${JSON.stringify(cardBackUrl)})`
+                                               : "repeating-linear-gradient(45deg,#7f1d1d,#7f1d1d 6px,#991b1b 6px,#991b1b 12px)",
+                       animation:"bzSubIn 620ms cubic-bezier(.2,.8,.3,1) 1500ms forwards"}} />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ArenaShuffleCeremony({ hand, onDone, isMobile }) {
   // phase: "riffle" -> "draw" -> "deal" -> done
@@ -30171,6 +30286,9 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   const [pickMode,  setPickMode]  = React.useState("rookie");
   // Which bench slot is armed for a substitution into the current zone.
   const [subOpen,   setSubOpen]   = React.useState(false);
+  // Sub animation overlay: { zi, seat, benched } while playing, else null.
+  // Driven off commits so BOTH players see the same swap sequence.
+  const [subAnim,   setSubAnim]   = React.useState(null);
   const [busy,      setBusy]      = React.useState(false);
   const [err,       setErr]       = React.useState(null);
   const [myGames,   setMyGames]   = React.useState([]);
@@ -30668,6 +30786,12 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       setErr("Waiting for the honors player to decide first."); return;
     }
 
+    // The commit record. For a sub we ALSO publish the benched hero: subbing
+    // reveals which hero you chose not to play. It's safe to make public because
+    // it's leaving the game — it goes straight to discard. The incoming hero
+    // stays hidden in the private doc until the normal reveal.
+    let benchedCard = null;
+
     // If subbing, perform the swap now (same accounting as substituteHero) and
     // record it so the card is ready at flip time. Costs 2 Hot Dogs.
     if (decision === "sub") {
@@ -30679,6 +30803,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       const placed = (P.placed || []).slice();
       const outgoing = placed[zi];
       if (!outgoing) { setErr("No hero in this zone."); return; }
+      benchedCard = outgoing;            // published below, revealed to opponent
       placed[zi] = benchHero;
       bench.splice(benchIdx, 1);
       const discard = [ ...(P.discard || []), outgoing ];
@@ -30692,6 +30817,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
     }
 
     zc[seat] = decision;         // "stay" | "sub"
+    if (decision === "sub") zc[`${seat}Benched`] = benchedCard;   // revealed benched hero
     commits[zi] = zc;
     setErr(null);
 
@@ -30702,6 +30828,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
         const c2 = { ...(g.commits || {}) };
         const z2 = { ...(c2[zi] || { p1: null, p2: null }) };
         z2[seat] = decision;
+        if (decision === "sub") z2[`${seat}Benched`] = benchedCard;
         if (!z2[foe]) z2[foe] = "stay";       // CPU stays
         c2[zi] = z2;
         return { ...g, commits: c2 };
@@ -31152,6 +31279,28 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
 
   async function leaveGame() { setGameId(null); setGame(null); setMyPriv(null); setCpu(null); setCpuPriv(null); setCpuHidden(null); setDamage({}); setFx(null); setErr(null); }
 
+  // Watch commits for a NEW sub (either player) and play the swap animation once.
+  // The benched hero is public in the commit, so both clients animate the same
+  // thing: outgoing hero flips face-up, slides to discard, incoming drops face-down.
+  const seenSubsRef = React.useRef(new Set());
+  React.useEffect(() => {
+    if (!G || G.mode !== "substitution") return;
+    const commits = G.commits || {};
+    for (const ziStr of Object.keys(commits)) {
+      const zc = commits[ziStr];
+      for (const s of ["p1","p2"]) {
+        if (zc[s] === "sub" && zc[`${s}Benched`]) {
+          const key = `${G.gameNumber||1}:${ziStr}:${s}`;
+          if (!seenSubsRef.current.has(key)) {
+            seenSubsRef.current.add(key);
+            setSubAnim({ zi: Number(ziStr), seat: s, benched: zc[`${s}Benched`] });
+            setTimeout(() => setSubAnim(a => (a && a.zi === Number(ziStr) && a.seat === s) ? null : a), 2200);
+          }
+        }
+      }
+    }
+  }, [G]);
+
   // vs CPU in Substitution mode: the CPU never subs (v1). If the CPU holds honors
   // this battle, it must commit "stay" FIRST so the human (going second) can then
   // act. This effect fires that auto-commit as soon as a battle needs it.
@@ -31420,7 +31569,12 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   const orderSet   = !!(G.first && G.direction);
 
   return (
-    <div style={{maxWidth:1200, margin:"0 auto"}}>
+    <div style={{maxWidth:1200, margin:"0 auto",
+                 paddingBottom: (G.status==="playing" && G.mode==="substitution") ? (isMobile?150:180) : 0}}>
+      {/* Substitution swap animation, shown to both players when a sub commits. */}
+      <SubAnimOverlay anim={subAnim}
+        whose={subAnim ? (subAnim.seat === seat ? "YOU" : (them?.name || "OPPONENT").toUpperCase()) : ""}
+        cardBackUrl={cardBackUrl} isMobile={isMobile} />
       {/* header */}
       <div style={{...panel, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:10}}>
         <div>
@@ -31516,7 +31670,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       )}
 
       {G.status === "setup" && orderSet && !me?.ready && !showShuffle && (
-        <div style={panel}>
+        <div style={{...panel, paddingBottom: isMobile ? 150 : 180}}>
           <div style={{fontSize:13,fontWeight:800,color:"#fff",marginBottom:4}}>
             Place your 7 Heroes face-down
           </div>
@@ -31584,43 +31738,27 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
               );
             })}
           </div>
-          <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.55)",marginBottom:6,
-                       display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span>YOUR HAND</span>
-            {held && (
+          {/* Hand is a fanned bar pinned to the bottom of the screen (below).
+              The board above stays put; bottom padding keeps Lock In clear of it. */}
+          <FannedHand
+            cards={P?.hand || []}
+            label="YOUR HAND"
+            accent="#FBBF24"
+            isMobile={isMobile}
+            heldIndex={held?.from === "hand" ? held.index : null}
+            onDragStart={(i)=>setHeld({from:"hand",index:i})}
+            onPick={(i)=>{ const holding = held?.from==="hand" && held.index===i; if (holding) setHeld(null); else setHeld({from:"hand",index:i}); }}
+            renderCard={(c)=>heroCard(c)}
+            right={held ? (
               <span style={{fontSize:10,fontWeight:800,color:"#FBBF24"}}>
-                holding a card {"\u2014"} tap a zone to place
+                holding {"\u2014"} tap a zone to place
                 <span onClick={()=>{setHeld(null);setOverZone(null);}}
-                      style={{marginLeft:8,color:"rgba(255,255,255,0.45)",cursor:"pointer",textDecoration:"underline"}}>
-                  cancel
-                </span>
+                      style={{marginLeft:8,color:"rgba(255,255,255,0.45)",cursor:"pointer",textDecoration:"underline"}}>cancel</span>
               </span>
+            ) : (
+              <span style={{fontSize:10,color:"rgba(255,255,255,0.4)"}}>{(P?.hand||[]).length} to place</span>
             )}
-          </div>
-          {/* Hand cards drag into any zone. Tap works too, for touch. */}
-          <div style={{display:"grid",gridTemplateColumns:`repeat(${isMobile?4:7},1fr)`,gap:6,marginBottom:14}}>
-            {(P?.hand||[]).map((c,i) => {
-              const holding = held?.from === "hand" && held.index === i;
-              return (
-                <div key={c.id+i}
-                  draggable
-                  onDragStart={e=>{ setHeld({from:"hand",index:i}); try{e.dataTransfer.effectAllowed="move";e.dataTransfer.setData("text/plain","h"+i);}catch(err){} }}
-                  onDragEnd={()=>{ setHeld(null); setOverZone(null); }}
-                  onClick={()=>{
-                    // Tap the held card again to put it down.
-                    if (holding) { setHeld(null); return; }
-                    setHeld({from:"hand",index:i});
-                  }}
-                  style={{cursor:"grab",
-                          outline: holding ? "3px solid #FBBF24" : "none", outlineOffset:2,
-                          borderRadius:8,
-                          transform: holding ? "translateY(-6px)" : "none",
-                          transition:"transform 120ms ease"}}>
-                  {heroCard(c)}
-                </div>
-              );
-            })}
-          </div>
+          />
           <button onClick={confirmLineup}
             disabled={(P?.placed||[]).filter(Boolean).length !== 7}
             style={{width:"100%",padding:"12px",borderRadius:9,border:"none",
@@ -31734,37 +31872,35 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
         </div>
       )}
 
-      {/* battle controls */}
-      {G.status === "playing" && G.mode === "substitution" && (
-        <div style={{...panel, marginBottom:12}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-            <span style={{fontSize:12,fontWeight:900,color:"#FBBF24",letterSpacing:1}}>YOUR BENCH</span>
-            <span style={{fontSize:12,fontWeight:800,color:"rgba(255,255,255,0.7)"}}>
-              {"\uD83C\uDF2D"} {(P?.hotdogs||[]).length} Hot Dogs
-              {"  \u00B7  "}{"\uD83D\uDDD1"} {(P?.discard||[]).length} discarded
-            </span>
-          </div>
-          {(P?.bench||[]).length ? (
-            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
-              {(P?.bench||[]).map((b,bi) => (
-                <div key={b.id+bi} style={{borderRadius:7,overflow:"hidden",border:"2px solid rgba(255,255,255,0.15)",background:"#111",position:"relative"}}>
-                  {b.img
-                    ? <img src={b.img} alt={b.hero} style={{width:"100%",aspectRatio:"5/7",objectFit:"cover",display:"block"}} />
-                    : <div style={{padding:8,fontSize:10,fontWeight:800,color:"#fff",minHeight:60}}>{b.hero}</div>}
-                  <div style={{position:"absolute",top:3,right:4,background:"rgba(0,0,0,0.8)",color:"#FBBF24",
-                               borderRadius:4,padding:"0 5px",fontSize:11,fontWeight:900}}>{b.power}</div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",textAlign:"center",padding:"8px 0"}}>
-              Bench empty.
+      {/* Bench as a fanned bar pinned to the bottom, mirroring the placement hand.
+          Always reachable during a substitution game without scrolling. During
+          the actual sub pick, clicking a bench card commits the sub (handled by
+          the commit panel); here the fan is the always-on view of what's benched. */}
+      {G.status === "playing" && G.mode === "substitution" && (P?.bench||[]).length > 0 && (
+        <FannedHand
+          cards={P?.bench || []}
+          label="YOUR BENCH"
+          accent="#FBBF24"
+          isMobile={isMobile}
+          heldIndex={null}
+          onPick={()=>{}}
+          renderCard={(b)=>(
+            <div style={{width:"100%",aspectRatio:"5/7",borderRadius:8,overflow:"hidden",
+                         border:"2px solid rgba(255,255,255,0.18)",background:"#111",position:"relative"}}>
+              {b.img
+                ? <img src={b.img} alt={b.hero} style={{width:"100%",height:"100%",objectFit:"cover"}} />
+                : <div style={{padding:6,fontSize:9,fontWeight:800,color:"#fff"}}>{b.hero}</div>}
+              <div style={{position:"absolute",top:3,right:4,background:"rgba(0,0,0,0.8)",color:"#FBBF24",
+                           borderRadius:4,padding:"0 5px",fontSize:11,fontWeight:900}}>{b.power}</div>
             </div>
           )}
-          <div style={{fontSize:10.5,color:"rgba(255,255,255,0.4)",marginTop:8,textAlign:"center"}}>
-            Each battle: the honors player (previous winner) decides Stay or Substitute first, then you respond. Sub costs 2 Hot Dogs.
-          </div>
-        </div>
+          right={(
+            <span style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.7)"}}>
+              {"\uD83C\uDF2D"} {(P?.hotdogs||[]).length}
+              {"  \u00B7  "}{"\uD83D\uDDD1"} {(P?.discard||[]).length}
+            </span>
+          )}
+        />
       )}
 
       {G.status === "playing" && (
