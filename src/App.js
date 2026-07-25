@@ -15954,6 +15954,24 @@ function PublicDeckBuilder() {
     try { await deleteDoc(doc(db,"boba_decks",id)); } catch(e){ alert("Delete failed: "+(e?.message||e)); return; }
     if (deckLoadId === id) { setDeckLoadId(null); setDeckName("My Deck"); setDeckCards([]); }
   }
+  // Mark a deck as registered (or clear it). Registration is a real-world step —
+  // logging the deck with the league/event — so this is just a flag Devin sets
+  // himself to track which decks are squared away vs still pending.
+  async function toggleRegistered(deck) {
+    const next = !deck.registered;
+    // Optimistic: flip locally first so the badge updates the instant you click.
+    setSavedDecks(list => list.map(d => d.id === deck.id ? { ...d, registered: next } : d));
+    try {
+      await updateDoc(doc(db,"boba_decks",deck.id), {
+        registered: next,
+        registeredAt: next ? new Date().toISOString() : null,
+      });
+    } catch (e) {
+      // Roll back on failure so the UI never lies about what's saved.
+      setSavedDecks(list => list.map(d => d.id === deck.id ? { ...d, registered: !next } : d));
+      alert("Couldn't update registration: " + (e?.message || e));
+    }
+  }
   function loadDeck(deck) {
     setDeckLoadId(deck.id); setDeckName(deck.name||"My Deck");
     setDeckCards(deck.cardIds||[]); setDeckType(deck.deckType||"none");
@@ -16068,8 +16086,19 @@ function PublicDeckBuilder() {
         {savedDecks.length > 0 && (
           <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:14, marginTop:-6 }}>
             <span style={{ fontSize:11, color:"var(--bz-ink-3)", fontWeight:700, alignSelf:"center" }}>Saved:</span>
+            {(() => {
+              const reg = savedDecks.filter(d=>d.registered).length;
+              const pending = savedDecks.length - reg;
+              if (!pending) return <span style={{ fontSize:11, color:"#4ade80", fontWeight:700, alignSelf:"center" }}>{"\u2713 all "+savedDecks.length+" registered"}</span>;
+              return <span style={{ fontSize:11, color:"#FBBF24", fontWeight:700, alignSelf:"center" }}>{reg+"/"+savedDecks.length+" registered \u00B7 "+pending+" pending"}</span>;
+            })()}
             {savedDecks.map(d=>(
-              <div key={d.id} style={{ display:"flex", alignItems:"center", gap:4, background:deckLoadId===d.id?"#1A1A2E":"#1a1a1a", border:`1px solid ${deckLoadId===d.id?"#7B9CFF":"#2a2a2a"}`, borderRadius:8, padding:"4px 10px" }}>
+              <div key={d.id} style={{ display:"flex", alignItems:"center", gap:4, background:deckLoadId===d.id?"#1A1A2E":"#1a1a1a", border:`1px solid ${d.registered?"#4ade80":(deckLoadId===d.id?"#7B9CFF":"#2a2a2a")}`, borderRadius:8, padding:"4px 10px" }}>
+                <button onClick={()=>toggleRegistered(d)} title={d.registered?"Registered — click to unmark":"Mark as registered"}
+                  style={{ background:"none", border:"none", cursor:"pointer", fontSize:13, lineHeight:1, padding:"0 2px",
+                           color:d.registered?"#4ade80":"#555" }}>
+                  {d.registered?"\u2713":"\u25CB"}
+                </button>
                 <button onClick={()=>loadDeck(d)} style={{ background:"none", border:"none", color:deckLoadId===d.id?"#7B9CFF":"#888", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{d.name} <span style={{ color:"var(--bz-ink-3)", fontWeight:400 }}>({d.cardCount})</span></button>
                 <button onClick={()=>deleteDeck(d.id)} style={{ background:"none", border:"none", color:"#8a8a8a", cursor:"pointer", fontSize:14, lineHeight:1, padding:"0 2px" }}>×</button>
               </div>
@@ -22181,6 +22210,20 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
     if (deckLoadId === id) { setDeckLoadId(null); setDeckName("My Deck"); setDeckCards([]); }
   }
 
+  async function toggleRegistered(deck) {
+    const next = !deck.registered;
+    setSavedDecks(list => list.map(d => d.id === deck.id ? { ...d, registered: next } : d));
+    try {
+      await updateDoc(doc(db,"boba_decks",deck.id), {
+        registered: next,
+        registeredAt: next ? new Date().toISOString() : null,
+      });
+    } catch (e) {
+      setSavedDecks(list => list.map(d => d.id === deck.id ? { ...d, registered: !next } : d));
+      alert("Couldn't update registration: " + (e?.message || e));
+    }
+  }
+
   function loadDeck(deck) {
     setDeckLoadId(deck.id);
     setDeckName(deck.name);
@@ -25099,7 +25142,12 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
               {savedDecks.length > 0 && (
                 <div style={{ marginTop:10, display:"flex", gap:6, flexWrap:"wrap" }}>
                   {savedDecks.map(d=>(
-                    <div key={d.id} style={{ display:"flex", alignItems:"center", gap:4, background:deckLoadId===d.id?"#1A1A2E":"#1a1a1a", border:`1px solid ${deckLoadId===d.id?"#7B9CFF":"#2a2a2a"}`, borderRadius:8, padding:"4px 10px" }}>
+                    <div key={d.id} style={{ display:"flex", alignItems:"center", gap:4, background:deckLoadId===d.id?"#1A1A2E":"#1a1a1a", border:`1px solid ${d.registered?"#4ade80":(deckLoadId===d.id?"#7B9CFF":"#2a2a2a")}`, borderRadius:8, padding:"4px 10px" }}>
+                      <button onClick={()=>toggleRegistered(d)} title={d.registered?"Registered — click to unmark":"Mark as registered"}
+                        style={{ background:"none", border:"none", cursor:"pointer", fontSize:13, lineHeight:1, padding:"0 2px",
+                                 color:d.registered?"#4ade80":"#555" }}>
+                        {d.registered?"\u2713":"\u25CB"}
+                      </button>
                       <button onClick={()=>loadDeck(d)} style={{ background:"none", border:"none", color:deckLoadId===d.id?"#7B9CFF":"#888", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                         {d.name} <span style={{ color:"var(--bz-ink-3)", fontWeight:400 }}>({d.cardCount})</span>
                       </button>
@@ -30981,6 +31029,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
         cpuPrivDoc.subUsedThisBattle = false;
       }
       setCpuPriv(cpuPrivDoc);
+      setCpuHidden({ placed: cpuPlaced, deck: cpuShuf.slice(7) });
       setDamage({});
     } catch(e) {
       console.error("cpu game failed:", e);
@@ -31031,6 +31080,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       cpuPrivDoc2.subUsedThisBattle = false;
     }
     setCpuPriv(cpuPrivDoc2);
+    setCpuHidden({ placed: shuffle(cpuShuf.slice(0,7)), deck: cpuShuf.slice(7) });
     setDamage({});   // fresh board, no scars carried over
     setErr(null);
   }
@@ -31587,6 +31637,38 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       )}
 
       {/* battle controls */}
+      {G.status === "playing" && G.mode === "substitution" && (
+        <div style={{...panel, marginBottom:12}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <span style={{fontSize:12,fontWeight:900,color:"#FBBF24",letterSpacing:1}}>YOUR BENCH</span>
+            <span style={{fontSize:12,fontWeight:800,color:"rgba(255,255,255,0.7)"}}>
+              {"\uD83C\uDF2D"} {(P?.hotdogs||[]).length} Hot Dogs
+              {"  \u00B7  "}{"\uD83D\uDDD1"} {(P?.discard||[]).length} discarded
+            </span>
+          </div>
+          {(P?.bench||[]).length ? (
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+              {(P?.bench||[]).map((b,bi) => (
+                <div key={b.id+bi} style={{borderRadius:7,overflow:"hidden",border:"2px solid rgba(255,255,255,0.15)",background:"#111",position:"relative"}}>
+                  {b.img
+                    ? <img src={b.img} alt={b.hero} style={{width:"100%",aspectRatio:"5/7",objectFit:"cover",display:"block"}} />
+                    : <div style={{padding:8,fontSize:10,fontWeight:800,color:"#fff",minHeight:60}}>{b.hero}</div>}
+                  <div style={{position:"absolute",top:3,right:4,background:"rgba(0,0,0,0.8)",color:"#FBBF24",
+                               borderRadius:4,padding:"0 5px",fontSize:11,fontWeight:900}}>{b.power}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{fontSize:11,color:"rgba(255,255,255,0.4)",textAlign:"center",padding:"8px 0"}}>
+              Bench empty.
+            </div>
+          )}
+          <div style={{fontSize:10.5,color:"rgba(255,255,255,0.4)",marginTop:8,textAlign:"center"}}>
+            To swap: on the reveal step below, tap {"\u201C"}Substitute{"\u201D"} then pick a bench hero. Costs 2 Hot Dogs, once per battle.
+          </div>
+        </div>
+      )}
+
       {G.status === "playing" && (
         <div style={{...panel, textAlign:"center"}}>
           {!zones[zi]?.[seat] ? (
