@@ -42192,6 +42192,10 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
         if(!owned[c.id]) return false;
         if((deckLockedForTrade[c.id]||0) === 0) return false;                 // none in a deck
       }
+      // Borrowed = a copy I'm holding that belongs to someone else. Lent = a copy
+      // of mine that's out with someone. Both read the per-copy lot lendState maps.
+      if(filterOwned==="borrowed" && !(borrowedByCard[c.id]>0)) return false;
+      if(filterOwned==="lent"     && !(lentByCard[c.id]>0))     return false;
     if(filterNoImg && c.imageUrl && String(c.imageUrl).startsWith("http")) return false;
     if(filterPower.size>0 && !filterPower.has(Number(c.power||0))) return false;
     // Multi-word search: every word must match SOMEWHERE on the card, in any order and across
@@ -42214,7 +42218,9 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
   }), [cards, filterSet, filterSubSet, filterWeapon, filterTreat, filterOwned, filterNoImg, filterPower, searchTerms, searchTight, searchIndex,
        kidFilter, kidAssign,
        (filterOwned === "owned" || filterOwned === "missing" || filterOwned === "free" || filterOwned === "indeck" || kidFilter !== "all") ? owned : null,
-       (filterOwned === "free" || filterOwned === "indeck") ? deckLockedForTrade : null]);
+       (filterOwned === "free" || filterOwned === "indeck") ? deckLockedForTrade : null,
+       filterOwned === "borrowed" ? borrowedByCard : null,
+       filterOwned === "lent" ? lentByCard : null]);
 
   // PERF: THIS SORT WAS THE BOTTLENECK. It ran on every keystroke over the whole result set and
   // called localeCompare() inside the comparator — full Unicode collation, ~500k+ times on a big
@@ -44233,6 +44239,20 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                     {"\uD83D\uDCE5"} I'm borrowing this card
                   </button>
                 )}
+                {/* Lend this card out — sibling to the borrow action, since both answer
+                    "where is this card." Shown when you own it. One prompt for the name;
+                    tags a copy as lent (still owned, excluded from decking). */}
+                {user && owned[c.id] && (
+                  <button onClick={async ()=>{
+                    const who = window.prompt(`Lend ${c.hero||"this card"} to whom?`);
+                    if (who === null || !who.trim()) return;
+                    await markCardLent(c.id, who);
+                    setToast(`\uD83D\uDCE4 Marked as lent to ${who.trim()}`);
+                  }} style={{width:"100%",marginTop:8,background:"rgba(251,191,36,0.12)",border:"1px solid rgba(251,191,36,0.45)",
+                    color:"#FBBF24",borderRadius:9,padding:"9px",fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                    {"\uD83D\uDCE4"} I'm lending this card out
+                  </button>
+                )}
                 {(() => {
                   // Lending status. Shown prominently because it answers "why can I not deck this?"
                   // and "who has my card?" \u2014 both of which are otherwise invisible.
@@ -44252,6 +44272,14 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                             {l.lendWhy && <div style={{fontSize:11,color:"var(--bz-ink-2)",marginTop:2}}>{l.lendWhy}</div>}
                             {l.lendDate && <div style={{fontSize:10,color:"var(--bz-ink-3)",marginTop:2}}>Since {l.lendDate}</div>}
                             {out && <div style={{fontSize:10,color:"var(--bz-ink-3)",marginTop:3}}>This copy is excluded from deck building.</div>}
+                            {out && (
+                              <button onClick={async (e)=>{ e.stopPropagation(); await markCardReturned(c.id); setToast("\u2713 Marked as back in hand"); }}
+                                style={{marginTop:7,background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.45)",
+                                        color:"#4ade80",borderRadius:7,padding:"5px 12px",fontSize:11,fontWeight:800,
+                                        cursor:"pointer",fontFamily:"inherit"}}>
+                                Got it back
+                              </button>
+                            )}
                           </div>
                         );
                       })}
@@ -47775,14 +47803,27 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 <span style={{fontSize:18,color:"rgba(255,255,255,0.3)"}}>🃏</span>
               </div>}
               {user&&(
-                <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
-                  {[["all","All"],["owned","\u2705 Owned"],["missing","\u274C Missing"],["free","\uD83D\uDD13 Free to trade"],["indeck","\uD83D\uDCD8 In a deck"],["proxy","\uD83C\uDFF7\ufe0f Proxies"]].map(([v,l])=>(
-                    <button key={v} onClick={()=>{setFilterOwned(v);preserveScroll();setPage(1);}} style={{background:filterOwned===v?"rgba(232,49,122,0.15)":"transparent",color:filterOwned===v?"#E8317A":"rgba(255,255,255,0.4)",border:`1.5px solid ${filterOwned===v?"#E8317A":"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>{l}</button>
-                  ))}
-                </div>
-              )}
-              {_cardAdmin && (
-                <button onClick={()=>{setFilterNoImg(v=>!v);preserveScroll();setPage(1);}} title="Admin: show only cards that still need an image" style={{background:filterNoImg?"rgba(123,47,247,0.25)":"transparent",color:filterNoImg?"#b794f6":"rgba(255,255,255,0.4)",border:`1.5px solid ${filterNoImg?"#7B2FF7":"rgba(255,255,255,0.08)"}`,borderRadius:20,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s",whiteSpace:"nowrap"}}>🖼 No Image{filterNoImg?" ✓":""}</button>
+                <select value={filterNoImg ? "noimg" : filterOwned}
+                  onChange={e=>{
+                    const v = e.target.value;
+                    preserveScroll(); setPage(1);
+                    if (v === "noimg") { setFilterNoImg(true); }
+                    else { setFilterNoImg(false); setFilterOwned(v); }
+                  }}
+                  style={{background:"#14141c",color:(filterOwned!=="all"||filterNoImg)?"#E8317A":"rgba(255,255,255,0.6)",
+                          border:`1.5px solid ${(filterOwned!=="all"||filterNoImg)?"#E8317A":"rgba(255,255,255,0.12)"}`,
+                          borderRadius:20,padding:"6px 12px",fontSize:11.5,fontWeight:700,cursor:"pointer",
+                          fontFamily:"inherit",outline:"none"}}>
+                  <option value="all">All cards</option>
+                  <option value="owned">{"\u2705"} Owned</option>
+                  <option value="missing">{"\u274C"} Missing</option>
+                  <option value="free">{"\uD83D\uDD13"} Free to trade</option>
+                  <option value="indeck">{"\uD83D\uDCD8"} In a deck</option>
+                  <option value="lent">{"\uD83D\uDCE4"} Lent out</option>
+                  <option value="borrowed">{"\uD83D\uDCE5"} Borrowed</option>
+                  <option value="proxy">{"\uD83C\uDFF7\uFE0F"} Proxies</option>
+                  {_cardAdmin && <option value="noimg">{"\uD83D\uDDBC"} No image (admin)</option>}
+                </select>
               )}
               {/* Kid collections — whose binder a card lives in. Visually separated from the
                   owned/missing filters above, since they answer a different question (and both
