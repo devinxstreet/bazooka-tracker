@@ -30572,6 +30572,24 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
     await setDoc(doc(db, "boba_games", gid, "private", uid), priv);
   }
 
+  // Auto-stage each player's deck when a NEW live game begins. The rematch button
+  // only re-stages the player who clicks it — so the OTHER player kept last game's
+  // hand, which looked exactly like "the deck didn't reshuffle" and left stale Hot
+  // Dogs. Keyed on gameNumber so it fires once per game for BOTH players. CPU games
+  // stage synchronously in cpuPlayAgain, so they're excluded.
+  const stagedForRef = React.useRef(null);
+  React.useEffect(() => {
+    if (isCpu || !game || !gameId || !uid) return;
+    if (game.status !== "setup") return;
+    const gnum = game.gameNumber || 1;
+    if (gnum <= 1) { stagedForRef.current = gnum; return; }  // game 1 staged by create/join
+    if (stagedForRef.current === gnum) return;               // already staged this game
+    const deck = (savedDecks||[]).find(d => d.id === me?.deckId);
+    if (!deck) return;
+    stagedForRef.current = gnum;
+    stageMyDeck(gameId, deck, game.mode);
+  }, [game?.status, game?.gameNumber, gameId, uid, isCpu]);
+
   // ---- join --------------------------------------------------------------
   async function joinGame() {
     if (!uid) return;
@@ -30989,7 +31007,8 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           "p2.ready": false,
         });
       }
-      await stageMyDeck(gameId, deck, G?.mode);
+      // Staging is handled by the auto-restage effect (keyed on gameNumber), so
+      // BOTH players re-stage when the new game begins — not just whoever clicked.
       setDamage({});   // fresh board, no scars carried over
     } catch(e) {
       console.error("rematch failed:", e);
@@ -31280,7 +31299,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
     setErr(null);
   }
 
-  async function leaveGame() { setGameId(null); setGame(null); setMyPriv(null); setCpu(null); setCpuPriv(null); setCpuHidden(null); setDamage({}); setFx(null); setErr(null); }
+  async function leaveGame() { stagedForRef.current = null; setGameId(null); setGame(null); setMyPriv(null); setCpu(null); setCpuPriv(null); setCpuHidden(null); setDamage({}); setFx(null); setErr(null); }
 
   // Watch commits for a NEW sub (either player) and play the swap animation once.
   // The benched hero is public in the commit, so both clients animate the same
