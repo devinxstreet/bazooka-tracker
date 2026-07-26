@@ -28615,6 +28615,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   const [showPbPickList, setShowPbPickList] = useState(false);
   const [pbPickSort, setPbPickSort] = useState("cardnum");   // cardnum | name | cost | set
   const [pbCopied, setPbCopied] = useState(false);
+  const [pbPickChecked, setPbPickChecked] = useState({});   // {playId: true} — pulled plays, resets on close
   const [pinnedCat, setPinnedCat] = useState(null);
   useEffect(() => {
     const unsub = onSnapshot(doc(db,"meta","play_categories"),
@@ -29081,7 +29082,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                     <div style={{marginBottom:18,paddingBottom:14,borderBottom:"3px solid #111"}}>
                       <div style={{fontSize:11,fontWeight:800,letterSpacing:"1.6px",textTransform:"uppercase",color:"#B45309",marginBottom:4}}>Pick list</div>
                       <div style={{fontSize:26,fontWeight:900,letterSpacing:"-0.6px",lineHeight:1.05}}>{pbName||"Playbook"}</div>
-                      <div style={{marginTop:9,fontSize:12,color:"#999"}}><b style={{color:"#111"}}>{sorted.length}</b> plays · sorted by {pbPickSort==="cardnum"?"play number":pbPickSort}</div>
+                      <div style={{marginTop:9,fontSize:12,color:"#999"}}><b style={{color:"#111"}}>{sorted.length}</b> plays · sorted by {pbPickSort==="cardnum"?"play number":pbPickSort}{(()=>{ const pulled=sorted.filter(e=>pbPickChecked[e.id]).length; return pulled>0?<span style={{color:"#0a7a3a",fontWeight:800}}> · {pulled} pulled</span>:null; })()}</div>
                     </div>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                       <thead><tr>
@@ -29092,9 +29093,12 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                         <th style={{textAlign:"right",borderBottom:"1.5px solid #111",padding:"8px 6px",fontSize:9.5,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Cost</th>
                       </tr></thead>
                       <tbody>
-                        {sorted.map(e=>{ const c=e.card; const bonus=e.type==="bonus"; return (
-                          <tr key={e.id} style={{pageBreakInside:"avoid"}}>
-                            <td style={{width:34,textAlign:"center",padding:"9px 6px",borderBottom:"1px solid #ededed"}}><span style={{display:"inline-block",width:17,height:17,border:"1.5px solid #bbb",borderRadius:4}}/></td>
+                        {sorted.map(e=>{ const c=e.card; const bonus=e.type==="bonus"; const done=!!pbPickChecked[e.id]; return (
+                          <tr key={e.id} onClick={()=>setPbPickChecked(p=>({...p,[e.id]:!p[e.id]}))}
+                            style={{pageBreakInside:"avoid",cursor:"pointer",background:done?"#fafafa":"transparent",opacity:done?0.45:1,transition:"opacity 140ms ease, background 140ms ease"}}>
+                            <td style={{width:34,textAlign:"center",padding:"9px 6px",borderBottom:"1px solid #ededed"}}>
+                              <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:19,height:19,borderRadius:5,border:"1.5px solid "+(done?"#111":"#ccc"),background:done?"#111":"#fff",color:"#fff",fontSize:12,fontWeight:900,lineHeight:1}}>{done?"\u2713":""}</span>
+                            </td>
                             <td style={{fontSize:11.5,color:"#666",fontWeight:700,padding:"9px 6px",borderBottom:"1px solid #ededed"}}>{c.setName||"—"}</td>
                             <td style={{padding:"9px 6px",borderBottom:"1px solid #ededed"}}><span style={{fontWeight:800,fontSize:14}}>{c.playName||c.hero||"—"}</span>{bonus&&<span style={{fontSize:8.5,fontWeight:900,color:"#B45309",background:"#FEF3C7",border:"1px solid #FDE68A",borderRadius:4,padding:"0 4px",marginLeft:5}}>BONUS</span>}</td>
                             <td style={{fontSize:12.5,fontWeight:700,color:"#444",padding:"9px 6px",borderBottom:"1px solid #ededed"}}>{c.cardNum||"—"}</td>
