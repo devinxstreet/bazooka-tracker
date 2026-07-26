@@ -43052,6 +43052,9 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     return m;
   }, [savedDecks]);
 
+  // Which family member to borrow from in the deck builder ("all" or a specific uid).
+  // Declared here because the family-merge memos below reference it.
+  const [deckFamilyMember, setDeckFamilyMember] = useState("all");
   // Family cards you can borrow, merged for the deck builder. A family copy surfaces when EITHER
   // you don't own the card, OR you own it but all your copies are committed to other decks — so
   // borrowing genuinely adds capacity. familyOwnerByCard: cardId -> {uid,name,copies}.
@@ -43877,7 +43880,6 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
   const [deckMaxMode, setDeckMaxMode] = useState(false); // enforce the format's legal power window
   // Which cards the quick builder may draw from: "mine" | "both" | "family"
   const [deckSource, setDeckSource] = useState("both");
-  const [deckFamilyMember, setDeckFamilyMember] = useState("all");   // "all" | a specific family uid
   // PERF: computeDeckProgress scans the full 31k-card checklist (filter + sort + bucket). It was
   // running on EVERY render of the whole collector app — so hovering a card in the Card Database
   // re-scanned 31k cards. Memoized, and only computed when the deck tab is actually open.
