@@ -32392,7 +32392,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, lots=[], foilDogs=0, setFoilDogs=()=>{}, kidGroups=[], kidOfCopy=null, otherDeckUse={}, proxyCards={}, onToggleProxy=null, proxyNote=null, isProxyCopy=null, anyProxy=null, copyForDeck=null, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, toggleDeckRegistered=()=>{}, giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, lots=[], foilDogs=0, setFoilDogs=()=>{}, kidGroups=[], kidOfCopy=null, otherDeckUse={}, proxyCards={}, onToggleProxy=null, proxyNote=null, isProxyCopy=null, anyProxy=null, copyForDeck=null, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, toggleDeckRegistered=()=>{}, giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, deckFamilyMember="all", setDeckFamilyMember=()=>{}, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -32861,7 +32861,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     })()}
                     {/* Card source — which collection(s) the quick builder may draw from. Only shown
                         when you actually have family cards available to borrow. */}
-                    {Object.keys(familyOwnerByCard).length>0 && (
+                    {(Object.keys(familyOwnerByCard).length>0 || familyList.length>0) && (
                       <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginTop:10}}>
                         <span style={{fontSize:11,color:"var(--bz-ink-3)",fontWeight:700}}>Cards:</span>
                         <select value={deckSource} onChange={e=>setDeckSource(e.target.value)}
@@ -32875,6 +32875,18 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                             : deckSource==="family" ? "Only cards borrowed from family."
                             : "Your cards first, family fills the gaps."}
                         </span>
+                        {/* Which family member to borrow from. Only meaningful when family
+                            cards are in play and you have more than one family member. */}
+                        {deckSource!=="mine" && familyList.length>1 && (
+                          <>
+                            <span style={{fontSize:11,color:"var(--bz-ink-3)",fontWeight:700,marginLeft:4}}>From:</span>
+                            <select value={deckFamilyMember} onChange={e=>setDeckFamilyMember(e.target.value)}
+                              style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:deckFamilyMember==="all"?"var(--bz-ink-2)":"#C084FC"}}>
+                              <option value="all">All family</option>
+                              {familyList.map(f=>(<option key={f.uid} value={f.uid}>{f.name}</option>))}
+                            </select>
+                          </>
+                        )}
                       </div>
                     )}
                     {/* Set restriction — pick specific sets (e.g. Alpha Trilogy = Alpha-era only). Empty = all sets. */}
@@ -43047,6 +43059,8 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
     const fam = {};
     const merged = { ...owned };
     Object.entries(familyAvail).forEach(([famUid, info]) => {
+      // If a specific family member is selected, only their cards are borrowable.
+      if (deckFamilyMember !== "all" && famUid !== deckFamilyMember) return;
       Object.entries(info.cards||{}).forEach(([cid, copies]) => {
         if (fam[cid]) return; // first available family owner wins
         const myCopies = (owned && owned[cid]) ? (parseInt(owned[cid])||1) : 0;
@@ -43067,7 +43081,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       });
     });
     return { familyOwnerByCard: fam, deckOwnedMerged: merged };
-  }, [owned, familyAvail, otherDeckUse, allDeckUse]);
+  }, [owned, familyAvail, otherDeckUse, allDeckUse, deckFamilyMember]);
 
   // PROVENANCE (not availability): who OWNS each card, regardless of whether it's still free to lend.
   // familyOwnerByCard drops a card once it's been borrowed into a deck (correct for availability), but
@@ -43076,11 +43090,12 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
   const familyOwnsCard = useMemo(() => {
     const m = {};
     Object.entries(familyAvail||{}).forEach(([famUid, info]) => {
+      if (deckFamilyMember !== "all" && famUid !== deckFamilyMember) return;
       const nm = info.ownerName || "Family";
       Object.keys(info.cards||{}).forEach(cid => { if (!m[cid]) m[cid] = { uid: famUid, name: nm }; });
     });
     return m;
-  }, [familyAvail]);
+  }, [familyAvail, deckFamilyMember]);
   function canAddToDeck(c){
     const F = fmtOf(deckType);                    // this format's rules — see DECK_FORMATS
     const SIZE = F.size || 60;
@@ -43862,6 +43877,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
   const [deckMaxMode, setDeckMaxMode] = useState(false); // enforce the format's legal power window
   // Which cards the quick builder may draw from: "mine" | "both" | "family"
   const [deckSource, setDeckSource] = useState("both");
+  const [deckFamilyMember, setDeckFamilyMember] = useState("all");   // "all" | a specific family uid
   // PERF: computeDeckProgress scans the full 31k-card checklist (filter + sort + bucket). It was
   // running on EVERY render of the whole collector app — so hovering a card in the Card Database
   // re-scanned 31k cards. Memoized, and only computed when the deck tab is actually open.
@@ -49375,7 +49391,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             kidGroups={kidGroups} kidOfCopy={kidOfCopy} otherDeckUse={otherDeckUse} proxyCards={proxyCards} onToggleProxy={toggleProxy} proxyNote={proxyNote} isProxyCopy={isProxyCopy} anyProxy={anyProxy} copyForDeck={copyForDeck}
             savedDecks={savedDecks} familyDecks={familyDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
             saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} toggleDeckRegistered={toggleDeckRegistered} giveDeckToFamily={giveDeckToFamily} takeBackDeck={takeBackDeck} familyList={familyList} givenDecks={givenDecks} setFanDeck={setFanDeck} setFanMode={setFanMode}
-            deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} deckSource={deckSource} setDeckSource={setDeckSource} computeDeckProgress={computeDeckProgress} listings={listings} setActiveTab={setActiveTab} deckLegality={deckLegality}
+            deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} deckSource={deckSource} setDeckSource={setDeckSource} deckFamilyMember={deckFamilyMember} setDeckFamilyMember={setDeckFamilyMember} computeDeckProgress={computeDeckProgress} listings={listings} setActiveTab={setActiveTab} deckLegality={deckLegality}
           />
         )}
 
