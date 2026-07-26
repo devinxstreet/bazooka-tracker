@@ -36879,6 +36879,7 @@ See you in there!
   // Family members' cards available to borrow: {famUid: {ownerName, cardIds:Set-as-array}}.
   // = cards they own that are NOT locked in any of their saved decks.
   const [familyAvail,   setFamilyAvail]   = useState({});
+  const [familyOwnedRaw, setFamilyOwnedRaw] = useState({});   // provenance: cardId -> {uid,name}, all owned
   const [borrowLedger,  setBorrowLedger]  = useState([]); // family card borrows involving me
 
   // -- Teams --
@@ -37829,11 +37830,12 @@ See you in there!
   const familyRecomputeRef = useRef(null); // debounce the availability rebuild during the load burst
   useEffect(() => {
     const familyMembers = friends.filter(f => f.isFamily);
-    if (!familyMembers.length) { familyRawRef.current = {}; setFamilyAvail({}); return; }
+    if (!familyMembers.length) { familyRawRef.current = {}; setFamilyAvail({}); setFamilyOwnedRaw({}); return; }
 
     // Recompute the derived availability map from whatever raw data we currently have.
     const recompute = () => {
       const next = {};
+      const ownProv = {};   // provenance: who OWNS each card, regardless of lock/deck status
       Object.entries(familyRawRef.current).forEach(([famUid, raw]) => {
         const theirOwned = raw.owned || {};
         const locked = raw.locked || {};
@@ -37843,10 +37845,14 @@ See you in there!
           const copies = parseInt(theirOwned[cid])||1;
           const lockedN = locked[cleanId]||0;
           if (copies > lockedN) avail[cleanId] = copies - lockedN;
+          // Provenance keeps EVERY owned card (first owner wins), even fully-locked ones,
+          // so the pick list can say who has a card even when it isn't free to borrow.
+          if (copies > 0 && !ownProv[cleanId]) ownProv[cleanId] = { uid: famUid, name: raw.name };
         });
         next[famUid] = { ownerName: raw.name, cards: avail };
       });
       setFamilyAvail(next);
+      setFamilyOwnedRaw(ownProv);
     };
     // Coalesce the flurry of listener callbacks on first load into a single rebuild.
     const scheduleRecompute = () => {
@@ -43086,15 +43092,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
   // familyOwnerByCard drops a card once it's been borrowed into a deck (correct for availability), but
   // the pick list needs to show "Derrik owns this" even after it's committed. This map never nets out
   // borrows — it's purely "does a family member's collection contain this card id."
-  const familyOwnsCard = useMemo(() => {
-    const m = {};
-    Object.entries(familyAvail||{}).forEach(([famUid, info]) => {
-      if (deckFamilyMember !== "all" && famUid !== deckFamilyMember) return;
-      const nm = info.ownerName || "Family";
-      Object.keys(info.cards||{}).forEach(cid => { if (!m[cid]) m[cid] = { uid: famUid, name: nm }; });
-    });
-    return m;
-  }, [familyAvail, deckFamilyMember]);
+  const familyOwnsCard = useMemo(() => familyOwnedRaw || {}, [familyOwnedRaw]);
   function canAddToDeck(c){
     const F = fmtOf(deckType);                    // this format's rules — see DECK_FORMATS
     const SIZE = F.size || 60;
