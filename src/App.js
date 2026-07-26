@@ -29015,12 +29015,13 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
               const cmp = {
                 cardnum:(a,b)=>String(a.card.cardNum||"").localeCompare(String(b.card.cardNum||""),undefined,{numeric:true}),
                 name:(a,b)=>String(a.card.playName||a.card.hero||"").localeCompare(String(b.card.playName||b.card.hero||"")),
-                cost:(a,b)=>(parseFloat(b.card.playCost)||0)-(parseFloat(a.card.playCost)||0),
+                cost:(a,b)=>(parseFloat(b.card.dbs)||0)-(parseFloat(a.card.dbs)||0),
                 set:(a,b)=>String(a.card.setName||"").localeCompare(String(b.card.setName||"")),
               }[pbPickSort] || (()=>0);
               const sorted = [...pbResolved].sort(cmp);
-              const line = e => [e.card.setName, e.card.playName||e.card.hero, e.card.cardNum?`#${e.card.cardNum}`:"", (e.card.playCost!=null&&e.card.playCost!=="")?`Cost ${e.card.playCost}`:""].filter(Boolean).join(" · ");
-              const copyText = sorted.map(line).join("\n");
+              const line = e => [e.card.setName, e.card.playName||e.card.hero, e.card.cardNum?`#${e.card.cardNum}`:"", (e.card.dbs!=null&&e.card.dbs!=="")?`DBS ${e.card.dbs}`:""].filter(Boolean).join(" · ");
+              const totalDbsPick = sorted.reduce((s,e)=>s+(parseFloat(e.card.dbs)||0),0);
+              const copyText = sorted.map(line).join("\n") + `\n\nTotal DBS: ${Math.round(totalDbsPick)} · ${sorted.length} plays`;
               const doCopy = ()=>{ navigator.clipboard.writeText(copyText).then(()=>{ setPbCopied(true); setTimeout(()=>setPbCopied(false),1800); }); };
               const openPrint = ()=>{
                 const esc = s => String(s==null?"":s).replace(/[&<>"]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
@@ -29031,7 +29032,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                     '<td class="set">'+esc(c.setName||"\u2014")+'</td>'+
                     '<td><div class="pn">'+esc(c.playName||c.hero||"\u2014")+(bonus?' <span class="btag">BONUS</span>':'')+'</div></td>'+
                     '<td class="num">'+esc(c.cardNum||"\u2014")+'</td>'+
-                    '<td class="cost">'+esc((c.playCost!=null&&c.playCost!=="")?c.playCost:"\u2014")+'</td>'+
+                    '<td class="cost">'+esc((c.dbs!=null&&c.dbs!=="")?c.dbs:"\u2014")+'</td>'+
                   '</tr>';
                 }).join("");
                 const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+esc(pbName||"Playbook")+' \u2014 Pick List</title>'+
@@ -29049,6 +29050,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                   '.pn{font-weight:800;font-size:14px;}.btag{font-size:8.5px;font-weight:900;color:#B45309;background:#FEF3C7;border:1px solid #FDE68A;border-radius:4px;padding:0 4px;margin-left:5px;vertical-align:middle;}'+
                   '.num{font-size:12.5px;font-weight:700;color:#444;width:70px;}'+
                   '.cost{text-align:right;font-size:17px;font-weight:900;font-variant-numeric:tabular-nums;width:70px;}'+
+                  '.totalrow td{border-top:2.5px solid #111;border-bottom:none;padding-top:12px;}.totlbl{font-size:11px;font-weight:900;letter-spacing:0.8px;text-transform:uppercase;color:#111;}.tot{text-align:right;font-size:20px;font-weight:900;font-variant-numeric:tabular-nums;}'+
                   '.foot{margin-top:18px;padding-top:11px;border-top:1px solid #eee;font-size:10px;color:#bbb;display:flex;justify-content:space-between;}.foot b{color:#999;font-weight:800;}'+
                   '.btns{margin-bottom:18px;}button{background:#111;color:#fff;border:none;border-radius:9px;padding:9px 18px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;}'+
                   '@page{margin:13mm;}@media print{.btns{display:none;}}</style></head><body>'+
@@ -29056,7 +29058,9 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                   '<div class="eyebrow">Pick list</div><h1>'+esc(pbName||"Playbook")+'</h1>'+
                   '<div class="stats"><span><b>'+sorted.length+'</b><span class="lt"> plays</span></span><span class="lt">sorted by '+(pbPickSort==="cardnum"?"play number":pbPickSort)+'</span></div>'+
                   '<div class="rule"></div>'+
-                  '<table><thead><tr><th class="c">Got</th><th>Set</th><th>Play</th><th>No.</th><th class="r">Cost</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+                  '<table><thead><tr><th class="c">Got</th><th>Set</th><th>Play</th><th>No.</th><th class="r">DBS</th></tr></thead><tbody>'+rows+
+                  '<tr class="totalrow"><td></td><td></td><td class="totlbl">Total DBS</td><td></td><td class="tot">'+Math.round(totalDbsPick)+'</td></tr>'+
+                  '</tbody></table>'+
                   '<div class="foot"><b>BAZOOKA DASH</b><span>'+new Date().toLocaleDateString()+'</span></div>'+
                   '</body></html>';
                 const w=window.open("","_blank","width=900,height=1000");
@@ -29068,7 +29072,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                   <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:680,background:"#fff",color:"#111",borderRadius:14,padding:"26px 30px 30px",boxShadow:"0 24px 80px rgba(0,0,0,0.6)",margin:"auto"}}>
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:18}}>
                       <div style={{display:"inline-flex",border:"1.5px solid #e3e3e3",borderRadius:9,overflow:"hidden"}}>
-                        {[["cardnum","Play no."],["name","Name"],["cost","Cost"],["set","Set"]].map(([k,label],idx)=>(
+                        {[["cardnum","Play no."],["name","Name"],["cost","DBS"],["set","Set"]].map(([k,label],idx)=>(
                           <button key={k} onClick={()=>setPbPickSort(k)}
                             style={{background:pbPickSort===k?"#111":"#fff",color:pbPickSort===k?"#fff":"#777",border:"none",borderLeft:idx===0?"none":"1px solid #e3e3e3",padding:"8px 13px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
                         ))}
@@ -29090,7 +29094,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                         <th style={{textAlign:"left",borderBottom:"1.5px solid #111",padding:"8px 6px",fontSize:9.5,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Set</th>
                         <th style={{textAlign:"left",borderBottom:"1.5px solid #111",padding:"8px 6px",fontSize:9.5,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Play</th>
                         <th style={{textAlign:"left",borderBottom:"1.5px solid #111",padding:"8px 6px",fontSize:9.5,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>No.</th>
-                        <th style={{textAlign:"right",borderBottom:"1.5px solid #111",padding:"8px 6px",fontSize:9.5,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Cost</th>
+                        <th style={{textAlign:"right",borderBottom:"1.5px solid #111",padding:"8px 6px",fontSize:9.5,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>DBS</th>
                       </tr></thead>
                       <tbody>
                         {sorted.map(e=>{ const c=e.card; const bonus=e.type==="bonus"; const done=!!pbPickChecked[e.id]; return (
@@ -29102,9 +29106,13 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                             <td style={{fontSize:11.5,color:"#666",fontWeight:700,padding:"9px 6px",borderBottom:"1px solid #ededed"}}>{c.setName||"—"}</td>
                             <td style={{padding:"9px 6px",borderBottom:"1px solid #ededed"}}><span style={{fontWeight:800,fontSize:14}}>{c.playName||c.hero||"—"}</span>{bonus&&<span style={{fontSize:8.5,fontWeight:900,color:"#B45309",background:"#FEF3C7",border:"1px solid #FDE68A",borderRadius:4,padding:"0 4px",marginLeft:5}}>BONUS</span>}</td>
                             <td style={{fontSize:12.5,fontWeight:700,color:"#444",padding:"9px 6px",borderBottom:"1px solid #ededed"}}>{c.cardNum||"—"}</td>
-                            <td style={{textAlign:"right",fontSize:17,fontWeight:900,fontVariantNumeric:"tabular-nums",padding:"9px 6px",borderBottom:"1px solid #ededed"}}>{(c.playCost!=null&&c.playCost!=="")?c.playCost:"—"}</td>
+                            <td style={{textAlign:"right",fontSize:17,fontWeight:900,fontVariantNumeric:"tabular-nums",padding:"9px 6px",borderBottom:"1px solid #ededed"}}>{(c.dbs!=null&&c.dbs!=="")?c.dbs:"—"}</td>
                           </tr>
                         );})}
+                        <tr>
+                          <td colSpan={4} style={{textAlign:"right",padding:"12px 6px 6px",borderTop:"2.5px solid #111",fontSize:11,fontWeight:900,letterSpacing:"0.8px",textTransform:"uppercase",color:"#111"}}>Total DBS</td>
+                          <td style={{textAlign:"right",padding:"12px 6px 6px",borderTop:"2.5px solid #111",fontSize:20,fontWeight:900,fontVariantNumeric:"tabular-nums"}}>{Math.round(totalDbsPick)}</td>
+                        </tr>
                       </tbody>
                     </table>
                   </div>
@@ -36418,6 +36426,7 @@ function PublicCardDatabase({ swancity = false } = {}) {
   }, [toast]);
   const [fanDeck, setFanDeck] = useState(null); // {name, cards:[cardObjs]} for hand-fan view
   const [fanMode, setFanMode] = useState("grid"); // "grid" | "fan"
+  const [fanGroup, setFanGroup] = useState("none"); // "none" | "power" | "insert"
   const [cardSize, setCardSize] = useState(200); // grid card min-width in px, adjustable via slider
   const showToast = (msg) => { try { setToast(msg); setTimeout(()=>{ try{setToast(null);}catch(e){} }, 3500); } catch(e){} };
 
@@ -44235,21 +44244,62 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   <button onClick={()=>setFanMode("grid")} style={{background:fanMode==="grid"?"rgba(255,255,255,0.15)":"transparent",border:"none",color:fanMode==="grid"?"#fff":"rgba(255,255,255,0.5)",borderRadius:20,padding:"7px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>▦ Grid</button>
                   <button onClick={()=>setFanMode("fan")} style={{background:fanMode==="fan"?"rgba(255,255,255,0.15)":"transparent",border:"none",color:fanMode==="fan"?"#fff":"rgba(255,255,255,0.5)",borderRadius:20,padding:"7px 16px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🖐 Fan</button>
                 </div>
+                {/* Group the grid by power tier (all 115s, 120s…) or by insert/treatment
+                    (mixtapes, linoleums…) — for reading a complex set cleanly. */}
+                {fanMode==="grid" && (
+                  <div style={{display:"flex",background:"rgba(255,255,255,0.06)",borderRadius:24,padding:3}}>
+                    {[["none","Flat"],["power","By power"],["insert","By insert"]].map(([v,l])=>(
+                      <button key={v} onClick={()=>setFanGroup(v)} style={{background:fanGroup===v?"rgba(255,255,255,0.15)":"transparent",border:"none",color:fanGroup===v?"#fff":"rgba(255,255,255,0.5)",borderRadius:20,padding:"7px 14px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+                    ))}
+                  </div>
+                )}
                 <button onClick={()=>{setFanDeck(null);setFanMode("grid");}} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.2)",color:"#fff",borderRadius:24,width:40,height:40,fontSize:18,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
               </div>
             </div>
             {/* Body */}
             {fanMode==="grid" ? (
               <div style={{flex:1,minHeight:0,overflowY:"auto",padding:"8px 24px 32px"}}>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:16,maxWidth:1400,margin:"0 auto"}}>
-                  {cards.map((c,i)=>{const wc=PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";return(
+                {(()=>{
+                  const tile = (c,i)=>{const wc=PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";return(
                     <div key={i} style={{aspectRatio:"3/4",borderRadius:12,overflow:"hidden",border:`2px solid ${wc}55`,background:"var(--bz-s1)",boxShadow:"0 8px 24px rgba(0,0,0,0.5)",transition:"transform 0.15s",cursor:"default"}}
                       onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-6px) scale(1.03)";e.currentTarget.style.borderColor=wc;}}
                       onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.borderColor=wc+"55";}}>
                       {cardImg(c,true)}
                     </div>
-                  );})}
-                </div>
+                  );};
+                  const gridWrap = kids => <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:16,maxWidth:1400,margin:"0 auto"}}>{kids}</div>;
+                  if (fanGroup==="none") return gridWrap(cards.map(tile));
+                  // Group into ordered buckets. Power: high→low. Insert: alphabetical.
+                  const groups = {};
+                  cards.forEach(c=>{
+                    const key = fanGroup==="power"
+                      ? ((c.power!=null&&c.power!=="")?String(c.power):"No power")
+                      : ((c.treatment&&String(c.treatment).trim())?String(c.treatment).trim():"No insert");
+                    (groups[key]=groups[key]||[]).push(c);
+                  });
+                  const keys = Object.keys(groups).sort((a,b)=>{
+                    if (fanGroup==="power") {
+                      const na=parseFloat(a), nb=parseFloat(b);
+                      if (isNaN(na)) return 1; if (isNaN(nb)) return -1;
+                      return nb-na;   // highest power first
+                    }
+                    return a.localeCompare(b);
+                  });
+                  return (
+                    <div style={{maxWidth:1400,margin:"0 auto"}}>
+                      {keys.map(k=>(
+                        <div key={k} style={{marginBottom:30}}>
+                          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,position:"sticky",top:0,background:"linear-gradient(rgba(10,4,9,0.96),rgba(10,4,9,0.7))",padding:"6px 0",zIndex:2}}>
+                            <span style={{fontSize:16,fontWeight:900,color:"#fff"}}>{fanGroup==="power"&&k!=="No power"?`${k} POWER`:k}</span>
+                            <span style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.4)"}}>{groups[k].length}</span>
+                            <div style={{flex:1,height:1,background:"rgba(255,255,255,0.1)"}}/>
+                          </div>
+                          {gridWrap(groups[k].map(tile))}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             ) : isMobile ? (
               <div style={{flex:1,minHeight:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
