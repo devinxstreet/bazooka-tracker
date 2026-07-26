@@ -28612,6 +28612,9 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   const pbIsAdmin = user?.email?.toLowerCase().includes("devin") || user?.email?.toLowerCase().includes("derrik") || (user?.email||"").toLowerCase().endsWith("@bazookabreaks.com");
   const [catOverrides, setCatOverrides] = useState({}); // { playName: category }
   const [expandedCat, setExpandedCat] = useState(null);
+  const [showPbPickList, setShowPbPickList] = useState(false);
+  const [pbPickSort, setPbPickSort] = useState("cardnum");   // cardnum | name | cost | set
+  const [pbCopied, setPbCopied] = useState(false);
   const [pinnedCat, setPinnedCat] = useState(null);
   useEffect(() => {
     const unsub = onSnapshot(doc(db,"meta","play_categories"),
@@ -28657,6 +28660,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
   const pbAvail=playCards.filter(c=>{if(pbEntryIds.has(c.id))return false;if(!inEvent(c))return false;if(pbSetFilter&&c.setName!==pbSetFilter)return false;if(pbTypeFilter&&pbCardType(c)!==pbTypeFilter)return false;if(pbSearch&&!`${c.hero} ${c.cardNum} ${c.playAbility||""}`.toLowerCase().includes(pbSearch.toLowerCase()))return false;return true;}).sort((a,b)=>{if(pbSort==="dbs_desc")return(parseFloat(b.dbs)||0)-(parseFloat(a.dbs)||0);if(pbSort==="dbs_asc")return(parseFloat(a.dbs)||0)-(parseFloat(b.dbs)||0);return(a.hero||"").localeCompare(b.hero||"");});
   const pbSets=[...new Set(playCards.map(c=>c.setName).filter(Boolean))].sort();
   return (
+          <>
             <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column-reverse":"row",gap:16,alignItems:"stretch",height:isMobile?"auto":"calc(100vh - 150px)",minHeight:isMobile?"auto":520}}>
               <div style={{display:"flex",flexDirection:"column",gap:10,flex:1,minWidth:0,minHeight:0}}>
                 <div className="filter-bar" style={{display:"flex",gap:8,flexWrap:"wrap",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:14,padding:"12px 16px",backdropFilter:"blur(10px)"}}>
@@ -28846,6 +28850,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                   <div style={{fontSize:15,fontWeight:800,color:"#fff",letterSpacing:"-0.2px"}}>{pbName||"Playbook"}</div>
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
                     {pbResolved.length>0 && setFanDeck && <button onClick={()=>{setFanMode&&setFanMode("grid");setFanDeck({name:pbName||"Playbook",cards:pbResolved.map(e=>e.card)});}} title="Expand to view your playbook" style={{background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.35)",color:"#7B9CFF",borderRadius:16,padding:"3px 10px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>⛶ Expand</button>}
+                    {pbResolved.length>0 && <button onClick={()=>setShowPbPickList(true)} title="Printable pick list" style={{background:"rgba(251,191,36,0.12)",border:"1px solid rgba(251,191,36,0.35)",color:"#FBBF24",borderRadius:16,padding:"3px 10px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>📋 Pick List</button>}
                     <span style={{fontSize:12,fontWeight:800,color:playFull?"#E8317A":"#4ade80",background:playFull?"rgba(232,49,122,0.1)":"rgba(74,222,128,0.1)",borderRadius:20,padding:"3px 11px"}}>{playCount}/{PUBLIC_PLAY_LIMIT}</span>
                   </div>
                 </div>
@@ -29003,6 +29008,106 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                 )}
               </div>
             </div>
+
+            {showPbPickList && (()=>{
+              // Sort the resolved plays for the sheet.
+              const cmp = {
+                cardnum:(a,b)=>String(a.card.cardNum||"").localeCompare(String(b.card.cardNum||""),undefined,{numeric:true}),
+                name:(a,b)=>String(a.card.playName||a.card.hero||"").localeCompare(String(b.card.playName||b.card.hero||"")),
+                cost:(a,b)=>(parseFloat(b.card.playCost)||0)-(parseFloat(a.card.playCost)||0),
+                set:(a,b)=>String(a.card.setName||"").localeCompare(String(b.card.setName||"")),
+              }[pbPickSort] || (()=>0);
+              const sorted = [...pbResolved].sort(cmp);
+              const line = e => [e.card.setName, e.card.playName||e.card.hero, e.card.cardNum?`#${e.card.cardNum}`:"", (e.card.playCost!=null&&e.card.playCost!=="")?`Cost ${e.card.playCost}`:""].filter(Boolean).join(" · ");
+              const copyText = sorted.map(line).join("\n");
+              const doCopy = ()=>{ navigator.clipboard.writeText(copyText).then(()=>{ setPbCopied(true); setTimeout(()=>setPbCopied(false),1800); }); };
+              const openPrint = ()=>{
+                const esc = s => String(s==null?"":s).replace(/[&<>"]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+                const rows = sorted.map(e=>{
+                  const c=e.card; const bonus=e.type==="bonus";
+                  return '<tr>'+
+                    '<td class="tick"><span class="box"></span></td>'+
+                    '<td class="set">'+esc(c.setName||"\u2014")+'</td>'+
+                    '<td><div class="pn">'+esc(c.playName||c.hero||"\u2014")+(bonus?' <span class="btag">BONUS</span>':'')+'</div></td>'+
+                    '<td class="num">'+esc(c.cardNum||"\u2014")+'</td>'+
+                    '<td class="cost">'+esc((c.playCost!=null&&c.playCost!=="")?c.playCost:"\u2014")+'</td>'+
+                  '</tr>';
+                }).join("");
+                const html='<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+esc(pbName||"Playbook")+' \u2014 Pick List</title>'+
+                  '<style>*{box-sizing:border-box;}body{font-family:"Trebuchet MS",Arial,Helvetica,sans-serif;margin:0;padding:26px 28px;color:#111;}'+
+                  '.eyebrow{font-size:10px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:#B45309;margin-bottom:4px;}'+
+                  'h1{font-size:25px;font-weight:900;letter-spacing:-0.6px;margin:0;line-height:1.05;}'+
+                  '.stats{display:flex;gap:16px;margin-top:8px;font-size:12px;} .stats b{font-weight:800;} .stats .lt{color:#999;}'+
+                  '.rule{border-bottom:3px solid #111;margin:14px 0 0;}'+
+                  'table{width:100%;border-collapse:collapse;font-size:13px;margin-top:2px;}thead{display:table-header-group;}'+
+                  'th{text-align:left;border-bottom:1.5px solid #111;padding:8px 6px;font-size:9.5px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:#999;}'+
+                  'th.r{text-align:right;} th.c{text-align:center;}'+
+                  'td{padding:9px 6px;border-bottom:1px solid #ededed;vertical-align:top;}tr{page-break-inside:avoid;}'+
+                  '.tick{width:34px;text-align:center;}.box{display:inline-block;width:17px;height:17px;border:1.5px solid #bbb;border-radius:4px;}'+
+                  '.set{font-size:11.5px;color:#666;font-weight:700;width:130px;}'+
+                  '.pn{font-weight:800;font-size:14px;}.btag{font-size:8.5px;font-weight:900;color:#B45309;background:#FEF3C7;border:1px solid #FDE68A;border-radius:4px;padding:0 4px;margin-left:5px;vertical-align:middle;}'+
+                  '.num{font-size:12.5px;font-weight:700;color:#444;width:70px;}'+
+                  '.cost{text-align:right;font-size:17px;font-weight:900;font-variant-numeric:tabular-nums;width:70px;}'+
+                  '.foot{margin-top:18px;padding-top:11px;border-top:1px solid #eee;font-size:10px;color:#bbb;display:flex;justify-content:space-between;}.foot b{color:#999;font-weight:800;}'+
+                  '.btns{margin-bottom:18px;}button{background:#111;color:#fff;border:none;border-radius:9px;padding:9px 18px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;}'+
+                  '@page{margin:13mm;}@media print{.btns{display:none;}}</style></head><body>'+
+                  '<div class="btns"><button onclick="window.print()">Print</button></div>'+
+                  '<div class="eyebrow">Pick list</div><h1>'+esc(pbName||"Playbook")+'</h1>'+
+                  '<div class="stats"><span><b>'+sorted.length+'</b><span class="lt"> plays</span></span><span class="lt">sorted by '+(pbPickSort==="cardnum"?"play number":pbPickSort)+'</span></div>'+
+                  '<div class="rule"></div>'+
+                  '<table><thead><tr><th class="c">Got</th><th>Set</th><th>Play</th><th>No.</th><th class="r">Cost</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+                  '<div class="foot"><b>BAZOOKA DASH</b><span>'+new Date().toLocaleDateString()+'</span></div>'+
+                  '</body></html>';
+                const w=window.open("","_blank","width=900,height=1000");
+                if(!w){ alert("Please allow pop-ups to print or save the pick list."); return; }
+                w.document.write(html); w.document.close();
+              };
+              return (
+                <div onClick={()=>setShowPbPickList(false)} style={{position:"fixed",inset:0,zIndex:13000,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:24,overflowY:"auto"}}>
+                  <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:680,background:"#fff",color:"#111",borderRadius:14,padding:"26px 30px 30px",boxShadow:"0 24px 80px rgba(0,0,0,0.6)",margin:"auto"}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:18}}>
+                      <div style={{display:"inline-flex",border:"1.5px solid #e3e3e3",borderRadius:9,overflow:"hidden"}}>
+                        {[["cardnum","Play no."],["name","Name"],["cost","Cost"],["set","Set"]].map(([k,label],idx)=>(
+                          <button key={k} onClick={()=>setPbPickSort(k)}
+                            style={{background:pbPickSort===k?"#111":"#fff",color:pbPickSort===k?"#fff":"#777",border:"none",borderLeft:idx===0?"none":"1px solid #e3e3e3",padding:"8px 13px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
+                        ))}
+                      </div>
+                      <div style={{display:"flex",gap:8}}>
+                        <button onClick={doCopy} style={{background:pbCopied?"#0a7a3a":"#fff",color:pbCopied?"#fff":"#111",border:"1.5px solid "+(pbCopied?"#0a7a3a":"#ccc"),borderRadius:9,padding:"8px 16px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{pbCopied?"✓ Copied":"📋 Copy List"}</button>
+                        <button onClick={openPrint} style={{background:"#111",color:"#fff",border:"1.5px solid #111",borderRadius:9,padding:"8px 18px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Print / PDF</button>
+                        <button onClick={()=>setShowPbPickList(false)} style={{background:"#fff",color:"#999",border:"1.5px solid #ddd",borderRadius:9,width:36,height:36,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:"inherit",lineHeight:1}}>{"\u00d7"}</button>
+                      </div>
+                    </div>
+                    <div style={{marginBottom:18,paddingBottom:14,borderBottom:"3px solid #111"}}>
+                      <div style={{fontSize:11,fontWeight:800,letterSpacing:"1.6px",textTransform:"uppercase",color:"#B45309",marginBottom:4}}>Pick list</div>
+                      <div style={{fontSize:26,fontWeight:900,letterSpacing:"-0.6px",lineHeight:1.05}}>{pbName||"Playbook"}</div>
+                      <div style={{marginTop:9,fontSize:12,color:"#999"}}><b style={{color:"#111"}}>{sorted.length}</b> plays · sorted by {pbPickSort==="cardnum"?"play number":pbPickSort}</div>
+                    </div>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+                      <thead><tr>
+                        <th style={{width:34,textAlign:"center",borderBottom:"1.5px solid #111",padding:"8px 6px",fontSize:9.5,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Got</th>
+                        <th style={{textAlign:"left",borderBottom:"1.5px solid #111",padding:"8px 6px",fontSize:9.5,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Set</th>
+                        <th style={{textAlign:"left",borderBottom:"1.5px solid #111",padding:"8px 6px",fontSize:9.5,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Play</th>
+                        <th style={{textAlign:"left",borderBottom:"1.5px solid #111",padding:"8px 6px",fontSize:9.5,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>No.</th>
+                        <th style={{textAlign:"right",borderBottom:"1.5px solid #111",padding:"8px 6px",fontSize:9.5,fontWeight:800,letterSpacing:"0.8px",textTransform:"uppercase",color:"#999"}}>Cost</th>
+                      </tr></thead>
+                      <tbody>
+                        {sorted.map(e=>{ const c=e.card; const bonus=e.type==="bonus"; return (
+                          <tr key={e.id} style={{pageBreakInside:"avoid"}}>
+                            <td style={{width:34,textAlign:"center",padding:"9px 6px",borderBottom:"1px solid #ededed"}}><span style={{display:"inline-block",width:17,height:17,border:"1.5px solid #bbb",borderRadius:4}}/></td>
+                            <td style={{fontSize:11.5,color:"#666",fontWeight:700,padding:"9px 6px",borderBottom:"1px solid #ededed"}}>{c.setName||"—"}</td>
+                            <td style={{padding:"9px 6px",borderBottom:"1px solid #ededed"}}><span style={{fontWeight:800,fontSize:14}}>{c.playName||c.hero||"—"}</span>{bonus&&<span style={{fontSize:8.5,fontWeight:900,color:"#B45309",background:"#FEF3C7",border:"1px solid #FDE68A",borderRadius:4,padding:"0 4px",marginLeft:5}}>BONUS</span>}</td>
+                            <td style={{fontSize:12.5,fontWeight:700,color:"#444",padding:"9px 6px",borderBottom:"1px solid #ededed"}}>{c.cardNum||"—"}</td>
+                            <td style={{textAlign:"right",fontSize:17,fontWeight:900,fontVariantNumeric:"tabular-nums",padding:"9px 6px",borderBottom:"1px solid #ededed"}}>{(c.playCost!=null&&c.playCost!=="")?c.playCost:"—"}</td>
+                          </tr>
+                        );})}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
+          </>
   );
 }
 
@@ -32287,7 +32392,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, lots=[], foilDogs=0, setFoilDogs=()=>{}, kidGroups=[], kidOfCopy=null, otherDeckUse={}, proxyCards={}, onToggleProxy=null, proxyNote=null, isProxyCopy=null, anyProxy=null, copyForDeck=null, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, lots=[], foilDogs=0, setFoilDogs=()=>{}, kidGroups=[], kidOfCopy=null, otherDeckUse={}, proxyCards={}, onToggleProxy=null, proxyNote=null, isProxyCopy=null, anyProxy=null, copyForDeck=null, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, toggleDeckRegistered=()=>{}, giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -33206,8 +33311,19 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         </div>
                       ) : (
                     <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:8}}>
+                      {savedDecks.length>0 && (()=>{
+                        const reg = savedDecks.filter(d=>d.registered).length;
+                        const pending = savedDecks.length - reg;
+                        return pending===0
+                          ? <span style={{width:"100%",fontSize:10.5,color:"#4ade80",fontWeight:700}}>{"\u2713 all "+savedDecks.length+" registered"}</span>
+                          : <span style={{width:"100%",fontSize:10.5,color:"#FBBF24",fontWeight:700}}>{reg+"/"+savedDecks.length+" registered \u00B7 "+pending+" to register"}</span>;
+                      })()}
                       {savedDecks.map(d=>(
-                        <div key={d.id} style={{display:"flex",alignItems:"center",gap:3,background:deckLoadId===d.id?"#1A1A2E":"#1a1a1a",border:`1px solid ${deckLoadId===d.id?"#7B9CFF":"#2a2a2a"}`,borderRadius:7,padding:"3px 8px"}}>
+                        <div key={d.id} style={{display:"flex",alignItems:"center",gap:3,background:deckLoadId===d.id?"#1A1A2E":"#1a1a1a",border:`1px solid ${d.registered?"#4ade80":(deckLoadId===d.id?"#7B9CFF":"#2a2a2a")}`,borderRadius:7,padding:"3px 8px"}}>
+                          <button onClick={()=>toggleDeckRegistered(d)} title={d.registered?"Registered — click to unmark":"Mark as registered"}
+                            style={{background:"none",border:"none",cursor:"pointer",fontSize:12,lineHeight:1,padding:"0 2px",color:d.registered?"#4ade80":"#555"}}>
+                            {d.registered?"\u2713":"\u25CB"}
+                          </button>
                           <button onClick={()=>loadDeckTab(d)} style={{background:"none",border:"none",color:deckLoadId===d.id?"#7B9CFF":"#888",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{d.name} <span style={{color:"var(--bz-ink-3)",fontWeight:400}}>({d.cardCount})</span></button>
                           <button onClick={()=>{ const objs=(d.cardIds||[]).map(id=>cards.find(c=>c.id===id)).filter(Boolean); if(objs.length){ setFanMode("grid"); setFanDeck({name:d.name,cards:objs}); } }} title="Expand to view this deck" style={{background:"none",border:"none",color:"#7B9CFF",cursor:"pointer",fontSize:12,lineHeight:1,padding:"0 1px"}}>⛶</button>
                           {/* Share — copies a public link. Anyone can open it, no login, and it shows
@@ -36799,6 +36915,24 @@ See you in there!
     }, ()=>{});
     return () => { unsubMine(); unsubGiven(); };
   }, [user]);
+  // Mark a saved deck as registered (real-world tournament registration done) or
+  // clear it. Merges onto the same boba_decks doc so it syncs and the flag shows
+  // in the saved-decks list. Optimistic local update with rollback on failure.
+  async function toggleDeckRegistered(deck) {
+    if (!user || !deck?.id) return;
+    const next = !deck.registered;
+    setSavedDecks(list => list.map(d => d.id === deck.id ? { ...d, registered: next } : d));
+    try {
+      await setDoc(doc(db,"boba_decks",deck.id), {
+        registered: next,
+        registeredAt: next ? new Date().toISOString() : null,
+      }, { merge:true });
+    } catch (e) {
+      console.error("toggle registered failed:", e);
+      setSavedDecks(list => list.map(d => d.id === deck.id ? { ...d, registered: !next } : d));
+      showToast("Couldn't update registration \u2014 try again.");
+    }
+  }
   async function saveDeckTab() {
     if (!deckName.trim() || deckCards.length === 0) { alert("Name your deck and add at least one card before saving."); return; }
     if (!user) { setSigningIn(true); return; }
@@ -39712,6 +39846,7 @@ See you in there!
   function exportFullBackup() {
     if (!user) { setSigningIn(true); return; }
     try {
+      const ownedIds = Object.keys(owned || {});   // every card id you own
       // Card details are denormalised into each record on purpose. If this file is opened in five
       // years, or the catalog has changed, the backup still says what the card WAS.
       const cardInfo = id => {
@@ -40104,15 +40239,15 @@ See you in there!
         cardLots.forEach(l => {
           const cost = parseFloat(l.cost)||0, value = parseFloat(l.value)||0;
           totalSpent += cost; totalValue += value;
-          rows.push([c.hero||"", c.setName||"", c.treatment||"", c.weapon||"", c.cardNum||"", 1,
+          rows.push([c.hero||"", c.setName||"", c.treatment||"", c.weapon||"", c.cardNum||"", c.power??"", 1,
             l.cost??"", l.value??"", (value-cost).toFixed(2), l.method||"", l.date||"", l.notes||""]);
         });
       } else {
         // Owned but no financial lot recorded
-        rows.push([c.hero||"", c.setName||"", c.treatment||"", c.weapon||"", c.cardNum||"", qty, "", "", "", "", "", ""]);
+        rows.push([c.hero||"", c.setName||"", c.treatment||"", c.weapon||"", c.cardNum||"", c.power??"", qty, "", "", "", "", "", ""]);
       }
     });
-    const header = ["Hero","Set","Treatment","Weapon","Card #","Qty","Cost","Value","Gain/Loss","Acquisition","Date","Notes"];
+    const header = ["Hero","Set","Treatment","Weapon","Card #","Power","Qty","Cost","Value","Gain/Loss","Acquisition","Date","Notes"];
     const totalCards = ownedIds.reduce((s,id)=>s+(parseInt(owned[id])||1),0);
     const summary = [
       [], ["SUMMARY"],
@@ -49239,7 +49374,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             canAddToDeck={canAddToDeck} isMobile={isMobile} lots={lots} foilDogs={foilDogs} setFoilDogs={setFoilDogs}
             kidGroups={kidGroups} kidOfCopy={kidOfCopy} otherDeckUse={otherDeckUse} proxyCards={proxyCards} onToggleProxy={toggleProxy} proxyNote={proxyNote} isProxyCopy={isProxyCopy} anyProxy={anyProxy} copyForDeck={copyForDeck}
             savedDecks={savedDecks} familyDecks={familyDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
-            saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} giveDeckToFamily={giveDeckToFamily} takeBackDeck={takeBackDeck} familyList={familyList} givenDecks={givenDecks} setFanDeck={setFanDeck} setFanMode={setFanMode}
+            saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} toggleDeckRegistered={toggleDeckRegistered} giveDeckToFamily={giveDeckToFamily} takeBackDeck={takeBackDeck} familyList={familyList} givenDecks={givenDecks} setFanDeck={setFanDeck} setFanMode={setFanMode}
             deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} deckSource={deckSource} setDeckSource={setDeckSource} computeDeckProgress={computeDeckProgress} listings={listings} setActiveTab={setActiveTab} deckLegality={deckLegality}
           />
         )}
