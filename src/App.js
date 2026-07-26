@@ -32584,6 +32584,30 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
         <>
           <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column":"row",gap:16,alignItems:"stretch",height:isMobile?"auto":"calc(100vh - 150px)",minHeight:isMobile?"auto":520}}>
             <div style={{display:"flex",flexDirection:"column",gap:10,flex:1,minWidth:0,minHeight:0,overflowY:isMobile?"visible":"auto",paddingRight:isMobile?0:6}}>
+              {/* Card source — always visible at the top so it's obvious whose cards you're
+                  building with: yours, mixed with family, or family only, and which family
+                  member to borrow from. */}
+              {user && (Object.keys(familyOwnerByCard).length>0 || familyList.length>0) && (
+                <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",background:"rgba(255,255,255,0.03)",border:"1px solid var(--bz-line)",borderRadius:10,padding:"8px 12px"}}>
+                  <span style={{fontSize:11,color:"var(--bz-ink-3)",fontWeight:700}}>Build with:</span>
+                  <select value={deckSource} onChange={e=>setDeckSource(e.target.value)}
+                    style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:deckSource==="family"?"#C084FC":deckSource==="both"?"#4ade80":"#7B9CFF"}}>
+                    <option value="mine">My collection only</option>
+                    <option value="both">Mine + family</option>
+                    <option value="family">{"\uD83D\uDC6A"} Family only</option>
+                  </select>
+                  {deckSource!=="mine" && familyList.length>=1 && (
+                    <>
+                      <span style={{fontSize:11,color:"var(--bz-ink-3)",fontWeight:700,marginLeft:4}}>From:</span>
+                      <select value={deckFamilyMember} onChange={e=>setDeckFamilyMember(e.target.value)}
+                        style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:deckFamilyMember==="all"?"var(--bz-ink-2)":"#C084FC"}}>
+                        <option value="all">All family</option>
+                        {familyList.map(f=>(<option key={f.uid} value={f.uid}>{f.name}</option>))}
+                      </select>
+                    </>
+                  )}
+                </div>
+              )}
               {/* The quick builder and the manual builder are alternative MODES, not companions \u2014 you
                   use one or the other. Leaving the quick panel permanently expanded left the manual
                   card grid squeezed into whatever was left, which is no use when the whole point is
@@ -32861,34 +32885,6 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     })()}
                     {/* Card source — which collection(s) the quick builder may draw from. Only shown
                         when you actually have family cards available to borrow. */}
-                    {(Object.keys(familyOwnerByCard).length>0 || familyList.length>0) && (
-                      <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",marginTop:10}}>
-                        <span style={{fontSize:11,color:"var(--bz-ink-3)",fontWeight:700}}>Cards:</span>
-                        <select value={deckSource} onChange={e=>setDeckSource(e.target.value)}
-                          style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:deckSource==="family"?"#C084FC":deckSource==="both"?"#4ade80":"#7B9CFF"}}>
-                          <option value="mine">My collection only</option>
-                          <option value="both">Mine + family</option>
-                          <option value="family">{"\uD83D\uDC6A"} Family only</option>
-                        </select>
-                        <span style={{fontSize:10.5,color:"var(--bz-ink-3)"}}>
-                          {deckSource==="mine" ? "Only cards you own — no borrowing."
-                            : deckSource==="family" ? "Only cards borrowed from family."
-                            : "Your cards first, family fills the gaps."}
-                        </span>
-                        {/* Which family member to borrow from. Only meaningful when family
-                            cards are in play and you have more than one family member. */}
-                        {deckSource!=="mine" && familyList.length>1 && (
-                          <>
-                            <span style={{fontSize:11,color:"var(--bz-ink-3)",fontWeight:700,marginLeft:4}}>From:</span>
-                            <select value={deckFamilyMember} onChange={e=>setDeckFamilyMember(e.target.value)}
-                              style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:deckFamilyMember==="all"?"var(--bz-ink-2)":"#C084FC"}}>
-                              <option value="all">All family</option>
-                              {familyList.map(f=>(<option key={f.uid} value={f.uid}>{f.name}</option>))}
-                            </select>
-                          </>
-                        )}
-                      </div>
-                    )}
                     {/* Set restriction — pick specific sets (e.g. Alpha Trilogy = Alpha-era only). Empty = all sets. */}
                     {(() => {
                       const allSets = Array.from(new Set(cards.map(c=>c.setName).filter(Boolean))).sort();
