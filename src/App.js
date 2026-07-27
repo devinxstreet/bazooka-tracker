@@ -36975,7 +36975,7 @@ See you in there!
       .sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0) || String(a.hero||"").localeCompare(String(b.hero||"")));
     const heroRows = heroObjs.map(c=>
       '<tr><td class="n">'+esc(c.cardNum||"\u2014")+'</td><td class="nm">'+esc(c.hero||"\u2014")+'</td>'+
-      '<td class="v">'+esc(c.treatment||"\u2014")+'</td>'+
+      '<td class="v">'+esc(c.variation||"\u2014")+'</td>'+
       '<td class="w">'+esc(c.weapon||"\u2014")+'</td><td class="p">'+esc(c.power??"\u2014")+'</td>'+
       '<td class="s">'+esc(c.setName||"\u2014")+'</td></tr>'
     ).join("");
