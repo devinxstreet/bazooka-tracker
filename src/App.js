@@ -33824,6 +33824,13 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 ))}
                 <input type="date" value={regInfo.date||""} onChange={e=>setRegInfo({...regInfo,date:e.target.value})}
                   style={{...inp,width:"100%",marginBottom:9,colorScheme:"dark"}} />
+                <div style={{fontSize:10.5,color:"var(--bz-ink-3)",fontWeight:700,margin:"6px 0 4px"}}>SORT HERO DECK BY</div>
+                <div style={{display:"flex",gap:6,marginBottom:12}}>
+                  {[["power","Power"],["weapon","Weapon"]].map(([v,l])=>(
+                    <button key={v} onClick={()=>setRegInfo({...regInfo,heroSort:v})}
+                      style={{flex:1,background:(regInfo.heroSort||"power")===v?"rgba(232,49,122,0.18)":"transparent",border:`1.5px solid ${(regInfo.heroSort||"power")===v?"#E8317A":"var(--bz-line-2)"}`,color:(regInfo.heroSort||"power")===v?"#E8317A":"var(--bz-ink-3)",borderRadius:8,padding:"8px 4px",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+                  ))}
+                </div>
                 <div style={{fontSize:10.5,color:"var(--bz-ink-3)",fontWeight:700,margin:"6px 0 4px"}}>PLAYBOOK</div>
                 <select value={regInfo.playbookId||""} onChange={e=>setRegInfo({...regInfo,playbookId:e.target.value})}
                   style={{...inp,width:"100%",marginBottom:16}}>
@@ -36971,8 +36978,11 @@ See you in there!
   // current hero deck and a chosen saved playbook.
   function openRegSheetPrint() {
     const esc = s => String(s==null?"":s).replace(/[&<>"]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
-    const heroObjs = (deckCards||[]).map(id => cards.find(c=>c.id===id)).filter(Boolean)
-      .sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0) || String(a.hero||"").localeCompare(String(b.hero||"")));
+    const hSort = regInfo.heroSort || "power";
+    const heroCmp = hSort==="weapon"
+      ? (a,b)=> String(a.weapon||"").localeCompare(String(b.weapon||"")) || (parseFloat(b.power)||0)-(parseFloat(a.power)||0) || String(a.hero||"").localeCompare(String(b.hero||""))
+      : (a,b)=> (parseFloat(b.power)||0)-(parseFloat(a.power)||0) || String(a.hero||"").localeCompare(String(b.hero||""));
+    const heroObjs = (deckCards||[]).map(id => cards.find(c=>c.id===id)).filter(Boolean).sort(heroCmp);
     const heroRows = heroObjs.map(c=>
       '<tr><td class="n">'+esc(c.cardNum||"\u2014")+'</td><td class="nm">'+esc(c.hero||"\u2014")+'</td>'+
       '<td class="v">'+esc(c.variation||"\u2014")+'</td>'+
@@ -37500,11 +37510,13 @@ See you in there!
       // 1. INSTANT: the cached real card list (real doc ids + images). This is what makes the page
       // feel instant on a return visit — owned counts and art are correct immediately.
       let cacheHasCards = false;
+      let cacheTsLocal = 0;
       try {
         const cached = await withTimeout(idbGetCards(), 2500);
         if (cached && Array.isArray(cached.cards) && cached.cards.length > 0) {
           setCards(cached.cards); setLoading(false);
           cacheHasCards = true;
+          cacheTsLocal = cached.ts || 0;
         }
       } catch(e) {}
 
@@ -37512,6 +37524,34 @@ See you in there!
       // imageUrl and doesn't carry the real Firestore doc ids, so rendering it shows art-less
       // cards and a wrong owned count (`owned` is keyed by doc id). A brief spinner is far better
       // than briefly showing the user incorrect data. The real snapshot below is the only source.
+
+      // FRESH-CACHE TRUST WINDOW: if the cache was written recently, trust it outright and skip
+      // the version read AND the multi-MB refresh entirely. The version-doc comparison below is a
+      // good freshness signal, but if that doc is ever missing, stale, or its count is off by one,
+      // EVERY client re-downloads ~12MB on EVERY refresh — which is exactly the "slow for everyone"
+      // symptom. A recent cache is almost certainly current (imports are infrequent), so within
+      // this window we keep what we painted and don't touch the network for cards at all. A
+      // background refresh still happens once the window lapses.
+      const FRESH_MS = 6 * 60 * 60 * 1000; // 6 hours
+      if (cacheHasCards && cacheTsLocal && (Date.now() - cacheTsLocal) < FRESH_MS) {
+        clearTimeout(hardStop);
+        done = true;
+        setLoading(false);
+        // Quietly verify in the background; only re-cache if the server count truly differs.
+        (async () => {
+          try {
+            const vSnap = await withTimeout(getDoc(doc(db,"meta","cards_version")), 6000);
+            const serverCount = vSnap.exists() ? (vSnap.data().count || 0) : 0;
+            const cached = await idbGetCards();
+            if (serverCount > 0 && cached?.cards?.length && cached.cards.length !== serverCount) {
+              // Genuinely stale — refresh in the background without blocking or flashing a spinner.
+              const all = await withTimeout(readCardSnapshot(false), 20000);
+              if (all && all.length>0 && !cancelled) { setCards(all); idbSetCards(all, Date.now()); }
+            }
+          } catch(e) { /* background refresh is best-effort */ }
+        })();
+        return;
+      }
 
       // 2. THE LIVE SNAPSHOT IS THE SOURCE OF TRUTH. It comes from Firestore, so it carries the
       // real doc ids (which `owned` is keyed by) and every imageUrl. Always pull it and let it
