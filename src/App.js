@@ -32404,7 +32404,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   );
 }
 
-function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, lots=[], foilDogs=0, setFoilDogs=()=>{}, kidGroups=[], kidOfCopy=null, otherDeckUse={}, proxyCards={}, onToggleProxy=null, proxyNote=null, isProxyCopy=null, anyProxy=null, copyForDeck=null, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, toggleDeckRegistered=()=>{}, giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, deckFamilyMember="all", setDeckFamilyMember=()=>{}, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
+function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, deckType, setDeckType, deckSearch, setDeckSearch, deckSearchDebounced="", deckFilterW, setDeckFilterW, deckFilterP, setDeckFilterP, deckFilterS, setDeckFilterS, deckFilterT, setDeckFilterT, WEAPON_COLORS, setSigningIn, cards, owned, lots=[], foilDogs=0, setFoilDogs=()=>{}, kidGroups=[], kidOfCopy=null, otherDeckUse={}, proxyCards={}, onToggleProxy=null, proxyNote=null, isProxyCopy=null, anyProxy=null, copyForDeck=null, inp, familyOwnerByCard={}, familyOwnsCard={}, deckOwnedMerged={}, canAddToDeck, isMobile, savedDecks=[], familyDecks=[], deckSaving, deckSaved, deckLoadId, saveDeckTab, deleteDeckTab, loadDeckTab, newDeckTab, toggleDeckRegistered=()=>{}, openRegSheetPrint=()=>{}, regSheetOpen=false, setRegSheetOpen=()=>{}, regInfo={}, setRegInfo=()=>{}, savedPlaybooks=[], giveDeckToFamily, takeBackDeck, familyList=[], givenDecks=[], setFanDeck, setFanMode, deckProgress, deckGoalW, setDeckGoalW, deckGoalT, setDeckGoalT, deckGoalSets, setDeckGoalSets, deckMaxMode, setDeckMaxMode, deckSource="both", setDeckSource, deckFamilyMember="all", setDeckFamilyMember=()=>{}, computeDeckProgress, listings=[], setActiveTab, deckLegality={ok:true,problems:[],empty:true} }) {
   const weapons    = sortWeapons([...new Set(cards.map(c=>canonWeapon(c.weapon)).filter(Boolean))]);
   const sets       = [...new Set(cards.map(c=>c.setName).filter(Boolean))].sort();
   const treatments = [...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort();
@@ -33286,6 +33286,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                 <div style={{fontSize:15,fontWeight:800,color:"#fff",letterSpacing:"-0.2px"}}>{deckName}</div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   {inDeck.length>0 && <button onClick={()=>{setFanMode("grid");setFanDeck({name:deckName,cards:inDeck});}} title="Expand to view your deck" style={{background:"rgba(123,156,255,0.12)",border:"1px solid rgba(123,156,255,0.35)",color:"#7B9CFF",borderRadius:16,padding:"3px 10px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>⛶ Expand</button>}
+                  {inDeck.length>0 && <button onClick={()=>setRegSheetOpen(true)} title="Generate BoBA registration sheet" style={{background:"rgba(232,49,122,0.12)",border:"1px solid rgba(232,49,122,0.35)",color:"#E8317A",borderRadius:16,padding:"3px 10px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>📋 Reg Sheet</button>}
                   <span style={{fontSize:12,fontWeight:800,color:inDeck.length===DECK_SIZE?"#4ade80":"#FBBF24",background:inDeck.length===DECK_SIZE?"rgba(74,222,128,0.1)":"rgba(251,191,36,0.1)",borderRadius:20,padding:"3px 11px"}}>{inDeck.length}/{DECK_SIZE}</span>
                 </div>
               </div>
@@ -33811,6 +33812,31 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
             </div>
             );
           })()}
+
+          {regSheetOpen && (
+            <div onClick={()=>setRegSheetOpen(false)} style={{position:"fixed",inset:0,zIndex:13000,background:"rgba(0,0,0,0.82)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+              <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:440,background:"var(--bz-s1,#14141c)",border:"1px solid var(--bz-line-2)",borderRadius:16,padding:22}}>
+                <div style={{fontSize:16,fontWeight:900,color:"var(--bz-ink)",marginBottom:3}}>Registration Sheet</div>
+                <div style={{fontSize:11.5,color:"var(--bz-ink-3)",marginBottom:16}}>Autofills the BoBA SPEC · Playmaker format from your hero deck and a playbook.</div>
+                {[["player","Player name"],["whatnot","Whatnot handle"],["event","Event"]].map(([k,ph])=>(
+                  <input key={k} value={regInfo[k]||""} onChange={e=>setRegInfo({...regInfo,[k]:e.target.value})} placeholder={ph}
+                    style={{...inp,width:"100%",marginBottom:9}} />
+                ))}
+                <input type="date" value={regInfo.date||""} onChange={e=>setRegInfo({...regInfo,date:e.target.value})}
+                  style={{...inp,width:"100%",marginBottom:9,colorScheme:"dark"}} />
+                <div style={{fontSize:10.5,color:"var(--bz-ink-3)",fontWeight:700,margin:"6px 0 4px"}}>PLAYBOOK</div>
+                <select value={regInfo.playbookId||""} onChange={e=>setRegInfo({...regInfo,playbookId:e.target.value})}
+                  style={{...inp,width:"100%",marginBottom:16}}>
+                  <option value="">— No playbook —</option>
+                  {(savedPlaybooks||[]).map(p=>(<option key={p.id} value={p.id}>{p.name} ({(p.entries||[]).length})</option>))}
+                </select>
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={()=>setRegSheetOpen(false)} style={{flex:1,background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-3)",borderRadius:10,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                  <button onClick={()=>{ openRegSheetPrint(); }} style={{flex:2,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",border:"none",color:"#fff",borderRadius:10,padding:"11px",fontSize:13,fontWeight:900,cursor:"pointer",fontFamily:"inherit"}}>Generate sheet</button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
   );
 }
@@ -36940,6 +36966,76 @@ See you in there!
   // Mark a saved deck as registered (real-world tournament registration done) or
   // clear it. Merges onto the same boba_decks doc so it syncs and the flag shows
   // in the saved-decks list. Optimistic local update with rollback on failure.
+  // Generate a BoBA-style registration sheet (hero deck + playbook) as a printable
+  // page — mirrors the official SPEC/PLAYMAKER upload sheet, autofilled from the
+  // current hero deck and a chosen saved playbook.
+  function openRegSheetPrint() {
+    const esc = s => String(s==null?"":s).replace(/[&<>"]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+    const heroObjs = (deckCards||[]).map(id => cards.find(c=>c.id===id)).filter(Boolean)
+      .sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0) || String(a.hero||"").localeCompare(String(b.hero||"")));
+    const heroDbs = heroObjs.reduce((s,c)=>s+(parseFloat(c.dbs)||0),0);
+    const heroRows = heroObjs.map(c=>
+      '<tr><td class="n">'+esc(c.cardNum||"\u2014")+'</td><td class="nm">'+esc(c.hero||"\u2014")+'</td>'+
+      '<td class="w">'+esc(c.weapon||"\u2014")+'</td><td class="p">'+esc(c.power??"\u2014")+'</td>'+
+      '<td class="s">'+esc(c.setName||"\u2014")+'</td><td class="d">'+esc(c.dbs??"\u2014")+'</td></tr>'
+    ).join("");
+    const pb = (savedPlaybooks||[]).find(p=>p.id===regInfo.playbookId);
+    const playObjs = ((pb?.entries)||[]).map(e=>({ ...e, card: cards.find(c=>c.id===e.id) })).filter(e=>e.card)
+      .sort((a,b)=>(parseFloat(b.card.dbs)||0)-(parseFloat(a.card.dbs)||0));
+    const playDbs = playObjs.reduce((s,e)=>s+(parseFloat(e.card.dbs)||0),0);
+    const playRows = playObjs.map(e=>{ const c=e.card; const bonus=e.type==="bonus";
+      return '<tr><td class="n">'+esc(c.cardNum||"\u2014")+'</td><td class="nm">'+esc(c.playName||c.hero||"\u2014")+(bonus?' <span class="bt">BONUS</span>':'')+'</td>'+
+        '<td class="s">'+esc(c.setName||"\u2014")+'</td><td class="d">'+esc(c.dbs??"\u2014")+'</td></tr>';
+    }).join("");
+    const grand = heroDbs + playDbs;
+    const over = grand > PUBLIC_DBS_CAP;
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+esc(regInfo.player||"Bazooka")+' \u2014 Registration</title>'+
+      '<style>*{box-sizing:border-box;}body{font-family:"Trebuchet MS",Arial,Helvetica,sans-serif;margin:0;padding:24px 30px;color:#111;}'+
+      '.top{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:4px solid #111;padding-bottom:10px;}'+
+      '.brand{font-size:38px;font-weight:900;letter-spacing:-1.5px;line-height:0.9;}.brand .z{color:#E8317A;}'+
+      '.spec{font-size:12px;font-weight:900;letter-spacing:3px;color:#777;margin-top:3px;}'+
+      '.fmt{text-align:right;font-size:11px;font-weight:800;letter-spacing:0.5px;color:#999;}'+
+      '.info{display:flex;margin:14px 0 6px;border:1.5px solid #111;border-radius:8px;overflow:hidden;}'+
+      '.info .cell{flex:1;padding:7px 12px;border-right:1px solid #ddd;}.info .cell:last-child{border-right:none;}'+
+      '.info .lbl{font-size:8px;font-weight:900;letter-spacing:1.2px;color:#999;text-transform:uppercase;}'+
+      '.info .val{font-size:14px;font-weight:800;margin-top:2px;min-height:18px;}'+
+      'h2{font-size:14px;font-weight:900;letter-spacing:1.5px;text-transform:uppercase;margin:20px 0 6px;display:flex;justify-content:space-between;align-items:baseline;}'+
+      'h2 .ct{font-size:11px;color:#999;font-weight:800;letter-spacing:0.5px;}'+
+      'table{width:100%;border-collapse:collapse;font-size:12.5px;}'+
+      'th{text-align:left;background:#111;color:#fff;padding:6px 8px;font-size:9px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;}'+
+      'th.r,td.d,td.p{text-align:right;}td{padding:6px 8px;border-bottom:1px solid #eee;}tr{page-break-inside:avoid;}'+
+      'td.n{width:44px;color:#666;font-weight:700;}td.nm{font-weight:800;}td.w{width:90px;color:#555;}td.p{width:52px;font-weight:900;}td.s{width:120px;color:#777;font-size:11px;}td.d{width:56px;font-weight:900;font-variant-numeric:tabular-nums;}'+
+      '.bt{font-size:8px;font-weight:900;color:#B45309;background:#FEF3C7;border:1px solid #FDE68A;border-radius:3px;padding:0 3px;}'+
+      '.subtot td{border-top:2.5px solid #111;font-weight:900;padding-top:8px;}.subtot .l{text-align:right;font-size:10px;letter-spacing:1px;text-transform:uppercase;}'+
+      '.grand{margin-top:18px;display:flex;justify-content:space-between;align-items:center;background:'+(over?"#FEE2E2":"#111")+';color:'+(over?"#991B1B":"#fff")+';border-radius:10px;padding:12px 18px;}'+
+      '.grand .gl{font-size:12px;font-weight:900;letter-spacing:1.5px;text-transform:uppercase;}.grand .gv{font-size:24px;font-weight:900;font-variant-numeric:tabular-nums;}'+
+      '.cap{font-size:10px;opacity:0.7;margin-left:8px;font-weight:700;}'+
+      '.btns{margin-bottom:16px;}button{background:#111;color:#fff;border:none;border-radius:9px;padding:9px 18px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;}'+
+      '@page{margin:12mm;}@media print{.btns{display:none;}}</style></head><body>'+
+      '<div class="btns"><button onclick="window.print()">Print / Save PDF</button></div>'+
+      '<div class="top"><div><div class="brand"><span class="z">BAZOOKA</span> DASH</div><div class="spec">SPEC \u00b7 PLAYMAKER REGISTRATION</div></div>'+
+      '<div class="fmt">'+esc(deckName||"Untitled deck")+'<br>'+(pb?esc(pb.name):"\u2014 no playbook \u2014")+'</div></div>'+
+      '<div class="info">'+
+        '<div class="cell"><div class="lbl">Player</div><div class="val">'+esc(regInfo.player)+'</div></div>'+
+        '<div class="cell"><div class="lbl">Whatnot</div><div class="val">'+esc(regInfo.whatnot)+'</div></div>'+
+        '<div class="cell"><div class="lbl">Date</div><div class="val">'+esc(regInfo.date)+'</div></div>'+
+        '<div class="cell"><div class="lbl">Event</div><div class="val">'+esc(regInfo.event)+'</div></div>'+
+      '</div>'+
+      '<h2>Hero Deck <span class="ct">'+heroObjs.length+' cards</span></h2>'+
+      '<table><thead><tr><th>#</th><th>Hero</th><th>Weapon</th><th class="r">Pwr</th><th>Set</th><th class="r">DBS</th></tr></thead><tbody>'+
+        heroRows+'<tr class="subtot"><td></td><td class="l" colspan="4">Deck DBS</td><td class="d">'+Math.round(heroDbs)+'</td></tr>'+
+      '</tbody></table>'+
+      '<h2>Playbook <span class="ct">'+playObjs.length+' plays</span></h2>'+
+      (playObjs.length?('<table><thead><tr><th>#</th><th>Play</th><th>Set</th><th class="r">DBS</th></tr></thead><tbody>'+
+        playRows+'<tr class="subtot"><td></td><td class="l" colspan="2">Playbook DBS</td><td class="d">'+Math.round(playDbs)+'</td></tr></tbody></table>')
+        :'<div style="font-size:12px;color:#999;padding:8px 0;">No playbook selected.</div>')+
+      '<div class="grand"><span class="gl">Total DBS'+(over?' \u2014 OVER CAP':'')+'</span><span class="gv">'+Math.round(grand)+'<span class="cap">/ '+PUBLIC_DBS_CAP+'</span></span></div>'+
+      '</body></html>';
+    const w = window.open("","_blank","width=900,height=1100");
+    if(!w){ alert("Please allow pop-ups to open the registration sheet."); return; }
+    w.document.write(html); w.document.close();
+  }
+
   async function toggleDeckRegistered(deck) {
     if (!user || !deck?.id) return;
     const next = !deck.registered;
@@ -43887,6 +43983,8 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
   const [deckMaxMode, setDeckMaxMode] = useState(false); // enforce the format's legal power window
   // Which cards the quick builder may draw from: "mine" | "both" | "family"
   const [deckSource, setDeckSource] = useState("both");
+  const [regSheetOpen, setRegSheetOpen] = useState(false);   // BoBA-style registration sheet generator
+  const [regInfo, setRegInfo] = useState({ player:"", whatnot:"", event:"", date:"", playbookId:"" });
   // PERF: computeDeckProgress scans the full 31k-card checklist (filter + sort + bucket). It was
   // running on EVERY render of the whole collector app — so hovering a card in the Card Database
   // re-scanned 31k cards. Memoized, and only computed when the deck tab is actually open.
@@ -49440,7 +49538,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             canAddToDeck={canAddToDeck} isMobile={isMobile} lots={lots} foilDogs={foilDogs} setFoilDogs={setFoilDogs}
             kidGroups={kidGroups} kidOfCopy={kidOfCopy} otherDeckUse={otherDeckUse} proxyCards={proxyCards} onToggleProxy={toggleProxy} proxyNote={proxyNote} isProxyCopy={isProxyCopy} anyProxy={anyProxy} copyForDeck={copyForDeck}
             savedDecks={savedDecks} familyDecks={familyDecks} deckSaving={deckSaving} deckSaved={deckSaved} deckLoadId={deckLoadId}
-            saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} toggleDeckRegistered={toggleDeckRegistered} giveDeckToFamily={giveDeckToFamily} takeBackDeck={takeBackDeck} familyList={familyList} givenDecks={givenDecks} setFanDeck={setFanDeck} setFanMode={setFanMode}
+            saveDeckTab={saveDeckTab} deleteDeckTab={deleteDeckTab} loadDeckTab={loadDeckTab} newDeckTab={newDeckTab} toggleDeckRegistered={toggleDeckRegistered} openRegSheetPrint={openRegSheetPrint} regSheetOpen={regSheetOpen} setRegSheetOpen={setRegSheetOpen} regInfo={regInfo} setRegInfo={setRegInfo} savedPlaybooks={savedPlaybooks} giveDeckToFamily={giveDeckToFamily} takeBackDeck={takeBackDeck} familyList={familyList} givenDecks={givenDecks} setFanDeck={setFanDeck} setFanMode={setFanMode}
             deckProgress={deckProgress} deckGoalW={deckGoalW} setDeckGoalW={setDeckGoalW} deckGoalT={deckGoalT} setDeckGoalT={setDeckGoalT} deckGoalSets={deckGoalSets} setDeckGoalSets={setDeckGoalSets} deckMaxMode={deckMaxMode} setDeckMaxMode={setDeckMaxMode} deckSource={deckSource} setDeckSource={setDeckSource} deckFamilyMember={deckFamilyMember} setDeckFamilyMember={setDeckFamilyMember} computeDeckProgress={computeDeckProgress} listings={listings} setActiveTab={setActiveTab} deckLegality={deckLegality}
           />
         )}
