@@ -33818,7 +33818,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
               <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:440,background:"var(--bz-s1,#14141c)",border:"1px solid var(--bz-line-2)",borderRadius:16,padding:22}}>
                 <div style={{fontSize:16,fontWeight:900,color:"var(--bz-ink)",marginBottom:3}}>Registration Sheet</div>
                 <div style={{fontSize:11.5,color:"var(--bz-ink-3)",marginBottom:16}}>Autofills the BoBA SPEC · Playmaker format from your hero deck and a playbook.</div>
-                {[["player","Player name"],["whatnot","Whatnot handle"],["event","Event"]].map(([k,ph])=>(
+                {[["player","Player name"],["whatnot","Carde.io username"],["event","Event"]].map(([k,ph])=>(
                   <input key={k} value={regInfo[k]||""} onChange={e=>setRegInfo({...regInfo,[k]:e.target.value})} placeholder={ph}
                     style={{...inp,width:"100%",marginBottom:9}} />
                 ))}
@@ -36973,11 +36973,11 @@ See you in there!
     const esc = s => String(s==null?"":s).replace(/[&<>"]/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
     const heroObjs = (deckCards||[]).map(id => cards.find(c=>c.id===id)).filter(Boolean)
       .sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0) || String(a.hero||"").localeCompare(String(b.hero||"")));
-    const heroDbs = heroObjs.reduce((s,c)=>s+(parseFloat(c.dbs)||0),0);
     const heroRows = heroObjs.map(c=>
       '<tr><td class="n">'+esc(c.cardNum||"\u2014")+'</td><td class="nm">'+esc(c.hero||"\u2014")+'</td>'+
+      '<td class="v">'+esc(c.treatment||"\u2014")+'</td>'+
       '<td class="w">'+esc(c.weapon||"\u2014")+'</td><td class="p">'+esc(c.power??"\u2014")+'</td>'+
-      '<td class="s">'+esc(c.setName||"\u2014")+'</td><td class="d">'+esc(c.dbs??"\u2014")+'</td></tr>'
+      '<td class="s">'+esc(c.setName||"\u2014")+'</td></tr>'
     ).join("");
     const pb = (savedPlaybooks||[]).find(p=>p.id===regInfo.playbookId);
     const playObjs = ((pb?.entries)||[]).map(e=>({ ...e, card: cards.find(c=>c.id===e.id) })).filter(e=>e.card)
@@ -36987,13 +36987,13 @@ See you in there!
       return '<tr><td class="n">'+esc(c.cardNum||"\u2014")+'</td><td class="nm">'+esc(c.playName||c.hero||"\u2014")+(bonus?' <span class="bt">BONUS</span>':'')+'</td>'+
         '<td class="s">'+esc(c.setName||"\u2014")+'</td><td class="d">'+esc(c.dbs??"\u2014")+'</td></tr>';
     }).join("");
-    const grand = heroDbs + playDbs;
+    const grand = playDbs;   // heroes have no DBS; the cap is the playbook total
     const over = grand > PUBLIC_DBS_CAP;
     const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'+esc(regInfo.player||"Bazooka")+' \u2014 Registration</title>'+
       '<style>*{box-sizing:border-box;}body{font-family:"Trebuchet MS",Arial,Helvetica,sans-serif;margin:0;padding:24px 30px;color:#111;}'+
       '.top{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:4px solid #111;padding-bottom:10px;}'+
-      '.brand{font-size:38px;font-weight:900;letter-spacing:-1.5px;line-height:0.9;}.brand .z{color:#E8317A;}'+
-      '.spec{font-size:12px;font-weight:900;letter-spacing:3px;color:#777;margin-top:3px;}'+
+      '.brandwrap{display:flex;flex-direction:column;gap:4px;}.logo{height:52px;width:auto;object-fit:contain;}'+
+      '.spec{font-size:13px;font-weight:900;letter-spacing:2px;color:#111;text-transform:uppercase;}'+
       '.fmt{text-align:right;font-size:11px;font-weight:800;letter-spacing:0.5px;color:#999;}'+
       '.info{display:flex;margin:14px 0 6px;border:1.5px solid #111;border-radius:8px;overflow:hidden;}'+
       '.info .cell{flex:1;padding:7px 12px;border-right:1px solid #ddd;}.info .cell:last-child{border-right:none;}'+
@@ -37004,7 +37004,7 @@ See you in there!
       'table{width:100%;border-collapse:collapse;font-size:12.5px;}'+
       'th{text-align:left;background:#111;color:#fff;padding:6px 8px;font-size:9px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;}'+
       'th.r,td.d,td.p{text-align:right;}td{padding:6px 8px;border-bottom:1px solid #eee;}tr{page-break-inside:avoid;}'+
-      'td.n{width:44px;color:#666;font-weight:700;}td.nm{font-weight:800;}td.w{width:90px;color:#555;}td.p{width:52px;font-weight:900;}td.s{width:120px;color:#777;font-size:11px;}td.d{width:56px;font-weight:900;font-variant-numeric:tabular-nums;}'+
+      'td.n{width:44px;color:#666;font-weight:700;}td.nm{font-weight:800;}td.v{color:#555;font-size:11.5px;}td.w{width:84px;color:#555;}td.p{width:52px;font-weight:900;}td.s{width:110px;color:#777;font-size:11px;}td.d{width:56px;font-weight:900;font-variant-numeric:tabular-nums;}'+
       '.bt{font-size:8px;font-weight:900;color:#B45309;background:#FEF3C7;border:1px solid #FDE68A;border-radius:3px;padding:0 3px;}'+
       '.subtot td{border-top:2.5px solid #111;font-weight:900;padding-top:8px;}.subtot .l{text-align:right;font-size:10px;letter-spacing:1px;text-transform:uppercase;}'+
       '.grand{margin-top:18px;display:flex;justify-content:space-between;align-items:center;background:'+(over?"#FEE2E2":"#111")+';color:'+(over?"#991B1B":"#fff")+';border-radius:10px;padding:12px 18px;}'+
@@ -37013,17 +37013,17 @@ See you in there!
       '.btns{margin-bottom:16px;}button{background:#111;color:#fff;border:none;border-radius:9px;padding:9px 18px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;}'+
       '@page{margin:12mm;}@media print{.btns{display:none;}}</style></head><body>'+
       '<div class="btns"><button onclick="window.print()">Print / Save PDF</button></div>'+
-      '<div class="top"><div><div class="brand"><span class="z">BAZOOKA</span> DASH</div><div class="spec">SPEC \u00b7 PLAYMAKER REGISTRATION</div></div>'+
+      '<div class="top"><div class="brandwrap"><img src="'+location.origin+'/Bazooka_Logo_cropped.png" class="logo" alt="Bazooka"/><div class="spec">'+(esc(regInfo.event)||"REGISTRATION")+'</div></div>'+
       '<div class="fmt">'+esc(deckName||"Untitled deck")+'<br>'+(pb?esc(pb.name):"\u2014 no playbook \u2014")+'</div></div>'+
       '<div class="info">'+
         '<div class="cell"><div class="lbl">Player</div><div class="val">'+esc(regInfo.player)+'</div></div>'+
-        '<div class="cell"><div class="lbl">Whatnot</div><div class="val">'+esc(regInfo.whatnot)+'</div></div>'+
+        '<div class="cell"><div class="lbl">Carde.io Account</div><div class="val">'+esc(regInfo.whatnot)+'</div></div>'+
         '<div class="cell"><div class="lbl">Date</div><div class="val">'+esc(regInfo.date)+'</div></div>'+
         '<div class="cell"><div class="lbl">Event</div><div class="val">'+esc(regInfo.event)+'</div></div>'+
       '</div>'+
       '<h2>Hero Deck <span class="ct">'+heroObjs.length+' cards</span></h2>'+
-      '<table><thead><tr><th>#</th><th>Hero</th><th>Weapon</th><th class="r">Pwr</th><th>Set</th><th class="r">DBS</th></tr></thead><tbody>'+
-        heroRows+'<tr class="subtot"><td></td><td class="l" colspan="4">Deck DBS</td><td class="d">'+Math.round(heroDbs)+'</td></tr>'+
+      '<table><thead><tr><th>#</th><th>Hero</th><th>Variation</th><th>Weapon</th><th class="r">Pwr</th><th>Set</th></tr></thead><tbody>'+
+        heroRows+
       '</tbody></table>'+
       '<h2>Playbook <span class="ct">'+playObjs.length+' plays</span></h2>'+
       (playObjs.length?('<table><thead><tr><th>#</th><th>Play</th><th>Set</th><th class="r">DBS</th></tr></thead><tbody>'+
