@@ -32802,7 +32802,120 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                     {/* ELITE (total-power) — there are NO per-power-level quotas. The only requirement is
                   that the deck's summed power reaches the cap (e.g. 8,250). Any cards get you there,
                   so showing "×6 at 250⚡ needed" is nonsense here. Show the power GAP instead. */}
-              {fmtOf(deckType).totalPower && deckProgress && deckProgress.have < (fmtOf(deckType).size||60) && (() => {
+              {fmtOf(deckType).totalPower && deckProgress && (() => {
+                const F = fmtOf(deckType);
+                const SIZE = F.size||60;
+                const CAP = F.totalPower;
+                const cur = deckProgress.totalPower||0;
+                const have = deckProgress.have||0;
+                const cardsGap = Math.max(0, SIZE - have);
+                const headroom = CAP - cur;
+                // EFFICIENCY = how much of the power budget a FULL deck is using. Only a full
+                // 60-card deck can be judged for efficiency; before that, the meter tracks fill.
+                const full = have >= SIZE;
+                const pct = full ? Math.min(100, Math.round((cur/CAP)*100)) : Math.round((have/SIZE)*100);
+                const over = cur > CAP;
+                // Upgrade suggestions: swap a deck card for a higher-power card you already own
+                // (or a family member's, via deckOwnedMerged) that keeps the deck legal —
+                // ≤6 at the new power level, no duplicate identity, and total staying ≤ CAP.
+                const inDeckIds = new Set(deckCards);
+                const dupId = c => `${(c.hero||"").toLowerCase()}|${(c.variation||"").toLowerCase()}|${c.power||""}|${(c.weapon||"").toLowerCase()}`;
+                const deckDupKeys = new Set(inDeck.map(dupId));
+                const lvlCount = {}; inDeck.forEach(c=>{const p=String(c.power||"0");lvlCount[p]=(lvlCount[p]||0)+1;});
+                // Candidate pool: cards you can field that aren't already in the deck.
+                const pool = cards.filter(c => !inDeckIds.has(c.id) && (deckOwnedMerged[c.id]||owned[c.id]));
+                // Best single swaps, greedily: highest power gain first.
+                const suggestions = [];
+                const usedOut = new Set(), usedIn = new Set();
+                inDeck.slice().sort((a,b)=>(parseFloat(a.power)||0)-(parseFloat(b.power)||0)).forEach(low => {
+                  if (usedOut.has(low.id)) return;
+                  const lowP = parseFloat(low.power)||0;
+                  // Find the highest-power legal replacement.
+                  let best=null;
+                  for (const c of pool) {
+                    if (usedIn.has(c.id)) continue;
+                    const cP = parseFloat(c.power)||0;
+                    if (cP <= lowP) continue;                          // must be an upgrade
+                    if (F.powerCap && cP > F.powerCap) continue;       // respect a hard per-card cap
+                    // level room after removing `low` from its level
+                    const newLvl = String(c.power||"0");
+                    const roomAtNew = (lvlCount[newLvl]||0) - (newLvl===String(low.power||"0")?1:0);
+                    if (roomAtNew >= (F.perPower||6)) continue;        // that level would overflow
+                    if (deckDupKeys.has(dupId(c)) && dupId(c)!==dupId(low)) continue; // no dup identity
+                    if (cur - lowP + cP > CAP) continue;               // stays under total cap
+                    if (!best || cP > (parseFloat(best.power)||0)) best = c;
+                  }
+                  if (best) {
+                    suggestions.push({ out:low, in:best, gain:(parseFloat(best.power)||0)-lowP });
+                    usedOut.add(low.id); usedIn.add(best.id);
+                  }
+                });
+                suggestions.sort((a,b)=>b.gain-a.gain);
+                const potentialGain = suggestions.reduce((s,x)=>s+x.gain,0);
+                const barColor = over?"#F87171":full?(pct>=97?"#4ade80":pct>=90?"#A3E635":"#FBBF24"):"#7B9CFF";
+                const applySwap = (sw)=>{ setDeckCards(prev => prev.map(id => id===sw.out.id ? sw.in.id : id)); };
+                return (
+                  <div style={{background:"rgba(255,255,255,0.03)",border:`1px solid ${barColor}44`,borderRadius:12,padding:"14px 16px",marginTop:10}}>
+                    <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:8}}>
+                      <span style={{fontSize:13,fontWeight:900,color:"var(--bz-ink)"}}>⚡ Efficiency</span>
+                      <span style={{fontSize:12,fontWeight:800,color:barColor}}>
+                        {over ? "Over cap" : full ? `${pct}% of budget` : `${have}/${SIZE} cards`}
+                      </span>
+                    </div>
+                    {/* Meter */}
+                    <div style={{height:12,borderRadius:8,background:"rgba(255,255,255,0.07)",overflow:"hidden",position:"relative"}}>
+                      <div style={{width:`${Math.min(100,pct)}%`,height:"100%",background:`linear-gradient(90deg,${barColor}bb,${barColor})`,transition:"width 240ms ease"}}/>
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between",fontSize:10.5,color:"var(--bz-ink-3)",marginTop:4}}>
+                      <span><strong style={{color:"var(--bz-ink)"}}>{cur.toLocaleString()}</strong> power</span>
+                      <span>cap {CAP.toLocaleString()}{!over && headroom>0 && ` · ${headroom.toLocaleString()} headroom`}</span>
+                    </div>
+
+                    {over && (
+                      <div style={{fontSize:11.5,color:"#F87171",marginTop:8,lineHeight:1.5}}>
+                        Total power is over the {CAP.toLocaleString()} cap. Swap a high-power card for a lower one to get legal.
+                      </div>
+                    )}
+                    {!over && !full && (
+                      <div style={{fontSize:11.5,color:"var(--bz-ink-3)",marginTop:8,lineHeight:1.5}}>
+                        Add {cardsGap} more card{cardsGap===1?"":"s"} to fill the deck. Efficiency scores once all {SIZE} are in.
+                      </div>
+                    )}
+
+                    {suggestions.length>0 && (
+                      <div style={{marginTop:12}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                          <span style={{fontSize:11.5,fontWeight:800,color:"#4ade80"}}>↑ Optimize</span>
+                          <span style={{fontSize:10.5,color:"var(--bz-ink-3)"}}>{suggestions.length} swap{suggestions.length===1?"":"s"} available · +{potentialGain.toLocaleString()} power</span>
+                        </div>
+                        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                          {suggestions.slice(0,6).map((sw,i)=>(
+                            <div key={i} style={{display:"flex",alignItems:"center",gap:8,background:"rgba(74,222,128,0.05)",border:"1px solid rgba(74,222,128,0.18)",borderRadius:8,padding:"6px 9px"}}>
+                              <div style={{flex:1,minWidth:0,fontSize:11.5}}>
+                                <span style={{color:"var(--bz-ink-3)",textDecoration:"line-through"}}>{sw.out.hero||sw.out.playName} <span style={{fontWeight:700}}>{sw.out.power}</span></span>
+                                <span style={{color:"var(--bz-ink-3)",margin:"0 5px"}}>→</span>
+                                <span style={{color:"var(--bz-ink)",fontWeight:700}}>{sw.in.hero||sw.in.playName} <span style={{color:"#4ade80"}}>{sw.in.power}</span></span>
+                              </div>
+                              <span style={{fontSize:10.5,fontWeight:800,color:"#4ade80",whiteSpace:"nowrap"}}>+{sw.gain}</span>
+                              <button onClick={()=>applySwap(sw)} style={{background:"rgba(74,222,128,0.15)",border:"1px solid #4ade80",color:"#4ade80",borderRadius:6,padding:"3px 10px",fontSize:11,fontWeight:800,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Swap</button>
+                            </div>
+                          ))}
+                        </div>
+                        {suggestions.length>1 && (
+                          <button onClick={()=>{ setDeckCards(prev=>{ let next=prev.slice(); suggestions.forEach(sw=>{ next=next.map(id=>id===sw.out.id?sw.in.id:id); }); return next; }); }}
+                            style={{marginTop:8,width:"100%",background:"linear-gradient(135deg,#4ade80,#22c55e)",border:"none",color:"#04240f",borderRadius:8,padding:"9px",fontSize:12,fontWeight:900,cursor:"pointer",fontFamily:"inherit"}}>
+                            Apply all {suggestions.length} swaps · +{potentialGain.toLocaleString()} power
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {full && !over && suggestions.length===0 && (
+                      <div style={{fontSize:11.5,color:"#4ade80",marginTop:10,fontWeight:700}}>✓ Fully optimized — no legal upgrade would raise your power.</div>
+                    )}
+                  </div>
+                );
+              })()}
+              {false && fmtOf(deckType).totalPower && deckProgress && deckProgress.have < (fmtOf(deckType).size||60) && (() => {
                 const F = fmtOf(deckType);
                 const SIZE = F.size||60;
                 const cardsGap = Math.max(0, SIZE - (deckProgress.have||0));
@@ -44407,12 +44520,27 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   );};
                   const gridWrap = kids => <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:16,maxWidth:1400,margin:"0 auto"}}>{kids}</div>;
                   if (fanGroup==="none") return gridWrap(cards.map(tile));
-                  // Group into ordered buckets. Power: high→low. Insert: alphabetical.
+                  // Group into ordered buckets. Power: high→low. Insert: canonicalized.
+                  // The plain color battlefoils (Red/Silver/Blue/Orange/Green/Pink Battlefoil)
+                  // are one insert family — fold them into a single "Color Battlefoil" group
+                  // instead of six separate colour buckets. Named inserts (80's Rad, Grandma's
+                  // Linoleum, Mixtape, etc.) keep their own group.
+                  const COLORS = ["red","silver","blue","orange","green","pink","gold","purple","black","white","yellow"];
+                  const canonInsert = (tRaw) => {
+                    const t = String(tRaw||"").trim();
+                    if (!t) return "No insert";
+                    const low = t.toLowerCase();
+                    // "<color> Battlefoil" (and nothing else) -> Color Battlefoil
+                    const m = low.match(/^([a-z]+)\s+battlefoil$/);
+                    if (m && COLORS.includes(m[1])) return "Color Battlefoil";
+                    if (low === "battlefoil" || low === "color battlefoil" || low === "color battlefoils (all)") return "Color Battlefoil";
+                    return t;
+                  };
                   const groups = {};
                   cards.forEach(c=>{
                     const key = fanGroup==="power"
                       ? ((c.power!=null&&c.power!=="")?String(c.power):"No power")
-                      : ((c.treatment&&String(c.treatment).trim())?String(c.treatment).trim():"No insert");
+                      : canonInsert(c.treatment);
                     (groups[key]=groups[key]||[]).push(c);
                   });
                   const keys = Object.keys(groups).sort((a,b)=>{
@@ -46206,7 +46334,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
               fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
         );
         return (
-          <div onClick={()=>{setLoanMgr(null);setLoanSel(new Set());setLoanSendTo("");}} style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+          <div onClick={()=>{setLoanMgr(null);setLoanSel(new Set());setLoanSendTo("");}} style={{position:"fixed",inset:0,zIndex:14000,background:"rgba(0,0,0,0.72)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
             <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-s1,#14141c)",border:"1px solid var(--bz-line-2)",borderRadius:14,width:"100%",maxWidth:620,maxHeight:"84vh",display:"flex",flexDirection:"column",overflow:"hidden"}}>
               <div style={{padding:"14px 16px 10px",borderBottom:"1px solid var(--bz-line)"}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
