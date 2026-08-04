@@ -553,6 +553,54 @@ function usePlaymat() {
   return url;
 }
 
+// ── Arena board layout (admin-arranged slot positions on the playmat) ──────
+// Every placeable element is stored as {x,y,w} in PERCENT of the board box, so
+// it scales on any screen. Height derives from width via the 5:7 card ratio for
+// cards, or a fixed height for the thin zone-number chips. The default roughly
+// mirrors the old grid so the board looks sane before anyone arranges it.
+const ARENA_LAYOUT_PATH = ["config", "arena_layout"];
+function defaultArenaLayout() {
+  const L = {};
+  const cw = 12, gap = 1.2, x0 = 2.5;
+  for (let i = 0; i < 7; i++) {
+    const x = x0 + i * (cw + gap);
+    L["opp" + i]  = { x, y: 4,  w: cw };
+    L["zone" + i] = { x, y: 46, w: cw, h: 5 };
+    L["my"  + i]  = { x, y: 52, w: cw };
+  }
+  const pileW = 9, py = 90, ox = 6;
+  ["Deck","Playbook","Hotdogs","Discard"].forEach((k,i)=>{
+    L["my"+k]  = { x: ox + i*(pileW+3), y: py, w: pileW };
+    L["opp"+k] = { x: 100 - ox - pileW - i*(pileW+3), y: 2, w: pileW };
+  });
+  return L;
+}
+let _arenaLayout = null;
+let _arenaLayoutPromise = null;
+const _arenaLayoutSubs = new Set();
+function _arenaLayoutNotify(){ _arenaLayoutSubs.forEach(fn=>{ try{ fn(_arenaLayout); }catch(e){} }); }
+function loadArenaLayout() {
+  if (_arenaLayout) return Promise.resolve(_arenaLayout);
+  if (_arenaLayoutPromise) return _arenaLayoutPromise;
+  _arenaLayoutPromise = getDoc(doc(db, ARENA_LAYOUT_PATH[0], ARENA_LAYOUT_PATH[1]))
+    .then(s => { _arenaLayout = (s.exists() && s.data().layout) ? s.data().layout : defaultArenaLayout(); _arenaLayoutNotify(); return _arenaLayout; })
+    .catch(() => { _arenaLayoutPromise = null; _arenaLayout = defaultArenaLayout(); _arenaLayoutNotify(); return _arenaLayout; });
+  return _arenaLayoutPromise;
+}
+async function saveArenaLayout(layout) {
+  _arenaLayout = layout; _arenaLayoutPromise = Promise.resolve(layout); _arenaLayoutNotify();
+  try { await setDoc(doc(db, ARENA_LAYOUT_PATH[0], ARENA_LAYOUT_PATH[1]), { layout }, { merge:true }); } catch(e){ /* keep local copy */ }
+}
+function useArenaLayout() {
+  const [lay, setLay] = React.useState(_arenaLayout);
+  React.useEffect(() => {
+    _arenaLayoutSubs.add(setLay);
+    if (!_arenaLayout) loadArenaLayout(); else setLay(_arenaLayout);
+    return () => { _arenaLayoutSubs.delete(setLay); };
+  }, []);
+  return lay || _arenaLayout || defaultArenaLayout();
+}
+
 // ── IndexedDB cache (localStorage caps ~5MB; the 12MB card list needs IndexedDB) ──
 function _idbOpen() {
   return new Promise((resolve, reject) => {
@@ -30440,6 +30488,114 @@ function ArenaStrikeLayer({ w, up, zone }) {
   );
 }
 
+// ── Arena board arranger (ADMIN) ──────────────────────────────────────────
+// A full-screen editor: the playmat fills a 16:9 stage, and every placeable
+// element is a draggable + resizable box. Positions are stored as PERCENT of the
+// stage so they scale to any screen at play time. Drag the body to move; drag the
+// bottom-right handle to resize. Saves the whole map to Firestore.
+function ArenaArranger({ playmatUrl, initial, onClose, onSave }) {
+  const [lay, setLay] = React.useState(() => JSON.parse(JSON.stringify(initial || defaultArenaLayout())));
+  const [sel, setSel] = React.useState(null);
+  const stageRef = React.useRef(null);
+  const drag = React.useRef(null);
+
+  const groups = [];
+  for (let i=0;i<7;i++) groups.push({ id:"opp"+i,  label:"Opp "+(i+1),  color:"#F87171", kind:"card" });
+  for (let i=0;i<7;i++) groups.push({ id:"zone"+i, label:"Zone "+(i+1), color:"#FBBF24", kind:"zone" });
+  for (let i=0;i<7;i++) groups.push({ id:"my"+i,   label:"My "+(i+1),   color:"#4ade80", kind:"card" });
+  [["Deck","Hero Deck"],["Playbook","Playbook"],["Hotdogs","Hot Dogs"],["Discard","Discard"]].forEach(([k,lbl])=>{
+    groups.push({ id:"my"+k,  label:"My "+lbl,  color:"#7CF03A", kind:"card" });
+    groups.push({ id:"opp"+k, label:"Opp "+lbl, color:"#7B9CFF", kind:"card" });
+  });
+
+  const onDown = (e, id, mode) => {
+    e.preventDefault(); e.stopPropagation();
+    const t = e.touches ? e.touches[0] : e;
+    setSel(id);
+    drag.current = { id, mode, startX:t.clientX, startY:t.clientY, box:{...lay[id]} };
+  };
+  React.useEffect(() => {
+    const move = (e) => {
+      if (!drag.current || !stageRef.current) return;
+      const t = e.touches ? e.touches[0] : e;
+      const r = stageRef.current.getBoundingClientRect();
+      const dxP = ((t.clientX - drag.current.startX)/r.width)*100;
+      const dyP = ((t.clientY - drag.current.startY)/r.height)*100;
+      const b = drag.current.box;
+      setLay(prev => {
+        const next = {...prev};
+        if (drag.current.mode === "move") {
+          next[drag.current.id] = { ...next[drag.current.id],
+            x: Math.max(0, Math.min(97, b.x + dxP)),
+            y: Math.max(0, Math.min(97, b.y + dyP)) };
+        } else {
+          next[drag.current.id] = { ...next[drag.current.id],
+            w: Math.max(3, Math.min(40, (b.w||12) + dxP)) };
+          if (next[drag.current.id].h != null)
+            next[drag.current.id].h = Math.max(2, Math.min(20, (b.h||5) + dyP));
+        }
+        return next;
+      });
+    };
+    const up = () => { drag.current = null; };
+    window.addEventListener("mousemove", move); window.addEventListener("mouseup", up);
+    window.addEventListener("touchmove", move, {passive:false}); window.addEventListener("touchend", up);
+    return () => {
+      window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up);
+      window.removeEventListener("touchmove", move); window.removeEventListener("touchend", up);
+    };
+  }, []);
+
+  const boxStyle = (g) => {
+    const b = lay[g.id] || { x:0, y:0, w:12 };
+    const h = g.kind === "zone" ? (b.h||5) : null;
+    return {
+      position:"absolute", left:b.x+"%", top:b.y+"%", width:b.w+"%",
+      ...(h!=null ? { height:h+"%" } : { aspectRatio:"5/7" }),
+      border:`2px solid ${g.color}`, borderRadius:6,
+      background: sel===g.id ? `${g.color}33` : `${g.color}18`,
+      boxShadow: sel===g.id ? `0 0 0 2px ${g.color}` : "none",
+      cursor:"move", boxSizing:"border-box", touchAction:"none",
+      display:"flex", alignItems:"center", justifyContent:"center",
+    };
+  };
+
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:15000,background:"rgba(0,0,0,0.9)",display:"flex",flexDirection:"column",padding:16}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,flexWrap:"wrap",gap:8}}>
+        <div style={{fontSize:15,fontWeight:900,color:"#fff"}}>{"\u270B"} Arrange board — drag to move, corner to resize</div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>setLay(defaultArenaLayout())}
+            style={{padding:"8px 14px",borderRadius:8,background:"transparent",border:"1px solid rgba(255,255,255,0.25)",color:"rgba(255,255,255,0.7)",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Reset</button>
+          <button onClick={onClose}
+            style={{padding:"8px 14px",borderRadius:8,background:"transparent",border:"1px solid rgba(255,255,255,0.25)",color:"rgba(255,255,255,0.7)",fontWeight:800,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+          <button onClick={()=>onSave(lay)}
+            style={{padding:"8px 16px",borderRadius:8,background:"#E8317A",border:"none",color:"#fff",fontWeight:900,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Save layout</button>
+        </div>
+      </div>
+      <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",minHeight:0}}>
+        <div ref={stageRef}
+          style={{position:"relative",width:"min(100%, 160vh)",aspectRatio:"16/9",
+                  background: playmatUrl ? `#111 center/cover no-repeat url("${playmatUrl}")` : "#1a0f14",
+                  border:"1px solid rgba(232,49,122,0.4)",borderRadius:10,overflow:"hidden"}}
+          onMouseDown={()=>setSel(null)}>
+          {groups.map(g => (
+            <div key={g.id} style={boxStyle(g)} onMouseDown={(e)=>onDown(e,g.id,"move")} onTouchStart={(e)=>onDown(e,g.id,"move")}>
+              <span style={{fontSize:9,fontWeight:900,color:g.color,textShadow:"0 1px 3px rgba(0,0,0,0.9)",pointerEvents:"none",textAlign:"center",lineHeight:1.1}}>{g.label}</span>
+              <div onMouseDown={(e)=>onDown(e,g.id,"resize")} onTouchStart={(e)=>onDown(e,g.id,"resize")}
+                style={{position:"absolute",right:-6,bottom:-6,width:14,height:14,borderRadius:"50%",
+                        background:g.color,border:"2px solid #000",cursor:"nwse-resize"}}/>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{fontSize:11,color:"rgba(255,255,255,0.45)",textAlign:"center",marginTop:8}}>
+        Positions save as percentages, so they scale on phone and desktop. Opponent slots render flipped 180° in-game.
+      </div>
+    </div>
+  );
+}
+
 function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobile, setToast, inp }) {
   // Arena itself is open to every dashboard user, but a few controls (the card-
   // back uploader) stay admin-only. Same check the rest of the app uses.
@@ -30476,6 +30632,8 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   const [backUploading, setBackUploading] = React.useState(false);
   const playmatUrl = usePlaymat();     // arena surface image, or null -> gradient fallback
   const [matUploading, setMatUploading] = React.useState(false);
+  const arenaLayout = useArenaLayout();          // saved slot positions (percent)
+  const [arrangerOpen, setArrangerOpen] = React.useState(false);
 
   // One-time admin action: push a chosen image to the Storage path the whole app
   // reads the card back from. Lives in the arena because that's where backs show
@@ -31967,9 +32125,22 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
               <div style={{fontSize:10.5,color:"rgba(255,255,255,0.4)",marginTop:6}}>
                 PNG, JPG or WebP {"\u00b7"} 16:9 works best
               </div>
+              {playmatUrl && (
+                <button onClick={()=>setArrangerOpen(true)}
+                  style={{marginTop:10,display:"inline-block",padding:"9px 16px",borderRadius:8,
+                          background:"rgba(255,255,255,0.08)",border:"1px solid rgba(232,49,122,0.4)",
+                          color:"#fff",fontWeight:900,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
+                  {"\u270B"} Arrange board on mat
+                </button>
+              )}
             </div>
           </div>
         </div>
+        )}
+        {arrangerOpen && (
+          <ArenaArranger playmatUrl={playmatUrl} initial={arenaLayout}
+            onClose={()=>setArrangerOpen(false)}
+            onSave={(lay)=>{ saveArenaLayout(lay); setArrangerOpen(false); setToast && setToast("\u2713 Board layout saved"); }} />
         )}
 
         {myGames.length > 0 && (
