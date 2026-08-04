@@ -33362,8 +33362,21 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         );
                       })()}
                     </div>
-                    {/* Build Max Deck — enforce the format's legal power window (Apex 155+, Spec 115–160)
-                        instead of just grabbing your top 60 regardless of power. */}
+                    {/* Card source for the quick build — default to your own cards. If you
+                        have borrowable family cards, you can opt to include them. */}
+                    <div style={{display:"flex",gap:6,alignItems:"center",marginTop:10,flexWrap:"wrap"}}>
+                      <span style={{fontSize:11,color:"#a0a0a0",fontWeight:700}}>Build with:</span>
+                      {[["mine","My cards only"], ...(familyList.length>0 ? [["both","Mine + family"],["family","\uD83D\uDC6A Family only"]] : [])].map(([val,lbl])=>{
+                        const on = deckSource===val;
+                        const col = val==="family" ? "#C084FC" : val==="both" ? "#4ade80" : "#7B9CFF";
+                        return (
+                          <button key={val} onClick={()=>setDeckSource(val)}
+                            style={{background:on?`${col}22`:"transparent",border:`1px solid ${on?col:"var(--bz-line-2)"}`,color:on?col:"rgba(255,255,255,0.55)",borderRadius:14,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                            {lbl}
+                          </button>
+                        );
+                      })}
+                    </div>
                     {(deckType==="apex"||deckType==="spec"||deckType==="vegasbaby") && (
                       <div style={{display:"flex",gap:8,alignItems:"center",marginTop:10,flexWrap:"wrap"}}>
                         <div onClick={()=>setDeckMaxMode(v=>!v)} style={{display:"flex",alignItems:"center",gap:7,background:deckMaxMode?"rgba(251,191,36,0.14)":"rgba(255,255,255,0.03)",border:`1px solid ${deckMaxMode?"#FBBF24":"var(--bz-line-2)"}`,borderRadius:8,padding:"6px 11px",cursor:"pointer",whiteSpace:"nowrap"}}>
@@ -44736,7 +44749,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
   const [deckGoalSets, setDeckGoalSets] = useState(()=>new Set()); // empty = all sets allowed
   const [deckMaxMode, setDeckMaxMode] = useState(false); // enforce the format's legal power window
   // Which cards the quick builder may draw from: "mine" | "both" | "family"
-  const [deckSource, setDeckSource] = useState("both");
+  const [deckSource, setDeckSource] = useState("mine");
   const [regSheetOpen, setRegSheetOpen] = useState(false);   // BoBA-style registration sheet generator
   const [regInfo, setRegInfo] = useState({ player:"", whatnot:"", event:"", date:"", playbookId:"" });
   // PERF: computeDeckProgress scans the full 31k-card checklist (filter + sort + bucket). It was
