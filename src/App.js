@@ -27576,7 +27576,7 @@ function TeamTab({ user, teams, activeTeam, setActiveTeam, newTeamName, setNewTe
                           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                             {allMembers.length<6&&isOwner&&(
                               <>
-                                <input value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="Invite by email..." style={{...inp,width:200,fontSize:12}} onKeyDown={e=>e.key==="Enter"&&inviteToTeam(team)}/>
+                                <input value={inviteEmail} onChange={e=>setInviteEmail(e.target.value)} placeholder="Invite by @username..." style={{...inp,width:200,fontSize:12}} onKeyDown={e=>e.key==="Enter"&&inviteToTeam(team)}/>
                                 <button onClick={()=>inviteToTeam(team)} style={{background:"linear-gradient(135deg,#A855F7,#7B2FF7)",color:"#fff",border:"none",borderRadius:10,padding:"8px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Invite</button>
                               </>
                             )}
@@ -28205,7 +28205,7 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
                 <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:16,padding:20,marginBottom:12,backdropFilter:"blur(10px)"}}>
                   <div style={{fontSize:14,fontWeight:800,color:"var(--bz-ink)",marginBottom:12}}>{"\u2795 Add Friend"}</div>
                   <div style={{display:"flex",gap:8}}>
-                    <input value={addEmail} onChange={e=>setAddEmail(e.target.value)} placeholder="Their username or email…" style={{...inp,flex:1}} onKeyDown={e=>e.key==="Enter"&&sendFriendRequest()}/>
+                    <input value={addEmail} onChange={e=>setAddEmail(e.target.value)} placeholder="Their @username…" style={{...inp,flex:1}} onKeyDown={e=>e.key==="Enter"&&sendFriendRequest()}/>
                     <button onClick={sendFriendRequest} style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",color:"#fff",border:"none",borderRadius:12,padding:"8px 20px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(232,49,122,0.3)"}}>Send</button>
                   </div>
                   <div style={{fontSize:11,color:"rgba(255,255,255,0.35)",marginTop:8,lineHeight:1.5}}>
@@ -28219,7 +28219,7 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
                     <div style={{fontSize:13,fontWeight:800,color:"#FBBF24",marginBottom:12}}>{"\uD83D\uDCEC Requests ("}{friendReqs.length})</div>
                     {friendReqs.map(r=>(
                       <div key={r.id} style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
-                        <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{r.fromName}</div><div style={{fontSize:11,color:"rgba(255,255,255,0.3)"}}>{r.fromEmail}</div></div>
+                        <div style={{flex:1}}><div style={{fontSize:13,fontWeight:700}}>{r.fromName||"Collector"}</div></div>
                         <button onClick={()=>respondFriendReq(r,true)} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:8,padding:"6px 14px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{"\u2705 Accept"}</button>
                         <button onClick={()=>respondFriendReq(r,false)} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.3)",borderRadius:8,padding:"6px 14px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Decline</button>
                       </div>
@@ -28243,7 +28243,7 @@ function FriendsTab({ user, friends, friendReqs, sentReqs, addEmail, setAddEmail
                 {sentReqs.length>0&&(
                   <div style={{background:"rgba(255,255,255,0.01)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:12,padding:16,marginBottom:12}}>
                     <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,0.3)",marginBottom:8}}>Pending sent</div>
-                    {sentReqs.map(r=><div key={r.id} style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginBottom:4}}>{"\u23F3"}{r.toEmail}</div>)}
+                    {sentReqs.map(r=><div key={r.id} style={{fontSize:12,color:"rgba(255,255,255,0.2)",marginBottom:4}}>{"\u23F3"}{r.toName||"Collector"}</div>)}
                   </div>
                 )}
 
@@ -32262,8 +32262,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       {(G.status === "playing" || G.status === "finished") && (
         <div style={{...panel, position:"relative", overflow:"hidden",
                      ...(playmatUrl ? {
-                       backgroundImage:`linear-gradient(rgba(10,4,4,0.72),rgba(10,4,4,0.82)), url('${playmatUrl}')`,
-                       backgroundSize:"cover", backgroundPosition:"center", backgroundRepeat:"no-repeat",
+                       background:`linear-gradient(rgba(10,4,4,0.72),rgba(10,4,4,0.82)), #111 center/cover no-repeat url("${playmatUrl}")`,
                        border:"1px solid rgba(232,49,122,0.25)"
                      } : {})}}>
           {/* Super is a board-wide shockwave rather than a per-card hit — it is the
@@ -38641,7 +38640,7 @@ See you in there!
   // Upsert profile on login
   useEffect(() => {
     if (!user) return;
-    setDoc(doc(db,"boba_profiles",user.uid), {email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||"",lastSeen:new Date().toISOString()},{merge:true});
+    setDoc(doc(db,"boba_profiles",user.uid), {displayName:user.displayName||"Collector",photoURL:user.photoURL||"",lastSeen:new Date().toISOString()},{merge:true});
   }, [user]);
 
   // PERF: a single id → card lookup, built once per card load. Several effects below need to check
@@ -42374,8 +42373,8 @@ See you in there!
       const existSnap = await getDocs(query(collection(db,"friend_requests"), where("from","==",user.uid), where("to","==",toUid)));
       if (!existSnap.empty) return;
       const id = uid();
-      await setDoc(doc(db,"friend_requests",id), { id, from:user.uid, fromEmail:user.email, fromName:user.displayName||user.email, to:toUid, toEmail:toProfile?.email||"", toName:toProfile?.displayName||toProfile?.username||"Collector", status:"pending", createdAt:new Date().toISOString() });
-      await setDoc(doc(db,"boba_profiles",user.uid), { email:user.email, displayName:user.displayName||user.email, photoURL:user.photoURL||"" }, { merge:true });
+      await setDoc(doc(db,"friend_requests",id), { id, from:user.uid, fromName:user.displayName||"Collector", to:toUid, toName:toProfile?.displayName||toProfile?.username||"Collector", status:"pending", createdAt:new Date().toISOString() });
+      await setDoc(doc(db,"boba_profiles",user.uid), { displayName:user.displayName||"Collector", photoURL:user.photoURL||"" }, { merge:true });
     } catch(e) { console.error("add friend failed", e); }
   }
   async function messageUser(toUid, toProfile) {
@@ -42407,43 +42406,38 @@ See you in there!
     // people don't have or don't remember the email at all — but they do know each other's handles.
     const raw = addEmail.trim();
     const term = raw.replace(/^@/,"").toLowerCase();
-    if(term===user.email?.toLowerCase()){setAddStatus({ok:false,msg:"That's you!"});return;}
 
+    // Friending is by USERNAME only. Email was removed from public profiles (it
+    // exposed every user's address), so there's no email->uid lookup anymore.
     let toProfile=null, toUid=null;
-    if (term.includes("@")) {
-      // Looks like an email — match the profile by address.
-      const profSnap=await getDocs(query(collection(db,"boba_profiles"),where("email","==",term)));
-      if(!profSnap.empty){ toProfile=profSnap.docs[0].data(); toUid=profSnap.docs[0].id; }
-    } else {
-      // Treat it as a username handle.
-      try {
-        const uSnap = await getDoc(doc(db,"usernames",term));
-        if (uSnap.exists()) {
-          toUid = uSnap.data().uid;
-          const pSnap = await getDoc(doc(db,"boba_profiles",toUid));
-          toProfile = pSnap.exists() ? pSnap.data() : { username: term };
-        }
-      } catch(e){ /* fall through to the not-found message */ }
+    if (term.includes("@") && term.includes(".")) {
+      setAddStatus({ok:false,msg:"Add collectors by their username now, not email — ask them for their @handle."});
+      return;
     }
+    try {
+      const uSnap = await getDoc(doc(db,"usernames",term));
+      if (uSnap.exists()) {
+        toUid = uSnap.data().uid;
+        const pSnap = await getDoc(doc(db,"boba_profiles",toUid));
+        toProfile = pSnap.exists() ? pSnap.data() : { username: term };
+      }
+    } catch(e){ /* fall through to the not-found message */ }
     if(!toUid){
-      setAddStatus({ok:false,msg:term.includes("@")
-        ? "No account found with that email — check the spelling, or ask them for their username instead."
-        : `No collector found with the username "${term}" — usernames are set on their profile page.`});
+      setAddStatus({ok:false,msg:`No collector found with the username "${term}" — usernames are set on their profile page.`});
       return;
     }
     if(toUid===user.uid){setAddStatus({ok:false,msg:"That's you!"});return;}
     if(friends.find(f=>f.friendUid===toUid)){setAddStatus({ok:false,msg:"Already friends"});return;}
-    const email = toProfile?.email || term;
     const existSnap=await getDocs(query(collection(db,"friend_requests"),where("from","==",user.uid),where("to","==",toUid)));
     if(!existSnap.empty){setAddStatus({ok:false,msg:"Request already sent"});return;}
     const id=uid();
-    await setDoc(doc(db,"friend_requests",id),{id,from:user.uid,fromEmail:user.email,fromName:user.displayName||user.email,to:toUid,toEmail:email,toName:toProfile?.displayName||toProfile?.username||email,status:"pending",createdAt:new Date().toISOString()});
-    await setDoc(doc(db,"boba_profiles",user.uid),{email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""},{merge:true});
-    setAddEmail(""); setAddStatus({ok:true,msg:`Request sent to ${toProfile?.displayName||toProfile?.username||email}!`});
+    await setDoc(doc(db,"friend_requests",id),{id,from:user.uid,fromName:user.displayName||"Collector",to:toUid,toName:toProfile?.displayName||toProfile?.username||"Collector",status:"pending",createdAt:new Date().toISOString()});
+    await setDoc(doc(db,"boba_profiles",user.uid),{displayName:user.displayName||"Collector",photoURL:user.photoURL||""},{merge:true});
+    setAddEmail(""); setAddStatus({ok:true,msg:`Request sent to ${toProfile?.displayName||toProfile?.username||"collector"}!`});
   }
   async function respondFriendReq(req,accept) {
     await setDoc(doc(db,"friend_requests",req.id),{status:accept?"accepted":"declined"},{merge:true});
-    if(accept) await setDoc(doc(db,"boba_profiles",user.uid),{email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""},{merge:true});
+    if(accept) await setDoc(doc(db,"boba_profiles",user.uid),{displayName:user.displayName||"Collector",photoURL:user.photoURL||""},{merge:true});
   }
   // Mark/unmark a friend as family. Writes my uid into the relationship's familyBy array,
   // which grants ME access to THEIR available cards in the deck builder.
@@ -42477,7 +42471,7 @@ See you in there!
   async function createTeam() {
     if(!user||!newTeamName.trim())return;
     const id=uid();
-    const me={uid:user.uid,email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""};
+    const me={uid:user.uid,displayName:user.displayName||"Collector",photoURL:user.photoURL||""};
     await setDoc(doc(db,"teams",id),{id,name:newTeamName.trim(),starters:[me],bench:[],members:[me],memberUids:[user.uid],createdBy:user.uid,createdAt:new Date().toISOString()});
     setNewTeamName("");
   }
@@ -42540,15 +42534,18 @@ See you in there!
   }
   async function inviteToTeam(team) {
     if(!inviteEmail.trim())return;
-    const email=inviteEmail.trim().toLowerCase();
-    const profSnap=await getDocs(query(collection(db,"boba_profiles"),where("email","==",email)));
-    if(profSnap.empty){setInviteStatus({ok:false,msg:"No account found"});return;}
-    const toUid=profSnap.docs[0].id, toProfile=profSnap.docs[0].data();
+    const handle=inviteEmail.trim().replace(/^@/,"").toLowerCase();
+    if(handle.includes("@")&&handle.includes(".")){setInviteStatus({ok:false,msg:"Invite by @username now, not email."});return;}
+    const uSnap=await getDoc(doc(db,"usernames",handle));
+    if(!uSnap.exists()){setInviteStatus({ok:false,msg:`No collector with the username "${handle}"`});return;}
+    const toUid=uSnap.data().uid;
+    const pSnap=await getDoc(doc(db,"boba_profiles",toUid));
+    const toProfile=pSnap.exists()?pSnap.data():{username:handle};
     if(team.memberUids?.includes(toUid)){setInviteStatus({ok:false,msg:"Already on team"});return;}
     if((team.members||[]).length>=6){setInviteStatus({ok:false,msg:"Team is full (4 starters + 2 bench max)"});return;}
     const invId=uid();
-    await setDoc(doc(db,"team_invites",invId),{id:invId,teamId:team.id,teamName:team.name,fromUid:user.uid,fromName:user.displayName||user.email,toUid,toEmail:email,toName:toProfile.displayName||email,status:"pending",createdAt:new Date().toISOString()});
-    setInviteEmail(""); setInviteStatus({ok:true,msg:`Invite sent to ${toProfile.displayName||email}`});
+    await setDoc(doc(db,"team_invites",invId),{id:invId,teamId:team.id,teamName:team.name,fromUid:user.uid,fromName:user.displayName||"Collector",toUid,toName:toProfile.displayName||toProfile.username||"Collector",status:"pending",createdAt:new Date().toISOString()});
+    setInviteEmail(""); setInviteStatus({ok:true,msg:`Invite sent to ${toProfile.displayName||toProfile.username||"collector"}`});
   }
 
   async function deleteTeam(team) {
@@ -42583,7 +42580,7 @@ See you in there!
       const tsnap=await getDoc(doc(db,"teams",invite.teamId));
       if(tsnap.exists()){
         const t=tsnap.data();
-        const me={uid:user.uid,email:user.email,displayName:user.displayName||user.email,photoURL:user.photoURL||""};
+        const me={uid:user.uid,displayName:user.displayName||"Collector",photoURL:user.photoURL||""};
         const starters=t.starters||[];
         const bench=t.bench||[];
         // Put in starters if room, else bench
