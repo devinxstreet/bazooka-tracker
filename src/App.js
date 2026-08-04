@@ -561,17 +561,18 @@ function usePlaymat() {
 const ARENA_LAYOUT_PATH = ["config", "arena_layout"];
 function defaultArenaLayout() {
   const L = {};
+  // Single-POV mat: MY 7 battle slots across the upper-middle, the zone-result
+  // numbers just below them, and my four piles along the bottom. No opponent
+  // elements — they have their own mat.
   const cw = 12, gap = 1.2, x0 = 2.5;
   for (let i = 0; i < 7; i++) {
     const x = x0 + i * (cw + gap);
-    L["opp" + i]  = { x, y: 4,  w: cw };
-    L["zone" + i] = { x, y: 46, w: cw, h: 5 };
-    L["my"  + i]  = { x, y: 52, w: cw };
+    L["my"  + i]  = { x, y: 14, w: cw };
+    L["zone" + i] = { x, y: 58, w: cw, h: 6 };
   }
-  const pileW = 9, py = 90, ox = 6;
+  const pileW = 11, py = 74, gapP = 2, totalP = 4*pileW + 3*gapP, x0p = (100 - totalP)/2;
   ["Deck","Playbook","Hotdogs","Discard"].forEach((k,i)=>{
-    L["my"+k]  = { x: ox + i*(pileW+3), y: py, w: pileW };
-    L["opp"+k] = { x: 100 - ox - pileW - i*(pileW+3), y: 2, w: pileW };
+    L["my"+k] = { x: x0p + i*(pileW+gapP), y: py, w: pileW };
   });
   return L;
 }
@@ -30500,12 +30501,12 @@ function ArenaArranger({ playmatUrl, initial, onClose, onSave }) {
   const drag = React.useRef(null);
 
   const groups = [];
-  for (let i=0;i<7;i++) groups.push({ id:"opp"+i,  label:"Opp "+(i+1),  color:"#F87171", kind:"card" });
-  for (let i=0;i<7;i++) groups.push({ id:"zone"+i, label:"Zone "+(i+1), color:"#FBBF24", kind:"zone" });
+  // My mat is single-POV: only my own elements. The opponent has their own mat
+  // across the table, so nothing of theirs is placed on mine.
   for (let i=0;i<7;i++) groups.push({ id:"my"+i,   label:"My "+(i+1),   color:"#4ade80", kind:"card" });
+  for (let i=0;i<7;i++) groups.push({ id:"zone"+i, label:"Zone "+(i+1), color:"#FBBF24", kind:"zone" });
   [["Deck","Hero Deck"],["Playbook","Playbook"],["Hotdogs","Hot Dogs"],["Discard","Discard"]].forEach(([k,lbl])=>{
-    groups.push({ id:"my"+k,  label:"My "+lbl,  color:"#7CF03A", kind:"card" });
-    groups.push({ id:"opp"+k, label:"Opp "+lbl, color:"#7B9CFF", kind:"card" });
+    groups.push({ id:"my"+k,  label:lbl,  color:"#7CF03A", kind:"card" });
   });
 
   const onDown = (e, id, mode) => {
@@ -32490,21 +32491,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
             };
             return (
               <div style={{position:"relative",width:"100%",aspectRatio:"16/9"}}>
-                {/* opponent battle slots (flipped) */}
-                {Array.from({length:7}).map((_,i) => {
-                  const c = zones[i]?.[foe];
-                  const hit = fx && fx.zone === i && fx.up ? fx.weapon : null;
-                  const striking = fx && fx.zone === i && !fx.up;
-                  const node = (
-                    <div style={{position:"relative",width:"100%",height:"100%"}}>
-                      {c ? heroCard(c, zones[i]?.winner && zones[i].winner !== foe, hit, fx?.key, striking, zones[i]?.winner === seat ? damage[i] : null)
-                         : cardBack("FACE\nDOWN")}
-                      {hit && <div className="bz-fx-layer"><ArenaProjectile key={fx.key} w={fx.weapon} up={true} /></div>}
-                    </div>
-                  );
-                  return slot("opp"+i, node, true);
-                })}
-                {/* zone-strip numbers */}
+                {/* zone-strip numbers (battle result per zone) */}
                 {Array.from({length:7}).map((_,i) => {
                   const z = zones[i] || {};
                   const active = i === zi && G.status === "playing";
@@ -32519,7 +32506,9 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
                   );
                   return slot("zone"+i, node, false);
                 })}
-                {/* my battle slots */}
+                {/* my battle slots — this is MY mat, so only my heroes appear. The
+                    opponent plays on their own mat across the table; their card is
+                    never drawn here. The zone number reflects the shared result. */}
                 {Array.from({length:7}).map((_,i) => {
                   const revealed = zones[i]?.[seat];
                   const mine = P?.placed?.[i];
@@ -32538,14 +32527,6 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
                 {slot("myPlaybook", pileNode(P?.plays,   "#7B9CFF","\u2014"), false)}
                 {slot("myHotdogs",  pileNode(P?.hotdogs, "#7CF03A","USED"), false)}
                 {slot("myDiscard",  pileNode(P?.discard, "#F87171","EMPTY"), false)}
-                {/* opponent piles — hidden information, so just face-down stacks (flipped) */}
-                {slot("oppDeck",     pileNode([1],"#F87171",""), true)}
-                {slot("oppPlaybook", pileNode(G.mode==="playmaker"?[1]:[],"#7B9CFF","\u2014"), true)}
-                {slot("oppHotdogs",  pileNode(G.mode==="substitution"?[1]:[],"#7CF03A","USED"), true)}
-                {slot("oppDiscard",  pileNode([],"#F87171","EMPTY"), true)}
-                {/* names */}
-                <div style={{position:"absolute",top:2,left:0,right:0,textAlign:"center",transform:"rotate(180deg)",fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.6)",letterSpacing:2}}>{them?.name || "OPPONENT"}</div>
-                <div style={{position:"absolute",bottom:2,left:0,right:0,textAlign:"center",fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.6)",letterSpacing:2}}>{me?.name || "YOU"}</div>
               </div>
             );
           })() : (<>
