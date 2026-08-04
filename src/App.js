@@ -32286,25 +32286,29 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
               ))}
             </div>
           )}
-          <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.5)",textAlign:"center",marginBottom:10,letterSpacing:2}}>
-            {them?.name || "OPPONENT"}
-          </div>
-          {/* opponent row */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,marginBottom:8}}>
-            {Array.from({length:7}).map((_,i) => {
-              const c = zones[i]?.[foe];
-              // The opponent's card is struck when the strike is aimed upward (I won).
-              const hit = fx && fx.zone === i && fx.up ? fx.weapon : null;
-              const striking = fx && fx.zone === i && !fx.up;   // they struck downward
-              return (
-                <div key={i} style={{position:"relative"}}>
-                  {c ? heroCard(c, zones[i]?.winner && zones[i].winner !== foe, hit, fx?.key, striking,
-                                zones[i]?.winner === seat ? damage[i] : null)
-                     : cardBack("FACE\nDOWN")}
-                  {hit && <div className="bz-fx-layer"><ArenaProjectile key={fx.key} w={fx.weapon} up={true} /></div>}
-                </div>
-              );
-            })}
+          {/* Opponent's half — flipped 180° so it faces THEM across the table, the
+              way a real two-player playmat works. Their cards read upside-down to you,
+              upright to them. Only the orientation changes; all game logic is intact. */}
+          <div style={{transform:"rotate(180deg)"}}>
+            <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.5)",textAlign:"center",marginBottom:10,letterSpacing:2}}>
+              {them?.name || "OPPONENT"}
+            </div>
+            {/* opponent row */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,marginBottom:8}}>
+              {Array.from({length:7}).map((_,i) => {
+                const c = zones[i]?.[foe];
+                const hit = fx && fx.zone === i && fx.up ? fx.weapon : null;
+                const striking = fx && fx.zone === i && !fx.up;
+                return (
+                  <div key={i} style={{position:"relative"}}>
+                    {c ? heroCard(c, zones[i]?.winner && zones[i].winner !== foe, hit, fx?.key, striking,
+                                  zones[i]?.winner === seat ? damage[i] : null)
+                       : cardBack("FACE\nDOWN")}
+                    {hit && <div className="bz-fx-layer"><ArenaProjectile key={fx.key} w={fx.weapon} up={true} /></div>}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* Arena title band — echoes the playmat's centre header with sword bookends. */}
