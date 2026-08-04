@@ -525,6 +525,34 @@ function useCardBack() {
   return url;
 }
 
+// ── Playmat (arena playing surface) — same pattern as the card back above. An
+// admin uploads an image; it's stored once in Storage and every arena board reads
+// it as its background. Falls back to a dark gradient when none is set. ──
+const PLAYMAT_PATH = "card_data/playmat.webp";
+let _playmatPromise = null;
+let _playmatUrl = null;
+const _playmatSubs = new Set();
+function _playmatNotify() { _playmatSubs.forEach(fn => { try { fn(_playmatUrl); } catch (e) {} }); }
+function loadPlaymatUrl() {
+  if (_playmatUrl) return Promise.resolve(_playmatUrl);
+  if (_playmatPromise) return _playmatPromise;
+  _playmatPromise = getDownloadURL(ref(storage, PLAYMAT_PATH))
+    .then(u => { _playmatUrl = u; _playmatNotify(); return u; })
+    .catch(() => { _playmatPromise = null; return null; });
+  return _playmatPromise;
+}
+function setPlaymatUrl(u) { _playmatUrl = u; _playmatPromise = Promise.resolve(u); _playmatNotify(); }
+function usePlaymat() {
+  const [url, setUrl] = React.useState(_playmatUrl);
+  React.useEffect(() => {
+    _playmatSubs.add(setUrl);
+    if (!_playmatUrl) loadPlaymatUrl();
+    else setUrl(_playmatUrl);
+    return () => { _playmatSubs.delete(setUrl); };
+  }, []);
+  return url;
+}
+
 // ── IndexedDB cache (localStorage caps ~5MB; the 12MB card list needs IndexedDB) ──
 function _idbOpen() {
   return new Promise((resolve, reject) => {
@@ -15620,10 +15648,13 @@ function SharedDeck({ deckId }) {
     const F = fmtOf(deck.deckType);
     const problems = [];
     const total = deckCards.reduce((s,c)=>s+(parseFloat(c.power)||0), 0);
-    // Deck size is exact: a short deck is as illegal as an oversized one.
+    // Deck size: the MAX is F.size. The MINIMUM required is F.coreSize when the format
+    // has an optional-extra tier (Spec+: 60 core required, up to 70 allowed) — the extra
+    // slots are a bonus unlock, not a requirement. Otherwise the deck must be exactly F.size.
     const SZ = F.size || 60;
+    const MIN = F.coreSize || SZ;
     if (deckCards.length > SZ) problems.push(`${deckCards.length} cards — ${F.short} allows ${SZ}`);
-    if (deckCards.length < SZ) problems.push(`${deckCards.length}/${SZ} cards — ${SZ} are required`);
+    if (deckCards.length < MIN) problems.push(`${deckCards.length}/${MIN} cards — ${MIN} are required`);
     if (F.totalPower && total > F.totalPower) problems.push(`${total.toLocaleString()} total power \u2014 caps at ${F.totalPower.toLocaleString()}`);
     if (F.powerCap) {
       const over = deckCards.filter(c=>(parseFloat(c.power)||0) > F.powerCap).length;
@@ -30443,6 +30474,8 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   const [overZone,  setOverZone]  = React.useState(null);
   const cardBackUrl = useCardBack();   // BoBA back image, or null -> CSS fallback
   const [backUploading, setBackUploading] = React.useState(false);
+  const playmatUrl = usePlaymat();     // arena surface image, or null -> gradient fallback
+  const [matUploading, setMatUploading] = React.useState(false);
 
   // One-time admin action: push a chosen image to the Storage path the whole app
   // reads the card back from. Lives in the arena because that's where backs show
@@ -30463,6 +30496,25 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       setBackUploading(false);
     }
   }
+
+  // Same idea for the arena playing surface. Admin uploads once; every board picks
+  // it up as its background via the usePlaymat() subscription.
+  async function uploadPlaymat(file) {
+    if (!file) return;
+    setMatUploading(true);
+    try {
+      const r = ref(storage, PLAYMAT_PATH);
+      await uploadBytes(r, file, { contentType: file.type || "image/webp",
+                                   cacheControl: "public,max-age=86400" });
+      const url = await getDownloadURL(r);
+      setPlaymatUrl(url);                        // push to every arena board on screen
+      setToast && setToast("\u2713 Playmat updated \u2014 start a game to see it");
+    } catch (e) {
+      setErr("Couldn't upload the playmat: " + (e?.message || e));
+    } finally {
+      setMatUploading(false);
+    }
+  }
   const [game,      setGame]      = React.useState(null);   // public doc
   const [myPriv,    setMyPriv]    = React.useState(null);   // my private doc
   const [joinCode,  setJoinCode]  = React.useState("");
@@ -30470,6 +30522,10 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   // Game mode: rookie (heroes only), substitution (adds Bench + Hot Dogs).
   // Playmaker (adds Plays) comes later; the selector already leaves room for it.
   const [pickMode,  setPickMode]  = React.useState("rookie");
+  // Double-Up: optional risk layer (backgammon doubling cube). When on, a coach may
+  // "Press" once per game to double that game's match-point value; the opponent
+  // accepts (stake doubles) or walks away (concedes the game at the doubled stake).
+  const [pickDoubleUp, setPickDoubleUp] = React.useState(false);
   // Which bench slot is armed for a substitution into the current zone.
   const [subOpen,   setSubOpen]   = React.useState(false);
   // Sub animation overlay: { zi, seat, benched } while playing, else null.
@@ -31102,6 +31158,116 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   //
   // Returns "p1" | "p2" | null. Never ends a game that's still live: a 3-3 with one
   // battle left is undecided and must be played.
+  // ---- Double-Up (optional doubling-cube layer) -------------------------
+  // The "Laundry Phase" is the press window. A coach may Press:
+  //   • during setup (after deal, before heroes are placed), or
+  //   • before any battle after Battle #1 (i.e. once >=1 battle has resolved and
+  //     the upcoming zone hasn't been committed yet).
+  // Each coach presses at most once per game; there can't be a second open offer.
+  function duBattlesFought(G) {
+    const t = G?.trophies || {p1:0,p2:0};
+    const draws = (G?.zones||[]).filter(z => z && ("winner" in z) && z.winner === null && z.p1 && z.p2).length;
+    return (t.p1||0) + (t.p2||0) + draws;
+  }
+  // Only the HONORS holder may open a press, and each coach presses at most once
+  // per match. The press window is the "Laundry Phase": during setup (after the deal,
+  // before Battle 1 placement) the dice-roll winner holds honors; between battles
+  // after Battle 1, honors sits with the previous decisive winner.
+  function canPressNow(G, seat) {
+    if (!G?.doubleUp) return false;
+    if (G.press) return false;                       // an offer is already open
+    if (G.pressUsed?.[seat]) return false;           // this coach spent their press
+    if (honorsSeat() !== seat) return false;         // only the honors holder may press
+    if (G.status === "setup") return true;           // pre-placement window
+    if (G.status === "playing") {
+      const zc = (G.commits || {})[G.zoneIndex];
+      const midBattle = zc && (zc.p1 || zc.p2);
+      return duBattlesFought(G) >= 1 && !midBattle;   // between battles, after #1
+    }
+    return false;
+  }
+  // The honors holder presses: opens an offer the opponent must answer. The stake
+  // does NOT change yet — it only doubles if the press is ACCEPTED.
+  function pressDouble(seat) {
+    const G = isCpu ? cpu : game;
+    if (!canPressNow(G, seat)) return;
+    const patch = { press: { by: seat, at: new Date().toISOString(), fromStake: (G.stake||1) } };
+    if (isCpu) {
+      setCpu(g => ({...g, ...patch}));
+      if (seat === "p1") setTimeout(() => cpuAnswerPress(), 900);   // CPU answers a human press
+    } else {
+      updateDoc(doc(db, "boba_games", gameId), patch);
+    }
+  }
+  // Respond to an open press.
+  //   ACCEPT -> stake doubles (1→2→4), the presser's one press token is spent, play on.
+  //   FOLD   -> the folder concedes; the presser wins the game at the stake AS IT STOOD
+  //             BEFORE this press (1 the first time, 2 if folding a press-back). The
+  //             presser's token is NOT spent — the game just ends.
+  function respondToPress(seat, accept) {
+    const G = isCpu ? cpu : game;
+    if (!G?.press || G.press.by === seat) return;    // only the offeree answers
+    const by = G.press.by;
+    if (accept) {
+      const patch = {
+        stake: (G.stake||1) * 2,
+        pressUsed: { ...(G.pressUsed||{p1:false,p2:false}), [by]: true },
+        press: null,
+      };
+      if (isCpu) setCpu(g => ({...g, ...patch}));
+      else updateDoc(doc(db, "boba_games", gameId), patch);
+    } else {
+      // Fold: presser wins at the PRE-press stake, decks reshuffle for the next game.
+      const stake = G.press.fromStake || G.stake || 1;
+      const mw = { ...(G.matchWins||{p1:0,p2:0}) };
+      mw[by] = (mw[by]||0) + stake;
+      const patch = {
+        press: null, stake,
+        status: "finished", result: by, wonStake: stake,
+        declined: true, finishedAt: new Date().toISOString(),
+      };
+      if (isCpu) setCpu(g => ({...g, ...patch, matchWins: mw}));
+      else updateDoc(doc(db, "boba_games", gameId), { ...patch, matchWins: mw });
+    }
+  }
+  // CPU confidence: board-trophy lead (CPU is p2) plus deck-power edge.
+  function cpuConfidence(G) {
+    const t = G?.trophies || {p1:0,p2:0};
+    const lead = (t.p2||0) - (t.p1||0);
+    const powerEdge = G?.cpuTotal && G?.myTotal ? (G.cpuTotal - G.myTotal) / Math.max(1, G.myTotal) : 0;
+    return lead * 0.34 + powerEdge;
+  }
+  // CPU answers a human's press: accept unless clearly behind (then fold).
+  function cpuAnswerPress() {
+    setCpu(g => {
+      if (!g?.press || g.press.by !== "p1") return g;
+      const conf = cpuConfidence(g);
+      const accept = conf > -0.5 || Math.random() < 0.25;
+      if (accept) {
+        return { ...g, stake:(g.stake||1)*2, press:null,
+                 pressUsed:{...(g.pressUsed||{p1:false,p2:false}), p1:true} };
+      }
+      const stake = g.press.fromStake || g.stake || 1;   // fold at pre-press value
+      const mw = { ...(g.matchWins||{p1:0,p2:0}) };
+      mw.p1 = (mw.p1||0) + stake;
+      return { ...g, press:null, stake, status:"finished", result:"p1",
+               wonStake:stake, declined:true, matchWins:mw,
+               finishedAt:new Date().toISOString() };
+    });
+  }
+  // CPU may open a press on its own turn — only when it holds honors, hasn't pressed,
+  // and is confident. This covers both the first press and a later press-back to 4.
+  function cpuMaybePress() {
+    setCpu(g => {
+      if (!canPressNow(g, "p2")) return g;
+      const conf = cpuConfidence(g);
+      if (conf > 0.5 && Math.random() < 0.6) {
+        return { ...g, press: { by:"p2", at:new Date().toISOString(), fromStake:(g.stake||1) } };
+      }
+      return g;
+    });
+  }
+
   function clinchedWinner(trophies, zones, zoneIndex, direction) {
     const t = trophies || {p1:0,p2:0};
     const step = direction === "rtl" ? -1 : 1;
@@ -31126,11 +31292,15 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
     const done = outOfZones || !!clinch;
 
     if (isCpu) {
-      if (!done) { setCpu(g => ({...g, zoneIndex: next})); clearSubFlag(); return; }
+      if (!done) { setCpu(g => ({...g, zoneIndex: next})); clearSubFlag();
+                   // Between battles: CPU may open a Press if it's feeling confident.
+                   if (G.doubleUp) setTimeout(() => cpuMaybePress(), 700);
+                   return; }
       const res = clinch || (t0.p1 > t0.p2 ? "p1" : t0.p2 > t0.p1 ? "p2" : "tie");
       const mw2 = { ...(G.matchWins || {p1:0,p2:0}) };
-      if (res !== "tie") mw2[res] = (mw2[res]||0) + 1;
-      setCpu(g => ({...g, status:"finished", result:res, matchWins:mw2,
+      const stake = G.stake || 1;   // Double-Up: an accepted Press makes this game worth 2
+      if (res !== "tie") mw2[res] = (mw2[res]||0) + stake;
+      setCpu(g => ({...g, status:"finished", result:res, matchWins:mw2, wonStake:stake,
                     clinchedEarly: !!clinch && !outOfZones,
                     finishedAt:new Date().toISOString()}));
       return;
@@ -31413,6 +31583,13 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
         trophies: { p1:0, p2:0 },
         matchWins: { p1:0, p2:0 },
         gameNumber: 1,
+        // Double-Up state. stake = match points this game is worth (1 or 2).
+        // pressUsed = who has spent their one Press. press = an outstanding offer
+        // awaiting the opponent's accept/decline: { by, at } or null.
+        doubleUp: pickDoubleUp,
+        stake: 1,
+        pressUsed: { p1:false, p2:false },
+        press: null,
         log: [],
         cpuLevel, cpuTotal, myTotal, cpuNote: note, fmtShort: (fmt.short && fmt.short !== "—") ? fmt.short : null,
         createdAt: new Date().toISOString(),
@@ -31463,6 +31640,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       zoneIndex: 0,
       zones: Array.from({length:7}, () => ({ p1:null, p2:null, winner:null })),
       trophies: { p1:0, p2:0 },
+      stake: 1, pressUsed: { p1:false, p2:false }, press: null,
       sudden: {}, result: null, log: [], commits: {},
       cpuTotal: cpuShuf.reduce((s,c)=>s+c.power,0),
       p1: { ...g.p1, ready:false },
@@ -31645,6 +31823,20 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           </div>
         </div>
 
+        {/* Double-Up — optional risk layer. Off by default; toggling it on arms the
+            "Press" (doubling) mechanic for CPU practice games. */}
+        <div style={panel}>
+          <div onClick={()=>setPickDoubleUp(v=>!v)} style={{display:"flex",alignItems:"center",gap:12,cursor:"pointer"}}>
+            <div style={{width:44,height:26,borderRadius:14,padding:3,flexShrink:0,transition:"background 160ms",background:pickDoubleUp?"#E8317A":"rgba(255,255,255,0.14)"}}>
+              <div style={{width:20,height:20,borderRadius:10,background:"#fff",transform:pickDoubleUp?"translateX(18px)":"translateX(0)",transition:"transform 160ms"}}/>
+            </div>
+            <div>
+              <div style={{fontSize:13,fontWeight:900,color:pickDoubleUp?"#E8317A":"#fff"}}>⚡ Double-Up {pickDoubleUp?"ON":"OFF"}</div>
+              <div style={{fontSize:11,color:"rgba(255,255,255,0.5)",marginTop:2,lineHeight:1.35}}>The honors holder can press once per match to double the game. Accept to play on (2 pts), or press back later to make it 4. Fold and the presser takes the game at its current value.</div>
+            </div>
+          </div>
+        </div>
+
         <div style={{display:"grid", gridTemplateColumns: isMobile?"1fr":"1fr 1fr", gap:16}}>
           <div style={panel}>
             <div style={{fontSize:13,fontWeight:800,color:"#fff",marginBottom:10}}>2a. Start a game</div>
@@ -31743,6 +31935,43 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
         </div>
         )}
 
+        {/* Playmat image uploader — ADMIN ONLY, same shared-Storage pattern as the
+            card back. Sets the arena playing surface for everyone. */}
+        {_cardAdmin && (
+        <div style={panel}>
+          <div style={{fontSize:13,fontWeight:800,color:"#fff",marginBottom:4}}>Playmat</div>
+          <div style={{fontSize:11,color:"rgba(255,255,255,0.45)",marginBottom:12}}>
+            The arena playing surface. Upload once; it shows behind the board for everyone. A wide (16:9) image works best.
+          </div>
+          <div style={{display:"flex",gap:14,alignItems:"center"}}>
+            <div style={{width:120,aspectRatio:"16/9",borderRadius:7,overflow:"hidden",flexShrink:0,
+                         border:"2px solid #E8317A",
+                         background: playmatUrl ? "#111" : "linear-gradient(rgba(10,4,4,0.6),rgba(10,4,4,0.8))",
+                         display:"flex",alignItems:"center",justifyContent:"center"}}>
+              {playmatUrl
+                ? <img src={playmatUrl} alt="current playmat"
+                       style={{width:"100%",height:"100%",objectFit:"cover"}} />
+                : <span style={{fontSize:9,color:"rgba(255,255,255,0.5)",textAlign:"center",padding:4}}>
+                    default (dark)
+                  </span>}
+            </div>
+            <div>
+              <label style={{display:"inline-block",padding:"9px 16px",borderRadius:8,
+                             background: matUploading ? "#333" : "#E8317A", color:"#fff",
+                             fontWeight:900,fontSize:13,cursor: matUploading?"default":"pointer"}}>
+                {matUploading ? "Uploading\u2026" : playmatUrl ? "Replace playmat" : "Upload playmat"}
+                <input type="file" accept="image/*" disabled={matUploading}
+                       onChange={e => { const f = e.target.files?.[0]; e.target.value=""; uploadPlaymat(f); }}
+                       style={{display:"none"}} />
+              </label>
+              <div style={{fontSize:10.5,color:"rgba(255,255,255,0.4)",marginTop:6}}>
+                PNG, JPG or WebP {"\u00b7"} 16:9 works best
+              </div>
+            </div>
+          </div>
+        </div>
+        )}
+
         {myGames.length > 0 && (
           <div style={panel}>
             <div style={{fontSize:13,fontWeight:800,color:"#fff",marginBottom:10}}>Recent games</div>
@@ -31779,6 +32008,50 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   return (
     <div style={{maxWidth:1200, margin:"0 auto",
                  paddingBottom: (G.status==="playing" && G.mode==="substitution") ? (isMobile?150:180) : 0}}>
+      {/* Double-Up bar: current stake + Press button during the Laundry Phase. */}
+      {G.doubleUp && (G.status==="setup" || G.status==="playing") && (
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",
+                     background: (G.stake||1) > 1 ? "rgba(232,49,122,0.12)" : "rgba(255,255,255,0.04)",
+                     border:`1px solid ${(G.stake||1)>1?"#E8317A":"rgba(255,255,255,0.1)"}`,borderRadius:12,padding:"10px 14px",marginBottom:12}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:12,fontWeight:900,letterSpacing:0.5,color:(G.stake||1)>1?"#E8317A":"rgba(255,255,255,0.6)"}}>⚡ DOUBLE-UP</span>
+            <span style={{fontSize:12,fontWeight:800,color:"#fff"}}>This game: <span style={{color:(G.stake||1)>1?"#E8317A":"#4ade80"}}>{G.stake||1} point{(G.stake||1)>1?"s":""}</span></span>
+            {G.pressUsed?.[seat] && <span style={{fontSize:10.5,color:"rgba(255,255,255,0.4)"}}>· your Press spent</span>}
+            {!G.pressUsed?.[seat] && honorsSeat()===seat && (G.status==="setup"||G.status==="playing") && <span style={{fontSize:10.5,color:"#FBBF24",fontWeight:700}}>· you hold honors</span>}
+          </div>
+          {canPressNow(G, seat) && !G.press && (
+            <button onClick={()=>pressDouble(seat)}
+              style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",border:"none",color:"#fff",borderRadius:8,padding:"7px 16px",fontSize:12.5,fontWeight:900,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+              ⚡ Press (double to {(G.stake||1)*2})
+            </button>
+          )}
+          {G.press && G.press.by === seat && (
+            <span style={{fontSize:11.5,fontWeight:700,color:"#FBBF24"}}>Waiting on {them?.name||"opponent"}…</span>
+          )}
+        </div>
+      )}
+      {/* Incoming press — the offeree must accept the doubled stake or walk away. */}
+      {G.press && G.press.by !== seat && (
+        <div style={{position:"fixed",inset:0,zIndex:14000,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div style={{width:"100%",maxWidth:420,background:"#14141c",border:"1px solid #E8317A55",borderRadius:16,padding:"26px 24px",textAlign:"center"}}>
+            <div style={{fontSize:34,marginBottom:6}}>⚡</div>
+            <div style={{fontSize:19,fontWeight:900,color:"#E8317A",marginBottom:6}}>{them?.name||"Opponent"} pressed!</div>
+            <div style={{fontSize:13,color:"rgba(255,255,255,0.7)",lineHeight:1.5,marginBottom:20}}>
+              Accept to play this game for <strong style={{color:"#fff"}}>{(G.stake||1)*2} points</strong> — or fold and give them the game at <strong style={{color:"#fff"}}>{G.press?.fromStake||G.stake||1} point{(G.press?.fromStake||G.stake||1)>1?"s":""}</strong>.
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>respondToPress(seat,false)}
+                style={{flex:1,background:"transparent",border:"1px solid rgba(255,255,255,0.2)",color:"rgba(255,255,255,0.6)",borderRadius:10,padding:"12px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                Fold<br/><span style={{fontSize:10,fontWeight:600,opacity:0.7}}>they get {G.press?.fromStake||G.stake||1} pt{(G.press?.fromStake||G.stake||1)>1?"s":""}</span>
+              </button>
+              <button onClick={()=>respondToPress(seat,true)}
+                style={{flex:1.4,background:"linear-gradient(135deg,#E8317A,#7B2FF7)",border:"none",color:"#fff",borderRadius:10,padding:"12px",fontSize:13,fontWeight:900,cursor:"pointer",fontFamily:"inherit"}}>
+                Accept<br/><span style={{fontSize:10,fontWeight:600,opacity:0.85}}>play for {(G.stake||1)*2} pts</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Substitution swap animation, shown to both players when a sub commits. */}
       <SubAnimOverlay anim={subAnim}
         whose={subAnim ? (subAnim.seat === seat ? "YOU" : (them?.name || "OPPONENT").toUpperCase()) : ""}
@@ -31987,7 +32260,12 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
 
       {/* THE ARENA */}
       {(G.status === "playing" || G.status === "finished") && (
-        <div style={{...panel, position:"relative"}}>
+        <div style={{...panel, position:"relative", overflow:"hidden",
+                     ...(playmatUrl ? {
+                       backgroundImage:`linear-gradient(rgba(10,4,4,0.72),rgba(10,4,4,0.82)), url('${playmatUrl}')`,
+                       backgroundSize:"cover", backgroundPosition:"center", backgroundRepeat:"no-repeat",
+                       border:"1px solid rgba(232,49,122,0.25)"
+                     } : {})}}>
           {/* Super is a board-wide shockwave rather than a per-card hit — it is the
               rarest weapon and the tiebreaker, so it should feel like the biggest
               thing that happens in a game. */}
@@ -32030,6 +32308,17 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
             })}
           </div>
 
+          {/* Arena title band — echoes the playmat's centre header with sword bookends. */}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:12,margin:"2px 0 8px"}}>
+            <span style={{flex:1,height:2,maxWidth:120,background:"linear-gradient(90deg,transparent,rgba(255,255,255,0.35))"}}/>
+            <span style={{fontSize:16,opacity:0.85}}>{"\u2694\uFE0F"}</span>
+            <span style={{fontFamily:"'Bangers',system-ui,sans-serif",fontSize:20,fontWeight:900,letterSpacing:2,
+                          color:"#7CF03A",textShadow:"0 2px 8px rgba(0,0,0,0.8), 0 0 20px rgba(124,240,58,0.4)",
+                          WebkitTextStroke:"1px rgba(0,0,0,0.6)"}}>THE ARENA</span>
+            <span style={{fontSize:16,opacity:0.85,transform:"scaleX(-1)"}}>{"\u2694\uFE0F"}</span>
+            <span style={{flex:1,height:2,maxWidth:120,background:"linear-gradient(90deg,rgba(255,255,255,0.35),transparent)"}}/>
+          </div>
+
           {/* zone strip */}
           <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6,margin:"10px 0"}}>
             {Array.from({length:7}).map((_,i) => {
@@ -32039,15 +32328,16 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
               const label = !settled ? `${battleNo(i)}`
                           : z.winner === seat ? "WON"
                           : z.winner === foe  ? "LOST" : "DRAW";
-              const color = !settled ? "rgba(255,255,255,0.3)"
+              const color = !settled ? "rgba(255,255,255,0.55)"
                           : z.winner === seat ? "#22C55E"
                           : z.winner === foe  ? "#F87171" : "#FBBF24";
               return (
                 <div key={i} style={{
                   textAlign:"center", padding:"6px 2px", borderRadius:7, fontSize:10, fontWeight:900,
                   color, letterSpacing:0.5,
-                  background: active ? "rgba(34,197,94,0.16)" : "rgba(255,255,255,0.04)",
-                  border: active ? "2px solid #22C55E" : "1px solid rgba(255,255,255,0.08)",
+                  background: active ? "rgba(34,197,94,0.22)" : "rgba(0,0,0,0.35)",
+                  border: active ? "2px solid #22C55E" : "1px solid rgba(255,255,255,0.12)",
+                  backdropFilter:"blur(2px)",
                 }}>{label}</div>
               );
             })}
@@ -32287,6 +32577,11 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           <div style={{fontSize:13,color:"rgba(255,255,255,0.6)",marginTop:6}}>
             {t[seat]||0} {"\u2014"} {t[foe]||0} on trophies
           </div>
+          {G.doubleUp && (G.wonStake||1) > 1 && (
+            <div style={{fontSize:12,fontWeight:900,color:"#E8317A",marginTop:5,letterSpacing:0.5}}>
+              ⚡ {G.declined ? `${G.result===seat?"OPPONENT WALKED AWAY":"YOU WALKED AWAY"} \u2014 ` : ""}DOUBLE-UP {"\u00B7"} worth {G.wonStake} points
+            </div>
+          )}
           {/* Explains why zones are still face-down: the lead became unassailable. */}
           {G.clinchedEarly && (
             <div style={{fontSize:11,fontWeight:800,color:"#FBBF24",marginTop:4,letterSpacing:0.5}}>
@@ -32570,7 +32865,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
       const isMine = !!(owned && owned[c.id]);
       const isFam  = !!familyOwnerByCard[c.id];
       if(deckMineOnly ? !isMine : (!isMine && !isFam)) return false;
-      // Every copy is lent out \u2014 owned, but not available to build with.
+      // Every copy is lent out — owned, but not available to build with.
       if(isMine && availableCount(c.id) <= 0) return false;
     }
     if(deckFilterW.size && !deckFilterW.has(canonWeapon(c.weapon))) return false;   // multi-select
@@ -32596,30 +32891,6 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
         <>
           <div className="deck-pb-layout" style={{display:"flex",flexDirection:isMobile?"column":"row",gap:16,alignItems:"stretch",height:isMobile?"auto":"calc(100vh - 150px)",minHeight:isMobile?"auto":520}}>
             <div style={{display:"flex",flexDirection:"column",gap:10,flex:1,minWidth:0,minHeight:0,overflowY:isMobile?"visible":"auto",paddingRight:isMobile?0:6}}>
-              {/* Card source — always visible at the top so it's obvious whose cards you're
-                  building with: yours, mixed with family, or family only, and which family
-                  member to borrow from. */}
-              {user && (Object.keys(familyOwnerByCard).length>0 || familyList.length>0) && (
-                <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",background:"rgba(255,255,255,0.03)",border:"1px solid var(--bz-line)",borderRadius:10,padding:"8px 12px"}}>
-                  <span style={{fontSize:11,color:"var(--bz-ink-3)",fontWeight:700}}>Build with:</span>
-                  <select value={deckSource} onChange={e=>setDeckSource(e.target.value)}
-                    style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:deckSource==="family"?"#C084FC":deckSource==="both"?"#4ade80":"#7B9CFF"}}>
-                    <option value="mine">My collection only</option>
-                    <option value="both">Mine + family</option>
-                    <option value="family">{"\uD83D\uDC6A"} Family only</option>
-                  </select>
-                  {deckSource!=="mine" && familyList.length>=1 && (
-                    <>
-                      <span style={{fontSize:11,color:"var(--bz-ink-3)",fontWeight:700,marginLeft:4}}>From:</span>
-                      <select value={deckFamilyMember} onChange={e=>setDeckFamilyMember(e.target.value)}
-                        style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:deckFamilyMember==="all"?"var(--bz-ink-2)":"#C084FC"}}>
-                        <option value="all">All family</option>
-                        {familyList.map(f=>(<option key={f.uid} value={f.uid}>{f.name}</option>))}
-                      </select>
-                    </>
-                  )}
-                </div>
-              )}
               {/* The quick builder and the manual builder are alternative MODES, not companions \u2014 you
                   use one or the other. Leaving the quick panel permanently expanded left the manual
                   card grid squeezed into whatever was left, which is no use when the whole point is
@@ -33194,6 +33465,14 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                           </button>
                         );
                       })}
+                      {/* Which family member to borrow from — only when family is in the mix. */}
+                      {(mode==="both"||mode==="family") && familyList.length>=1 && (
+                        <select value={deckFamilyMember} onChange={e=>setDeckFamilyMember(e.target.value)}
+                          style={{...inp,width:"auto",fontSize:11,padding:"5px 8px",cursor:"pointer",fontWeight:700,color:deckFamilyMember==="all"?"var(--bz-ink-2)":"#C084FC",marginLeft:2}}>
+                          <option value="all">From: all family</option>
+                          {familyList.map(f=>(<option key={f.uid} value={f.uid}>From: {f.name}</option>))}
+                        </select>
+                      )}
                     </div>
                   );
                 })()}
@@ -37497,10 +37776,12 @@ See you in there!
   // Load negotiation history when counter modal opens
   useEffect(() => {
     if (!counterModal) { setNegHistory([]); return; }
+    if (!user?.uid) { setNegHistory([]); return; }
     const rootId = counterModal.parentOfferId||counterModal.id;
     getDocs(query(
       collection(db,"negotiation_history"),
-      where("rootOfferId","==",rootId)
+      where("rootOfferId","==",rootId),
+      where("participantUids","array-contains",user.uid)
     )).then(snap => setNegHistory(snap.docs.map(d=>d.data()).sort((a,b)=>(a.timestamp||"").localeCompare(b.timestamp||""))))
       .catch(() => {
         // Fallback: show at least the current offer as first entry
@@ -42698,6 +42979,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
         fromName: user.displayName||user.email||"Unknown",
         sellerUid: offer.sellerUid,
         buyerUid: offer.buyerUid,
+        participantUids: [offer.sellerUid, offer.buyerUid].filter(Boolean),
         timestamp: new Date().toISOString(),
       });
     } catch(e) { console.warn("History log failed:", e); }
@@ -42811,6 +43093,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
           fromName: user.displayName||user.email||"Unknown",
           sellerUid: offer.sellerUid,
           buyerUid: offer.buyerUid,
+          participantUids: [offer.sellerUid, offer.buyerUid].filter(Boolean),
           timestamp: now,
         });
       } catch(e) { console.warn("History write failed (non-fatal):", e); }
@@ -43106,13 +43389,15 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
 
     const total = inDeck.reduce((s,c)=>s+(parseFloat(c.power)||0), 0);
 
-    // Deck size is EXACT. 60 (or the format's size) is a REQUIREMENT, not a maximum — a 50-card
-    // deck cannot be played, so it must read as illegal rather than "legal but not at full strength".
+    // Deck size: F.size is the MAX. The MINIMUM required is F.coreSize when the format has
+    // an optional bonus tier (Spec+: 60 core required, up to 70 total — the last 10 are an
+    // unlock, not a requirement). Otherwise the deck must be exactly F.size.
     const SZ = F.size || 60;
+    const MIN = F.coreSize || SZ;
     if (inDeck.length > SZ)
       problems.push(`${inDeck.length} cards — ${F.short} allows ${SZ}`);
-    if (inDeck.length < SZ)
-      problems.push(`${inDeck.length}/${SZ} cards — ${SZ} are required`);
+    if (inDeck.length < MIN)
+      problems.push(`${inDeck.length}/${MIN} cards — ${MIN} are required`);
 
     if (F.totalPower && total > F.totalPower)
       problems.push(`${total.toLocaleString()} total power — ${F.short} caps at ${F.totalPower.toLocaleString()}`);
@@ -50777,7 +51062,9 @@ function PublicSellPage() {
       }
       await setDoc(doc(db,"quotes",qId), {
         id: qId,
-        seller: { name:seller.name.trim(), contact:seller.contact.trim(), source:seller.source, payment:seller.payment, paymentHandle:seller.paymentHandle },
+        // Seller PII intentionally lives in quotes_private/{qId} (create-only for the
+        // submitter, admin-read) so the public /quote/<id> doc carries no name, contact,
+        // or payment handle. Keep a display source only.
         cards,
         photoUrls,
         status: "pending",
@@ -50788,7 +51075,16 @@ function PublicSellPage() {
         createdAt: new Date().toISOString(),
         notified: false,
         submittedBySeller: true,
+        hasPrivate: true,
       });
+      // Seller contact/payment — written once, never exposed on the public link.
+      try {
+        await setDoc(doc(db,"quotes_private",qId), {
+          quoteId: qId,
+          seller: { name:seller.name.trim(), contact:seller.contact.trim(), source:seller.source, payment:seller.payment, paymentHandle:seller.paymentHandle },
+          createdAt: new Date().toISOString(),
+        });
+      } catch(pe) { console.warn("Private quote write failed", pe); }
       const link = `${window.location.origin}/quote/${qId}`;
       setQuoteLink(link);
       setSubmitted(true);
@@ -52941,7 +53237,20 @@ function AppInner() {
         try { localStorage.setItem(STR_CACHE, JSON.stringify(data)); } catch(e) {}
       }),
       // Load all quotes
-      onSnapshot(collection(db,"quotes"), snap => setQuotes(snap.docs.map(d=>({...d.data(), id:d.id})))),
+      onSnapshot(collection(db,"quotes"), snap => {
+        const pub = snap.docs.map(d=>({...d.data(), id:d.id}));
+        // Merge in seller PII from the admin-only companion collection so the queue,
+        // notifications, and payment display keep working. Public visitors never load
+        // this — quotes_private is admin-read only.
+        setQuotes(prev => pub.map(q => {
+          const existing = prev.find(p=>p.id===q.id);
+          return existing?.seller ? { ...q, seller: existing.seller } : q;
+        }));
+        getDocs(collection(db,"quotes_private")).then(psnap => {
+          const byId = {}; psnap.docs.forEach(d=>{ byId[d.id] = d.data().seller; });
+          setQuotes(cur => cur.map(q => byId[q.id] ? { ...q, seller: byId[q.id] } : q));
+        }).catch(()=>{});
+      }),
       // historical_data at startup so Dashboard YTD is correct immediately
       onSnapshot(collection(db,"historical_data"), snap => { const hd = snap.docs.map(d=>({...d.data(), id:d.id})).sort((a,b)=>(a.yearMonth||"").localeCompare(b.yearMonth||"")); setHistoricalData(hd); try { localStorage.setItem("bz_histdata_v1", JSON.stringify(hd)); } catch(e) {} }),
       onSnapshot(doc(db,"config","skuPrices"), snap => { if(snap.exists()){ setSkuPrices(snap.data()); try { localStorage.setItem("bz_skuprices_v1", JSON.stringify(snap.data())); } catch(e) {} } }),
