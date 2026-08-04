@@ -32490,6 +32490,30 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
               );
             };
             return (
+              <>
+              {/* Opponent's row, above your mat. Face-down until each battle resolves,
+                  then the revealed hero shows — same information a real opponent's
+                  board would give you across the table. Shown in every game. */}
+              <div style={{marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.5)",textAlign:"center",marginBottom:6,letterSpacing:2}}>
+                  {them?.name || "OPPONENT"}
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6}}>
+                  {Array.from({length:7}).map((_,i) => {
+                    const c = zones[i]?.[foe];
+                    const hit = fx && fx.zone === i && fx.up ? fx.weapon : null;
+                    const striking = fx && fx.zone === i && !fx.up;
+                    return (
+                      <div key={i} style={{position:"relative"}}>
+                        {c ? heroCard(c, zones[i]?.winner && zones[i].winner !== foe, hit, fx?.key, striking,
+                                      zones[i]?.winner === seat ? damage[i] : null)
+                           : cardBack("FACE\nDOWN")}
+                        {hit && <div className="bz-fx-layer"><ArenaProjectile key={fx.key} w={fx.weapon} up={true} /></div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
               <div style={{position:"relative",width:"100%",aspectRatio:"16/9"}}>
                 {/* zone-strip numbers (battle result per zone) */}
                 {Array.from({length:7}).map((_,i) => {
@@ -32528,6 +32552,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
                 {slot("myHotdogs",  pileNode(P?.hotdogs, "#7CF03A","USED"), false)}
                 {slot("myDiscard",  pileNode(P?.discard, "#F87171","EMPTY"), false)}
               </div>
+              </>
             );
           })() : (<>
           {/* Opponent's half — flipped 180° so it faces THEM across the table, the
