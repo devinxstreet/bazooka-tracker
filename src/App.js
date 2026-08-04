@@ -32367,6 +32367,51 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.5)",textAlign:"center",marginTop:10,letterSpacing:2}}>
             {me?.name || "YOU"}
           </div>
+
+          {/* Live piles on the mat — the four labelled zones from the playmat, now
+              real stacks driven by my private doc. A pile shows a face-down top card
+              (or an empty slot) with a live count. Playbook only carries cards in
+              Playmaker mode; it shows 0 in Rookie/Substitution. */}
+          {(() => {
+            const pile = (label, arr, accent, emptyHint) => {
+              const n = (arr || []).length;
+              return (
+                <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:5,minWidth:0}}>
+                  <div style={{width:"100%",maxWidth:74,aspectRatio:"5/7",borderRadius:8,position:"relative"}}>
+                    {n > 0 ? (
+                      <>
+                        {/* stacked shadow cards behind the top for depth */}
+                        {n > 1 && <div style={{position:"absolute",inset:0,transform:"translate(3px,3px)",borderRadius:8,background:"#0a0a0a",border:`1px solid ${accent}55`}}/>}
+                        {n > 2 && <div style={{position:"absolute",inset:0,transform:"translate(6px,6px)",borderRadius:8,background:"#080808",border:`1px solid ${accent}33`}}/>}
+                        <div style={{position:"relative",width:"100%",height:"100%",borderRadius:8,overflow:"hidden",
+                                     border:`2px solid ${accent}`,
+                                     background: cardBackUrl ? `#111 center/cover no-repeat url(${JSON.stringify(cardBackUrl)})` : CARD_BACK_FALLBACK}}>
+                          <span style={{position:"absolute",bottom:3,right:4,background:"rgba(0,0,0,0.82)",color:accent,
+                                        borderRadius:5,padding:"1px 6px",fontSize:12,fontWeight:900}}>{n}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{width:"100%",height:"100%",borderRadius:8,border:`2px dashed ${accent}44`,
+                                   background:"rgba(0,0,0,0.35)",display:"flex",alignItems:"center",justifyContent:"center",
+                                   color:`${accent}88`,fontSize:8.5,fontWeight:800,textAlign:"center",padding:4}}>
+                        {emptyHint || "EMPTY"}
+                      </div>
+                    )}
+                  </div>
+                  <span style={{fontSize:8.5,fontWeight:900,letterSpacing:0.8,color:"rgba(255,255,255,0.7)",textAlign:"center",lineHeight:1.2}}>{label}</span>
+                </div>
+              );
+            };
+            return (
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,maxWidth:360,margin:"16px auto 4px",
+                           paddingTop:14,borderTop:"1px solid rgba(255,255,255,0.08)"}}>
+                {pile("HERO DECK", P?.deck, "#F87171", "DRAWN")}
+                {pile("PLAYBOOK", P?.plays, "#7B9CFF", "\u2014")}
+                {pile("HOT DOGS", P?.hotdogs, "#7CF03A", "USED")}
+                {pile("DISCARD", P?.discard, "#F87171", "EMPTY")}
+              </div>
+            );
+          })()}
         </div>
       )}
 
