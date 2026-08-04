@@ -32457,6 +32457,98 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
               ))}
             </div>
           )}
+          {/* When a playmat + saved layout exist, render every slot at its arranged
+              position (percent of a 16:9 stage) so cards land on the mat's printed
+              slots. Without a mat, fall through to the classic grid below — no
+              regression for plain games. Game logic (heroCard/cardBack/FX) is reused
+              verbatim; only positioning changes. */}
+          {playmatUrl ? (() => {
+            const L = arenaLayout || defaultArenaLayout();
+            // One positioned slot. `flip` rotates opponent slots 180° to face them.
+            const slot = (id, node, flip) => {
+              const b = L[id] || { x:0, y:0, w:12 };
+              const h = (b.h != null);
+              return (
+                <div key={id} style={{position:"absolute", left:b.x+"%", top:b.y+"%", width:b.w+"%",
+                                      ...(h ? {height:b.h+"%"} : {aspectRatio:"5/7"}),
+                                      transform: flip ? "rotate(180deg)" : "none"}}>
+                  {node}
+                </div>
+              );
+            };
+            const pileNode = (arr, accent, emptyHint) => {
+              const n = (arr||[]).length;
+              return n > 0 ? (
+                <div style={{position:"relative",width:"100%",height:"100%",borderRadius:8,overflow:"hidden",
+                             border:`2px solid ${accent}`,
+                             background: cardBackUrl ? `#111 center/cover no-repeat url(${JSON.stringify(cardBackUrl)})` : CARD_BACK_FALLBACK}}>
+                  <span style={{position:"absolute",bottom:3,right:4,background:"rgba(0,0,0,0.82)",color:accent,borderRadius:5,padding:"1px 6px",fontSize:12,fontWeight:900}}>{n}</span>
+                </div>
+              ) : (
+                <div style={{width:"100%",height:"100%",borderRadius:8,border:`2px dashed ${accent}44`,background:"rgba(0,0,0,0.35)",display:"flex",alignItems:"center",justifyContent:"center",color:`${accent}88`,fontSize:8.5,fontWeight:800,textAlign:"center",padding:4}}>{emptyHint}</div>
+              );
+            };
+            return (
+              <div style={{position:"relative",width:"100%",aspectRatio:"16/9"}}>
+                {/* opponent battle slots (flipped) */}
+                {Array.from({length:7}).map((_,i) => {
+                  const c = zones[i]?.[foe];
+                  const hit = fx && fx.zone === i && fx.up ? fx.weapon : null;
+                  const striking = fx && fx.zone === i && !fx.up;
+                  const node = (
+                    <div style={{position:"relative",width:"100%",height:"100%"}}>
+                      {c ? heroCard(c, zones[i]?.winner && zones[i].winner !== foe, hit, fx?.key, striking, zones[i]?.winner === seat ? damage[i] : null)
+                         : cardBack("FACE\nDOWN")}
+                      {hit && <div className="bz-fx-layer"><ArenaProjectile key={fx.key} w={fx.weapon} up={true} /></div>}
+                    </div>
+                  );
+                  return slot("opp"+i, node, true);
+                })}
+                {/* zone-strip numbers */}
+                {Array.from({length:7}).map((_,i) => {
+                  const z = zones[i] || {};
+                  const active = i === zi && G.status === "playing";
+                  const settled = !!(z.p1 && z.p2);
+                  const label = !settled ? `${battleNo(i)}` : z.winner === seat ? "WON" : z.winner === foe ? "LOST" : "DRAW";
+                  const color = !settled ? "rgba(255,255,255,0.75)" : z.winner === seat ? "#22C55E" : z.winner === foe ? "#F87171" : "#FBBF24";
+                  const node = (
+                    <div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",
+                                 borderRadius:6,fontSize:11,fontWeight:900,color,letterSpacing:0.5,
+                                 background: active ? "rgba(34,197,94,0.28)" : "rgba(0,0,0,0.45)",
+                                 border: active ? "2px solid #22C55E" : "1px solid rgba(255,255,255,0.15)",backdropFilter:"blur(2px)"}}>{label}</div>
+                  );
+                  return slot("zone"+i, node, false);
+                })}
+                {/* my battle slots */}
+                {Array.from({length:7}).map((_,i) => {
+                  const revealed = zones[i]?.[seat];
+                  const mine = P?.placed?.[i];
+                  const hit = fx && fx.zone === i && !fx.up ? fx.weapon : null;
+                  const striking = fx && fx.zone === i && fx.up;
+                  const node = revealed ? (
+                    <div style={{position:"relative",width:"100%",height:"100%"}}>
+                      {heroCard(revealed, zones[i]?.winner && zones[i].winner !== seat, hit, fx?.key, striking, zones[i]?.winner === foe ? damage[i] : null)}
+                      {hit && <div className="bz-fx-layer"><ArenaProjectile key={fx.key} w={fx.weapon} up={false} /></div>}
+                    </div>
+                  ) : (mine ? cardBack("PLACED") : cardBack("EMPTY"));
+                  return slot("my"+i, node, false);
+                })}
+                {/* my piles */}
+                {slot("myDeck",     pileNode(P?.deck,    "#F87171","DRAWN"), false)}
+                {slot("myPlaybook", pileNode(P?.plays,   "#7B9CFF","\u2014"), false)}
+                {slot("myHotdogs",  pileNode(P?.hotdogs, "#7CF03A","USED"), false)}
+                {slot("myDiscard",  pileNode(P?.discard, "#F87171","EMPTY"), false)}
+                {/* opponent piles — hidden information, so just face-down stacks (flipped) */}
+                {slot("oppDeck",     pileNode([1],"#F87171",""), true)}
+                {slot("oppPlaybook", pileNode(G.mode==="playmaker"?[1]:[],"#7B9CFF","\u2014"), true)}
+                {slot("oppHotdogs",  pileNode(G.mode==="substitution"?[1]:[],"#7CF03A","USED"), true)}
+                {slot("oppDiscard",  pileNode([],"#F87171","EMPTY"), true)}
+                {/* names */}
+                <div style={{position:"absolute",top:2,left:0,right:0,textAlign:"center",transform:"rotate(180deg)",fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.6)",letterSpacing:2}}>{them?.name || "OPPONENT"}</div>
+                <div style={{position:"absolute",bottom:2,left:0,right:0,textAlign:"center",fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.6)",letterSpacing:2}}>{me?.name || "YOU"}</div>
+              </div>
+            );
+          })() : (<>
           {/* Opponent's half — flipped 180° so it faces THEM across the table, the
               way a real two-player playmat works. Their cards read upside-down to you,
               upright to them. Only the orientation changes; all game logic is intact. */}
@@ -32586,6 +32678,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
               </div>
             );
           })()}
+          </>)}
         </div>
       )}
 
