@@ -259,6 +259,12 @@ function reimbursesMagpros(name){
   const n = (name||"").toLowerCase().replace(/\s+/g,"");
   return isRemoteBreaker(n) && n !== "stephen";
 }
+//  • Packaging: reimbursed for remote breakers EXCEPT Stephen (Bazooka covers his
+//    packaging directly, so it's not part of his end-of-month reimbursement).
+function reimbursesPackaging(name){
+  const n = (name||"").toLowerCase().replace(/\s+/g,"");
+  return isRemoteBreaker(n) && n !== "stephen";
+}
 // Resolve which breaker a logged-in user is — tolerant of display-name vs breaker-name
 // differences (e.g. "Big U" vs "BigU"), checking first name, full name, and email.
 function resolveBreaker(user) {
@@ -363,7 +369,7 @@ function calcStream(s, targetBreaker=null) {
            : (primaryCommAmt - repExpShare * splitPct + salesBonus + tips) + myEventFee;
   }
   const biguReimb = isBigU
-    ? (reimbursesMagpros(s.breaker) ? (parseFloat(s.magpros)||0) : 0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0)+(parseFloat(s.biguChaserCards)||0)+biguShippingHalf
+    ? (reimbursesMagpros(s.breaker) ? (parseFloat(s.magpros)||0) : 0)+(reimbursesPackaging(s.breaker) ? (parseFloat(s.packagingMaterial)||0) : 0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0)+(parseFloat(s.biguChaserCards)||0)+biguShippingHalf
     : 0;
 
   return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, bazOwnShare, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet, externalChannel:externalCh, isSingles, isBigU, biguReimb, biguShippingHalf, excludeFinancials:!!s.excludeFinancials };
@@ -6178,7 +6184,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     ...(rc.salesBonus>0 ? [{ l:`🎁 Sales Bonus${recap.salesBonusNote?" — "+recap.salesBonusNote:""}`, v:"\u2212 "+fmt(rc.salesBonus), c:"#991b1b" }] : []),
                     ...(canSeeFinancials ? [{ l:"+ Rep Expense Share Back",   v:"+ "+fmt(rc.repExpShare||0),  c:"#4ade80" }] : []),
                     ...(canSeeFinancials ? [{ l:"− Bazooka Expense Share",    v:"− "+fmt(rc.bazExpShare||0), c:"#991b1b" }] : []),
-                    ...(canSeeFinancials && isRemoteBreaker(recap.breaker) && ((parseFloat(recap.magpros)||0)+(parseFloat(recap.packagingMaterial)||0)+(parseFloat(recap.topLoaders)||0))>0 ? [{ l:"🔄 "+(recap.breaker||"Remote")+" Reimb (Mags/Pack)", v:"+ "+fmt((parseFloat(recap.magpros)||0)+(parseFloat(recap.packagingMaterial)||0)+(parseFloat(recap.topLoaders)||0)), c:"#FBBF24" }] : []),
+                    ...(canSeeFinancials && isRemoteBreaker(recap.breaker) && ((reimbursesMagpros(recap.breaker)?(parseFloat(recap.magpros)||0):0)+(reimbursesPackaging(recap.breaker)?(parseFloat(recap.packagingMaterial)||0):0))>0 ? [{ l:"🔄 "+(recap.breaker||"Remote")+" Reimb (Mags/Pack)", v:"+ "+fmt((reimbursesMagpros(recap.breaker)?(parseFloat(recap.magpros)||0):0)+(reimbursesPackaging(recap.breaker)?(parseFloat(recap.packagingMaterial)||0):0)), c:"#FBBF24" }] : []),
                     ...(canSeeFinancials && isRemoteBreaker(recap.breaker) && (parseFloat(recap.biguShipping)||0)>0 ? [{ l:"📦 Shipping reimb (50% of "+fmt(parseFloat(recap.biguShipping)||0)+")", v:"+ "+fmt((parseFloat(recap.biguShipping)||0)*0.5), c:"#FBBF24" }] : []),
                     ...(canSeeFinancials && rc.eventStaffAmt>0 ? [{ l:`🎪 Event Staff (${(recap.eventStaff||[]).map(e=>e.breaker).join(", ")})`, v:"\u2212 "+fmt(rc.eventStaffAmt), c:"#A78BFA" }] : []),
                     ...(canSeeFinancials && rc.imcDirectReimb>0 ? [{ l:`💙 IMC Direct Reimb${recap.imcReimbNote?" — "+recap.imcReimbNote:""}`, v:"+ "+fmt(rc.imcDirectReimb), c:"#60A5FA" }] : []),
@@ -15276,7 +15282,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
         if (!biguStreams.length) return null;
         // Top loaders are supplied by Bazooka, so they are never reimbursed. Stephen's magpros
         // are supplied too — reimbursesMagpros() is the single source of truth for that rule.
-        const totalReimb = biguStreams.reduce((sum,s)=>sum+(reimbursesMagpros(remoteBreaker) ? (parseFloat(s.magpros)||0) : 0)+(parseFloat(s.packagingMaterial)||0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0)+((parseFloat(s.biguShipping)||0)*0.5), 0);
+        const totalReimb = biguStreams.reduce((sum,s)=>sum+(reimbursesMagpros(remoteBreaker) ? (parseFloat(s.magpros)||0) : 0)+(reimbursesPackaging(remoteBreaker) ? (parseFloat(s.packagingMaterial)||0) : 0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0)+((parseFloat(s.biguShipping)||0)*0.5), 0);
         return (
           <div key={remoteBreaker} style={{ ...S.card, borderLeft:"3px solid #FBBF24" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
@@ -15290,7 +15296,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                 {biguStreams.map(s=>{
                   // Magpros only count for breakers we don't supply (i.e. not Stephen).
                   const mags=reimbursesMagpros(remoteBreaker) ? (parseFloat(s.magpros)||0) : 0;
-                  const pack=parseFloat(s.packagingMaterial)||0;
+                  const pack=reimbursesPackaging(remoteBreaker) ? (parseFloat(s.packagingMaterial)||0) : 0;
                   const giveaway=parseFloat(s.biguGiveawayCards)||0, insurance=parseFloat(s.biguInsuranceCards)||0;
                   const ship=(parseFloat(s.biguShipping)||0)*0.5;
                   const tot=mags+pack+giveaway+insurance+ship;
@@ -15336,7 +15342,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                   // Top loaders are Bazooka-supplied and never reimbursed, so the column is gone.
                   // Magpros are Bazooka-supplied for Stephen, so they only count for BigU and Vinny.
                   const mags=reimbursesMagpros(remoteBreaker) ? (parseFloat(s.magpros)||0) : 0;
-                  const pack=parseFloat(s.packagingMaterial)||0;
+                  const pack=reimbursesPackaging(remoteBreaker) ? (parseFloat(s.packagingMaterial)||0) : 0;
                   const giveaway=parseFloat(s.biguGiveawayCards)||0, insurance=parseFloat(s.biguInsuranceCards)||0;
                   const ship=(parseFloat(s.biguShipping)||0)*0.5;
                   const tot=mags+pack+giveaway+insurance+ship;
