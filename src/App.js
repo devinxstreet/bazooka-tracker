@@ -2707,9 +2707,10 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   );
 }
 
-function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, comps, user, userRole, onSaveQuote, quotes=[], onCloseQuote, onBazookaCounter, cardPools=[], onDismissQuoteNotif, bobaCards=[] }) {
+function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, comps, user, userRole, onSaveQuote, quotes=[], onCloseQuote, onReopenQuote, onBazookaCounter, cardPools=[], onDismissQuoteNotif, bobaCards=[] }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const [compMode,     setCompMode]     = useState(defaultMode);
+  const [showClosedQuotes, setShowClosedQuotes] = useState(false);
   useEffect(() => { setCompMode(defaultMode); }, [defaultMode]);
   useEffect(()=>{setCompMode(defaultMode);},[defaultMode]);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
@@ -3090,10 +3091,15 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
 
 
       {compMode==="history" && (() => {
-        const activeQuotes = quotes.filter(q => !q.bazookaClosed);
+        const activeQuotes = quotes.filter(q => showClosedQuotes ? true : !q.bazookaClosed);
 
         return (
         <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          <div style={{ display:"flex", justifyContent:"flex-end" }}>
+            <button onClick={()=>setShowClosedQuotes(v=>!v)} style={{ background: showClosedQuotes?"rgba(123,156,255,0.12)":"none", border:"1px solid var(--bz-line-2)", color: showClosedQuotes?"#7B9CFF":"var(--bz-ink-3)", borderRadius:8, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              {showClosedQuotes ? "\u2713 Showing closed quotes" : "Show closed quotes"}
+            </button>
+          </div>
 
           {/* -- ACTIVE QUOTES -- */}
           {activeQuotes.length > 0 && (
@@ -3142,8 +3148,9 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                   }[q.status] || { color:"var(--bz-ink-2)", bg:"#1a1a1a", label:q.status };
 
                   const quoteUrl = `${window.location.origin}/quote/${q.id}`;
-                  const expiresAt = new Date(new Date(q.createdAt).getTime()+7*24*60*60*1000);
-                  const daysLeft = Math.max(0,Math.ceil((expiresAt-new Date())/86400000));
+                  const expiresAt = q.expiresAt ? new Date(q.expiresAt) : new Date(new Date(q.createdAt).getTime()+7*24*60*60*1000);
+                  const daysLeft = q.neverExpires ? Infinity : Math.max(0,Math.ceil((expiresAt-new Date())/86400000));
+                  const isExpiredRow = !q.neverExpires && daysLeft <= 0;
 
                   return (
                     <div key={q.id} style={{ background:statusCfg.bg, border:`1px solid ${statusCfg.color}33`, borderRadius:10, padding:"14px 16px" }}>
@@ -3167,7 +3174,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                             {q.cards?.length||0} cards · Offer: <strong style={{color:"#E8317A"}}>${parseFloat(q.currentOffer||q.dispOffer||0).toFixed(2)}</strong>
                             {q.status==="countered" && <> · Counter: <strong style={{color:"#FBBF24"}}>${parseFloat(q.sellerCounter||0).toFixed(2)}</strong></>}
                             {q.status==="accepted" && q.sellerPayment && <> · Payment: <strong style={{color:"#4ade80"}}>{q.sellerPayment}{q.sellerHandle?` -- ${q.sellerHandle}`:""}</strong></>}
-                            &nbsp;· {daysLeft}d left
+                            &nbsp;· {q.neverExpires ? <span style={{color:"#4ade80",fontWeight:700}}>{"\u267E\uFE0F"} Never expires</span> : isExpiredRow ? <span style={{color:"#E8317A",fontWeight:700}}>Expired</span> : `${daysLeft}d left`}
                           </div>
                           {/* Lot photos */}
                           {(q.photoUrls||[]).length > 0 && (
@@ -3209,6 +3216,8 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                             loadComp({ id:q.id, seller:q.seller?.name||"", contact:q.seller?.contact||"", date:q.seller?.date||"", source:q.seller?.source||"", payment:q.seller?.payment||"", paymentHandle:q.seller?.paymentHandle||"", offer:0, cards });
                             setLotPct(pct);
                           }} style={{ background:"rgba(123,156,255,0.1)", border:"1px solid rgba(123,156,255,0.3)", color:"#7B9CFF", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"\u270F\uFE0F Edit in Builder"}</button>
+                          {onReopenQuote && (isExpiredRow || q.bazookaClosed) && <button onClick={()=>onReopenQuote(q.id, false)} style={{ background:"rgba(74,222,128,0.1)", border:"1px solid rgba(74,222,128,0.4)", color:"#4ade80", borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"\u21BA Reopen 7 days"}</button>}
+                          {onReopenQuote && !q.neverExpires && <button onClick={()=>{ if(window.confirm("Make this link never expire? The seller will be able to open it indefinitely.")) onReopenQuote(q.id, true); }} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-3)", borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>{"\u267E\uFE0F Never expire"}</button>}
                           {onCloseQuote && <button onClick={()=>{ if(window.confirm("Close this quote? The seller's link will show as expired.")) onCloseQuote(q.id); }} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-3)", borderRadius:7, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>{"\uD83D\uDD12 Close"}</button>}
                         </div>
                       </div>
@@ -51651,7 +51660,12 @@ function PublicQuote({ quoteId }) {
   if (loading) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"#000", color:"#E8317A", fontFamily:"'Trebuchet MS',sans-serif", fontSize:16, fontWeight:700 }}>Loading quote...</div>;
   if (!quote) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh", background:"#000", color:"var(--bz-ink-2)", fontFamily:"'Trebuchet MS',sans-serif", fontSize:14 }}>Quote not found or has expired.</div>;
 
-  const isExpired = new Date() > new Date(new Date(quote.createdAt).getTime() + 7*24*60*60*1000);
+  // Expiry: default is 7 days from creation, but an admin can extend it (expiresAt)
+  // or make the link never expire (neverExpires). Either override wins.
+  const isExpired = quote.neverExpires ? false
+    : (quote.expiresAt
+        ? new Date() > new Date(quote.expiresAt)
+        : new Date() > new Date(new Date(quote.createdAt).getTime() + 7*24*60*60*1000));
   const isClosed  = quote.status === "closed";
   const totalMkt  = (quote.cards||[]).reduce((s,c)=>(s+(parseFloat(c.mktVal)||0)*(parseInt(c.qty)||1)),0);
   const offer     = parseFloat(quote.currentOffer || quote.dispOffer) || 0;
@@ -53769,6 +53783,14 @@ function AppInner() {
   }
 
   async function handleCloseQuote(id) { await setDoc(doc(db,"quotes",id), { bazookaClosed:true }, { merge:true }); }
+  // Reopen a quote link: clear the closed flag, and either extend the expiry 7 days
+  // from now or (never=true) make it never expire.
+  async function handleReopenQuote(id, never) {
+    const patch = never
+      ? { bazookaClosed:false, neverExpires:true }
+      : { bazookaClosed:false, neverExpires:false, expiresAt: new Date(Date.now()+7*24*60*60*1000).toISOString() };
+    await setDoc(doc(db,"quotes",id), patch, { merge:true });
+  }
 
   async function handleBazookaCounter(quoteId, amount, history) {
     await setDoc(doc(db,"quotes",quoteId), { status:"pending", currentOffer:amount, history:[...history,{type:"bazooka_counter",amount,timestamp:new Date().toISOString()}], notified:false }, { merge:true });
@@ -54207,7 +54229,7 @@ function AppInner() {
       {/* Tab content */}
       <div className="tab-content" style={{ padding:"16px", maxWidth:1500, margin:"0 auto", position:"relative", zIndex:1 }}>
         {tab==="dashboard"  && <Dashboard   inventory={inventory} breaks={breaks} user={effectiveUser} userRole={effectiveRole} streams={streams} historicalData={historicalData} onSaveHistorical={handleSaveHistorical} onDeleteHistorical={handleDeleteHistorical} payStubs={payStubs} onDismissPayStub={handleDismissPayStub} quotes={quotes} onDismissQuoteNotif={handleDismissQuoteNotif} cardPools={cardPools} imcAdjustmentsData={imcAdjustmentsData} onSaveImcAdjustments={handleSaveImcAdjustments} plannedStreams={plannedStreams}/>}
-        {tab==="comp"       && (CAN_VIEW_LOT_COMP.includes(effectiveRole.role) ? <LotComp defaultMode={compMode} onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={effectiveRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif} bobaCards={bobaCards}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
+        {tab==="comp"       && (CAN_VIEW_LOT_COMP.includes(effectiveRole.role) ? <LotComp defaultMode={compMode} onAccept={handleAccept} onSaveComp={handleSaveComp} onDeleteComp={handleDeleteComp} comps={comps} user={effectiveUser} userRole={effectiveRole} onSaveQuote={handleSaveQuote} quotes={quotes} onCloseQuote={handleCloseQuote} onReopenQuote={handleReopenQuote} onBazookaCounter={handleBazookaCounter} cardPools={cardPools} onDismissQuoteNotif={handleDismissQuoteNotif} bobaCards={bobaCards}/> : <AccessDenied msg="Lot Comp is for Admin and Procurement only." />)}
         {tab==="history"    && <RepQuoteHistory comps={comps} user={effectiveUser} userRole={effectiveRole} />}
         {tab==="inventory"  && <Inventory defaultTab={invTabDefault}   inventory={inventory} breaks={breaks} onRemove={handleRemove} onBulkRemove={handleBulkRemove} onSaveCardCost={handleSaveCardCost} onPutBack={handlePutBack} user={effectiveUser} userRole={effectiveRole} lotTracking={lotTracking} onSaveLotTracking={handleSaveLotTracking} lotNotes={lotNotes} onSaveLotNotes={handleSaveLotNotes} onDeleteLot={handleDeleteLot} shipments={shipments} productUsage={productUsage} onSaveShipment={handleSaveShipment} onDeleteShipment={handleDeleteShipment} skuPrices={skuPrices} onSaveSkuPrices={handleSaveSkuPrices} skuPriceHistory={skuPriceHistory} onDeleteProductUsage={handleDeleteProductUsage} cardPools={cardPools} onSavePool={handleSavePool} onDeletePool={handleDeletePool} onLogPoolOut={handleLogPoolOut} onAddToPool={handleAddToPool} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} streams={streams} bobaCards={bobaCards}/>}
         {tab==="streams"    && <Streams defaultStreamTab={streamTabDefault}     inventory={inventory} breaks={breaks} onAdd={handleAddBreak} onBulkAdd={handleBulkAddBreak} onDeleteBreak={handleDeleteBreak} user={effectiveUser} userRole={effectiveRole} streams={streams} onSaveStream={handleSaveStream} onDeleteStream={handleDeleteStream} productUsage={productUsage} onSaveProductUsage={handleSaveProductUsage} shipments={shipments} skuPrices={skuPrices} historicalData={historicalData} onSavePayStub={handleSavePayStub} onUpsertBuyers={handleUpsertBuyers} payStubs={payStubs} onDeletePayStub={handleDeletePayStub} cardPools={cardPools} imcFormUrl={imcFormUrl} onSaveImcFormUrl={handleSaveImcFormUrl} plannedStreams={plannedStreams} bobaCards={bobaCards} csvImports={csvImports}/>}
