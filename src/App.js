@@ -31351,7 +31351,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
     if (!G?.doubleUp) return false;
     if (G.press) return false;                       // an offer is already open
     if (G.pressUsed?.[seat]) return false;           // this coach spent their press
-    const inWindow = G.status === "setup"
+    const inWindow = (G.status === "setup" && !!G.first && !!G.direction)
       || (G.status === "playing" && (() => {
            const zc = (G.commits || {})[G.zoneIndex];
            const midBattle = zc && (zc.p1 || zc.p2);
@@ -31476,6 +31476,22 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       return g;
     });
   }
+
+  // During SETUP, the honors holder decides the press first. If that's the CPU, it
+  // must act (press or pass) or the human — as the non-honors player — can never
+  // get their turn and the Press button stays disabled at the start. This effect
+  // fires the CPU's setup decision once order is set and it holds honors.
+  React.useEffect(() => {
+    if (!isCpu || !cpu?.doubleUp) return;
+    if (cpu.status !== "setup") return;
+    if (!cpu.first || !cpu.direction) return;          // order not chosen yet
+    if (cpu.press) return;                             // an offer is already open
+    if (cpu.pressPassed && cpu.pressPassed.setup) return;  // CPU already acted this window
+    if (cpu.pressUsed && cpu.pressUsed.p2) return;
+    if (honorsSeat() !== "p2") return;                 // only act when CPU holds honors
+    const t = setTimeout(() => cpuMaybePress(), 600);
+    return () => clearTimeout(t);
+  }, [isCpu, cpu?.status, cpu?.first, cpu?.direction, cpu?.press, cpu?.pressPassed, cpu?.pressUsed, cpu?.doubleUp]);
 
   function clinchedWinner(trophies, zones, zoneIndex, direction) {
     const t = trophies || {p1:0,p2:0};
