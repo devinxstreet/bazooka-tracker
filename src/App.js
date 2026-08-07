@@ -31351,14 +31351,38 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
     if (!G?.doubleUp) return false;
     if (G.press) return false;                       // an offer is already open
     if (G.pressUsed?.[seat]) return false;           // this coach spent their press
-    if (honorsSeat() !== seat) return false;         // only the honors holder may press
-    if (G.status === "setup") return true;           // pre-placement window
-    if (G.status === "playing") {
-      const zc = (G.commits || {})[G.zoneIndex];
-      const midBattle = zc && (zc.p1 || zc.p2);
-      return duBattlesFought(G) >= 1 && !midBattle;   // between battles, after #1
-    }
-    return false;
+    const inWindow = G.status === "setup"
+      || (G.status === "playing" && (() => {
+           const zc = (G.commits || {})[G.zoneIndex];
+           const midBattle = zc && (zc.p1 || zc.p2);
+           return duBattlesFought(G) >= 1 && !midBattle;
+         })());
+    if (!inWindow) return false;
+    // Order: the honors holder decides FIRST. The other player may press only after
+    // the honors holder has PASSED in this window. `pressPassed` records a pass,
+    // keyed by window ("setup" pre-placement, else the zoneIndex).
+    const honors = honorsSeat();
+    const windowKey = G.status === "setup" ? "setup" : String(G.zoneIndex);
+    const passedThisWindow = G.pressPassed && G.pressPassed[windowKey];
+    if (seat === honors) return true;
+    return passedThisWindow === honors;
+  }
+  // Honors holder may pass the press turn to the opponent (only before pressing).
+  function canPassPress(G, seat) {
+    if (!G?.doubleUp || G.press) return false;
+    if (G.pressUsed?.[seat]) return false;
+    if (honorsSeat() !== seat) return false;
+    const windowKey = G.status === "setup" ? "setup" : String(G.zoneIndex);
+    if (G.pressPassed && G.pressPassed[windowKey]) return false;
+    return canPressNow(G, seat);
+  }
+  function passPress(seat) {
+    const G = isCpu ? cpu : game;
+    if (!canPassPress(G, seat)) return;
+    const windowKey = G.status === "setup" ? "setup" : String(G.zoneIndex);
+    const patch = { pressPassed: { ...(G.pressPassed||{}), [windowKey]: seat } };
+    if (isCpu) setCpu(g => ({...g, ...patch}));
+    else updateDoc(doc(db, "boba_games", gameId), patch);
   }
   // The honors holder presses: opens an offer the opponent must answer. The stake
   // does NOT change yet — it only doubles if the press is ACCEPTED.
@@ -31433,10 +31457,21 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   // and is confident. This covers both the first press and a later press-back to 4.
   function cpuMaybePress() {
     setCpu(g => {
-      if (!canPressNow(g, "p2")) return g;
-      const conf = cpuConfidence(g);
-      if (conf > 0.5 && Math.random() < 0.6) {
-        return { ...g, press: { by:"p2", at:new Date().toISOString(), fromStake:(g.stake||1) } };
+      if (g.press) return g;
+      const honors = (function(){ // inline honors for this state
+        return honorsSeat();
+      })();
+      // If the CPU can press (its window), decide press vs pass.
+      if (canPressNow(g, "p2")) {
+        const conf = cpuConfidence(g);
+        if (conf > 0.5 && Math.random() < 0.6) {
+          return { ...g, press: { by:"p2", at:new Date().toISOString(), fromStake:(g.stake||1) } };
+        }
+        // CPU holds honors but isn't pressing → pass, so the human's window opens.
+        if (honors === "p2" && canPassPress(g, "p2")) {
+          const windowKey = g.status === "setup" ? "setup" : String(g.zoneIndex);
+          return { ...g, pressPassed: { ...(g.pressPassed||{}), [windowKey]: "p2" } };
+        }
       }
       return g;
     });
@@ -31763,6 +31798,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
         doubleUp: pickDoubleUp,
         stake: 1,
         pressUsed: { p1:false, p2:false },
+        pressPassed: {},
         press: null,
         log: [],
         cpuLevel, cpuTotal, myTotal, cpuNote: note, fmtShort: (fmt.short && fmt.short !== "—") ? fmt.short : null,
@@ -31800,7 +31836,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
     const cpuDeck = built.deck;
 
     const mw = cpu.matchWins || {p1:0,p2:0};
-    const matchOver = (mw.p1||0) >= 2 || (mw.p2||0) >= 2;
+    const matchOver = (mw.p1||0) >= 7 || (mw.p2||0) >= 7;
     const myShuf  = shuffle(mySnaps);
     const cpuShuf = shuffle(cpuDeck);
 
@@ -31814,7 +31850,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       zoneIndex: 0,
       zones: Array.from({length:7}, () => ({ p1:null, p2:null, winner:null })),
       trophies: { p1:0, p2:0 },
-      stake: 1, pressUsed: { p1:false, p2:false }, press: null,
+      stake: 1, pressUsed: { p1:false, p2:false }, pressPassed: {}, press: null,
       sudden: {}, result: null, log: [], commits: {},
       cpuTotal: cpuShuf.reduce((s,c)=>s+c.power,0),
       p1: { ...g.p1, ready:false },
@@ -32207,10 +32243,18 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
             {!G.pressUsed?.[seat] && honorsSeat()===seat && (G.status==="setup"||G.status==="playing") && <span style={{fontSize:10.5,color:"#FBBF24",fontWeight:700}}>· you hold honors</span>}
           </div>
           {canPressNow(G, seat) && !G.press && (
-            <button onClick={()=>pressDouble(seat)}
-              style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",border:"none",color:"#fff",borderRadius:8,padding:"7px 16px",fontSize:12.5,fontWeight:900,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
-              ⚡ Press (double to {(G.stake||1)*2})
-            </button>
+            <div style={{display:"flex",gap:6}}>
+              <button onClick={()=>pressDouble(seat)}
+                style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",border:"none",color:"#fff",borderRadius:8,padding:"7px 16px",fontSize:12.5,fontWeight:900,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                ⚡ Press (double to {(G.stake||1)*2})
+              </button>
+              {canPassPress(G, seat) && (
+                <button onClick={()=>passPress(seat)}
+                  style={{background:"transparent",border:"1px solid rgba(255,255,255,0.25)",color:"rgba(255,255,255,0.6)",borderRadius:8,padding:"7px 14px",fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                  Pass
+                </button>
+              )}
+            </div>
           )}
           {G.press && G.press.by === seat && (
             <span style={{fontSize:11.5,fontWeight:700,color:"#FBBF24"}}>Waiting on {them?.name||"opponent"}…</span>
@@ -32262,7 +32306,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           <div style={{fontSize:11,color:"rgba(255,255,255,0.45)"}}>
             TROPHIES
             <span style={{marginLeft:8,color:"rgba(255,255,255,0.3)"}}>
-              {"\u00B7"} GAME {G.gameNumber||1} {"\u00B7"} MATCH {(G.matchWins||{})[seat]||0}{"\u2013"}{(G.matchWins||{})[foe]||0}
+              {"\u00B7"} GAME {G.gameNumber||1} {"\u00B7"} {G.doubleUp ? "TO 7" : "MATCH"} {(G.matchWins||{})[seat]||0}{"\u2013"}{(G.matchWins||{})[foe]||0}
             </span>
           </div>
           <div style={{fontSize:18,fontWeight:900,color:"#fff"}}>
@@ -32891,8 +32935,8 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
         const gameNo  = G.gameNumber || 1;
         // Best of 3: 2 games takes the match. A tied game advances nobody, so a
         // match can run to a 3rd game on 1-1 with a draw in between.
-        const matchOver = (mw[seat]||0) >= 2 || (mw[foe]||0) >= 2;
-        const wonMatch  = (mw[seat]||0) >= 2;
+        const matchOver = (mw[seat]||0) >= 7 || (mw[foe]||0) >= 7;
+        const wonMatch  = (mw[seat]||0) >= 7;
         return (
         <div style={{...panel, textAlign:"center"}}>
           <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.4)",letterSpacing:2,marginBottom:4}}>
@@ -39190,8 +39234,17 @@ See you in there!
     } catch(e) {
       console.error("save owned failed:", e);
       flushingRef.current = false;
+      // A permission-denied is not a connection problem and will never succeed on
+      // retry — it means this account isn't approved for early access (or the
+      // allowlist doesn't include their email). Tell them that plainly and stop.
+      const denied = e && (e.code === "permission-denied" || /permission/i.test(e.message||""));
+      if (denied) {
+        pendingOwnedRef.current = null;   // don't keep retrying a write that can't succeed
+        alert("Your account doesn't have access to save changes yet. Bazooka Dash is in early access — if you think this is a mistake, contact Bazooka Breaks to be added.");
+        return;
+      }
       if (attempt < 2) { setTimeout(()=>flushOwnedSave(attempt+1), 800 * (attempt+1)); return; }
-      // Out of retries — tell the user rather than silently losing their card.
+      // Out of retries on a genuine network error — tell the user rather than silently losing their card.
       alert("Couldn't save your collection — check your connection. Your last few cards may not have saved.");
       return;
     }
