@@ -32506,10 +32506,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       {/* THE ARENA */}
       {(G.status === "playing" || G.status === "finished") && (
         <div style={{...panel, position:"relative", overflow:"hidden",
-                     ...(playmatUrl ? {
-                       background:`linear-gradient(rgba(10,4,4,0.72),rgba(10,4,4,0.82)), #111 center/cover no-repeat url("${playmatUrl}")`,
-                       border:"1px solid rgba(232,49,122,0.25)"
-                     } : {})}}>
+                     ...(playmatUrl ? { background:"#0a0405", border:"1px solid rgba(232,49,122,0.25)" } : {})}}>
           {/* Super is a board-wide shockwave rather than a per-card hit — it is the
               rarest weapon and the tiebreaker, so it should feel like the biggest
               thing that happens in a game. */}
@@ -32564,30 +32561,41 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
             };
             return (
               <>
-              {/* Opponent's row, above your mat. Face-down until each battle resolves,
-                  then the revealed hero shows — same information a real opponent's
-                  board would give you across the table. Shown in every game. */}
-              <div style={{marginBottom:10}}>
+              {/* OPPONENT'S MAT — the same arranged layout, flipped 180° so it faces
+                  them across the table. Shows only THEIR cards (face-down until each
+                  battle resolves) and their piles. Your stuff never appears here, and
+                  theirs never appears on your mat below. */}
+              <div style={{marginBottom:14}}>
                 <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.5)",textAlign:"center",marginBottom:6,letterSpacing:2}}>
                   {them?.name || "OPPONENT"}
                 </div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6}}>
+                <div style={{position:"relative",width:"100%",aspectRatio:"16/9",transform:"rotate(180deg)",
+                             borderRadius:12,overflow:"hidden",
+                             background:`linear-gradient(rgba(10,4,4,0.72),rgba(10,4,4,0.82)), #111 center/cover no-repeat url("${playmatUrl}")`}}>
+                  {/* opponent battle slots (their arranged positions) */}
                   {Array.from({length:7}).map((_,i) => {
                     const c = zones[i]?.[foe];
                     const hit = fx && fx.zone === i && fx.up ? fx.weapon : null;
                     const striking = fx && fx.zone === i && !fx.up;
-                    return (
-                      <div key={i} style={{position:"relative"}}>
-                        {c ? heroCard(c, zones[i]?.winner && zones[i].winner !== foe, hit, fx?.key, striking,
-                                      zones[i]?.winner === seat ? damage[i] : null)
+                    const node = (
+                      <div style={{position:"relative",width:"100%",height:"100%"}}>
+                        {c ? heroCard(c, zones[i]?.winner && zones[i].winner !== foe, hit, fx?.key, striking, zones[i]?.winner === seat ? damage[i] : null)
                            : cardBack("FACE\nDOWN")}
                         {hit && <div className="bz-fx-layer"><ArenaProjectile key={fx.key} w={fx.weapon} up={true} /></div>}
                       </div>
                     );
+                    return slot("my"+i, node, false);   // opponent uses the SAME slot map
                   })}
+                  {/* opponent piles — hidden info, so generic face-down stacks */}
+                  {slot("myDeck",     pileNode([1],"#F87171",""), false)}
+                  {slot("myPlaybook", pileNode(G.mode==="playmaker"?[1]:[],"#7B9CFF","\u2014"), false)}
+                  {slot("myHotdogs",  pileNode(G.mode==="substitution"?[1]:[],"#7CF03A","USED"), false)}
+                  {slot("myDiscard",  pileNode([],"#F87171","EMPTY"), false)}
                 </div>
               </div>
-              <div style={{position:"relative",width:"100%",aspectRatio:"16/9"}}>
+              {/* YOUR MAT */}
+              <div style={{position:"relative",width:"100%",aspectRatio:"16/9",borderRadius:12,overflow:"hidden",
+                           background:`linear-gradient(rgba(10,4,4,0.72),rgba(10,4,4,0.82)), #111 center/cover no-repeat url("${playmatUrl}")`}}>
                 {/* zone-strip numbers (battle result per zone) */}
                 {Array.from({length:7}).map((_,i) => {
                   const z = zones[i] || {};
@@ -32603,9 +32611,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
                   );
                   return slot("zone"+i, node, false);
                 })}
-                {/* my battle slots — this is MY mat, so only my heroes appear. The
-                    opponent plays on their own mat across the table; their card is
-                    never drawn here. The zone number reflects the shared result. */}
+                {/* my battle slots */}
                 {Array.from({length:7}).map((_,i) => {
                   const revealed = zones[i]?.[seat];
                   const mine = P?.placed?.[i];
