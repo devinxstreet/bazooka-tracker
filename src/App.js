@@ -32267,7 +32267,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
 
   return (
     <div style={{maxWidth:1200, margin:"0 auto",
-                 paddingBottom: (G.status==="playing" && G.mode==="substitution") ? (isMobile?150:180) : 0}}>
+                 paddingBottom: G.status==="playing" ? (isMobile?110:90) : 0}}>
       {/* Double-Up bar: current stake + Press button during the Laundry Phase. */}
       {G.doubleUp && (G.status==="setup" || G.status==="playing") && (
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",
@@ -32541,28 +32541,31 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
         const resultColor = !settled ? "#FBBF24" : z.winner === seat ? "#22C55E" : z.winner === foe ? "#F87171" : "#FBBF24";
         return (
           <div onClick={()=>setSpotlightOff(true)}
-            style={{position:"relative",marginBottom:14,borderRadius:14,overflow:"hidden",cursor:"zoom-out",
+            style={{position:"relative",marginBottom:12,borderRadius:14,overflow:"hidden",cursor:"zoom-out",
                     background:"linear-gradient(180deg, rgba(20,8,12,0.6), rgba(8,4,6,0.85))",
-                    border:"1px solid rgba(232,49,122,0.3)",padding:"14px 12px"}}>
-            <div style={{position:"absolute",top:8,right:12,fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.4)",letterSpacing:1}}>TAP FOR FULL BOARD</div>
-            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10}}>
-              {/* opponent's active hero */}
-              <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.5)",letterSpacing:2}}>{them?.name || "OPPONENT"}</div>
-              <div style={{width:isMobile?150:180,aspectRatio:"5/7"}}>
-                {oppC ? heroCard(oppC, z.winner && z.winner !== foe) : cardBack("FACE\nDOWN")}
-              </div>
-              {/* result band */}
-              <div style={{display:"flex",alignItems:"center",gap:10,margin:"2px 0"}}>
-                <span style={{flex:1,height:2,width:40,background:`linear-gradient(90deg,transparent,${resultColor}88)`}}/>
-                <span style={{fontSize:15,fontWeight:900,color:resultColor,letterSpacing:1,textShadow:"0 2px 6px rgba(0,0,0,0.8)"}}>{resultLabel}</span>
-                <span style={{flex:1,height:2,width:40,background:`linear-gradient(90deg,${resultColor}88,transparent)`}}/>
-              </div>
+                    border:"1px solid rgba(232,49,122,0.3)",padding:"10px 12px"}}>
+            <div style={{position:"absolute",top:6,right:10,fontSize:9,fontWeight:800,color:"rgba(255,255,255,0.35)",letterSpacing:1}}>TAP FOR BOARD</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:isMobile?10:20}}>
               {/* my active hero */}
-              <div style={{width:isMobile?150:180,aspectRatio:"5/7"}}>
-                {myC ? heroCard(myC, z.winner && z.winner !== seat)
-                     : (P?.placed?.[zi2] ? cardBack("PLACED") : cardBack("EMPTY"))}
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                <div style={{width:isMobile?"30vw":170,maxWidth:180,aspectRatio:"5/7"}}>
+                  {myC ? heroCard(myC, z.winner && z.winner !== seat)
+                       : (P?.placed?.[zi2] ? cardBack("PLACED") : cardBack("EMPTY"))}
+                </div>
+                <div style={{fontSize:9,fontWeight:800,color:"rgba(255,255,255,0.5)",letterSpacing:1}}>{me?.name || "YOU"}</div>
               </div>
-              <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.5)",letterSpacing:2}}>{me?.name || "YOU"}</div>
+              {/* result in the middle */}
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,minWidth:54}}>
+                <span style={{fontSize:isMobile?13:15,fontWeight:900,color:resultColor,letterSpacing:0.5,textAlign:"center",textShadow:"0 2px 6px rgba(0,0,0,0.8)"}}>{resultLabel}</span>
+                <span style={{fontSize:16,opacity:0.5}}>{"\u2694\uFE0F"}</span>
+              </div>
+              {/* opponent's active hero */}
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                <div style={{width:isMobile?"30vw":170,maxWidth:180,aspectRatio:"5/7"}}>
+                  {oppC ? heroCard(oppC, z.winner && z.winner !== foe) : cardBack("FACE\nDOWN")}
+                </div>
+                <div style={{fontSize:9,fontWeight:800,color:"rgba(255,255,255,0.5)",letterSpacing:1}}>{them?.name || "OPPONENT"}</div>
+              </div>
             </div>
           </div>
         );
@@ -32643,22 +32646,25 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
                 <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.5)",textAlign:"center",marginBottom:6,letterSpacing:2}}>
                   {them?.name || "OPPONENT"}
                 </div>
-                <div style={{position:"relative",width:"100%",aspectRatio:"16/9",transform:"rotate(180deg)",
+                <div style={{position:"relative",width:"min(100%, calc(34vh * 16 / 9))",aspectRatio:"16/9",margin:"0 auto",
                              borderRadius:12,overflow:"hidden",
                              background:`linear-gradient(rgba(10,4,4,0.72),rgba(10,4,4,0.82)), #111 center/cover no-repeat url("${playmatUrl}")`}}>
-                  {/* opponent battle slots (their arranged positions) */}
+                  {/* opponent battle slots. The mat is NOT rotated — that keeps Battle N
+                      in the exact same column as your Battle N below, for ANY arranged
+                      layout. Only each card is flipped 180° so the hero faces the
+                      opponent across the table. */}
                   {Array.from({length:7}).map((_,i) => {
                     const c = zones[i]?.[foe];
                     const hit = fx && fx.zone === i && fx.up ? fx.weapon : null;
                     const striking = fx && fx.zone === i && !fx.up;
                     const node = (
-                      <div style={{position:"relative",width:"100%",height:"100%"}}>
+                      <div style={{position:"relative",width:"100%",height:"100%",transform:"rotate(180deg)"}}>
                         {c ? heroCard(c, zones[i]?.winner && zones[i].winner !== foe, hit, fx?.key, striking, zones[i]?.winner === seat ? damage[i] : null)
                            : cardBack("FACE\nDOWN")}
                         {hit && <div className="bz-fx-layer"><ArenaProjectile key={fx.key} w={fx.weapon} up={true} /></div>}
                       </div>
                     );
-                    return slot("my"+i, node, false);   // opponent uses the SAME slot map
+                    return slot("my"+i, node, false);   // same column as your zone i
                   })}
                   {/* opponent piles — hidden info, so generic face-down stacks */}
                   {slot("myDeck",     pileNode([1],"#F87171",""), false)}
@@ -32668,7 +32674,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
                 </div>
               </div>
               {/* YOUR MAT */}
-              <div style={{position:"relative",width:"100%",aspectRatio:"16/9",borderRadius:12,overflow:"hidden",
+              <div style={{position:"relative",width:"min(100%, calc(34vh * 16 / 9))",aspectRatio:"16/9",margin:"0 auto",borderRadius:12,overflow:"hidden",
                            background:`linear-gradient(rgba(10,4,4,0.72),rgba(10,4,4,0.82)), #111 center/cover no-repeat url("${playmatUrl}")`}}>
                 {/* zone-strip numbers (battle result per zone) */}
                 {Array.from({length:7}).map((_,i) => {
@@ -33022,6 +33028,66 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           )}
         </div>
       )}
+
+      {/* FLOATING ACTION BAR — the current primary action, pinned to the bottom of
+          the screen so you never scroll to reveal, advance, or press. Mirrors the
+          inline handlers; the detailed sub/bench UI stays inline above. */}
+      {G.status === "playing" && (() => {
+        const revealed = !!zones[zi]?.[seat];
+        const oppRevealed = !!zones[zi]?.[foe];
+        const settled = revealed && oppRevealed;
+        const showReveal = !revealed && bothCommitted();
+        const showNext = settled;
+        const canPress = canPressNow(G, seat) && !G.press;
+        const finishing = clinchedWinner(G.trophies, G.zones, zi, G.direction)
+          || (G.direction==="rtl" ? zi-1 < 0 : zi+1 > 6);
+        if (!showReveal && !showNext && !canPress && !(G.press && G.press.by !== seat)) return null;
+        return (
+          <div style={{position:"fixed",left:0,right:0,bottom:0,zIndex:9000,
+                       display:"flex",gap:8,justifyContent:"center",alignItems:"center",flexWrap:"wrap",
+                       padding:"10px 12px calc(10px + env(safe-area-inset-bottom))",
+                       background:"linear-gradient(180deg, rgba(8,4,6,0), rgba(8,4,6,0.92) 40%)"}}>
+            {canPress && (
+              <>
+                <button onClick={()=>pressDouble(seat)}
+                  style={{background:"linear-gradient(135deg,#E8317A,#7B2FF7)",border:"none",color:"#fff",borderRadius:10,padding:"13px 20px",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(232,49,122,0.4)"}}>
+                  ⚡ Press (to {(G.stake||1)*2})
+                </button>
+                {canPassPress(G, seat) && (
+                  <button onClick={()=>passPress(seat)}
+                    style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.25)",color:"#fff",borderRadius:10,padding:"13px 18px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit",backdropFilter:"blur(6px)"}}>
+                    Pass
+                  </button>
+                )}
+              </>
+            )}
+            {G.press && G.press.by !== seat && (
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>respondToPress(seat, true)}
+                  style={{background:"#22C55E",border:"none",color:"#000",borderRadius:10,padding:"13px 20px",fontSize:14,fontWeight:900,cursor:"pointer",fontFamily:"inherit"}}>
+                  Accept (stake {(G.stake||1)*2})
+                </button>
+                <button onClick={()=>respondToPress(seat, false)}
+                  style={{background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.25)",color:"#fff",borderRadius:10,padding:"13px 18px",fontSize:14,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                  Fold
+                </button>
+              </div>
+            )}
+            {showReveal && !canPress && !G.press && (
+              <button onClick={revealMine}
+                style={{background:"#22C55E",border:"none",color:"#000",borderRadius:10,padding:"14px 32px",fontSize:15,fontWeight:900,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(34,197,94,0.35)"}}>
+                REVEAL
+              </button>
+            )}
+            {showNext && (
+              <button onClick={nextBattle}
+                style={{background:"#3B82F6",border:"none",color:"#fff",borderRadius:10,padding:"14px 32px",fontSize:15,fontWeight:900,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 16px rgba(59,130,246,0.35)"}}>
+                {finishing ? "Finish Game" : "Next Battle →"}
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {/* finished */}
       {G.status === "finished" && (() => {
