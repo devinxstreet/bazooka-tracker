@@ -31520,12 +31520,17 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       // A BoBA match is best of 3, so finishing a GAME isn't finishing the MATCH.
       // matchWins is the running score across games in this match; a tied game
       // advances neither side but still counts as a game played.
+      // First to 7: a game is worth its Double-Up stake (1/2/4). Points accumulate
+      // across games; the match ends when someone reaches 7 (handled on the finished
+      // screen and the rematch gate). A tied game advances neither side.
       const mw = { ...(game.matchWins || {p1:0,p2:0}) };
-      if (result !== "tie") mw[result] = (mw[result]||0) + 1;
+      const stake = game.doubleUp ? (game.stake || 1) : 1;
+      if (result !== "tie") mw[result] = (mw[result]||0) + stake;
       await updateDoc(doc(db, "boba_games", gameId), {
         status: "finished",
         result,
         matchWins: mw,
+        wonStake: stake,
         gameNumber: game.gameNumber || 1,
         clinchedEarly: !!clinch && !outOfZones,
         finishedAt: new Date().toISOString(),
@@ -31553,9 +31558,13 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
     try {
       // Only reset the shared board once — whoever gets there first.
       if (game.status === "finished") {
+        const mw = game.matchWins || {p1:0,p2:0};
+        const duTarget = game.doubleUp ? 7 : 2;
+        const matchOver = (mw.p1||0) >= duTarget || (mw.p2||0) >= duTarget;
         await updateDoc(doc(db, "boba_games", gameId), {
           status: "setup",
-          gameNumber: (game.gameNumber || 1) + 1,
+          gameNumber: matchOver ? 1 : (game.gameNumber || 1) + 1,
+          matchWins: matchOver ? {p1:0,p2:0} : mw,
           chooser: Math.random() < 0.5 ? "p1" : "p2",
           first: null, direction: null,
           zoneIndex: 0,
@@ -31564,6 +31573,10 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           sudden: {},
           commits: {},
           result: null,
+          // Double-Up resets every game: stake back to 1, both press tokens returned,
+          // pass record and any open offer cleared.
+          stake: 1, pressUsed: { p1:false, p2:false }, pressPassed: {}, press: null,
+          wonStake: 1, declined: false,
           log: [],
           "p1.ready": false,
           "p2.ready": false,
@@ -31836,7 +31849,8 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
     const cpuDeck = built.deck;
 
     const mw = cpu.matchWins || {p1:0,p2:0};
-    const matchOver = (mw.p1||0) >= 7 || (mw.p2||0) >= 7;
+    const duTarget = cpu.doubleUp ? 7 : 2;
+    const matchOver = (mw.p1||0) >= duTarget || (mw.p2||0) >= duTarget;
     const myShuf  = shuffle(mySnaps);
     const cpuShuf = shuffle(cpuDeck);
 
@@ -32933,14 +32947,15 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       {G.status === "finished" && (() => {
         const mw      = G.matchWins || {p1:0,p2:0};
         const gameNo  = G.gameNumber || 1;
-        // Best of 3: 2 games takes the match. A tied game advances nobody, so a
-        // match can run to a 3rd game on 1-1 with a draw in between.
-        const matchOver = (mw[seat]||0) >= 7 || (mw[foe]||0) >= 7;
-        const wonMatch  = (mw[seat]||0) >= 7;
+        // Double-Up match is FIRST TO 7 POINTS — each game is worth its stake (1/2/4)
+        // and points accumulate. A non-Double-Up game just plays a single game.
+        const target = G.doubleUp ? 7 : 2;
+        const matchOver = (mw[seat]||0) >= target || (mw[foe]||0) >= target;
+        const wonMatch  = (mw[seat]||0) >= target;
         return (
         <div style={{...panel, textAlign:"center"}}>
           <div style={{fontSize:11,fontWeight:800,color:"rgba(255,255,255,0.4)",letterSpacing:2,marginBottom:4}}>
-            GAME {gameNo} {"\u00B7"} BEST OF 3
+            GAME {gameNo} {G.doubleUp ? "\u00B7 FIRST TO 7" : ""}
           </div>
           <div style={{fontSize:26,fontWeight:900,
                        color: matchOver ? (wonMatch ? "#22C55E" : "#F87171")
@@ -32967,7 +32982,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           )}
           {/* Match score. This is the number that actually matters between games. */}
           <div style={{fontSize:15,fontWeight:900,marginTop:10,color:"#fff"}}>
-            Match {mw[seat]||0} {"\u2014"} {mw[foe]||0}
+            {G.doubleUp ? "Points" : "Match"} {mw[seat]||0} {"\u2014"} {mw[foe]||0}{G.doubleUp ? " (first to 7)" : ""}
             <span style={{fontSize:11,fontWeight:700,color:"rgba(255,255,255,0.45)",marginLeft:8}}>
               {me?.name||"You"} vs {them?.name||"Opponent"}
             </span>
