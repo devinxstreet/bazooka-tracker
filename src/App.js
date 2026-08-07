@@ -30650,6 +30650,10 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   const [matUploading, setMatUploading] = React.useState(false);
   const arenaLayout = useArenaLayout();          // saved slot positions (percent)
   const [arrangerOpen, setArrangerOpen] = React.useState(false);
+  // Battle spotlight: auto-enlarges the active pair; the player can tap to dismiss
+  // back to the full board. Dismissal is per-zone, so advancing to the next battle
+  // re-opens the spotlight rather than staying collapsed.
+  const [spotlightOff, setSpotlightOff] = React.useState(false);
 
   // One-time admin action: push a chosen image to the Storage path the whole app
   // reads the card back from. Lives in the arena because that's where backs show
@@ -30885,6 +30889,9 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
   const foe   = seat === "p1" ? "p2" : "p1";
   const me    = seat ? G[seat] : null;
   const them  = seat ? G[foe]  : null;
+
+  // Re-open the battle spotlight each time the active battle changes or a game ends.
+  React.useEffect(() => { setSpotlightOff(false); }, [G?.zoneIndex, G?.status]);
 
   // NOTE: this effect MUST live below the seat helpers above. Its dependency
   // array references G / isCpu / seat, and a dep array is evaluated immediately
@@ -32516,6 +32523,57 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
       {!isCpu && G.status === "setup" && orderSet && me?.ready && (
         <div style={{...panel, textAlign:"center", fontSize:14, fontWeight:800, color:"#fff"}}>
           Lineup locked. Waiting for {them?.name || "your opponent"}{"…"}
+        </div>
+      )}
+
+      {/* Battle spotlight — auto-enlarges the active pair (opponent card on top,
+          zone result in the middle, my card below) so the two heroes in the current
+          battle are big and readable. Tap anywhere to dismiss back to the full board;
+          it re-opens when the next battle starts. */}
+      {G.status === "playing" && !spotlightOff && (() => {
+        const zi2 = G.zoneIndex;
+        const z = zones[zi2] || {};
+        const myC = z[seat];
+        const oppC = z[foe];
+        const settled = !!(z.p1 && z.p2);
+        const resultLabel = !settled ? `BATTLE ${battleNo(zi2)}`
+          : z.winner === seat ? "YOU WON" : z.winner === foe ? "YOU LOST" : "DRAW";
+        const resultColor = !settled ? "#FBBF24" : z.winner === seat ? "#22C55E" : z.winner === foe ? "#F87171" : "#FBBF24";
+        return (
+          <div onClick={()=>setSpotlightOff(true)}
+            style={{position:"relative",marginBottom:14,borderRadius:14,overflow:"hidden",cursor:"zoom-out",
+                    background:"linear-gradient(180deg, rgba(20,8,12,0.6), rgba(8,4,6,0.85))",
+                    border:"1px solid rgba(232,49,122,0.3)",padding:"14px 12px"}}>
+            <div style={{position:"absolute",top:8,right:12,fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.4)",letterSpacing:1}}>TAP FOR FULL BOARD</div>
+            <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:10}}>
+              {/* opponent's active hero */}
+              <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.5)",letterSpacing:2}}>{them?.name || "OPPONENT"}</div>
+              <div style={{width:isMobile?150:180,aspectRatio:"5/7"}}>
+                {oppC ? heroCard(oppC, z.winner && z.winner !== foe) : cardBack("FACE\nDOWN")}
+              </div>
+              {/* result band */}
+              <div style={{display:"flex",alignItems:"center",gap:10,margin:"2px 0"}}>
+                <span style={{flex:1,height:2,width:40,background:`linear-gradient(90deg,transparent,${resultColor}88)`}}/>
+                <span style={{fontSize:15,fontWeight:900,color:resultColor,letterSpacing:1,textShadow:"0 2px 6px rgba(0,0,0,0.8)"}}>{resultLabel}</span>
+                <span style={{flex:1,height:2,width:40,background:`linear-gradient(90deg,${resultColor}88,transparent)`}}/>
+              </div>
+              {/* my active hero */}
+              <div style={{width:isMobile?150:180,aspectRatio:"5/7"}}>
+                {myC ? heroCard(myC, z.winner && z.winner !== seat)
+                     : (P?.placed?.[zi2] ? cardBack("PLACED") : cardBack("EMPTY"))}
+              </div>
+              <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.5)",letterSpacing:2}}>{me?.name || "YOU"}</div>
+            </div>
+          </div>
+        );
+      })()}
+      {/* Show-spotlight hint when dismissed, so it's clear you can re-enlarge. */}
+      {G.status === "playing" && spotlightOff && (
+        <div style={{textAlign:"center",marginBottom:10}}>
+          <button onClick={()=>setSpotlightOff(false)}
+            style={{background:"rgba(232,49,122,0.12)",border:"1px solid rgba(232,49,122,0.4)",color:"#E8317A",borderRadius:8,padding:"6px 14px",fontSize:11,fontWeight:800,cursor:"zoom-in",fontFamily:"inherit"}}>
+            {"\uD83D\uDD0D"} Zoom in on active battle
+          </button>
         </div>
       )}
 
