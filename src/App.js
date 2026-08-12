@@ -30634,14 +30634,20 @@ function fantasyBucksForRank(rank) {
 }
 const REDEEM_COST = 3;   // Bazooka Bucks per pack
 
-function FantasyDFS({ user, isMobile, setToast }) {
-  const [season, setSeason] = React.useState(null);      // { players:{name:{earned,redeemed}}, weeks:[...] }
-  const [weeks, setWeeks] = React.useState([]);          // per-week result docs
-  const [view, setView] = React.useState("season");      // season | weeks | redeem
+function FantasyPage({ user }) {
+  const [season, setSeason] = React.useState(null);
+  const [weeks, setWeeks] = React.useState([]);
+  const [view, setView] = React.useState("standings");   // standings | weeks | redeem
   const [openWeek, setOpenWeek] = React.useState(null);
+  const [toast, setToast] = React.useState("");
   const isAdmin = !!(user?.email && user.email.endsWith("@bazookabreaks.com"));
 
-  // Live season doc (the aggregate standings).
+  React.useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(""), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
+
   React.useEffect(() => {
     try {
       return onSnapshot(doc(db, "fantasy_season", "current"), snap => {
@@ -30649,8 +30655,6 @@ function FantasyDFS({ user, isMobile, setToast }) {
       });
     } catch (e) { setSeason({ players: {}, weeks: [] }); }
   }, []);
-
-  // Live week docs (for the week-by-week view).
   React.useEffect(() => {
     try {
       return onSnapshot(query(collection(db, "fantasy_weeks"), orderBy("week", "desc")), snap => {
@@ -30660,128 +30664,220 @@ function FantasyDFS({ user, isMobile, setToast }) {
   }, []);
 
   const players = (season && season.players) || {};
-  // Season standings sorted by Earned (redeeming never lowers your rank).
   const standings = Object.entries(players)
-    .map(([name, v]) => ({
-      name,
-      earned: v.earned || 0,
-      redeemed: v.redeemed || 0,
-      balance: Math.round(((v.earned || 0) - (v.redeemed || 0)) * 100) / 100,
-    }))
+    .map(([name, v]) => ({ name, earned: v.earned || 0, redeemed: v.redeemed || 0, balance: Math.round(((v.earned || 0) - (v.redeemed || 0)) * 100) / 100 }))
     .sort((a, b) => b.earned - a.earned || a.name.localeCompare(b.name));
-
-  const panel = { background: "rgba(0,0,0,0.45)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: 16 };
   const fmt = n => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+  const totalPacks = Math.floor(standings.reduce((s,p)=>s+p.balance,0) / REDEEM_COST);
+  const totalPlayers = standings.length;
+  const weeksPlayed = (season && season.weeks && season.weeks.length) || 0;
+
+  const podium = standings.slice(0, 3);
+  const rest = standings.slice(3);
+
+  // Chip — the Bazooka Bucks token, rendered as a coin.
+  const Chip = ({ v, size = 15, color = "#FBBF24" }) => (
+    <span style={{ display:"inline-flex", alignItems:"center", gap:5, fontWeight:900, color, fontSize:size, fontVariantNumeric:"tabular-nums" }}>
+      <span style={{ width:size+3, height:size+3, borderRadius:"50%", background:"radial-gradient(circle at 35% 30%, #ffe9a8, #FBBF24 55%, #b8860b)", boxShadow:"inset 0 0 0 2px rgba(0,0,0,0.25), 0 1px 3px rgba(0,0,0,0.4)", display:"inline-block", flexShrink:0 }} />
+      {fmt(v)}
+    </span>
+  );
+
+  const bg = "radial-gradient(ellipse 100% 60% at 50% -10%, rgba(232,49,122,0.22), transparent 60%), radial-gradient(ellipse 80% 50% at 50% 110%, rgba(124,156,255,0.10), transparent 60%), #08050a";
 
   return (
-    <div style={{ maxWidth: 900, margin: "0 auto" }}>
-      {/* Header */}
-      <div style={{ ...panel, marginBottom: 14 }}>
-        <div style={{ fontSize: 22, fontWeight: 900, color: "#fff", letterSpacing: 0.5 }}>
-          {"\uD83C\uDFC8"} Bazooka Fantasy
+    <div style={{ minHeight:"100vh", background:bg, fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"#f6eef2", padding:"0 0 80px" }}>
+      {/* Toast */}
+      {toast && (
+        <div style={{ position:"fixed", top:20, left:"50%", transform:"translateX(-50%)", zIndex:9999, background:"#161016", border:"1px solid rgba(232,49,122,0.4)", color:"#fff", padding:"12px 22px", borderRadius:12, fontWeight:700, fontSize:14, boxShadow:"0 8px 30px rgba(0,0,0,0.5)" }}>{toast}</div>
+      )}
+
+      {/* ── HERO ── */}
+      <div style={{ position:"relative", overflow:"hidden", borderBottom:"1px solid rgba(232,49,122,0.2)" }}>
+        {/* faint yard-line texture */}
+        <div style={{ position:"absolute", inset:0, backgroundImage:"repeating-linear-gradient(90deg, transparent, transparent 78px, rgba(255,255,255,0.03) 78px, rgba(255,255,255,0.03) 80px)", pointerEvents:"none" }} />
+        <div style={{ maxWidth:960, margin:"0 auto", padding:"42px 20px 34px", position:"relative", textAlign:"center" }}>
+          <div style={{ display:"inline-flex", alignItems:"center", gap:8, background:"rgba(232,49,122,0.12)", border:"1px solid rgba(232,49,122,0.35)", borderRadius:100, padding:"5px 14px", fontSize:11.5, fontWeight:800, letterSpacing:1.5, color:"#ff7db0", textTransform:"uppercase", marginBottom:16 }}>
+            <span style={{ width:6, height:6, borderRadius:"50%", background:"#34d399", boxShadow:"0 0 8px #34d399" }} /> Season Live
+          </div>
+          <h1 style={{ fontFamily:"'Bangers',system-ui,cursive", fontSize:"clamp(44px, 9vw, 86px)", lineHeight:0.92, margin:"0 0 6px", letterSpacing:2,
+                       background:"linear-gradient(180deg, #fff 0%, #ffd0e4 45%, #E8317A 100%)", WebkitBackgroundClip:"text", backgroundClip:"text", color:"transparent",
+                       textShadow:"0 0 40px rgba(232,49,122,0.35)", WebkitTextStroke:"1px rgba(0,0,0,0.15)" }}>
+            BAZOOKA FANTASY
+          </h1>
+          <p style={{ fontSize:"clamp(13px, 2.4vw, 16px)", color:"#c9bdc4", maxWidth:560, margin:"0 auto 22px", lineHeight:1.5 }}>
+            Draft your squad on <strong style={{color:"#fff"}}>DraftKings</strong>. Finish high on the board, stack <strong style={{color:"#FBBF24"}}>Bazooka Bucks</strong>, and cash them in for packs. The grind is real, the packs are free.
+          </p>
+          {/* stat rail */}
+          <div style={{ display:"inline-flex", gap:0, background:"rgba(0,0,0,0.35)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:14, overflow:"hidden", flexWrap:"wrap", justifyContent:"center" }}>
+            {[["Players", totalPlayers], ["Weeks", weeksPlayed], ["Packs in play", totalPacks]].map(([label,val],i)=>(
+              <div key={label} style={{ padding:"12px 24px", borderLeft: i? "1px solid rgba(255,255,255,0.08)":"none", minWidth:96 }}>
+                <div style={{ fontSize:"clamp(20px,4vw,28px)", fontWeight:900, color:"#fff", fontVariantNumeric:"tabular-nums", lineHeight:1 }}>{val}</div>
+                <div style={{ fontSize:10.5, color:"#9a8a94", textTransform:"uppercase", letterSpacing:1, marginTop:4, fontWeight:700 }}>{label}</div>
+              </div>
+            ))}
+          </div>
         </div>
-        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", marginTop: 2 }}>
-          Play our contest on DraftKings {"\u00B7"} earn Bazooka Bucks by where you finish {"\u00B7"} redeem for packs
+      </div>
+
+      <div style={{ maxWidth:960, margin:"0 auto", padding:"0 16px" }}>
+        {/* payout scale ribbon */}
+        <div style={{ display:"flex", gap:8, justifyContent:"center", flexWrap:"wrap", margin:"24px 0 8px" }}>
+          {[["1st","9","#FBBF24"],["2–10","3","#E8317A"],["11–20","1","#7c9cff"],["21–30","0.5","#9a8a94"]].map(([pos,amt,col])=>(
+            <div key={pos} style={{ display:"flex", alignItems:"center", gap:8, background:"rgba(0,0,0,0.35)", border:`1px solid ${col}44`, borderRadius:10, padding:"8px 14px" }}>
+              <span style={{ fontSize:12, fontWeight:800, color:"#c9bdc4" }}>{pos}</span>
+              <span style={{ width:1, height:14, background:"rgba(255,255,255,0.15)" }} />
+              <Chip v={parseFloat(amt)} color={col} size={13} />
+            </div>
+          ))}
         </div>
-      </div>
 
-      {/* View switcher */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
-        {[["season", "\uD83C\uDFC6 Season Standings"], ["weeks", "\uD83D\uDCC5 Week by Week"], ["redeem", "\uD83C\uDF81 Redeem"]].map(([v, lbl]) => (
-          <button key={v} onClick={() => setView(v)}
-            style={{ padding: "9px 16px", borderRadius: 9, fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
-                     border: `1px solid ${view === v ? "#E8317A" : "rgba(255,255,255,0.15)"}`,
-                     background: view === v ? "rgba(232,49,122,0.15)" : "transparent",
-                     color: view === v ? "#E8317A" : "rgba(255,255,255,0.6)" }}>{lbl}</button>
-        ))}
-      </div>
+        {/* tabs */}
+        <div style={{ display:"flex", gap:6, justifyContent:"center", margin:"18px 0 22px", flexWrap:"wrap" }}>
+          {[["standings","Standings"],["weeks","Weekly"],["redeem","Redeem"]].map(([v,lbl])=>(
+            <button key={v} onClick={()=>setView(v)}
+              style={{ padding:"10px 22px", borderRadius:100, fontSize:13.5, fontWeight:800, cursor:"pointer", fontFamily:"inherit", letterSpacing:0.3, transition:"all 0.15s",
+                       border:`1px solid ${view===v?"transparent":"rgba(255,255,255,0.14)"}`,
+                       background: view===v ? "linear-gradient(135deg,#E8317A,#b8256a)" : "transparent",
+                       color: view===v ? "#fff" : "#9a8a94", boxShadow: view===v?"0 4px 16px rgba(232,49,122,0.35)":"none" }}>{lbl}</button>
+          ))}
+        </div>
 
-      {/* How-it-works / award scale */}
-      <div style={{ marginBottom: 14, padding: "10px 14px", borderRadius: 10, background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.25)", fontSize: 12, color: "rgba(255,255,255,0.7)" }}>
-        <strong style={{ color: "#FBBF24" }}>How Bucks work:</strong> 1st = 9 {"\u00B7"} 2nd–10th = 3 {"\u00B7"} 11th–20th = 1 {"\u00B7"} 21st–30th = 0.5. Redeeming never lowers your ranking.
-      </div>
-
-      {/* ── SEASON STANDINGS ── */}
-      {view === "season" && (
-        <div style={panel}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: "#fff", marginBottom: 12 }}>Season Standings</div>
-          {standings.length === 0 ? (
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", textAlign: "center", padding: "20px 0" }}>
-              No results yet.{isAdmin ? " Enter a week's results below." : " Check back after the first week."}
+        {/* ── STANDINGS ── */}
+        {view === "standings" && (
+          standings.length === 0 ? (
+            <div style={{ textAlign:"center", padding:"60px 20px", color:"#9a8a94" }}>
+              <div style={{ fontSize:44, marginBottom:12 }}>{"\uD83C\uDFC8"}</div>
+              <div style={{ fontSize:16, fontWeight:700, color:"#c9bdc4" }}>The season hasn't kicked off yet.</div>
+              <div style={{ fontSize:13, marginTop:6 }}>Standings post here after Week 1.</div>
             </div>
           ) : (
             <>
-              <div style={{ display: "grid", gridTemplateColumns: "40px 1fr repeat(3, 72px)", gap: 4, fontSize: 10.5, fontWeight: 800, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: 0.5, padding: "0 8px 8px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                <span>#</span><span>Player</span>
-                <span style={{ textAlign: "right" }}>Earned</span>
-                <span style={{ textAlign: "right" }}>Redeem'd</span>
-                <span style={{ textAlign: "right" }}>Balance</span>
-              </div>
-              {standings.map((p, i) => (
-                <div key={p.name} style={{ display: "grid", gridTemplateColumns: "40px 1fr repeat(3, 72px)", gap: 4, alignItems: "center", padding: "9px 8px", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: 13,
-                                           background: i === 0 ? "rgba(251,191,36,0.06)" : "transparent" }}>
-                  <span style={{ fontWeight: 900, color: i === 0 ? "#FBBF24" : i < 3 ? "#fff" : "rgba(255,255,255,0.45)" }}>{i + 1}</span>
-                  <span style={{ fontWeight: 700, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {i === 0 ? "\uD83D\uDC51 " : ""}{p.name}
-                  </span>
-                  <span style={{ textAlign: "right", fontWeight: 800, color: "#FBBF24" }}>{fmt(p.earned)}</span>
-                  <span style={{ textAlign: "right", color: "rgba(255,255,255,0.4)" }}>{fmt(p.redeemed)}</span>
-                  <span style={{ textAlign: "right", fontWeight: 800, color: "#4ade80" }}>{fmt(p.balance)}</span>
+              {/* PODIUM — the signature element */}
+              {podium.length >= 1 && (
+                <div style={{ display:"flex", justifyContent:"center", alignItems:"flex-end", gap:isMobileWidth()?8:16, margin:"10px 0 34px", flexWrap:"nowrap" }}>
+                  {/* 2nd */}
+                  {podium[1] && <PodiumSpot p={podium[1]} rank={2} Chip={Chip} fmt={fmt} />}
+                  {/* 1st */}
+                  {podium[0] && <PodiumSpot p={podium[0]} rank={1} Chip={Chip} fmt={fmt} />}
+                  {/* 3rd */}
+                  {podium[2] && <PodiumSpot p={podium[2]} rank={3} Chip={Chip} fmt={fmt} />}
                 </div>
-              ))}
-            </>
-          )}
-          {isAdmin && <AdminWeekEntry panel={panel} setToast={setToast} nextWeek={(weeks[0]?.week || 0) + 1} />}
-        </div>
-      )}
-
-      {/* ── WEEK BY WEEK ── */}
-      {view === "weeks" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {weeks.length === 0 ? (
-            <div style={{ ...panel, textAlign: "center", color: "rgba(255,255,255,0.5)", fontSize: 13 }}>No weeks entered yet.</div>
-          ) : weeks.map(w => {
-            const isOpen = openWeek === w.id;
-            const order = w.order || [];
-            return (
-              <div key={w.id} style={panel}>
-                <div onClick={() => setOpenWeek(isOpen ? null : w.id)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
-                  <div style={{ fontSize: 15, fontWeight: 900, color: "#fff" }}>Week {w.week}</div>
-                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{order.length} players {"\u00B7"} {isOpen ? "hide" : "view"}</div>
-                </div>
-                {isOpen && (
-                  <div style={{ marginTop: 10, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 10 }}>
-                    {order.map((name, i) => (
-                      <div key={name + i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 4px", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: 13,
-                                                   background: i === 0 ? "rgba(251,191,36,0.06)" : "transparent" }}>
-                        <span style={{ color: "#fff" }}><strong style={{ color: "rgba(255,255,255,0.4)", marginRight: 10 }}>{i + 1}</strong>{i === 0 ? "\uD83D\uDC51 " : ""}{name}</span>
-                        <span style={{ color: "#FBBF24", fontWeight: 800 }}>+{fmt(fantasyBucksForRank(i + 1))}</span>
-                      </div>
-                    ))}
+              )}
+              {/* the rest */}
+              {rest.length > 0 && (
+                <div style={{ background:"rgba(0,0,0,0.3)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:16, overflow:"hidden" }}>
+                  <div style={{ display:"grid", gridTemplateColumns:"52px 1fr repeat(3, minmax(64px, 88px))", gap:4, padding:"12px 16px", fontSize:10.5, fontWeight:800, color:"#7a6a74", textTransform:"uppercase", letterSpacing:0.8, borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
+                    <span>Rank</span><span>Player</span>
+                    <span style={{textAlign:"right"}}>Earned</span>
+                    <span style={{textAlign:"right"}}>Spent</span>
+                    <span style={{textAlign:"right"}}>Balance</span>
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+                  {rest.map((p, i) => (
+                    <div key={p.name} className="fantasy-row" style={{ display:"grid", gridTemplateColumns:"52px 1fr repeat(3, minmax(64px, 88px))", gap:4, alignItems:"center", padding:"13px 16px", borderBottom:"1px solid rgba(255,255,255,0.04)", fontSize:14, transition:"background 0.12s" }}>
+                      <span style={{ fontWeight:900, color:"#7a6a74", fontVariantNumeric:"tabular-nums" }}>{i + 4}</span>
+                      <span style={{ fontWeight:700, color:"#fff", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p.name}</span>
+                      <span style={{ textAlign:"right" }}><Chip v={p.earned} size={13} /></span>
+                      <span style={{ textAlign:"right", color:"#7a6a74", fontVariantNumeric:"tabular-nums" }}>{fmt(p.redeemed)}</span>
+                      <span style={{ textAlign:"right", fontWeight:800, color:"#34d399", fontVariantNumeric:"tabular-nums" }}>{fmt(p.balance)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {isAdmin && <AdminWeekEntry panel={cardStyle()} setToast={setToast} nextWeek={(weeks[0]?.week || 0) + 1} />}
+            </>
+          )
+        )}
 
-      {/* ── REDEEM ── */}
-      {view === "redeem" && (
-        <div style={panel}>
-          <div style={{ fontSize: 16, fontWeight: 900, color: "#fff", marginBottom: 6 }}>Redeem for Packs</div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: "#FBBF24", marginBottom: 14 }}>
-            {"\uD83D\uDCB0"} {REDEEM_COST} Bucks = 1 Pack
+        {/* ── WEEKLY ── */}
+        {view === "weeks" && (
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            {weeks.length === 0 ? (
+              <div style={{ textAlign:"center", padding:"50px", color:"#9a8a94", fontSize:14 }}>No weeks scored yet.</div>
+            ) : weeks.map(w => {
+              const isOpen = openWeek === w.id;
+              const order = w.order || [];
+              return (
+                <div key={w.id} style={{ background:"rgba(0,0,0,0.3)", border:`1px solid ${isOpen?"rgba(232,49,122,0.3)":"rgba(255,255,255,0.08)"}`, borderRadius:16, overflow:"hidden", transition:"border 0.15s" }}>
+                  <div onClick={()=>setOpenWeek(isOpen?null:w.id)} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"16px 20px", cursor:"pointer" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                      <span style={{ fontFamily:"'Bangers',cursive", fontSize:26, color:"#E8317A", letterSpacing:1 }}>WK {w.week}</span>
+                      {order[0] && <span style={{ fontSize:13, color:"#c9bdc4" }}>{"\uD83D\uDC51"} <strong style={{color:"#fff"}}>{order[0]}</strong></span>}
+                    </div>
+                    <span style={{ fontSize:12, color:"#9a8a94", fontWeight:700 }}>{order.length} players {isOpen?"\u25B2":"\u25BC"}</span>
+                  </div>
+                  {isOpen && (
+                    <div style={{ borderTop:"1px solid rgba(255,255,255,0.06)" }}>
+                      {order.map((name, i) => (
+                        <div key={name+i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"11px 20px", borderBottom:"1px solid rgba(255,255,255,0.04)", fontSize:14,
+                                                   background: i===0?"rgba(251,191,36,0.05)":"transparent" }}>
+                          <span style={{ color:"#fff" }}><strong style={{ color:"#7a6a74", marginRight:12, fontVariantNumeric:"tabular-nums" }}>{i+1}</strong>{i===0?"\uD83D\uDC51 ":""}{name}</span>
+                          <Chip v={fantasyBucksForRank(i+1)} size={13} color={fantasyBucksForRank(i+1)>0?"#FBBF24":"#5a4a54"} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-          {isAdmin ? (
-            <AdminRedeem players={players} standings={standings} panel={panel} setToast={setToast} fmt={fmt} />
-          ) : (
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", lineHeight: 1.6 }}>
-              Every pack costs <strong style={{ color: "#FBBF24" }}>{REDEEM_COST} Bazooka Bucks</strong>. To redeem, message the Bazooka team with your name and how many packs you want — they'll process it and ship with your next order. Your Balance on the standings is what you have available to spend, and redeeming won't drop your ranking.
+        )}
+
+        {/* ── REDEEM ── */}
+        {view === "redeem" && (
+          <div>
+            <div style={{ textAlign:"center", background:"linear-gradient(135deg, rgba(232,49,122,0.12), rgba(124,156,255,0.06))", border:"1px solid rgba(232,49,122,0.3)", borderRadius:20, padding:"34px 24px", marginBottom:20 }}>
+              <div style={{ fontSize:52, marginBottom:8 }}>{"\uD83C\uDF81"}</div>
+              <div style={{ fontFamily:"'Bangers',cursive", fontSize:38, color:"#fff", letterSpacing:1, lineHeight:1 }}>
+                <span style={{color:"#FBBF24"}}>{REDEEM_COST}</span> BUCKS = <span style={{color:"#E8317A"}}>1 PACK</span>
+              </div>
+              <div style={{ fontSize:14, color:"#c9bdc4", marginTop:12, maxWidth:440, marginLeft:"auto", marginRight:"auto", lineHeight:1.5 }}>
+                Every pack costs just 3 Bazooka Bucks. Redeeming spends your balance but <strong style={{color:"#fff"}}>never drops your ranking</strong> — your Earned total holds your spot on the board.
+              </div>
             </div>
-          )}
-        </div>
-      )}
+            {isAdmin ? (
+              <AdminRedeem players={players} standings={standings} panel={cardStyle()} setToast={setToast} fmt={fmt} />
+            ) : (
+              <div style={{ background:"rgba(0,0,0,0.3)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:16, padding:"22px 24px", fontSize:14, color:"#c9bdc4", lineHeight:1.7, textAlign:"center" }}>
+                Ready to cash in? Message the <strong style={{color:"#fff"}}>Bazooka team</strong> with your name and how many packs you want. They'll process it and ship with your next order. Check your <strong style={{color:"#34d399"}}>Balance</strong> on the standings for what you've got to spend.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* footer */}
+      <div style={{ textAlign:"center", marginTop:50, fontSize:11, color:"#5a4a54" }}>
+        {"\u00A9"} {new Date().getFullYear()} Bazooka Breaks {"\u00B7"} Fantasy is a free game. NFL scoring via DraftKings.
+      </div>
+
+      <style>{`.fantasy-row:hover{background:rgba(232,49,122,0.06)!important}`}</style>
+    </div>
+  );
+}
+
+function isMobileWidth() { return typeof window !== "undefined" && window.innerWidth < 640; }
+function cardStyle() { return { background:"rgba(0,0,0,0.3)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:16, padding:18 }; }
+
+// Podium spot — 1st is tallest/center, gold; 2nd silver; 3rd bronze.
+function PodiumSpot({ p, rank, Chip, fmt }) {
+  const cfg = {
+    1: { h: 132, medal:"\uD83E\uDD47", ring:"#FBBF24", glow:"rgba(251,191,36,0.5)", grad:"linear-gradient(180deg, rgba(251,191,36,0.25), rgba(251,191,36,0.04))" },
+    2: { h: 100, medal:"\uD83E\uDD48", ring:"#c9cdd4", glow:"rgba(201,205,212,0.35)", grad:"linear-gradient(180deg, rgba(201,205,212,0.18), rgba(201,205,212,0.03))" },
+    3: { h: 82,  medal:"\uD83E\uDD49", ring:"#cd7f32", glow:"rgba(205,127,50,0.35)", grad:"linear-gradient(180deg, rgba(205,127,50,0.18), rgba(205,127,50,0.03))" },
+  }[rank];
+  const w = isMobileWidth() ? 104 : 150;
+  return (
+    <div style={{ width:w, display:"flex", flexDirection:"column", alignItems:"center" }}>
+      <div style={{ fontSize:rank===1?34:26, marginBottom:6, filter:`drop-shadow(0 0 10px ${cfg.glow})` }}>{cfg.medal}</div>
+      <div style={{ fontWeight:800, color:"#fff", fontSize:rank===1?15:13, textAlign:"center", marginBottom:2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", width:"100%", padding:"0 4px", boxSizing:"border-box" }}>{p.name}</div>
+      <div style={{ marginBottom:10 }}><Chip v={p.earned} size={rank===1?16:14} /></div>
+      <div style={{ width:"100%", height:cfg.h, borderRadius:"12px 12px 0 0", background:cfg.grad, border:`1px solid ${cfg.ring}55`, borderBottom:"none",
+                    display:"flex", alignItems:"flex-start", justifyContent:"center", paddingTop:10, position:"relative",
+                    boxShadow:`0 -4px 30px ${cfg.glow}` }}>
+        <span style={{ fontFamily:"'Bangers',cursive", fontSize:rank===1?40:32, color:cfg.ring, letterSpacing:1, textShadow:`0 0 16px ${cfg.glow}` }}>{rank}</span>
+        {rank===1 && <span style={{ position:"absolute", top:-2, left:"50%", transform:"translateX(-50%)", fontSize:11, fontWeight:900, color:"#FBBF24", letterSpacing:1, textTransform:"uppercase" }}></span>}
+      </div>
     </div>
   );
 }
@@ -37820,8 +37916,8 @@ See you in there!
   const UI_STATE_KEY = "bazooka_vault_ui_v1";
   const loadUI = () => { try { return JSON.parse(sessionStorage.getItem(UI_STATE_KEY)||"{}"); } catch(e) { return {}; } };
   const savedUI = (typeof window !== "undefined") ? loadUI() : {};
-  const VALID_TABS = ["cards","rainbow","supers","1of1","bojax34","wants","tradebait","intransit","deck","playbook","arena","fantasy","market","messages","friends","team","ledger","leaderboard"];
-  const [activeTab,     setActiveTab]     = useState(()=>{ if(swancity) return "supers"; const p=(window.location.pathname||"").toLowerCase(); const PATH_TO_TAB={ "/cards":"cards","/rainbow":"rainbow","/supers":"supers","/1of1":"1of1","/34":"bojax34","/wants":"wants","/tradebait":"tradebait","/market":"market","/messages":"messages","/friends":"friends","/team":"team","/ledger":"ledger","/leaderboard":"leaderboard","/fantasy":"fantasy" }; if(PATH_TO_TAB[p]) return PATH_TO_TAB[p]; const h=(window.location.hash||"").replace("#","").trim(); if(VALID_TABS.includes(h)) return h; if(savedUI.activeTab && VALID_TABS.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
+  const VALID_TABS = ["cards","rainbow","supers","1of1","bojax34","wants","tradebait","intransit","deck","playbook","arena","market","messages","friends","team","ledger","leaderboard"];
+  const [activeTab,     setActiveTab]     = useState(()=>{ if(swancity) return "supers"; const p=(window.location.pathname||"").toLowerCase(); const PATH_TO_TAB={ "/cards":"cards","/rainbow":"rainbow","/supers":"supers","/1of1":"1of1","/34":"bojax34","/wants":"wants","/tradebait":"tradebait","/market":"market","/messages":"messages","/friends":"friends","/team":"team","/ledger":"ledger","/leaderboard":"leaderboard" }; if(PATH_TO_TAB[p]) return PATH_TO_TAB[p]; const h=(window.location.hash||"").replace("#","").trim(); if(VALID_TABS.includes(h)) return h; if(savedUI.activeTab && VALID_TABS.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
   const [headerLoaded,  setHeaderLoaded]  = useState(false);
   const [windowWidth,   setWindowWidth]   = useState(window.innerWidth);
   useEffect(() => {
@@ -48391,7 +48487,6 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
               {id:"deck",label:"⚔️ Hero Deck",badge:0},
               {id:"playbook",label:"📖 Playbook",badge:0},
               {id:"arena",label:"🏟️ Arena",badge:0},
-              {id:"fantasy",label:"🏈 Fantasy",badge:0},
               ...(user?[{id:"team",label:"🏆 Team",badge:0}]:[]),
             ])}
             {/* The badge used to count ONLY unread notifications, so once you dismissed the
@@ -48720,7 +48815,6 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 { id:"deck", label:"\u2694\uFE0F Hero Deck", badge:0 },
                 { id:"playbook", label:"\uD83D\uDCD6 Playbook", badge:0 },
                 { id:"arena", label:"\uD83C\uDFDF\uFE0F Arena", badge:0 },
-                { id:"fantasy", label:"\uD83C\uDFC8 Fantasy", badge:0 },
                 ...(user?[{ id:"team", label:"\uD83C\uDFC6 Team", badge:0 }]:[]),
                 { section:"More" },
                 { id:"market", label:"\uD83E\uDD1D Marketplace", badge:marketBadge },
@@ -50885,10 +50979,6 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
         )}
 
         {/* FANTASY DFS TAB */}
-        {activeTab==="fantasy" && (
-          <FantasyDFS user={user} isMobile={isMobile} setToast={setToast} />
-        )}
-
         {/* MARKET TAB */}
         {activeTab==="market" && (
           <MarketTab
@@ -54557,9 +54647,10 @@ function AppInner() {
   // Swancity public tracker — ALWAYS public (Super + Secret 1/1), no login, no access wall.
   if (window.location.pathname === "/swancity") return <PublicCardDatabase swancity={true} />;
   // Card database tabs as flat top-level URLs (e.g. /supers, /rainbow, /wants)
-  const CARD_DB_PATHS = ["/cards","/rainbow","/supers","/1of1","/34","/wants","/tradebait","/intransit","/market","/messages","/friends","/team","/ledger","/leaderboard","/fantasy"];
+  const CARD_DB_PATHS = ["/cards","/rainbow","/supers","/1of1","/34","/wants","/tradebait","/intransit","/market","/messages","/friends","/team","/ledger","/leaderboard"];
   if (CARD_DB_PATHS.includes(window.location.pathname)) return <><PublicCardDatabase /><BugReporter user={user} /></>;
   if (window.location.pathname === "/sell")     return <PublicSellPage />;
+  if (window.location.pathname === "/fantasy")  return <FantasyPage user={user} />;
   if (window.location.pathname === "/privacy")  return <PublicPrivacyPolicy />;
   if (window.location.pathname === "/chases")   return <PublicChaseTracker />;
 
