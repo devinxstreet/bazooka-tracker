@@ -30612,6 +30612,302 @@ function ArenaArranger({ playmatUrl, initial, onClose, onSave }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FANTASY DFS (/fantasy) — DraftKings-style weekly NFL contests, free to play.
+// Users build a 9-slot lineup under a salary cap, lineups lock at kickoff, and
+// after games they're scored with standard DK PPR rules. Winners earn Bazooka
+// Bucks, redeemable for packs. Phase 1: lineup builder + salary cap + save.
+// Live NFL player data and post-game scoring plug in via loadDfsPlayers() once a
+// data feed is connected; until then a seed pool keeps the builder functional.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Standard DraftKings PPR scoring. Given a stat line, returns fantasy points.
+function dkScore(s = {}) {
+  const n = k => parseFloat(s[k]) || 0;
+  let p = 0;
+  // Passing
+  p += n("passYds") * 0.04;
+  p += n("passTD") * 4;
+  p += n("passInt") * -1;
+  if (n("passYds") >= 300) p += 3;              // 300+ yard passing bonus
+  // Rushing
+  p += n("rushYds") * 0.1;
+  p += n("rushTD") * 6;
+  if (n("rushYds") >= 100) p += 3;              // 100+ yard rushing bonus
+  // Receiving (PPR)
+  p += n("rec") * 1;
+  p += n("recYds") * 0.1;
+  p += n("recTD") * 6;
+  if (n("recYds") >= 100) p += 3;               // 100+ yard receiving bonus
+  // Misc offense
+  p += n("fumLost") * -1;
+  p += n("twoPt") * 2;
+  // DST
+  p += n("sack") * 1;
+  p += n("dstInt") * 2;
+  p += n("fumRec") * 2;
+  p += n("dstTD") * 6;
+  p += n("safety") * 2;
+  p += n("blockKick") * 2;
+  if (s.pos === "DST") {                          // points-allowed tiers
+    const pa = n("ptsAllowed");
+    p += pa === 0 ? 10 : pa <= 6 ? 7 : pa <= 13 ? 4 : pa <= 20 ? 1 : pa <= 27 ? 0 : pa <= 34 ? -1 : -4;
+  }
+  return Math.round(p * 100) / 100;
+}
+
+// Roster: 9 slots. FLEX takes RB/WR/TE. Cap is $50,000 (DK standard).
+const DFS_CAP = 50000;
+const DFS_SLOTS = [
+  { key: "QB",   label: "QB",   accepts: ["QB"] },
+  { key: "RB1",  label: "RB",   accepts: ["RB"] },
+  { key: "RB2",  label: "RB",   accepts: ["RB"] },
+  { key: "WR1",  label: "WR",   accepts: ["WR"] },
+  { key: "WR2",  label: "WR",   accepts: ["WR"] },
+  { key: "WR3",  label: "WR",   accepts: ["WR"] },
+  { key: "TE",   label: "TE",   accepts: ["TE"] },
+  { key: "FLEX", label: "FLEX", accepts: ["RB","WR","TE"] },
+  { key: "DST",  label: "DST",  accepts: ["DST"] },
+];
+
+// Seed player pool — placeholder salaries so the builder works before a live NFL
+// feed is connected. Replaced by loadDfsPlayers() once the data source is wired.
+function seedDfsPlayers() {
+  const mk = (id,name,pos,team,salary,proj) => ({ id, name, pos, team, salary, proj });
+  return [
+    mk("p1","Patrick Mahomes","QB","KC",7200,22.4), mk("p2","Josh Allen","QB","BUF",7400,23.1),
+    mk("p3","Jalen Hurts","QB","PHI",6900,21.7), mk("p4","Lamar Jackson","QB","BAL",7100,22.0),
+    mk("p5","Christian McCaffrey","RB","SF",8000,20.8), mk("p6","Bijan Robinson","RB","ATL",6600,17.2),
+    mk("p7","Saquon Barkley","RB","PHI",7000,18.5), mk("p8","Derrick Henry","RB","BAL",6400,16.9),
+    mk("p9","Jahmyr Gibbs","RB","DET",6200,16.1), mk("p10","De'Von Achane","RB","MIA",5800,15.0),
+    mk("p11","Tyreek Hill","WR","MIA",7600,18.9), mk("p12","CeeDee Lamb","WR","DAL",7300,18.2),
+    mk("p13","Ja'Marr Chase","WR","CIN",7500,18.7), mk("p14","Justin Jefferson","WR","MIN",7400,18.4),
+    mk("p15","Amon-Ra St. Brown","WR","DET",6800,16.8), mk("p16","A.J. Brown","WR","PHI",6700,16.5),
+    mk("p17","Puka Nacua","WR","LAR",6300,15.4), mk("p18","Nico Collins","WR","HOU",5900,14.6),
+    mk("p19","Travis Kelce","TE","KC",5400,13.2), mk("p20","Sam LaPorta","TE","DET",4800,11.8),
+    mk("p21","Trey McBride","TE","ARI",4600,11.3), mk("p22","George Kittle","TE","SF",4900,12.0),
+    mk("p23","Mark Andrews","TE","BAL",4200,10.4),
+    mk("d1","49ers","DST","SF",3000,8.5), mk("d2","Cowboys","DST","DAL",2800,8.0),
+    mk("d3","Ravens","DST","BAL",2900,8.2), mk("d4","Browns","DST","CLE",2700,7.6),
+    mk("d5","Bills","DST","BUF",3100,8.8),
+  ];
+}
+// Live loader stub — returns null until a data feed is connected. When wired, it
+// should resolve to the same {id,name,pos,team,salary,proj} shape.
+async function loadDfsPlayers(week) {
+  try {
+    const snap = await getDoc(doc(db, "config", "dfs_players"));
+    if (snap.exists() && Array.isArray(snap.data().players) && snap.data().players.length) {
+      return snap.data().players;
+    }
+  } catch (e) { /* fall through to seed */ }
+  return null;
+}
+
+function FantasyDFS({ user, isMobile, setToast }) {
+  const [players, setPlayers] = React.useState(seedDfsPlayers());
+  const [usingSeed, setUsingSeed] = React.useState(true);
+  const [posFilter, setPosFilter] = React.useState("ALL");
+  const [search, setSearch] = React.useState("");
+  const [lineup, setLineup] = React.useState({});   // slotKey -> player
+  const [bucks, setBucks] = React.useState(0);
+  const [saving, setSaving] = React.useState(false);
+
+  // Load a live player pool if one has been published; otherwise keep the seed.
+  React.useEffect(() => {
+    let alive = true;
+    loadDfsPlayers().then(list => {
+      if (alive && list) { setPlayers(list); setUsingSeed(false); }
+    });
+    return () => { alive = false; };
+  }, []);
+
+  // Load this user's Bazooka Bucks balance.
+  React.useEffect(() => {
+    if (!user?.uid) return;
+    getDoc(doc(db, "bazooka_bucks", user.uid))
+      .then(s => { if (s.exists()) setBucks(parseInt(s.data().balance) || 0); })
+      .catch(()=>{});
+  }, [user?.uid]);
+
+  const usedSalary = Object.values(lineup).reduce((s,p)=> s + (p?.salary||0), 0);
+  const capLeft = DFS_CAP - usedSalary;
+  const filledCount = Object.values(lineup).filter(Boolean).length;
+  const projTotal = Object.values(lineup).reduce((s,p)=> s + (p?.proj||0), 0);
+  const rosteredIds = new Set(Object.values(lineup).filter(Boolean).map(p=>p.id));
+
+  // Which slot a player can go into: first empty slot that accepts their position.
+  function openSlotFor(pos) {
+    return DFS_SLOTS.find(sl => sl.accepts.includes(pos) && !lineup[sl.key]);
+  }
+  function addPlayer(p) {
+    if (rosteredIds.has(p.id)) return;
+    const slot = openSlotFor(p.pos);
+    if (!slot) { setToast && setToast(`No open ${p.pos} slot`); return; }
+    if ((p.salary||0) > capLeft) { setToast && setToast("Over the salary cap"); return; }
+    setLineup(l => ({ ...l, [slot.key]: p }));
+  }
+  function removeSlot(slotKey) { setLineup(l => { const n={...l}; delete n[slotKey]; return n; }); }
+
+  const filtered = players
+    .filter(p => posFilter === "ALL" || p.pos === posFilter)
+    .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.team||"").toLowerCase().includes(search.toLowerCase()))
+    .sort((a,b) => (b.proj||0) - (a.proj||0));
+
+  const lineupValid = filledCount === DFS_SLOTS.length && usedSalary <= DFS_CAP;
+
+  async function saveLineup() {
+    if (!user?.uid) { setToast && setToast("Sign in to save your lineup"); return; }
+    if (!lineupValid) { setToast && setToast("Fill all 9 slots under the cap first"); return; }
+    setSaving(true);
+    try {
+      const entry = {};
+      DFS_SLOTS.forEach(sl => { const p = lineup[sl.key]; if (p) entry[sl.key] = { id:p.id, name:p.name, pos:p.pos, team:p.team, salary:p.salary }; });
+      await setDoc(doc(db, "dfs_lineups", `${user.uid}_current`), {
+        uid: user.uid, lineup: entry, salary: usedSalary, proj: projTotal,
+        savedAt: new Date().toISOString(), scored: false,
+      });
+      setToast && setToast("\u2713 Lineup saved");
+    } catch (e) {
+      setToast && setToast("Couldn't save lineup \u2014 try again");
+    }
+    setSaving(false);
+  }
+
+  const capColor = capLeft < 0 ? "#F87171" : capLeft < 3000 ? "#FBBF24" : "#4ade80";
+  const panel = { background:"rgba(0,0,0,0.45)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:12, padding:16 };
+
+  return (
+    <div style={{ maxWidth: 1100, margin:"0 auto" }}>
+      {/* Header */}
+      <div style={{ ...panel, marginBottom:14, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
+        <div>
+          <div style={{ fontSize:22, fontWeight:900, color:"#fff", letterSpacing:0.5 }}>
+            {"\uD83C\uDFC8"} Bazooka Fantasy
+          </div>
+          <div style={{ fontSize:12, color:"rgba(255,255,255,0.55)", marginTop:2 }}>
+            DraftKings-style weekly DFS {"\u00B7"} free to play {"\u00B7"} win Bazooka Bucks for packs
+          </div>
+        </div>
+        <div style={{ textAlign:"right" }}>
+          <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.5)" }}>YOUR BAZOOKA BUCKS</div>
+          <div style={{ fontSize:22, fontWeight:900, color:"#FBBF24" }}>{"\uD83D\uDCB0"} {bucks.toLocaleString()}</div>
+        </div>
+      </div>
+
+      {usingSeed && (
+        <div style={{ marginBottom:14, padding:"10px 14px", borderRadius:10, background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.3)", fontSize:12, color:"#FBBF24", fontWeight:600 }}>
+          Preview mode — showing sample players and projected salaries. Live NFL players and scoring go live once the data feed is connected.
+        </div>
+      )}
+
+      <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1.2fr 1fr", gap:14 }}>
+        {/* Player pool */}
+        <div style={panel}>
+          <div style={{ fontSize:14, fontWeight:800, color:"#fff", marginBottom:10 }}>Player Pool</div>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search player or team\u2026"
+            style={{ width:"100%", boxSizing:"border-box", padding:"9px 12px", borderRadius:8, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.05)", color:"#fff", fontSize:13, marginBottom:10, fontFamily:"inherit" }} />
+          <div style={{ display:"flex", gap:6, marginBottom:12, flexWrap:"wrap" }}>
+            {["ALL","QB","RB","WR","TE","DST"].map(pos => (
+              <button key={pos} onClick={()=>setPosFilter(pos)}
+                style={{ padding:"5px 12px", borderRadius:14, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
+                         border:`1px solid ${posFilter===pos ? "#E8317A" : "rgba(255,255,255,0.15)"}`,
+                         background: posFilter===pos ? "rgba(232,49,122,0.15)" : "transparent",
+                         color: posFilter===pos ? "#E8317A" : "rgba(255,255,255,0.6)" }}>{pos}</button>
+            ))}
+          </div>
+          <div style={{ maxHeight: 460, overflowY:"auto", display:"flex", flexDirection:"column", gap:6 }}>
+            {filtered.map(p => {
+              const rostered = rosteredIds.has(p.id);
+              const affordable = (p.salary||0) <= capLeft && !!openSlotFor(p.pos);
+              return (
+                <div key={p.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 10px", borderRadius:8,
+                                         background: rostered ? "rgba(74,222,128,0.1)" : "rgba(255,255,255,0.03)",
+                                         border:`1px solid ${rostered ? "rgba(74,222,128,0.3)" : "rgba(255,255,255,0.07)"}` }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
+                    <span style={{ fontSize:10, fontWeight:800, color:"#fff", background:"rgba(255,255,255,0.1)", borderRadius:4, padding:"2px 6px", minWidth:30, textAlign:"center" }}>{p.pos}</span>
+                    <div style={{ minWidth:0 }}>
+                      <div style={{ fontSize:13, fontWeight:700, color:"#fff", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p.name}</div>
+                      <div style={{ fontSize:10.5, color:"rgba(255,255,255,0.45)" }}>{p.team} {"\u00B7"} proj {p.proj}</div>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                    <span style={{ fontSize:12, fontWeight:800, color:"#4ade80" }}>${(p.salary||0).toLocaleString()}</span>
+                    <button onClick={()=>rostered ? null : addPlayer(p)} disabled={rostered || !affordable}
+                      style={{ width:28, height:28, borderRadius:7, border:"none", cursor: (rostered||!affordable)?"default":"pointer", fontFamily:"inherit",
+                               background: rostered ? "rgba(74,222,128,0.2)" : affordable ? "#E8317A" : "rgba(255,255,255,0.08)",
+                               color: rostered ? "#4ade80" : affordable ? "#fff" : "rgba(255,255,255,0.3)", fontSize:16, fontWeight:900, lineHeight:1 }}>
+                      {rostered ? "\u2713" : "+"}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Lineup + cap */}
+        <div style={panel}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:10 }}>
+            <div style={{ fontSize:14, fontWeight:800, color:"#fff" }}>Your Lineup</div>
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)" }}>{filledCount}/9 filled</div>
+          </div>
+          {/* Cap meter */}
+          <div style={{ marginBottom:14, padding:"10px 12px", borderRadius:10, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:6 }}>
+              <span style={{ color:"rgba(255,255,255,0.6)" }}>Salary used</span>
+              <span style={{ color:"#fff", fontWeight:700 }}>${usedSalary.toLocaleString()} / ${DFS_CAP.toLocaleString()}</span>
+            </div>
+            <div style={{ height:6, borderRadius:3, background:"rgba(255,255,255,0.1)", overflow:"hidden" }}>
+              <div style={{ height:"100%", width:`${Math.min(100, (usedSalary/DFS_CAP)*100)}%`, background:capColor, transition:"width 0.2s" }} />
+            </div>
+            <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, marginTop:6 }}>
+              <span style={{ color:capColor, fontWeight:700 }}>${capLeft.toLocaleString()} left</span>
+              <span style={{ color:"rgba(255,255,255,0.5)" }}>Proj: <strong style={{color:"#FBBF24"}}>{projTotal.toFixed(1)}</strong></span>
+            </div>
+          </div>
+          {/* Slots */}
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            {DFS_SLOTS.map(sl => {
+              const p = lineup[sl.key];
+              const avgPerSlot = capLeft > 0 && (9 - filledCount) > 0 ? Math.floor(capLeft / (9 - filledCount)) : 0;
+              return (
+                <div key={sl.key} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 10px", borderRadius:8,
+                                           background: p ? "rgba(232,49,122,0.06)" : "rgba(255,255,255,0.02)",
+                                           border:`1px solid ${p ? "rgba(232,49,122,0.25)" : "rgba(255,255,255,0.06)"}`, minHeight:44 }}>
+                  <span style={{ fontSize:11, fontWeight:800, color:"rgba(255,255,255,0.6)", minWidth:38 }}>{sl.label}</span>
+                  {p ? (
+                    <>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:700, color:"#fff", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p.name}</div>
+                        <div style={{ fontSize:10.5, color:"rgba(255,255,255,0.45)" }}>{p.team} {"\u00B7"} ${(p.salary||0).toLocaleString()}</div>
+                      </div>
+                      <button onClick={()=>removeSlot(sl.key)}
+                        style={{ width:24, height:24, borderRadius:6, border:"none", background:"rgba(248,113,113,0.15)", color:"#F87171", fontSize:15, fontWeight:900, cursor:"pointer", fontFamily:"inherit", lineHeight:1 }}>{"\u00D7"}</button>
+                    </>
+                  ) : (
+                    <span style={{ flex:1, fontSize:12, color:"rgba(255,255,255,0.3)" }}>Empty {avgPerSlot>0 ? `\u00B7 ~$${avgPerSlot.toLocaleString()} avg left` : ""}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <button onClick={saveLineup} disabled={!lineupValid || saving}
+            style={{ width:"100%", marginTop:14, padding:"14px", borderRadius:10, border:"none", fontFamily:"inherit",
+                     background: lineupValid ? "#E8317A" : "rgba(255,255,255,0.08)",
+                     color: lineupValid ? "#fff" : "rgba(255,255,255,0.35)",
+                     fontWeight:900, fontSize:15, cursor: lineupValid?"pointer":"default" }}>
+            {saving ? "Saving\u2026" : lineupValid ? "Save Lineup" : `Fill all 9 slots (${filledCount}/9)`}
+          </button>
+          {usedSalary > DFS_CAP && (
+            <div style={{ marginTop:8, fontSize:12, color:"#F87171", fontWeight:700, textAlign:"center" }}>Over the salary cap by ${(usedSalary-DFS_CAP).toLocaleString()}</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobile, setToast, inp }) {
   // Arena itself is open to every dashboard user, but a few controls (the card-
   // back uploader) stay admin-only. Same check the rest of the app uses.
@@ -37520,8 +37816,8 @@ See you in there!
   const UI_STATE_KEY = "bazooka_vault_ui_v1";
   const loadUI = () => { try { return JSON.parse(sessionStorage.getItem(UI_STATE_KEY)||"{}"); } catch(e) { return {}; } };
   const savedUI = (typeof window !== "undefined") ? loadUI() : {};
-  const VALID_TABS = ["cards","rainbow","supers","1of1","bojax34","wants","tradebait","intransit","deck","playbook","arena","market","messages","friends","team","ledger","leaderboard"];
-  const [activeTab,     setActiveTab]     = useState(()=>{ if(swancity) return "supers"; const p=(window.location.pathname||"").toLowerCase(); const PATH_TO_TAB={ "/cards":"cards","/rainbow":"rainbow","/supers":"supers","/1of1":"1of1","/34":"bojax34","/wants":"wants","/tradebait":"tradebait","/market":"market","/messages":"messages","/friends":"friends","/team":"team","/ledger":"ledger","/leaderboard":"leaderboard" }; if(PATH_TO_TAB[p]) return PATH_TO_TAB[p]; const h=(window.location.hash||"").replace("#","").trim(); if(VALID_TABS.includes(h)) return h; if(savedUI.activeTab && VALID_TABS.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
+  const VALID_TABS = ["cards","rainbow","supers","1of1","bojax34","wants","tradebait","intransit","deck","playbook","arena","fantasy","market","messages","friends","team","ledger","leaderboard"];
+  const [activeTab,     setActiveTab]     = useState(()=>{ if(swancity) return "supers"; const p=(window.location.pathname||"").toLowerCase(); const PATH_TO_TAB={ "/cards":"cards","/rainbow":"rainbow","/supers":"supers","/1of1":"1of1","/34":"bojax34","/wants":"wants","/tradebait":"tradebait","/market":"market","/messages":"messages","/friends":"friends","/team":"team","/ledger":"ledger","/leaderboard":"leaderboard","/fantasy":"fantasy" }; if(PATH_TO_TAB[p]) return PATH_TO_TAB[p]; const h=(window.location.hash||"").replace("#","").trim(); if(VALID_TABS.includes(h)) return h; if(savedUI.activeTab && VALID_TABS.includes(savedUI.activeTab)) return savedUI.activeTab; return "cards"; });
   const [headerLoaded,  setHeaderLoaded]  = useState(false);
   const [windowWidth,   setWindowWidth]   = useState(window.innerWidth);
   useEffect(() => {
@@ -48091,6 +48387,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
               {id:"deck",label:"⚔️ Hero Deck",badge:0},
               {id:"playbook",label:"📖 Playbook",badge:0},
               {id:"arena",label:"🏟️ Arena",badge:0},
+              {id:"fantasy",label:"🏈 Fantasy",badge:0},
               ...(user?[{id:"team",label:"🏆 Team",badge:0}]:[]),
             ])}
             {/* The badge used to count ONLY unread notifications, so once you dismissed the
@@ -48419,6 +48716,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 { id:"deck", label:"\u2694\uFE0F Hero Deck", badge:0 },
                 { id:"playbook", label:"\uD83D\uDCD6 Playbook", badge:0 },
                 { id:"arena", label:"\uD83C\uDFDF\uFE0F Arena", badge:0 },
+                { id:"fantasy", label:"\uD83C\uDFC8 Fantasy", badge:0 },
                 ...(user?[{ id:"team", label:"\uD83C\uDFC6 Team", badge:0 }]:[]),
                 { section:"More" },
                 { id:"market", label:"\uD83E\uDD1D Marketplace", badge:marketBadge },
@@ -50580,6 +50878,11 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             setToast={setToast}
             inp={inp}
           />
+        )}
+
+        {/* FANTASY DFS TAB */}
+        {activeTab==="fantasy" && (
+          <FantasyDFS user={user} isMobile={isMobile} setToast={setToast} />
         )}
 
         {/* MARKET TAB */}
