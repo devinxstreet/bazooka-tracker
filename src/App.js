@@ -30613,467 +30613,149 @@ function ArenaArranger({ playmatUrl, initial, onClose, onSave }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// FANTASY DFS (/fantasy) — DraftKings-style weekly NFL contests, free to play.
-// Users build a 9-slot lineup under a salary cap, lineups lock at kickoff, and
-// after games they're scored with standard DK PPR rules. Winners earn Bazooka
-// Bucks, redeemable for packs. Phase 1: lineup builder + salary cap + save.
-// Live NFL player data and post-game scoring plug in via loadDfsPlayers() once a
-// data feed is connected; until then a seed pool keeps the builder functional.
+// BAZOOKA FANTASY (/fantasy) — a standings + Bazooka Bucks layer on top of
+// DraftKings. DK runs the actual NFL contest; Bazooka just tracks results.
+// Each week an admin types in the finishing order (names, from DK). Bucks are
+// awarded by finish: 1st = 9, 2nd–10th = 3, 11th–20th = 1, 21st–30th = 0.5.
+// Players are tracked BY NAME (no login). Each carries Earned (never drops —
+// drives rank), Redeemed, and Balance (Earned − Redeemed). Redemptions are
+// admin-processed at 3 Bucks per pack. Data model in Firestore:
+//   fantasy_season/current   -> { players: { name: {earned, redeemed} }, weeks: [...] }
+//   fantasy_weeks/{weekId}    -> { week, order:[names], awarded:{name:bucks}, enteredAt }
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Standard DraftKings PPR scoring. Given a stat line, returns fantasy points.
-function dkScore(s = {}) {
-  const n = k => parseFloat(s[k]) || 0;
-  let p = 0;
-  // Passing
-  p += n("passYds") * 0.04;
-  p += n("passTD") * 4;
-  p += n("passInt") * -1;
-  if (n("passYds") >= 300) p += 3;              // 300+ yard passing bonus
-  // Rushing
-  p += n("rushYds") * 0.1;
-  p += n("rushTD") * 6;
-  if (n("rushYds") >= 100) p += 3;              // 100+ yard rushing bonus
-  // Receiving (PPR)
-  p += n("rec") * 1;
-  p += n("recYds") * 0.1;
-  p += n("recTD") * 6;
-  if (n("recYds") >= 100) p += 3;               // 100+ yard receiving bonus
-  // Misc offense
-  p += n("fumLost") * -1;
-  p += n("twoPt") * 2;
-  // DST
-  p += n("sack") * 1;
-  p += n("dstInt") * 2;
-  p += n("fumRec") * 2;
-  p += n("dstTD") * 6;
-  p += n("safety") * 2;
-  p += n("blockKick") * 2;
-  if (s.pos === "DST") {                          // points-allowed tiers
-    const pa = n("ptsAllowed");
-    p += pa === 0 ? 10 : pa <= 6 ? 7 : pa <= 13 ? 4 : pa <= 20 ? 1 : pa <= 27 ? 0 : pa <= 34 ? -1 : -4;
-  }
-  return Math.round(p * 100) / 100;
+// Bucks awarded for a finishing position (1-indexed rank).
+function fantasyBucksForRank(rank) {
+  if (rank === 1) return 9;
+  if (rank >= 2 && rank <= 10) return 3;
+  if (rank >= 11 && rank <= 20) return 1;
+  if (rank >= 21 && rank <= 30) return 0.5;
+  return 0;
 }
-
-// Roster: 9 slots. FLEX takes RB/WR/TE. Cap is $50,000 (DK standard).
-const DFS_CAP = 50000;
-const DFS_SLOTS = [
-  { key: "QB",   label: "QB",   accepts: ["QB"] },
-  { key: "RB1",  label: "RB",   accepts: ["RB"] },
-  { key: "RB2",  label: "RB",   accepts: ["RB"] },
-  { key: "WR1",  label: "WR",   accepts: ["WR"] },
-  { key: "WR2",  label: "WR",   accepts: ["WR"] },
-  { key: "WR3",  label: "WR",   accepts: ["WR"] },
-  { key: "TE",   label: "TE",   accepts: ["TE"] },
-  { key: "FLEX", label: "FLEX", accepts: ["RB","WR","TE"] },
-  { key: "DST",  label: "DST",  accepts: ["DST"] },
-];
-
-// Seed player pool — placeholder salaries so the builder works before a live NFL
-// feed is connected. Replaced by loadDfsPlayers() once the data source is wired.
-function seedDfsPlayers() {
-  const mk = (id,name,pos,team,salary,proj) => ({ id, name, pos, team, salary, proj });
-  return [
-    mk("p1","Patrick Mahomes","QB","KC",7200,22.4), mk("p2","Josh Allen","QB","BUF",7400,23.1),
-    mk("p3","Jalen Hurts","QB","PHI",6900,21.7), mk("p4","Lamar Jackson","QB","BAL",7100,22.0),
-    mk("p5","Christian McCaffrey","RB","SF",8000,20.8), mk("p6","Bijan Robinson","RB","ATL",6600,17.2),
-    mk("p7","Saquon Barkley","RB","PHI",7000,18.5), mk("p8","Derrick Henry","RB","BAL",6400,16.9),
-    mk("p9","Jahmyr Gibbs","RB","DET",6200,16.1), mk("p10","De'Von Achane","RB","MIA",5800,15.0),
-    mk("p11","Tyreek Hill","WR","MIA",7600,18.9), mk("p12","CeeDee Lamb","WR","DAL",7300,18.2),
-    mk("p13","Ja'Marr Chase","WR","CIN",7500,18.7), mk("p14","Justin Jefferson","WR","MIN",7400,18.4),
-    mk("p15","Amon-Ra St. Brown","WR","DET",6800,16.8), mk("p16","A.J. Brown","WR","PHI",6700,16.5),
-    mk("p17","Puka Nacua","WR","LAR",6300,15.4), mk("p18","Nico Collins","WR","HOU",5900,14.6),
-    mk("p19","Travis Kelce","TE","KC",5400,13.2), mk("p20","Sam LaPorta","TE","DET",4800,11.8),
-    mk("p21","Trey McBride","TE","ARI",4600,11.3), mk("p22","George Kittle","TE","SF",4900,12.0),
-    mk("p23","Mark Andrews","TE","BAL",4200,10.4),
-    mk("d1","49ers","DST","SF",3000,8.5), mk("d2","Cowboys","DST","DAL",2800,8.0),
-    mk("d3","Ravens","DST","BAL",2900,8.2), mk("d4","Browns","DST","CLE",2700,7.6),
-    mk("d5","Bills","DST","BUF",3100,8.8),
-  ];
-}
-// Live loader stub — returns null until a data feed is connected. When wired, it
-// should resolve to the same {id,name,pos,team,salary,proj} shape.
-async function loadDfsPlayers(week) {
-  try {
-    const snap = await getDoc(doc(db, "config", "dfs_players"));
-    if (snap.exists() && Array.isArray(snap.data().players) && snap.data().players.length) {
-      return snap.data().players;
-    }
-  } catch (e) { /* fall through to seed */ }
-  return null;
-}
+const REDEEM_COST = 3;   // Bazooka Bucks per pack
 
 function FantasyDFS({ user, isMobile, setToast }) {
-  const [players, setPlayers] = React.useState(seedDfsPlayers());
-  const [usingSeed, setUsingSeed] = React.useState(true);
-  const [posFilter, setPosFilter] = React.useState("ALL");
-  const [search, setSearch] = React.useState("");
-  const [lineup, setLineup] = React.useState({});   // slotKey -> player
-  const [bucks, setBucks] = React.useState(0);
-  const [saving, setSaving] = React.useState(false);
-  // Phase 2 — contests, entries, leaderboard, redemption.
-  const [view, setView] = React.useState("build");   // build | contests | redeem
-  const [contests, setContests] = React.useState([]);
-  const [myEntries, setMyEntries] = React.useState({});   // contestId -> entry
-  const [leaderboard, setLeaderboard] = React.useState({});   // contestId -> [entries]
-  const [openContestId, setOpenContestId] = React.useState(null);
+  const [season, setSeason] = React.useState(null);      // { players:{name:{earned,redeemed}}, weeks:[...] }
+  const [weeks, setWeeks] = React.useState([]);          // per-week result docs
+  const [view, setView] = React.useState("season");      // season | weeks | redeem
+  const [openWeek, setOpenWeek] = React.useState(null);
   const isAdmin = !!(user?.email && user.email.endsWith("@bazookabreaks.com"));
 
-  // Live contest list.
+  // Live season doc (the aggregate standings).
   React.useEffect(() => {
     try {
-      return onSnapshot(query(collection(db, "dfs_contests"), orderBy("lockAt", "desc")), snap => {
-        setContests(snap.docs.map(d => ({ id:d.id, ...d.data() })));
+      return onSnapshot(doc(db, "fantasy_season", "current"), snap => {
+        setSeason(snap.exists() ? snap.data() : { players: {}, weeks: [] });
+      });
+    } catch (e) { setSeason({ players: {}, weeks: [] }); }
+  }, []);
+
+  // Live week docs (for the week-by-week view).
+  React.useEffect(() => {
+    try {
+      return onSnapshot(query(collection(db, "fantasy_weeks"), orderBy("week", "desc")), snap => {
+        setWeeks(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       });
     } catch (e) { return; }
   }, []);
 
-  // My entries across contests.
-  React.useEffect(() => {
-    if (!user?.uid) return;
-    try {
-      return onSnapshot(query(collection(db, "dfs_entries"), where("uid", "==", user.uid)), snap => {
-        const m = {}; snap.docs.forEach(d => { const e = d.data(); m[e.contestId] = { id:d.id, ...e }; });
-        setMyEntries(m);
-      });
-    } catch (e) { return; }
-  }, [user?.uid]);
+  const players = (season && season.players) || {};
+  // Season standings sorted by Earned (redeeming never lowers your rank).
+  const standings = Object.entries(players)
+    .map(([name, v]) => ({
+      name,
+      earned: v.earned || 0,
+      redeemed: v.redeemed || 0,
+      balance: Math.round(((v.earned || 0) - (v.redeemed || 0)) * 100) / 100,
+    }))
+    .sort((a, b) => b.earned - a.earned || a.name.localeCompare(b.name));
 
-  // Load a live player pool if one has been published; otherwise keep the seed.
-  React.useEffect(() => {
-    let alive = true;
-    loadDfsPlayers().then(list => {
-      if (alive && list) { setPlayers(list); setUsingSeed(false); }
-    });
-    return () => { alive = false; };
-  }, []);
-
-  // Load this user's Bazooka Bucks balance.
-  React.useEffect(() => {
-    if (!user?.uid) return;
-    getDoc(doc(db, "bazooka_bucks", user.uid))
-      .then(s => { if (s.exists()) setBucks(parseInt(s.data().balance) || 0); })
-      .catch(()=>{});
-  }, [user?.uid]);
-
-  const usedSalary = Object.values(lineup).reduce((s,p)=> s + (p?.salary||0), 0);
-  const capLeft = DFS_CAP - usedSalary;
-  const filledCount = Object.values(lineup).filter(Boolean).length;
-  const projTotal = Object.values(lineup).reduce((s,p)=> s + (p?.proj||0), 0);
-  const rosteredIds = new Set(Object.values(lineup).filter(Boolean).map(p=>p.id));
-
-  // Which slot a player can go into: first empty slot that accepts their position.
-  function openSlotFor(pos) {
-    return DFS_SLOTS.find(sl => sl.accepts.includes(pos) && !lineup[sl.key]);
-  }
-  function addPlayer(p) {
-    if (rosteredIds.has(p.id)) return;
-    const slot = openSlotFor(p.pos);
-    if (!slot) { setToast && setToast(`No open ${p.pos} slot`); return; }
-    if ((p.salary||0) > capLeft) { setToast && setToast("Over the salary cap"); return; }
-    setLineup(l => ({ ...l, [slot.key]: p }));
-  }
-  function removeSlot(slotKey) { setLineup(l => { const n={...l}; delete n[slotKey]; return n; }); }
-
-  const filtered = players
-    .filter(p => posFilter === "ALL" || p.pos === posFilter)
-    .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()) || (p.team||"").toLowerCase().includes(search.toLowerCase()))
-    .sort((a,b) => (b.proj||0) - (a.proj||0));
-
-  const lineupValid = filledCount === DFS_SLOTS.length && usedSalary <= DFS_CAP;
-
-  async function saveLineup() {
-    if (!user?.uid) { setToast && setToast("Sign in to save your lineup"); return; }
-    if (!lineupValid) { setToast && setToast("Fill all 9 slots under the cap first"); return; }
-    setSaving(true);
-    try {
-      const entry = {};
-      DFS_SLOTS.forEach(sl => { const p = lineup[sl.key]; if (p) entry[sl.key] = { id:p.id, name:p.name, pos:p.pos, team:p.team, salary:p.salary }; });
-      await setDoc(doc(db, "dfs_lineups", `${user.uid}_current`), {
-        uid: user.uid, lineup: entry, salary: usedSalary, proj: projTotal,
-        savedAt: new Date().toISOString(), scored: false,
-      });
-      setToast && setToast("\u2713 Lineup saved");
-    } catch (e) {
-      setToast && setToast("Couldn't save lineup \u2014 try again");
-    }
-    setSaving(false);
-  }
-
-  const capColor = capLeft < 0 ? "#F87171" : capLeft < 3000 ? "#FBBF24" : "#4ade80";
-  const panel = { background:"rgba(0,0,0,0.45)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:12, padding:16 };
-
-  // ── Contests ──────────────────────────────────────────────────────────────
-  const now = Date.now();
-  function contestState(c) {
-    const lock = c.lockAt ? new Date(c.lockAt).getTime() : 0;
-    if (c.scored) return "final";
-    if (now >= lock) return "live";
-    return "open";
-  }
-  // Admin: create a weekly contest.
-  async function createContest(name, week, lockAt, prizes) {
-    if (!isAdmin) return;
-    try {
-      const id = `w${week}_${Date.now().toString(36)}`;
-      await setDoc(doc(db, "dfs_contests", id), {
-        name, week: parseInt(week) || 1, lockAt, prizes,   // prizes: [{rank, bucks}]
-        createdBy: user.uid, createdAt: new Date().toISOString(),
-        scored: false, entryCount: 0,
-      });
-      setToast && setToast("\u2713 Contest created");
-    } catch (e) { setToast && setToast("Couldn't create contest"); }
-  }
-  // Enter the current saved lineup into a contest (before lock).
-  async function enterContest(c) {
-    if (!user?.uid) { setToast && setToast("Sign in to enter"); return; }
-    if (!lineupValid) { setToast && setToast("Build a full valid lineup first"); return; }
-    if (contestState(c) !== "open") { setToast && setToast("This contest is locked"); return; }
-    try {
-      const entry = {};
-      DFS_SLOTS.forEach(sl => { const p = lineup[sl.key]; if (p) entry[sl.key] = { id:p.id, name:p.name, pos:p.pos, team:p.team, salary:p.salary, proj:p.proj }; });
-      await setDoc(doc(db, "dfs_entries", `${c.id}_${user.uid}`), {
-        contestId: c.id, uid: user.uid,
-        handle: (user.displayName || "Collector"),
-        lineup: entry, salary: usedSalary, proj: projTotal,
-        points: 0, scored: false, enteredAt: new Date().toISOString(),
-      });
-      setToast && setToast(`\u2713 Entered ${c.name}`);
-    } catch (e) { setToast && setToast("Couldn't enter \u2014 try again"); }
-  }
-  // Load a contest's leaderboard on demand.
-  async function loadLeaderboard(contestId) {
-    try {
-      const snap = await getDocs(query(collection(db, "dfs_entries"), where("contestId", "==", contestId)));
-      const rows = snap.docs.map(d => d.data()).sort((a,b) => (b.points||0) - (a.points||0) || (b.proj||0) - (a.proj||0));
-      setLeaderboard(lb => ({ ...lb, [contestId]: rows }));
-    } catch (e) { /* index may be building */ }
-  }
-  // Redeem Bazooka Bucks for a pack (deducts balance, logs the redemption for
-  // fulfillment). Admin marks it shipped elsewhere.
-  const REDEEM_OPTIONS = [
-    { id:"single",  label:"Single BoBA Pack",     cost:500 },
-    { id:"triple",  label:"3-Pack Bundle",         cost:1300 },
-    { id:"mega",    label:"Mega Box Entry",        cost:3000 },
-    { id:"chaser",  label:"Chaser Pack (premium)", cost:5000 },
-  ];
-  async function redeem(option) {
-    if (!user?.uid) { setToast && setToast("Sign in to redeem"); return; }
-    if (bucks < option.cost) { setToast && setToast("Not enough Bazooka Bucks"); return; }
-    try {
-      const newBal = bucks - option.cost;
-      await setDoc(doc(db, "bazooka_bucks", user.uid), { balance: newBal, updatedAt: new Date().toISOString() }, { merge:true });
-      await setDoc(doc(db, "dfs_redemptions", `${user.uid}_${Date.now().toString(36)}`), {
-        uid: user.uid, handle: (user.displayName || "Collector"),
-        option: option.id, label: option.label, cost: option.cost,
-        status: "pending", requestedAt: new Date().toISOString(),
-      });
-      setBucks(newBal);
-      setToast && setToast(`\u2713 Redeemed ${option.label}! Bazooka will process it.`);
-    } catch (e) { setToast && setToast("Couldn't redeem \u2014 try again"); }
-  }
+  const panel = { background: "rgba(0,0,0,0.45)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: 16 };
+  const fmt = n => (Number.isInteger(n) ? String(n) : n.toFixed(1));
 
   return (
-    <div style={{ maxWidth: 1100, margin:"0 auto" }}>
+    <div style={{ maxWidth: 900, margin: "0 auto" }}>
       {/* Header */}
-      <div style={{ ...panel, marginBottom:14, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
-        <div>
-          <div style={{ fontSize:22, fontWeight:900, color:"#fff", letterSpacing:0.5 }}>
-            {"\uD83C\uDFC8"} Bazooka Fantasy
-          </div>
-          <div style={{ fontSize:12, color:"rgba(255,255,255,0.55)", marginTop:2 }}>
-            DraftKings-style weekly DFS {"\u00B7"} free to play {"\u00B7"} win Bazooka Bucks for packs
-          </div>
+      <div style={{ ...panel, marginBottom: 14 }}>
+        <div style={{ fontSize: 22, fontWeight: 900, color: "#fff", letterSpacing: 0.5 }}>
+          {"\uD83C\uDFC8"} Bazooka Fantasy
         </div>
-        <div style={{ textAlign:"right" }}>
-          <div style={{ fontSize:11, fontWeight:700, color:"rgba(255,255,255,0.5)" }}>YOUR BAZOOKA BUCKS</div>
-          <div style={{ fontSize:22, fontWeight:900, color:"#FBBF24" }}>{"\uD83D\uDCB0"} {bucks.toLocaleString()}</div>
+        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)", marginTop: 2 }}>
+          Play our contest on DraftKings {"\u00B7"} earn Bazooka Bucks by where you finish {"\u00B7"} redeem for packs
         </div>
       </div>
 
-      {usingSeed && (
-        <div style={{ marginBottom:14, padding:"10px 14px", borderRadius:10, background:"rgba(251,191,36,0.08)", border:"1px solid rgba(251,191,36,0.3)", fontSize:12, color:"#FBBF24", fontWeight:600 }}>
-          Preview mode — showing sample players and projected salaries. Live NFL players and scoring go live once the data feed is connected.
-        </div>
-      )}
-
       {/* View switcher */}
-      <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
-        {[["build","\uD83D\uDCCB Build Lineup"],["contests","\uD83C\uDFC6 Contests"],["redeem","\uD83C\uDF81 Redeem"]].map(([v,lbl]) => (
-          <button key={v} onClick={()=>setView(v)}
-            style={{ padding:"9px 16px", borderRadius:9, fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit",
-                     border:`1px solid ${view===v ? "#E8317A" : "rgba(255,255,255,0.15)"}`,
-                     background: view===v ? "rgba(232,49,122,0.15)" : "transparent",
-                     color: view===v ? "#E8317A" : "rgba(255,255,255,0.6)" }}>{lbl}</button>
+      <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+        {[["season", "\uD83C\uDFC6 Season Standings"], ["weeks", "\uD83D\uDCC5 Week by Week"], ["redeem", "\uD83C\uDF81 Redeem"]].map(([v, lbl]) => (
+          <button key={v} onClick={() => setView(v)}
+            style={{ padding: "9px 16px", borderRadius: 9, fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+                     border: `1px solid ${view === v ? "#E8317A" : "rgba(255,255,255,0.15)"}`,
+                     background: view === v ? "rgba(232,49,122,0.15)" : "transparent",
+                     color: view === v ? "#E8317A" : "rgba(255,255,255,0.6)" }}>{lbl}</button>
         ))}
       </div>
 
-      {view === "build" && (
-      <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1.2fr 1fr", gap:14 }}>
-        {/* Player pool */}
-        <div style={panel}>
-          <div style={{ fontSize:14, fontWeight:800, color:"#fff", marginBottom:10 }}>Player Pool</div>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search player or team\u2026"
-            style={{ width:"100%", boxSizing:"border-box", padding:"9px 12px", borderRadius:8, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.05)", color:"#fff", fontSize:13, marginBottom:10, fontFamily:"inherit" }} />
-          <div style={{ display:"flex", gap:6, marginBottom:12, flexWrap:"wrap" }}>
-            {["ALL","QB","RB","WR","TE","DST"].map(pos => (
-              <button key={pos} onClick={()=>setPosFilter(pos)}
-                style={{ padding:"5px 12px", borderRadius:14, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit",
-                         border:`1px solid ${posFilter===pos ? "#E8317A" : "rgba(255,255,255,0.15)"}`,
-                         background: posFilter===pos ? "rgba(232,49,122,0.15)" : "transparent",
-                         color: posFilter===pos ? "#E8317A" : "rgba(255,255,255,0.6)" }}>{pos}</button>
-            ))}
-          </div>
-          <div style={{ maxHeight: 460, overflowY:"auto", display:"flex", flexDirection:"column", gap:6 }}>
-            {filtered.map(p => {
-              const rostered = rosteredIds.has(p.id);
-              const affordable = (p.salary||0) <= capLeft && !!openSlotFor(p.pos);
-              return (
-                <div key={p.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 10px", borderRadius:8,
-                                         background: rostered ? "rgba(74,222,128,0.1)" : "rgba(255,255,255,0.03)",
-                                         border:`1px solid ${rostered ? "rgba(74,222,128,0.3)" : "rgba(255,255,255,0.07)"}` }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
-                    <span style={{ fontSize:10, fontWeight:800, color:"#fff", background:"rgba(255,255,255,0.1)", borderRadius:4, padding:"2px 6px", minWidth:30, textAlign:"center" }}>{p.pos}</span>
-                    <div style={{ minWidth:0 }}>
-                      <div style={{ fontSize:13, fontWeight:700, color:"#fff", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p.name}</div>
-                      <div style={{ fontSize:10.5, color:"rgba(255,255,255,0.45)" }}>{p.team} {"\u00B7"} proj {p.proj}</div>
-                    </div>
-                  </div>
-                  <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                    <span style={{ fontSize:12, fontWeight:800, color:"#4ade80" }}>${(p.salary||0).toLocaleString()}</span>
-                    <button onClick={()=>rostered ? null : addPlayer(p)} disabled={rostered || !affordable}
-                      style={{ width:28, height:28, borderRadius:7, border:"none", cursor: (rostered||!affordable)?"default":"pointer", fontFamily:"inherit",
-                               background: rostered ? "rgba(74,222,128,0.2)" : affordable ? "#E8317A" : "rgba(255,255,255,0.08)",
-                               color: rostered ? "#4ade80" : affordable ? "#fff" : "rgba(255,255,255,0.3)", fontSize:16, fontWeight:900, lineHeight:1 }}>
-                      {rostered ? "\u2713" : "+"}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Lineup + cap */}
-        <div style={panel}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:10 }}>
-            <div style={{ fontSize:14, fontWeight:800, color:"#fff" }}>Your Lineup</div>
-            <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)" }}>{filledCount}/9 filled</div>
-          </div>
-          {/* Cap meter */}
-          <div style={{ marginBottom:14, padding:"10px 12px", borderRadius:10, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:6 }}>
-              <span style={{ color:"rgba(255,255,255,0.6)" }}>Salary used</span>
-              <span style={{ color:"#fff", fontWeight:700 }}>${usedSalary.toLocaleString()} / ${DFS_CAP.toLocaleString()}</span>
-            </div>
-            <div style={{ height:6, borderRadius:3, background:"rgba(255,255,255,0.1)", overflow:"hidden" }}>
-              <div style={{ height:"100%", width:`${Math.min(100, (usedSalary/DFS_CAP)*100)}%`, background:capColor, transition:"width 0.2s" }} />
-            </div>
-            <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, marginTop:6 }}>
-              <span style={{ color:capColor, fontWeight:700 }}>${capLeft.toLocaleString()} left</span>
-              <span style={{ color:"rgba(255,255,255,0.5)" }}>Proj: <strong style={{color:"#FBBF24"}}>{projTotal.toFixed(1)}</strong></span>
-            </div>
-          </div>
-          {/* Slots */}
-          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-            {DFS_SLOTS.map(sl => {
-              const p = lineup[sl.key];
-              const avgPerSlot = capLeft > 0 && (9 - filledCount) > 0 ? Math.floor(capLeft / (9 - filledCount)) : 0;
-              return (
-                <div key={sl.key} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 10px", borderRadius:8,
-                                           background: p ? "rgba(232,49,122,0.06)" : "rgba(255,255,255,0.02)",
-                                           border:`1px solid ${p ? "rgba(232,49,122,0.25)" : "rgba(255,255,255,0.06)"}`, minHeight:44 }}>
-                  <span style={{ fontSize:11, fontWeight:800, color:"rgba(255,255,255,0.6)", minWidth:38 }}>{sl.label}</span>
-                  {p ? (
-                    <>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:13, fontWeight:700, color:"#fff", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p.name}</div>
-                        <div style={{ fontSize:10.5, color:"rgba(255,255,255,0.45)" }}>{p.team} {"\u00B7"} ${(p.salary||0).toLocaleString()}</div>
-                      </div>
-                      <button onClick={()=>removeSlot(sl.key)}
-                        style={{ width:24, height:24, borderRadius:6, border:"none", background:"rgba(248,113,113,0.15)", color:"#F87171", fontSize:15, fontWeight:900, cursor:"pointer", fontFamily:"inherit", lineHeight:1 }}>{"\u00D7"}</button>
-                    </>
-                  ) : (
-                    <span style={{ flex:1, fontSize:12, color:"rgba(255,255,255,0.3)" }}>Empty {avgPerSlot>0 ? `\u00B7 ~$${avgPerSlot.toLocaleString()} avg left` : ""}</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          <button onClick={saveLineup} disabled={!lineupValid || saving}
-            style={{ width:"100%", marginTop:14, padding:"14px", borderRadius:10, border:"none", fontFamily:"inherit",
-                     background: lineupValid ? "#E8317A" : "rgba(255,255,255,0.08)",
-                     color: lineupValid ? "#fff" : "rgba(255,255,255,0.35)",
-                     fontWeight:900, fontSize:15, cursor: lineupValid?"pointer":"default" }}>
-            {saving ? "Saving\u2026" : lineupValid ? "Save Lineup" : `Fill all 9 slots (${filledCount}/9)`}
-          </button>
-          {usedSalary > DFS_CAP && (
-            <div style={{ marginTop:8, fontSize:12, color:"#F87171", fontWeight:700, textAlign:"center" }}>Over the salary cap by ${(usedSalary-DFS_CAP).toLocaleString()}</div>
-          )}
-        </div>
+      {/* How-it-works / award scale */}
+      <div style={{ marginBottom: 14, padding: "10px 14px", borderRadius: 10, background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.25)", fontSize: 12, color: "rgba(255,255,255,0.7)" }}>
+        <strong style={{ color: "#FBBF24" }}>How Bucks work:</strong> 1st = 9 {"\u00B7"} 2nd–10th = 3 {"\u00B7"} 11th–20th = 1 {"\u00B7"} 21st–30th = 0.5. Redeeming never lowers your ranking.
       </div>
+
+      {/* ── SEASON STANDINGS ── */}
+      {view === "season" && (
+        <div style={panel}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: "#fff", marginBottom: 12 }}>Season Standings</div>
+          {standings.length === 0 ? (
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", textAlign: "center", padding: "20px 0" }}>
+              No results yet.{isAdmin ? " Enter a week's results below." : " Check back after the first week."}
+            </div>
+          ) : (
+            <>
+              <div style={{ display: "grid", gridTemplateColumns: "40px 1fr repeat(3, 72px)", gap: 4, fontSize: 10.5, fontWeight: 800, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: 0.5, padding: "0 8px 8px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                <span>#</span><span>Player</span>
+                <span style={{ textAlign: "right" }}>Earned</span>
+                <span style={{ textAlign: "right" }}>Redeem'd</span>
+                <span style={{ textAlign: "right" }}>Balance</span>
+              </div>
+              {standings.map((p, i) => (
+                <div key={p.name} style={{ display: "grid", gridTemplateColumns: "40px 1fr repeat(3, 72px)", gap: 4, alignItems: "center", padding: "9px 8px", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: 13,
+                                           background: i === 0 ? "rgba(251,191,36,0.06)" : "transparent" }}>
+                  <span style={{ fontWeight: 900, color: i === 0 ? "#FBBF24" : i < 3 ? "#fff" : "rgba(255,255,255,0.45)" }}>{i + 1}</span>
+                  <span style={{ fontWeight: 700, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {i === 0 ? "\uD83D\uDC51 " : ""}{p.name}
+                  </span>
+                  <span style={{ textAlign: "right", fontWeight: 800, color: "#FBBF24" }}>{fmt(p.earned)}</span>
+                  <span style={{ textAlign: "right", color: "rgba(255,255,255,0.4)" }}>{fmt(p.redeemed)}</span>
+                  <span style={{ textAlign: "right", fontWeight: 800, color: "#4ade80" }}>{fmt(p.balance)}</span>
+                </div>
+              ))}
+            </>
+          )}
+          {isAdmin && <AdminWeekEntry panel={panel} setToast={setToast} nextWeek={(weeks[0]?.week || 0) + 1} />}
+        </div>
       )}
 
-      {/* ── CONTESTS VIEW ── */}
-      {view === "contests" && (
-        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-          {isAdmin && <AdminContestCreator onCreate={createContest} panel={panel} />}
-          {contests.length === 0 ? (
-            <div style={{ ...panel, textAlign:"center", color:"rgba(255,255,255,0.5)", fontSize:13 }}>
-              No contests yet.{isAdmin ? " Create one above." : " Check back soon \u2014 Bazooka posts weekly contests."}
-            </div>
-          ) : contests.map(c => {
-            const st = contestState(c);
-            const mine = myEntries[c.id];
-            const stColor = st === "open" ? "#4ade80" : st === "live" ? "#FBBF24" : "rgba(255,255,255,0.5)";
-            const lockStr = c.lockAt ? new Date(c.lockAt).toLocaleString([], {weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit"}) : "TBD";
-            const isOpen = openContestId === c.id;
+      {/* ── WEEK BY WEEK ── */}
+      {view === "weeks" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {weeks.length === 0 ? (
+            <div style={{ ...panel, textAlign: "center", color: "rgba(255,255,255,0.5)", fontSize: 13 }}>No weeks entered yet.</div>
+          ) : weeks.map(w => {
+            const isOpen = openWeek === w.id;
+            const order = w.order || [];
             return (
-              <div key={c.id} style={panel}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, flexWrap:"wrap" }}>
-                  <div>
-                    <div style={{ fontSize:16, fontWeight:900, color:"#fff" }}>{c.name}</div>
-                    <div style={{ fontSize:12, color:"rgba(255,255,255,0.5)", marginTop:2 }}>
-                      Week {c.week} {"\u00B7"} <span style={{color:stColor, fontWeight:700, textTransform:"uppercase"}}>{st}</span> {"\u00B7"} {st==="open" ? "locks" : "locked"} {lockStr}
-                    </div>
-                    {Array.isArray(c.prizes) && c.prizes.length > 0 && (
-                      <div style={{ fontSize:11.5, color:"#FBBF24", marginTop:6, fontWeight:600 }}>
-                        {"\uD83D\uDCB0"} {c.prizes.map(p => `${ordinal(p.rank)}: ${p.bucks} Bucks`).join("  \u00B7  ")}
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ textAlign:"right" }}>
-                    {mine ? (
-                      <div style={{ fontSize:12, fontWeight:800, color:"#4ade80" }}>{"\u2713 Entered"}{st==="final" ? ` \u00B7 ${(mine.points||0).toFixed(1)} pts` : ""}</div>
-                    ) : st === "open" ? (
-                      <button onClick={()=>enterContest(c)} disabled={!lineupValid}
-                        style={{ padding:"9px 16px", borderRadius:8, border:"none", fontFamily:"inherit", fontWeight:900, fontSize:13,
-                                 background: lineupValid ? "#E8317A" : "rgba(255,255,255,0.08)",
-                                 color: lineupValid ? "#fff" : "rgba(255,255,255,0.35)", cursor: lineupValid?"pointer":"default" }}>
-                        Enter lineup
-                      </button>
-                    ) : (
-                      <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Entries closed</div>
-                    )}
-                  </div>
+              <div key={w.id} style={panel}>
+                <div onClick={() => setOpenWeek(isOpen ? null : w.id)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: "#fff" }}>Week {w.week}</div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}>{order.length} players {"\u00B7"} {isOpen ? "hide" : "view"}</div>
                 </div>
-                {!lineupValid && !mine && st === "open" && (
-                  <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginTop:8 }}>Build a full 9-slot lineup in the Build tab to enter.</div>
-                )}
-                <button onClick={()=>{ setOpenContestId(isOpen ? null : c.id); if (!isOpen) loadLeaderboard(c.id); }}
-                  style={{ marginTop:12, background:"none", border:"1px solid rgba(255,255,255,0.15)", color:"rgba(255,255,255,0.6)", borderRadius:7, padding:"6px 12px", fontSize:11.5, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                  {isOpen ? "Hide leaderboard" : "View leaderboard"}
-                </button>
                 {isOpen && (
-                  <div style={{ marginTop:10, borderTop:"1px solid rgba(255,255,255,0.08)", paddingTop:10 }}>
-                    {(leaderboard[c.id] || []).length === 0 ? (
-                      <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>No entries yet.</div>
-                    ) : (leaderboard[c.id] || []).slice(0, 25).map((e, i) => (
-                      <div key={e.uid || i} style={{ display:"flex", justifyContent:"space-between", padding:"6px 4px", borderBottom:"1px solid rgba(255,255,255,0.05)", fontSize:12.5,
-                                                     background: e.uid===user?.uid ? "rgba(232,49,122,0.08)" : "transparent" }}>
-                        <span style={{ color:"#fff" }}><strong style={{color:"rgba(255,255,255,0.4)", marginRight:8}}>{i+1}</strong>{e.handle || "Collector"}</span>
-                        <span style={{ color: st==="final" ? "#FBBF24" : "rgba(255,255,255,0.5)", fontWeight:700 }}>{st==="final" ? `${(e.points||0).toFixed(1)} pts` : `proj ${(e.proj||0).toFixed(1)}`}</span>
+                  <div style={{ marginTop: 10, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 10 }}>
+                    {order.map((name, i) => (
+                      <div key={name + i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 4px", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: 13,
+                                                   background: i === 0 ? "rgba(251,191,36,0.06)" : "transparent" }}>
+                        <span style={{ color: "#fff" }}><strong style={{ color: "rgba(255,255,255,0.4)", marginRight: 10 }}>{i + 1}</strong>{i === 0 ? "\uD83D\uDC51 " : ""}{name}</span>
+                        <span style={{ color: "#FBBF24", fontWeight: 800 }}>+{fmt(fantasyBucksForRank(i + 1))}</span>
                       </div>
                     ))}
                   </div>
@@ -31084,77 +30766,147 @@ function FantasyDFS({ user, isMobile, setToast }) {
         </div>
       )}
 
-      {/* ── REDEEM VIEW ── */}
+      {/* ── REDEEM ── */}
       {view === "redeem" && (
-        <div style={{ ...panel }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14, flexWrap:"wrap", gap:8 }}>
-            <div style={{ fontSize:16, fontWeight:900, color:"#fff" }}>Redeem Bazooka Bucks for Packs</div>
-            <div style={{ fontSize:16, fontWeight:900, color:"#FBBF24" }}>{"\uD83D\uDCB0"} {bucks.toLocaleString()}</div>
+        <div style={panel}>
+          <div style={{ fontSize: 16, fontWeight: 900, color: "#fff", marginBottom: 6 }}>Redeem for Packs</div>
+          <div style={{ fontSize: 20, fontWeight: 900, color: "#FBBF24", marginBottom: 14 }}>
+            {"\uD83D\uDCB0"} {REDEEM_COST} Bucks = 1 Pack
           </div>
-          <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:12 }}>
-            {REDEEM_OPTIONS.map(opt => {
-              const canAfford = bucks >= opt.cost;
-              return (
-                <div key={opt.id} style={{ padding:"14px 16px", borderRadius:10, border:`1px solid ${canAfford ? "rgba(232,49,122,0.35)" : "rgba(255,255,255,0.1)"}`,
-                                           background: canAfford ? "rgba(232,49,122,0.06)" : "rgba(255,255,255,0.02)" }}>
-                  <div style={{ fontSize:14, fontWeight:800, color:"#fff" }}>{opt.label}</div>
-                  <div style={{ fontSize:20, fontWeight:900, color:"#FBBF24", margin:"6px 0 12px" }}>{"\uD83D\uDCB0"} {opt.cost.toLocaleString()}</div>
-                  <button onClick={()=>redeem(opt)} disabled={!canAfford}
-                    style={{ width:"100%", padding:"11px", borderRadius:8, border:"none", fontFamily:"inherit", fontWeight:900, fontSize:13,
-                             background: canAfford ? "#E8317A" : "rgba(255,255,255,0.08)",
-                             color: canAfford ? "#fff" : "rgba(255,255,255,0.35)", cursor: canAfford?"pointer":"default" }}>
-                    {canAfford ? "Redeem" : `Need ${(opt.cost - bucks).toLocaleString()} more`}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-          <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginTop:14 }}>
-            Redemptions are processed by the Bazooka team and shipped with your next order or added to your account. You earn Bucks by placing in weekly contests.
-          </div>
+          {isAdmin ? (
+            <AdminRedeem players={players} standings={standings} panel={panel} setToast={setToast} fmt={fmt} />
+          ) : (
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", lineHeight: 1.6 }}>
+              Every pack costs <strong style={{ color: "#FBBF24" }}>{REDEEM_COST} Bazooka Bucks</strong>. To redeem, message the Bazooka team with your name and how many packs you want — they'll process it and ship with your next order. Your Balance on the standings is what you have available to spend, and redeeming won't drop your ranking.
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-// Ordinal helper for prize ranks (1st, 2nd, 3rd...).
-function ordinal(n) {
-  const s = ["th","st","nd","rd"], v = n % 100;
-  return n + (s[(v-20)%10] || s[v] || s[0]);
+// Admin: enter a week's finishing order (one name per line, in finish order).
+// Awards Bucks by position and folds the totals into the season doc.
+function AdminWeekEntry({ panel, setToast, nextWeek }) {
+  const [week, setWeek] = React.useState(String(nextWeek || 1));
+  const [names, setNames] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+
+  React.useEffect(() => { setWeek(String(nextWeek || 1)); }, [nextWeek]);
+
+  async function submit() {
+    const order = names.split("\n").map(s => s.trim()).filter(Boolean);
+    if (!order.length) { setToast && setToast("Enter at least one name"); return; }
+    const wk = parseInt(week) || 1;
+    setBusy(true);
+    try {
+      // Award map for this week.
+      const awarded = {};
+      order.forEach((name, i) => { awarded[name] = fantasyBucksForRank(i + 1); });
+
+      // Fold into the season aggregate (Earned only ever goes up).
+      const snap = await getDoc(doc(db, "fantasy_season", "current"));
+      const cur = snap.exists() ? snap.data() : { players: {}, weeks: [] };
+      const players = { ...(cur.players || {}) };
+      order.forEach((name, i) => {
+        const add = fantasyBucksForRank(i + 1);
+        const p = players[name] || { earned: 0, redeemed: 0 };
+        players[name] = { earned: Math.round((p.earned + add) * 100) / 100, redeemed: p.redeemed || 0 };
+      });
+      const weeksList = Array.from(new Set([...(cur.weeks || []), wk])).sort((a, b) => a - b);
+
+      await setDoc(doc(db, "fantasy_weeks", `week_${wk}`), {
+        week: wk, order, awarded, enteredAt: new Date().toISOString(),
+      });
+      await setDoc(doc(db, "fantasy_season", "current"), { players, weeks: weeksList }, { merge: true });
+      setToast && setToast(`\u2713 Week ${wk} entered \u2014 ${order.length} players awarded`);
+      setNames("");
+    } catch (e) {
+      setToast && setToast("Couldn't save week \u2014 try again");
+    }
+    setBusy(false);
+  }
+
+  const preview = names.split("\n").map(s => s.trim()).filter(Boolean);
+
+  return (
+    <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid rgba(251,191,36,0.25)" }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: "#FBBF24", marginBottom: 10 }}>{"\u2699\uFE0F"} Enter Week Results (admin)</div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
+        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>Week</span>
+        <input value={week} onChange={e => setWeek(e.target.value)} type="number"
+          style={{ width: 70, padding: "8px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: 13, fontFamily: "inherit" }} />
+      </div>
+      <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.5)", marginBottom: 6 }}>
+        Paste names in finish order from DraftKings — one per line, 1st place first.
+      </div>
+      <textarea value={names} onChange={e => setNames(e.target.value)} rows={8} placeholder={"1st place name\n2nd place name\n3rd place name\n..."}
+        style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: 13, fontFamily: "inherit", resize: "vertical" }} />
+      {preview.length > 0 && (
+        <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.55)", margin: "8px 0" }}>
+          {preview.length} players {"\u00B7"} awards: 1st gets 9, {preview.length >= 2 ? `2\u2013${Math.min(10, preview.length)} get 3` : ""}{preview.length > 10 ? `, 11\u2013${Math.min(20, preview.length)} get 1` : ""}{preview.length > 20 ? `, 21\u2013${Math.min(30, preview.length)} get 0.5` : ""}
+        </div>
+      )}
+      <button onClick={submit} disabled={busy || preview.length === 0}
+        style={{ marginTop: 6, padding: "11px 20px", borderRadius: 8, border: "none", fontFamily: "inherit", fontWeight: 900, fontSize: 13,
+                 background: preview.length ? "#FBBF24" : "rgba(255,255,255,0.08)", color: preview.length ? "#000" : "rgba(255,255,255,0.35)", cursor: preview.length ? "pointer" : "default" }}>
+        {busy ? "Saving\u2026" : `Award Week ${week}`}
+      </button>
+    </div>
+  );
 }
 
-// Admin: quick weekly-contest creator.
-function AdminContestCreator({ onCreate, panel }) {
+// Admin: process a redemption — pick a player, deduct 3 Bucks per pack from
+// their Balance (increments Redeemed; Earned untouched so rank is preserved).
+function AdminRedeem({ players, standings, panel, setToast, fmt }) {
   const [name, setName] = React.useState("");
-  const [week, setWeek] = React.useState("");
-  const [lockAt, setLockAt] = React.useState("");
-  const [p1, setP1] = React.useState("1000");
-  const [p2, setP2] = React.useState("500");
-  const [p3, setP3] = React.useState("250");
-  const inputStyle = { padding:"9px 12px", borderRadius:8, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.05)", color:"#fff", fontSize:13, fontFamily:"inherit" };
+  const [packs, setPacks] = React.useState("1");
+  const [busy, setBusy] = React.useState(false);
+
+  const sel = name ? standings.find(s => s.name === name) : null;
+  const cost = (parseInt(packs) || 0) * REDEEM_COST;
+  const canRedeem = sel && cost > 0 && sel.balance >= cost;
+
+  async function doRedeem() {
+    if (!canRedeem) return;
+    setBusy(true);
+    try {
+      const snap = await getDoc(doc(db, "fantasy_season", "current"));
+      const cur = snap.exists() ? snap.data() : { players: {} };
+      const pl = { ...(cur.players || {}) };
+      const p = pl[name] || { earned: 0, redeemed: 0 };
+      pl[name] = { earned: p.earned || 0, redeemed: Math.round(((p.redeemed || 0) + cost) * 100) / 100 };
+      await setDoc(doc(db, "fantasy_season", "current"), { players: pl }, { merge: true });
+      await setDoc(doc(db, "fantasy_redemptions", `${name.replace(/[^a-zA-Z0-9]/g, "_")}_${Date.now().toString(36)}`), {
+        name, packs: parseInt(packs) || 0, cost, processedAt: new Date().toISOString(),
+      });
+      setToast && setToast(`\u2713 ${name} redeemed ${packs} pack(s) for ${cost} Bucks`);
+      setPacks("1");
+    } catch (e) {
+      setToast && setToast("Couldn't process redemption");
+    }
+    setBusy(false);
+  }
+
   return (
-    <div style={{ ...panel, border:"1px solid rgba(251,191,36,0.3)" }}>
-      <div style={{ fontSize:13, fontWeight:800, color:"#FBBF24", marginBottom:10 }}>{"\u2699\uFE0F"} Create Contest (admin)</div>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))", gap:8, marginBottom:10 }}>
-        <input value={name} onChange={e=>setName(e.target.value)} placeholder="Contest name" style={inputStyle} />
-        <input value={week} onChange={e=>setWeek(e.target.value)} placeholder="Week #" type="number" style={inputStyle} />
-        <input value={lockAt} onChange={e=>setLockAt(e.target.value)} type="datetime-local" style={inputStyle} />
+    <div style={{ marginTop: 4, paddingTop: 14, borderTop: "1px solid rgba(232,49,122,0.25)" }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: "#E8317A", marginBottom: 10 }}>{"\u2699\uFE0F"} Process Redemption (admin)</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+        <select value={name} onChange={e => setName(e.target.value)}
+          style={{ flex: 1, minWidth: 160, padding: "9px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: 13, fontFamily: "inherit" }}>
+          <option value="">Select player\u2026</option>
+          {standings.map(s => <option key={s.name} value={s.name}>{s.name} (bal {fmt(s.balance)})</option>)}
+        </select>
+        <input value={packs} onChange={e => setPacks(e.target.value)} type="number" min="1"
+          style={{ width: 70, padding: "9px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: 13, fontFamily: "inherit" }} />
+        <span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>packs = {"\uD83D\uDCB0"} {cost}</span>
       </div>
-      <div style={{ display:"flex", gap:8, marginBottom:10, flexWrap:"wrap" }}>
-        <input value={p1} onChange={e=>setP1(e.target.value)} placeholder="1st Bucks" type="number" style={{...inputStyle, flex:1, minWidth:90}} />
-        <input value={p2} onChange={e=>setP2(e.target.value)} placeholder="2nd Bucks" type="number" style={{...inputStyle, flex:1, minWidth:90}} />
-        <input value={p3} onChange={e=>setP3(e.target.value)} placeholder="3rd Bucks" type="number" style={{...inputStyle, flex:1, minWidth:90}} />
-      </div>
-      <button onClick={()=>{
-          if (!name || !week || !lockAt) return;
-          const iso = new Date(lockAt).toISOString();
-          const prizes = [{rank:1,bucks:parseInt(p1)||0},{rank:2,bucks:parseInt(p2)||0},{rank:3,bucks:parseInt(p3)||0}].filter(p=>p.bucks>0);
-          onCreate(name, week, iso, prizes);
-          setName(""); setWeek(""); setLockAt("");
-        }}
-        style={{ padding:"10px 18px", borderRadius:8, border:"none", background:"#FBBF24", color:"#000", fontWeight:900, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
-        Create Contest
+      {sel && cost > sel.balance && <div style={{ fontSize: 12, color: "#F87171", marginBottom: 8 }}>Not enough balance ({fmt(sel.balance)} available).</div>}
+      <button onClick={doRedeem} disabled={!canRedeem || busy}
+        style={{ padding: "11px 20px", borderRadius: 8, border: "none", fontFamily: "inherit", fontWeight: 900, fontSize: 13,
+                 background: canRedeem ? "#E8317A" : "rgba(255,255,255,0.08)", color: canRedeem ? "#fff" : "rgba(255,255,255,0.35)", cursor: canRedeem ? "pointer" : "default" }}>
+        {busy ? "Processing\u2026" : "Process Redemption"}
       </button>
     </div>
   );
