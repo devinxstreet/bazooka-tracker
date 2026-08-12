@@ -30712,6 +30712,33 @@ function FantasyDFS({ user, isMobile, setToast }) {
   const [lineup, setLineup] = React.useState({});   // slotKey -> player
   const [bucks, setBucks] = React.useState(0);
   const [saving, setSaving] = React.useState(false);
+  // Phase 2 — contests, entries, leaderboard, redemption.
+  const [view, setView] = React.useState("build");   // build | contests | redeem
+  const [contests, setContests] = React.useState([]);
+  const [myEntries, setMyEntries] = React.useState({});   // contestId -> entry
+  const [leaderboard, setLeaderboard] = React.useState({});   // contestId -> [entries]
+  const [openContestId, setOpenContestId] = React.useState(null);
+  const isAdmin = !!(user?.email && user.email.endsWith("@bazookabreaks.com"));
+
+  // Live contest list.
+  React.useEffect(() => {
+    try {
+      return onSnapshot(query(collection(db, "dfs_contests"), orderBy("lockAt", "desc")), snap => {
+        setContests(snap.docs.map(d => ({ id:d.id, ...d.data() })));
+      });
+    } catch (e) { return; }
+  }, []);
+
+  // My entries across contests.
+  React.useEffect(() => {
+    if (!user?.uid) return;
+    try {
+      return onSnapshot(query(collection(db, "dfs_entries"), where("uid", "==", user.uid)), snap => {
+        const m = {}; snap.docs.forEach(d => { const e = d.data(); m[e.contestId] = { id:d.id, ...e }; });
+        setMyEntries(m);
+      });
+    } catch (e) { return; }
+  }, [user?.uid]);
 
   // Load a live player pool if one has been published; otherwise keep the seed.
   React.useEffect(() => {
@@ -30777,6 +30804,76 @@ function FantasyDFS({ user, isMobile, setToast }) {
   const capColor = capLeft < 0 ? "#F87171" : capLeft < 3000 ? "#FBBF24" : "#4ade80";
   const panel = { background:"rgba(0,0,0,0.45)", border:"1px solid rgba(255,255,255,0.12)", borderRadius:12, padding:16 };
 
+  // ── Contests ──────────────────────────────────────────────────────────────
+  const now = Date.now();
+  function contestState(c) {
+    const lock = c.lockAt ? new Date(c.lockAt).getTime() : 0;
+    if (c.scored) return "final";
+    if (now >= lock) return "live";
+    return "open";
+  }
+  // Admin: create a weekly contest.
+  async function createContest(name, week, lockAt, prizes) {
+    if (!isAdmin) return;
+    try {
+      const id = `w${week}_${Date.now().toString(36)}`;
+      await setDoc(doc(db, "dfs_contests", id), {
+        name, week: parseInt(week) || 1, lockAt, prizes,   // prizes: [{rank, bucks}]
+        createdBy: user.uid, createdAt: new Date().toISOString(),
+        scored: false, entryCount: 0,
+      });
+      setToast && setToast("\u2713 Contest created");
+    } catch (e) { setToast && setToast("Couldn't create contest"); }
+  }
+  // Enter the current saved lineup into a contest (before lock).
+  async function enterContest(c) {
+    if (!user?.uid) { setToast && setToast("Sign in to enter"); return; }
+    if (!lineupValid) { setToast && setToast("Build a full valid lineup first"); return; }
+    if (contestState(c) !== "open") { setToast && setToast("This contest is locked"); return; }
+    try {
+      const entry = {};
+      DFS_SLOTS.forEach(sl => { const p = lineup[sl.key]; if (p) entry[sl.key] = { id:p.id, name:p.name, pos:p.pos, team:p.team, salary:p.salary, proj:p.proj }; });
+      await setDoc(doc(db, "dfs_entries", `${c.id}_${user.uid}`), {
+        contestId: c.id, uid: user.uid,
+        handle: (user.displayName || "Collector"),
+        lineup: entry, salary: usedSalary, proj: projTotal,
+        points: 0, scored: false, enteredAt: new Date().toISOString(),
+      });
+      setToast && setToast(`\u2713 Entered ${c.name}`);
+    } catch (e) { setToast && setToast("Couldn't enter \u2014 try again"); }
+  }
+  // Load a contest's leaderboard on demand.
+  async function loadLeaderboard(contestId) {
+    try {
+      const snap = await getDocs(query(collection(db, "dfs_entries"), where("contestId", "==", contestId)));
+      const rows = snap.docs.map(d => d.data()).sort((a,b) => (b.points||0) - (a.points||0) || (b.proj||0) - (a.proj||0));
+      setLeaderboard(lb => ({ ...lb, [contestId]: rows }));
+    } catch (e) { /* index may be building */ }
+  }
+  // Redeem Bazooka Bucks for a pack (deducts balance, logs the redemption for
+  // fulfillment). Admin marks it shipped elsewhere.
+  const REDEEM_OPTIONS = [
+    { id:"single",  label:"Single BoBA Pack",     cost:500 },
+    { id:"triple",  label:"3-Pack Bundle",         cost:1300 },
+    { id:"mega",    label:"Mega Box Entry",        cost:3000 },
+    { id:"chaser",  label:"Chaser Pack (premium)", cost:5000 },
+  ];
+  async function redeem(option) {
+    if (!user?.uid) { setToast && setToast("Sign in to redeem"); return; }
+    if (bucks < option.cost) { setToast && setToast("Not enough Bazooka Bucks"); return; }
+    try {
+      const newBal = bucks - option.cost;
+      await setDoc(doc(db, "bazooka_bucks", user.uid), { balance: newBal, updatedAt: new Date().toISOString() }, { merge:true });
+      await setDoc(doc(db, "dfs_redemptions", `${user.uid}_${Date.now().toString(36)}`), {
+        uid: user.uid, handle: (user.displayName || "Collector"),
+        option: option.id, label: option.label, cost: option.cost,
+        status: "pending", requestedAt: new Date().toISOString(),
+      });
+      setBucks(newBal);
+      setToast && setToast(`\u2713 Redeemed ${option.label}! Bazooka will process it.`);
+    } catch (e) { setToast && setToast("Couldn't redeem \u2014 try again"); }
+  }
+
   return (
     <div style={{ maxWidth: 1100, margin:"0 auto" }}>
       {/* Header */}
@@ -30801,6 +30898,18 @@ function FantasyDFS({ user, isMobile, setToast }) {
         </div>
       )}
 
+      {/* View switcher */}
+      <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
+        {[["build","\uD83D\uDCCB Build Lineup"],["contests","\uD83C\uDFC6 Contests"],["redeem","\uD83C\uDF81 Redeem"]].map(([v,lbl]) => (
+          <button key={v} onClick={()=>setView(v)}
+            style={{ padding:"9px 16px", borderRadius:9, fontSize:13, fontWeight:800, cursor:"pointer", fontFamily:"inherit",
+                     border:`1px solid ${view===v ? "#E8317A" : "rgba(255,255,255,0.15)"}`,
+                     background: view===v ? "rgba(232,49,122,0.15)" : "transparent",
+                     color: view===v ? "#E8317A" : "rgba(255,255,255,0.6)" }}>{lbl}</button>
+        ))}
+      </div>
+
+      {view === "build" && (
       <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1.2fr 1fr", gap:14 }}>
         {/* Player pool */}
         <div style={panel}>
@@ -30904,6 +31013,149 @@ function FantasyDFS({ user, isMobile, setToast }) {
           )}
         </div>
       </div>
+      )}
+
+      {/* ── CONTESTS VIEW ── */}
+      {view === "contests" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          {isAdmin && <AdminContestCreator onCreate={createContest} panel={panel} />}
+          {contests.length === 0 ? (
+            <div style={{ ...panel, textAlign:"center", color:"rgba(255,255,255,0.5)", fontSize:13 }}>
+              No contests yet.{isAdmin ? " Create one above." : " Check back soon \u2014 Bazooka posts weekly contests."}
+            </div>
+          ) : contests.map(c => {
+            const st = contestState(c);
+            const mine = myEntries[c.id];
+            const stColor = st === "open" ? "#4ade80" : st === "live" ? "#FBBF24" : "rgba(255,255,255,0.5)";
+            const lockStr = c.lockAt ? new Date(c.lockAt).toLocaleString([], {weekday:"short", month:"short", day:"numeric", hour:"numeric", minute:"2-digit"}) : "TBD";
+            const isOpen = openContestId === c.id;
+            return (
+              <div key={c.id} style={panel}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:12, flexWrap:"wrap" }}>
+                  <div>
+                    <div style={{ fontSize:16, fontWeight:900, color:"#fff" }}>{c.name}</div>
+                    <div style={{ fontSize:12, color:"rgba(255,255,255,0.5)", marginTop:2 }}>
+                      Week {c.week} {"\u00B7"} <span style={{color:stColor, fontWeight:700, textTransform:"uppercase"}}>{st}</span> {"\u00B7"} {st==="open" ? "locks" : "locked"} {lockStr}
+                    </div>
+                    {Array.isArray(c.prizes) && c.prizes.length > 0 && (
+                      <div style={{ fontSize:11.5, color:"#FBBF24", marginTop:6, fontWeight:600 }}>
+                        {"\uD83D\uDCB0"} {c.prizes.map(p => `${ordinal(p.rank)}: ${p.bucks} Bucks`).join("  \u00B7  ")}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ textAlign:"right" }}>
+                    {mine ? (
+                      <div style={{ fontSize:12, fontWeight:800, color:"#4ade80" }}>{"\u2713 Entered"}{st==="final" ? ` \u00B7 ${(mine.points||0).toFixed(1)} pts` : ""}</div>
+                    ) : st === "open" ? (
+                      <button onClick={()=>enterContest(c)} disabled={!lineupValid}
+                        style={{ padding:"9px 16px", borderRadius:8, border:"none", fontFamily:"inherit", fontWeight:900, fontSize:13,
+                                 background: lineupValid ? "#E8317A" : "rgba(255,255,255,0.08)",
+                                 color: lineupValid ? "#fff" : "rgba(255,255,255,0.35)", cursor: lineupValid?"pointer":"default" }}>
+                        Enter lineup
+                      </button>
+                    ) : (
+                      <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>Entries closed</div>
+                    )}
+                  </div>
+                </div>
+                {!lineupValid && !mine && st === "open" && (
+                  <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginTop:8 }}>Build a full 9-slot lineup in the Build tab to enter.</div>
+                )}
+                <button onClick={()=>{ setOpenContestId(isOpen ? null : c.id); if (!isOpen) loadLeaderboard(c.id); }}
+                  style={{ marginTop:12, background:"none", border:"1px solid rgba(255,255,255,0.15)", color:"rgba(255,255,255,0.6)", borderRadius:7, padding:"6px 12px", fontSize:11.5, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  {isOpen ? "Hide leaderboard" : "View leaderboard"}
+                </button>
+                {isOpen && (
+                  <div style={{ marginTop:10, borderTop:"1px solid rgba(255,255,255,0.08)", paddingTop:10 }}>
+                    {(leaderboard[c.id] || []).length === 0 ? (
+                      <div style={{ fontSize:12, color:"rgba(255,255,255,0.4)" }}>No entries yet.</div>
+                    ) : (leaderboard[c.id] || []).slice(0, 25).map((e, i) => (
+                      <div key={e.uid || i} style={{ display:"flex", justifyContent:"space-between", padding:"6px 4px", borderBottom:"1px solid rgba(255,255,255,0.05)", fontSize:12.5,
+                                                     background: e.uid===user?.uid ? "rgba(232,49,122,0.08)" : "transparent" }}>
+                        <span style={{ color:"#fff" }}><strong style={{color:"rgba(255,255,255,0.4)", marginRight:8}}>{i+1}</strong>{e.handle || "Collector"}</span>
+                        <span style={{ color: st==="final" ? "#FBBF24" : "rgba(255,255,255,0.5)", fontWeight:700 }}>{st==="final" ? `${(e.points||0).toFixed(1)} pts` : `proj ${(e.proj||0).toFixed(1)}`}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── REDEEM VIEW ── */}
+      {view === "redeem" && (
+        <div style={{ ...panel }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14, flexWrap:"wrap", gap:8 }}>
+            <div style={{ fontSize:16, fontWeight:900, color:"#fff" }}>Redeem Bazooka Bucks for Packs</div>
+            <div style={{ fontSize:16, fontWeight:900, color:"#FBBF24" }}>{"\uD83D\uDCB0"} {bucks.toLocaleString()}</div>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:12 }}>
+            {REDEEM_OPTIONS.map(opt => {
+              const canAfford = bucks >= opt.cost;
+              return (
+                <div key={opt.id} style={{ padding:"14px 16px", borderRadius:10, border:`1px solid ${canAfford ? "rgba(232,49,122,0.35)" : "rgba(255,255,255,0.1)"}`,
+                                           background: canAfford ? "rgba(232,49,122,0.06)" : "rgba(255,255,255,0.02)" }}>
+                  <div style={{ fontSize:14, fontWeight:800, color:"#fff" }}>{opt.label}</div>
+                  <div style={{ fontSize:20, fontWeight:900, color:"#FBBF24", margin:"6px 0 12px" }}>{"\uD83D\uDCB0"} {opt.cost.toLocaleString()}</div>
+                  <button onClick={()=>redeem(opt)} disabled={!canAfford}
+                    style={{ width:"100%", padding:"11px", borderRadius:8, border:"none", fontFamily:"inherit", fontWeight:900, fontSize:13,
+                             background: canAfford ? "#E8317A" : "rgba(255,255,255,0.08)",
+                             color: canAfford ? "#fff" : "rgba(255,255,255,0.35)", cursor: canAfford?"pointer":"default" }}>
+                    {canAfford ? "Redeem" : `Need ${(opt.cost - bucks).toLocaleString()} more`}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", marginTop:14 }}>
+            Redemptions are processed by the Bazooka team and shipped with your next order or added to your account. You earn Bucks by placing in weekly contests.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Ordinal helper for prize ranks (1st, 2nd, 3rd...).
+function ordinal(n) {
+  const s = ["th","st","nd","rd"], v = n % 100;
+  return n + (s[(v-20)%10] || s[v] || s[0]);
+}
+
+// Admin: quick weekly-contest creator.
+function AdminContestCreator({ onCreate, panel }) {
+  const [name, setName] = React.useState("");
+  const [week, setWeek] = React.useState("");
+  const [lockAt, setLockAt] = React.useState("");
+  const [p1, setP1] = React.useState("1000");
+  const [p2, setP2] = React.useState("500");
+  const [p3, setP3] = React.useState("250");
+  const inputStyle = { padding:"9px 12px", borderRadius:8, border:"1px solid rgba(255,255,255,0.15)", background:"rgba(255,255,255,0.05)", color:"#fff", fontSize:13, fontFamily:"inherit" };
+  return (
+    <div style={{ ...panel, border:"1px solid rgba(251,191,36,0.3)" }}>
+      <div style={{ fontSize:13, fontWeight:800, color:"#FBBF24", marginBottom:10 }}>{"\u2699\uFE0F"} Create Contest (admin)</div>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))", gap:8, marginBottom:10 }}>
+        <input value={name} onChange={e=>setName(e.target.value)} placeholder="Contest name" style={inputStyle} />
+        <input value={week} onChange={e=>setWeek(e.target.value)} placeholder="Week #" type="number" style={inputStyle} />
+        <input value={lockAt} onChange={e=>setLockAt(e.target.value)} type="datetime-local" style={inputStyle} />
+      </div>
+      <div style={{ display:"flex", gap:8, marginBottom:10, flexWrap:"wrap" }}>
+        <input value={p1} onChange={e=>setP1(e.target.value)} placeholder="1st Bucks" type="number" style={{...inputStyle, flex:1, minWidth:90}} />
+        <input value={p2} onChange={e=>setP2(e.target.value)} placeholder="2nd Bucks" type="number" style={{...inputStyle, flex:1, minWidth:90}} />
+        <input value={p3} onChange={e=>setP3(e.target.value)} placeholder="3rd Bucks" type="number" style={{...inputStyle, flex:1, minWidth:90}} />
+      </div>
+      <button onClick={()=>{
+          if (!name || !week || !lockAt) return;
+          const iso = new Date(lockAt).toISOString();
+          const prizes = [{rank:1,bucks:parseInt(p1)||0},{rank:2,bucks:parseInt(p2)||0},{rank:3,bucks:parseInt(p3)||0}].filter(p=>p.bucks>0);
+          onCreate(name, week, iso, prizes);
+          setName(""); setWeek(""); setLockAt("");
+        }}
+        style={{ padding:"10px 18px", borderRadius:8, border:"none", background:"#FBBF24", color:"#000", fontWeight:900, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+        Create Contest
+      </button>
     </div>
   );
 }
@@ -37907,7 +38159,7 @@ See you in there!
 
   // -- Keep the URL in sync with the active tab (flat top-level URLs e.g. /supers) --
   // Tabs that get their own flat path. deck/playbook are excluded (they have standalone pages).
-  const TAB_PATHS = { cards:"/cards", rainbow:"/rainbow", supers:"/supers", "1of1":"/1of1", bojax34:"/34", wants:"/wants", tradebait:"/tradebait", intransit:"/intransit", market:"/market", messages:"/messages", friends:"/friends", team:"/team", ledger:"/ledger", leaderboard:"/leaderboard" };
+  const TAB_PATHS = { cards:"/cards", rainbow:"/rainbow", supers:"/supers", "1of1":"/1of1", bojax34:"/34", wants:"/wants", tradebait:"/tradebait", intransit:"/intransit", market:"/market", messages:"/messages", friends:"/friends", team:"/team", ledger:"/ledger", leaderboard:"/leaderboard", fantasy:"/fantasy" };
   useEffect(() => {
     if (swancity) return; // swancity stays on /swancity, tabs don't rewrite the URL
     const target = TAB_PATHS[activeTab] || "/cards";
@@ -54528,7 +54780,7 @@ function AppInner() {
     return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"#08000a", fontFamily:"'Trebuchet MS',sans-serif", fontSize:16, fontWeight:700, color:"#E8317A" }}>Loading...</div>;
   }
   if (typeof document !== "undefined") {
-    const titles = { "/":"Bazooka — BoBA Card Collector Database", "/cards":"Card Database — Bazooka", "/sell":"Sell a Card — Bazooka", "/deck":"Deck Builder — Bazooka", "/playbook":"Playbook — Bazooka", "/chases":"Chase Tracker — Bazooka", "/dashboard":"Team Dashboard — Bazooka" };
+    const titles = { "/":"Bazooka — BoBA Card Collector Database", "/cards":"Card Database — Bazooka", "/sell":"Sell a Card — Bazooka", "/deck":"Deck Builder — Bazooka", "/playbook":"Playbook — Bazooka", "/chases":"Chase Tracker — Bazooka", "/dashboard":"Team Dashboard — Bazooka", "/fantasy":"Bazooka Fantasy — DFS" };
     document.title = titles[_path] || "Bazooka — BoBA Card Collector Database";
   }
   const quoteMatch = window.location.pathname.match(/^\/quote\/([a-zA-Z0-9]+)$/);
@@ -54553,7 +54805,7 @@ function AppInner() {
   // Swancity public tracker — ALWAYS public (Super + Secret 1/1), no login, no access wall.
   if (window.location.pathname === "/swancity") return <PublicCardDatabase swancity={true} />;
   // Card database tabs as flat top-level URLs (e.g. /supers, /rainbow, /wants)
-  const CARD_DB_PATHS = ["/cards","/rainbow","/supers","/1of1","/34","/wants","/tradebait","/intransit","/market","/messages","/friends","/team","/ledger","/leaderboard"];
+  const CARD_DB_PATHS = ["/cards","/rainbow","/supers","/1of1","/34","/wants","/tradebait","/intransit","/market","/messages","/friends","/team","/ledger","/leaderboard","/fantasy"];
   if (CARD_DB_PATHS.includes(window.location.pathname)) return <><PublicCardDatabase /><BugReporter user={user} /></>;
   if (window.location.pathname === "/sell")     return <PublicSellPage />;
   if (window.location.pathname === "/privacy")  return <PublicPrivacyPolicy />;
@@ -54565,7 +54817,7 @@ function AppInner() {
   // bazookadash.com/{username} — public profile page. Must come after all known
   // routes so it only catches a bare single-segment path that isn't reserved.
   {
-    const RESERVED = new Set(["cards","rainbow","supers","1of1","34","wants","market","messages","friends","team","ledger","leaderboard","deck","bugs","playbook","swancity","sell","privacy","chases","showcase","dashboard","quote","login","home","index"]);
+    const RESERVED = new Set(["cards","rainbow","supers","1of1","34","wants","market","messages","friends","team","ledger","leaderboard","deck","bugs","playbook","swancity","sell","privacy","chases","showcase","dashboard","quote","login","home","index","fantasy","tradebait","intransit","trade"]);
     const seg = (window.location.pathname||"").replace(/^\/+|\/+$/g,"");
     if (seg && !seg.includes("/") && !RESERVED.has(seg.toLowerCase())) {
       return <PublicProfilePage username={seg} />;
