@@ -251,6 +251,48 @@ const BREAKERS = ["Dev","Dre","Krystal","BigU","Vinny","Stephen"];
 // Remote breakers front their own supplies/shipping and get reimbursed — same
 // treatment as BigU across recap, commission math, True Net, and the report.
 const REMOTE_BREAKERS = ["bigu","vinny","stephen"];
+
+// Internal business collections — everything the ops dashboard runs on. Used by the
+// admin "Export Internal Data (JSON)" button to pull a full client-side snapshot.
+const INTERNAL_EXPORT_COLLECTIONS = [
+  "streams","planned_streams","stream_templates","breaks","breaker_vacations","product_usage",
+  "follower_snapshots","cash_expenses","historical_data","pay_stubs","sku_price_history",
+  "inventory","card_pools","supply_links","shipments","shipping_issues","missing_cards",
+  "buyers","directory","comps","quotes","quotes_private","negotiation_history","deal_threads",
+  "market_sales","market_offers","chases","chase_submissions","super_claims","player_notes",
+  "config","meta","bug_reports","csv_imports",
+];
+
+// Pull every internal collection client-side and download one timestamped JSON file.
+// Runs with the signed-in admin's permissions — no service account needed. Mirrors
+// how the collector-side exports work (Blob + object URL download).
+async function exportInternalDataJson(setStatus) {
+  const out = { exportedAt: new Date().toISOString(), collections: {}, counts: {} };
+  for (const name of INTERNAL_EXPORT_COLLECTIONS) {
+    if (setStatus) setStatus(`Exporting ${name}…`);
+    try {
+      const snap = await getDocs(collection(db, name));
+      out.collections[name] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      out.counts[name] = snap.size;
+    } catch (e) {
+      out.collections[name] = { __error: e.message };
+      out.counts[name] = `error: ${e.message}`;
+    }
+  }
+  out.totalDocs = Object.values(out.counts).reduce((s, v) => s + (typeof v === "number" ? v : 0), 0);
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `bazooka-internal-backup-${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  if (setStatus) setStatus(`✓ Exported ${out.totalDocs} records`);
+  return out;
+}
 function isRemoteBreaker(name){ return REMOTE_BREAKERS.includes((name||"").toLowerCase().replace(/\s+/g,"")); }
 // Remote breakers front their own supplies and get reimbursed — but not for everything.
 //  • Top loaders: Bazooka provides these to everyone. Never reimbursed.
@@ -1438,6 +1480,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   const [lightbox,  setLightbox]  = useState(null);
   const [quotesCollapsed, setQuotesCollapsed] = useState(true); // lot submissions collapsed by default
   const [financialPeriod, setFinancialPeriod] = useState("month");
+  const [exportStatus, setExportStatus] = useState("");   // internal-data JSON export
   const [customStart,     setCustomStart]     = useState("");
   const [customEnd,       setCustomEnd]       = useState("");
   const [drillDown,       setDrillDown]       = useState(null);
@@ -1955,6 +1998,12 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               <div>
                 <div style={{ fontSize:15, fontWeight:700, letterSpacing:"-0.01em", color:"var(--bz-ink)" }}>Financial Overview</div>
                 <div style={{ fontSize:12, color:"var(--bz-ink-3)", marginTop:3 }}>{PERIOD_LABELS[financialPeriod]} · {filtered.length} stream{filtered.length!==1?"s":""}</div>
+                <button
+                  onClick={async ()=>{ setExportStatus("Exporting…"); try { await exportInternalDataJson(setExportStatus); } catch(e){ setExportStatus("Export failed — try again"); } setTimeout(()=>setExportStatus(""), 5000); }}
+                  title="Download a full JSON backup of all internal business data"
+                  style={{ marginTop:8, background:"transparent", border:"1px solid var(--bz-line)", color:"var(--bz-ink-2)", borderRadius:8, padding:"6px 12px", fontSize:11.5, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  {exportStatus || "⬇ Export Internal Data (JSON)"}
+                </button>
               </div>
               <div style={{ display:"inline-flex", gap:2, background:"var(--bz-s1)", border:"1px solid var(--bz-line)", borderRadius:10, padding:3 }}>
                 {[["month","Month"],["quarter","Quarter"],["year","Year"],["all","All"],["custom","Custom"]].map(([val,label]) => (
