@@ -263,35 +263,78 @@ const INTERNAL_EXPORT_COLLECTIONS = [
   "config","meta","bug_reports","csv_imports",
 ];
 
-// Pull every internal collection client-side and download one timestamped JSON file.
-// Runs with the signed-in admin's permissions — no service account needed. Mirrors
-// how the collector-side exports work (Blob + object URL download).
+// Pull every internal collection client-side and download ONE FILE PER COLLECTION,
+// each ready to import straight into Base44 (a plain array of records = one table).
+// Files are kept under ~8MB (auto-chunked if a collection is huge), so nothing hits
+// Base44's 10MB import cap. Firestore Timestamps are converted to ISO date strings
+// so Base44 reads them correctly. No Terminal, no service account — runs in-browser
+// with the signed-in admin's permissions. Downloads a _manifest.json with counts so
+// you can verify every table imported completely (counts should match in Base44).
+const B44_MAX_BYTES = 8 * 1024 * 1024;
+
+function b44Plain(value) {
+  if (value === null || value === undefined) return value;
+  // Firestore Timestamp → ISO string (Base44 can't read the timestamp object).
+  if (value && typeof value.toDate === "function") { try { return value.toDate().toISOString(); } catch (e) {} }
+  if (Array.isArray(value)) return value.map(b44Plain);
+  if (typeof value === "object") {
+    const out = {};
+    for (const k of Object.keys(value)) out[k] = b44Plain(value[k]);
+    return out;
+  }
+  return value;
+}
+
+function b44Download(filename, dataObj) {
+  const blob = new Blob([JSON.stringify(dataObj, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
 async function exportInternalDataJson(setStatus) {
-  const out = { exportedAt: new Date().toISOString(), collections: {}, counts: {} };
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  const manifest = { exportedAt: new Date().toISOString(), forBase44: true, collections: {} };
+  let totalDocs = 0, fileCount = 0;
+
   for (const name of INTERNAL_EXPORT_COLLECTIONS) {
     if (setStatus) setStatus(`Exporting ${name}…`);
     try {
       const snap = await getDocs(collection(db, name));
-      out.collections[name] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      out.counts[name] = snap.size;
+      const records = snap.docs.map(d => ({ id: d.id, ...b44Plain(d.data()) }));
+      totalDocs += records.length;
+
+      if (records.length === 0) { manifest.collections[name] = { records: 0, files: 0 }; continue; }
+
+      // Chunk by size so no file exceeds Base44's cap.
+      const chunks = [];
+      let cur = [], curBytes = 2;
+      for (const rec of records) {
+        const b = new Blob([JSON.stringify(rec)]).size + 1;
+        if (cur.length && curBytes + b > B44_MAX_BYTES) { chunks.push(cur); cur = []; curBytes = 2; }
+        cur.push(rec); curBytes += b;
+      }
+      if (cur.length) chunks.push(cur);
+
+      if (chunks.length === 1) {
+        b44Download(`${name}.json`, chunks[0]);
+        fileCount++;
+      } else {
+        chunks.forEach((ch, i) => { b44Download(`${name}.part-${String(i+1).padStart(2,"0")}.json`, ch); fileCount++; });
+      }
+      manifest.collections[name] = { records: records.length, files: chunks.length };
     } catch (e) {
-      out.collections[name] = { __error: e.message };
-      out.counts[name] = `error: ${e.message}`;
+      manifest.collections[name] = { error: e.message };
     }
   }
-  out.totalDocs = Object.values(out.counts).reduce((s, v) => s + (typeof v === "number" ? v : 0), 0);
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  const blob = new Blob([JSON.stringify(out, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `bazooka-internal-backup-${stamp}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
-  if (setStatus) setStatus(`✓ Exported ${out.totalDocs} records`);
-  return out;
+
+  manifest.totalRecords = totalDocs;
+  if (setStatus) setStatus(`Exporting manifest…`);
+  b44Download(`_manifest-${stamp}.json`, manifest);
+  if (setStatus) setStatus(`✓ ${totalDocs} records · ${fileCount} files`);
+  return manifest;
 }
 function isRemoteBreaker(name){ return REMOTE_BREAKERS.includes((name||"").toLowerCase().replace(/\s+/g,"")); }
 // Remote breakers front their own supplies and get reimbursed — but not for everything.
@@ -2344,7 +2387,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   onClick={async ()=>{ setExportStatus("Exporting…"); try { await exportInternalDataJson(setExportStatus); } catch(e){ setExportStatus("Export failed — try again"); } setTimeout(()=>setExportStatus(""), 5000); }}
                   title="Download a full JSON backup of all internal business data"
                   style={{ marginTop:8, background:"transparent", border:"1px solid var(--bz-line)", color:"var(--bz-ink-2)", borderRadius:8, padding:"6px 12px", fontSize:11.5, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                  {exportStatus || "⬇ Export Internal Data (JSON)"}
+                  {exportStatus || "⬇ Export Internal Data → Base44"}
                 </button>
               </div>
               <div style={{ display:"inline-flex", gap:2, background:"var(--bz-s1)", border:"1px solid var(--bz-line)", borderRadius:10, padding:3 }}>
