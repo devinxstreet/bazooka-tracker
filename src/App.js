@@ -1472,6 +1472,235 @@ function RepMonthPanel({ streams=[], matchedBreaker }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// DASHBOARD HERO — new visual system (gradient hero + live gradient charts).
+// Self-contained + additive: takes already-computed financial values as props so
+// it never touches the settlement math. Renders the big True Net hero, KPI cards
+// with sparklines, a Revenue-vs-Net gradient bar chart, and a commission-tier donut.
+// ─────────────────────────────────────────────────────────────────────────────
+function useChartJs() {
+  const [loaded, setLoaded] = useState(!!window.Chart);
+  useEffect(() => {
+    if (window.Chart) { setLoaded(true); return; }
+    const existing = document.querySelector('script[data-chartjs]');
+    if (existing) { existing.addEventListener("load", () => setLoaded(true)); return; }
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js";
+    s.setAttribute("data-chartjs", "1");
+    s.onload = () => setLoaded(true);
+    document.head.appendChild(s);
+  }, []);
+  return loaded;
+}
+
+function DashHeroSpark({ id, data, up = true }) {
+  const loaded = useChartJs();
+  useEffect(() => {
+    if (!loaded || !window.Chart) return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el._chart) el._chart.destroy();
+    const ctx = el.getContext("2d");
+    const col = up ? "#E8317A" : "#fbbf24";
+    el._chart = new window.Chart(el, {
+      type: "line",
+      data: { labels: data.map((_, i) => i), datasets: [{
+        data,
+        borderColor: (c) => { const a = c.chart.chartArea; if (!a) return col; const g = c.chart.ctx.createLinearGradient(a.left,0,a.right,0); g.addColorStop(0, up?"#ff8fc0":"#ffd67a"); g.addColorStop(1, col); return g; },
+        borderWidth: 2.5, pointRadius: 0, tension: 0.4, fill: true,
+        backgroundColor: (c) => { const a = c.chart.chartArea; if (!a) return "transparent"; const g = c.chart.ctx.createLinearGradient(0,a.top,0,a.bottom); g.addColorStop(0, up?"rgba(232,49,122,0.38)":"rgba(251,191,36,0.34)"); g.addColorStop(1,"rgba(232,49,122,0)"); return g; }
+      }]},
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } }, animation: { duration: 600 } }
+    });
+    return () => { if (el._chart) { el._chart.destroy(); el._chart = null; } };
+  }, [loaded, id, JSON.stringify(data), up]);
+  return <canvas id={id} role="img" aria-label="trend" />;
+}
+
+function DashMiniSpark({ id, data, c1, c2, up = true }) {
+  const loaded = useChartJs();
+  useEffect(() => {
+    if (!loaded || !window.Chart) return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el._chart) el._chart.destroy();
+    const color = up ? c1 : "#fbbf24";
+    el._chart = new window.Chart(el, {
+      type: "line",
+      data: { labels: data.map((_, i) => i), datasets: [{
+        data,
+        borderColor: (ctx) => { const a = ctx.chart.chartArea; if (!a) return color; const g = ctx.chart.ctx.createLinearGradient(a.left,0,a.right,0); g.addColorStop(0, up?c1:"#ffd67a"); g.addColorStop(1, up?c2:"#d99614"); return g; },
+        borderWidth: 2, pointRadius: 0, tension: 0.4, fill: false
+      }]},
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } }, scales: { x: { display: false }, y: { display: false } }, animation: { duration: 500 } }
+    });
+    return () => { if (el._chart) { el._chart.destroy(); el._chart = null; } };
+  }, [loaded, id, JSON.stringify(data), c1, c2, up]);
+  return <canvas id={id} role="img" aria-label="trend" />;
+}
+
+function DashRevChart({ id, labels, gross, net }) {
+  const loaded = useChartJs();
+  useEffect(() => {
+    if (!loaded || !window.Chart) return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el._chart) el._chart.destroy();
+    const gGross = (c) => { const a = c.chart.chartArea; if (!a) return "#E8317A"; const g = c.chart.ctx.createLinearGradient(0,a.top,0,a.bottom); g.addColorStop(0,"#ff5c9e"); g.addColorStop(1,"#c01f5f"); return g; };
+    const gNet = (c) => { const a = c.chart.chartArea; if (!a) return "#34d399"; const g = c.chart.ctx.createLinearGradient(0,a.top,0,a.bottom); g.addColorStop(0,"#5ee6a0"); g.addColorStop(1,"#1f9d6b"); return g; };
+    el._chart = new window.Chart(el, {
+      type: "bar",
+      data: { labels, datasets: [
+        { label: "Gross", data: gross, backgroundColor: gGross, borderRadius: 6, barPercentage: 0.64, categoryPercentage: 0.62 },
+        { label: "Net", data: net, backgroundColor: gNet, borderRadius: 6, barPercentage: 0.64, categoryPercentage: 0.62 }
+      ]},
+      options: { responsive: true, maintainAspectRatio: false, animation: { duration: 700 },
+        plugins: { legend: { display: false }, tooltip: { backgroundColor: "#1a1218", borderColor: "rgba(232,49,122,0.3)", borderWidth: 1, padding: 9, callbacks: { label: (c) => c.dataset.label + ": $" + c.parsed.y.toLocaleString() } } },
+        scales: { x: { grid: { display: false }, ticks: { color: "#9a8a94", font: { size: 10, weight: "700" } }, border: { color: "rgba(255,255,255,0.1)" } },
+          y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#7a6b74", font: { size: 9 }, callback: (v) => "$" + (v/1000) + "k" }, border: { display: false } } } }
+    });
+    return () => { if (el._chart) { el._chart.destroy(); el._chart = null; } };
+  }, [loaded, id, JSON.stringify(labels), JSON.stringify(gross), JSON.stringify(net)]);
+  return <canvas id={id} role="img" aria-label="Revenue vs true net" />;
+}
+
+function DashTierChart({ id, tiers }) {
+  const loaded = useChartJs();
+  useEffect(() => {
+    if (!loaded || !window.Chart) return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el._chart) el._chart.destroy();
+    const labels = tiers.map(t => t.label), vals = tiers.map(t => t.count), base = tiers.map(t => t.color);
+    const shade = (hex, amt) => { const n = parseInt(hex.slice(1),16); const r = Math.max(0,((n>>16)&255)+amt), g = Math.max(0,((n>>8)&255)+amt), b = Math.max(0,(n&255)+amt); return `rgb(${r},${g},${b})`; };
+    const makeCols = (chart) => { const a = chart.chartArea; if (!a) return base; return base.map(col => { const g = chart.ctx.createLinearGradient(a.left,a.top,a.right,a.bottom); g.addColorStop(0,col); g.addColorStop(1,shade(col,-32)); return g; }); };
+    el._chart = new window.Chart(el, {
+      type: "doughnut",
+      data: { labels, datasets: [{ data: vals, backgroundColor: makeCols, borderColor: "#130d11", borderWidth: 3, hoverOffset: 6 }] },
+      options: { responsive: true, maintainAspectRatio: false, cutout: "62%", animation: { duration: 700 },
+        plugins: { legend: { display: false }, tooltip: { backgroundColor: "#1a1218", padding: 9, callbacks: { label: (c) => c.label + " tier: " + c.parsed + " streams" } } } }
+    });
+    return () => { if (el._chart) { el._chart.destroy(); el._chart = null; } };
+  }, [loaded, id, JSON.stringify(tiers)]);
+  return <canvas id={id} role="img" aria-label="Commission tier mix" />;
+}
+
+function DashboardHero({ net, netDelta, rev, comm, mm, breaksCount, heroSpark, miniRev, miniComm, miniMM, miniBreaks, revLabels, revGross, revNet, tiers, board, fmt }) {
+  const [dRev, setDRev] = useState(0), [dComm, setDComm] = useState(0), [dMM, setDMM] = useState(0), [dBreaks, setDBreaks] = useState(0), [dNet, setDNet] = useState(0);
+  useEffect(() => {
+    const tgt = { net, rev, comm, mm, breaksCount };
+    const t0 = performance.now();
+    let raf;
+    const step = (t) => {
+      const p = Math.min(1, (t - t0) / 650), e = 1 - Math.pow(1 - p, 3);
+      setDNet(net * e); setDRev(rev * e); setDComm(comm * e); setDMM(mm * e); setDBreaks(Math.round(breaksCount * e));
+      if (p < 1) raf = requestAnimationFrame(step);
+      else { setDNet(net); setDRev(rev); setDComm(comm); setDMM(mm); setDBreaks(breaksCount); }
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [net, rev, comm, mm, breaksCount]);
+
+  const card = { background: "linear-gradient(160deg,#181016,#130d11)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "13px 15px" };
+  const kpiLabel = { fontSize: 10.5, fontWeight: 800, color: "#9a8a94", textTransform: "uppercase", letterSpacing: 1 };
+  const maxBoard = Math.max(1, ...board.map(b => b.gross));
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      {/* HERO */}
+      <div style={{ position: "relative", background: "linear-gradient(135deg,#24101c 0%,#160d13 55%,#130d11 100%)", border: "1px solid rgba(232,49,122,0.28)", borderRadius: 20, padding: "22px 26px", marginBottom: 14, overflow: "hidden" }}>
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "linear-gradient(90deg,#E8317A,#ff4d94,#a78bfa,#7c9cff)" }} />
+        <div style={{ position: "absolute", right: -50, top: -60, width: 260, height: 260, borderRadius: "50%", background: "radial-gradient(circle,rgba(232,49,122,0.22),transparent 70%)" }} />
+        <div style={{ position: "absolute", left: "30%", bottom: -80, width: 200, height: 200, borderRadius: "50%", background: "radial-gradient(circle,rgba(167,139,250,0.12),transparent 70%)" }} />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16, position: "relative" }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: "#ff4d94", textTransform: "uppercase", letterSpacing: 2.5, marginBottom: 2 }}>Bazooka True Net</div>
+            <div style={{ fontSize: 60, fontWeight: 900, lineHeight: 1, letterSpacing: -1.5, background: "linear-gradient(180deg,#ffffff 0%,#ffd9e8 60%,#ff8fc0 100%)", WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent", filter: "drop-shadow(0 0 24px rgba(232,49,122,0.45))" }}>{fmt(dNet)}</div>
+            {netDelta != null && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+                <span style={{ background: netDelta >= 0 ? "linear-gradient(135deg,rgba(52,211,153,0.25),rgba(52,211,153,0.1))" : "linear-gradient(135deg,rgba(239,68,68,0.25),rgba(239,68,68,0.1))", color: netDelta >= 0 ? "#34d399" : "#ef4444", fontSize: 12, fontWeight: 800, padding: "3px 10px", borderRadius: 20 }}>{netDelta >= 0 ? "▲" : "▼"} {Math.abs(netDelta).toFixed(1)}%</span>
+                <span style={{ fontSize: 12, color: "#9a8a94" }}>vs last period</span>
+              </div>
+            )}
+          </div>
+          <div style={{ flex: 1, minWidth: 200, maxWidth: 340 }}>
+            <div style={{ position: "relative", height: 92 }}><DashHeroSpark id="dashHeroSpark" data={heroSpark} up={netDelta == null || netDelta >= 0} /></div>
+          </div>
+        </div>
+      </div>
+
+      {/* KPI ROW */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 11, marginBottom: 14 }}>
+        <div style={card}>
+          <div style={kpiLabel}>Gross Revenue</div>
+          <div style={{ fontSize: 23, fontWeight: 900, marginTop: 5 }}>{fmt(dRev)}</div>
+          <div style={{ position: "relative", height: 32, marginTop: 4 }}><DashMiniSpark id="dashM1" data={miniRev} c1="#ff8fc0" c2="#E8317A" /></div>
+        </div>
+        <div style={card}>
+          <div style={kpiLabel}>Commission</div>
+          <div style={{ fontSize: 23, fontWeight: 900, marginTop: 5, color: "#34d399" }}>{fmt(dComm)}</div>
+          <div style={{ position: "relative", height: 32, marginTop: 4 }}><DashMiniSpark id="dashM2" data={miniComm} c1="#5ee6a0" c2="#159d64" /></div>
+        </div>
+        <div style={card}>
+          <div style={kpiLabel}>Avg Mkt Mult</div>
+          <div style={{ fontSize: 23, fontWeight: 900, marginTop: 5, color: "#7c9cff" }}>{dMM.toFixed(2)}x</div>
+          <div style={{ position: "relative", height: 32, marginTop: 4 }}><DashMiniSpark id="dashM3" data={miniMM} c1="#a9c0ff" c2="#5578e0" /></div>
+        </div>
+        <div style={card}>
+          <div style={kpiLabel}>Breaks</div>
+          <div style={{ fontSize: 23, fontWeight: 900, marginTop: 5, color: "#fbbf24" }}>{dBreaks}</div>
+          <div style={{ position: "relative", height: 32, marginTop: 4 }}><DashMiniSpark id="dashM4" data={miniBreaks} c1="#ffd67a" c2="#d99614" /></div>
+        </div>
+      </div>
+
+      {/* CHARTS ROW */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 12, marginBottom: 14 }}>
+        <div style={{ ...card, padding: "15px 17px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 800 }}>Revenue vs True Net</div>
+            <div style={{ display: "flex", gap: 12, fontSize: 10.5, color: "#9a8a94" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: "linear-gradient(180deg,#ff4d94,#E8317A)" }} />Gross</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: "linear-gradient(180deg,#4ade80,#34d399)" }} />Net</span>
+            </div>
+          </div>
+          <div style={{ position: "relative", height: 180 }}><DashRevChart id="dashRevChart" labels={revLabels} gross={revGross} net={revNet} /></div>
+        </div>
+        <div style={{ ...card, padding: "15px 17px" }}>
+          <div style={{ fontSize: 12.5, fontWeight: 800, marginBottom: 8 }}>Commission Tier Mix</div>
+          <div style={{ position: "relative", height: 180, display: "flex", alignItems: "center", justifyContent: "center" }}><DashTierChart id="dashTierChart" tiers={tiers} /></div>
+        </div>
+      </div>
+
+      {/* LEADERBOARD */}
+      {board.length > 0 && (
+        <div style={{ ...card, padding: "15px 17px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 13 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 800 }}>Breaker Leaderboard</div>
+            <div style={{ fontSize: 10.5, color: "#9a8a94" }}>gross · net · avg mult</div>
+          </div>
+          <div>
+            {board.map((r, i) => {
+              const w = Math.round(r.gross / maxBoard * 100);
+              return (
+                <div key={r.name} style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: i < board.length - 1 ? 10 : 0, padding: "5px 6px", borderRadius: 8 }}>
+                  <div style={{ width: 18, fontSize: 12, fontWeight: 900, color: "#7a6b74" }}>{i + 1}</div>
+                  <div style={{ width: 64, fontSize: 12, fontWeight: 800 }}>{r.name}</div>
+                  <div style={{ flex: 1, height: 20, background: "rgba(255,255,255,0.04)", borderRadius: 6, overflow: "hidden", position: "relative" }}>
+                    <div style={{ height: "100%", width: w + "%", background: `linear-gradient(90deg,${r.color}99,${r.color})`, borderRadius: 6, boxShadow: `0 0 12px ${r.color}66`, transition: "width .9s cubic-bezier(.22,1,.36,1)" }} />
+                  </div>
+                  <div style={{ width: 64, textAlign: "right", fontSize: 12, fontWeight: 800, color: r.color }}>{fmt(r.gross)}</div>
+                  <div style={{ width: 48, textAlign: "right", fontSize: 11, color: "#9a8a94" }}>{fmt(r.net)}</div>
+                  <div style={{ width: 38, textAlign: "right", fontSize: 11, fontWeight: 700, color: "#7c9cff" }}>{r.mm.toFixed(2)}x</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalData=[], onSaveHistorical, onDeleteHistorical, payStubs=[], onDismissPayStub, quotes=[], onDismissQuoteNotif, cardPools=[], imcAdjustmentsData={}, onSaveImcAdjustments, plannedStreams=[] }) {
   const canSeeFinancials = ["Admin"].includes(userRole?.role);
   const curUser    = user?.displayName?.split(" ")[0] || "";
@@ -1895,6 +2124,68 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 
         const PERIOD_LABELS = { month:"This Month", quarter:"This Quarter", year:"This Year", all:"All Time", custom:"Custom Range" };
 
+        // ── Hero visual data — derived from the SAME filtered streams + totals the
+        //    rest of the dashboard uses, so the new visuals always match the numbers.
+        const heroBreakerColors = { Krystal:"#E8317A", Dre:"#7c9cff", BigU:"#34d399", Vinny:"#fbbf24", Stephen:"#a78bfa", Alison:"#ff9f7c" };
+        const financialStreams = filtered.filter(s => !isSinglesStream(s) && !s.excludeFinancials);
+        // Per-breaker leaderboard (gross / net / avg market multiple)
+        const heroBoardMap = {};
+        financialStreams.forEach(s => {
+          const c = calcStream(s);
+          const b = s.breaker || "—";
+          if (!heroBoardMap[b]) heroBoardMap[b] = { name: b, gross: 0, net: 0, mmSum: 0, mmN: 0, color: heroBreakerColors[b] || "#9a8a94" };
+          heroBoardMap[b].gross += c.gross;
+          heroBoardMap[b].net += c.bazTrueNet || 0;
+          const mm = parseFloat(s.marketMultiple) || 0;
+          if (mm > 0) { heroBoardMap[b].mmSum += mm; heroBoardMap[b].mmN++; }
+        });
+        const heroBoard = Object.values(heroBoardMap)
+          .map(b => ({ ...b, mm: b.mmN ? b.mmSum / b.mmN : 0 }))
+          .sort((a, b) => b.gross - a.gross).slice(0, 6);
+        // Commission tier mix (by market multiple bracket)
+        const tierDefs = [
+          { label:"55%", color:"#E8317A", test: mm => mm >= 1.8 },
+          { label:"50%", color:"#a78bfa", test: mm => mm >= 1.7 && mm < 1.8 },
+          { label:"45%", color:"#7c9cff", test: mm => mm >= 1.6 && mm < 1.7 },
+          { label:"40%", color:"#fbbf24", test: mm => mm >= 1.5 && mm < 1.6 },
+          { label:"35%", color:"#7a6b74", test: mm => mm > 0 && mm < 1.5 },
+        ];
+        const heroTiers = tierDefs.map(t => ({ label: t.label, color: t.color, count: financialStreams.filter(s => t.test(parseFloat(s.marketMultiple) || 0)).length })).filter(t => t.count > 0);
+        // Revenue vs net series — bucket the period into slices (weeks for month, months otherwise)
+        const heroSeries = (() => {
+          const byKey = {};
+          financialStreams.forEach(s => {
+            const c = calcStream(s);
+            let key;
+            if (financialPeriod === "month") { const day = parseInt((s.date || "").slice(8, 10)) || 1; key = "Wk" + Math.min(4, Math.ceil(day / 7)); }
+            else { key = (s.date || "").slice(0, 7); }
+            if (!byKey[key]) byKey[key] = { gross: 0, net: 0 };
+            byKey[key].gross += c.gross; byKey[key].net += c.bazTrueNet || 0;
+          });
+          const keys = Object.keys(byKey).sort();
+          const labels = financialPeriod === "month" ? ["Wk1","Wk2","Wk3","Wk4"] : keys.map(k => { const [y,m]=k.split("-"); return new Date(y,m-1,1).toLocaleDateString("en-US",{month:"short"}); });
+          const srcKeys = financialPeriod === "month" ? ["Wk1","Wk2","Wk3","Wk4"] : keys;
+          return {
+            labels,
+            gross: srcKeys.map(k => Math.round((byKey[k] || {}).gross || 0)),
+            net: srcKeys.map(k => Math.round((byKey[k] || {}).net || 0)),
+          };
+        })();
+        // Hero sparkline — cumulative true net across the series (fallback to flat if empty)
+        const heroSpark = (() => {
+          const arr = heroSeries.net.length ? heroSeries.net : [0, 0];
+          let run = 0; const out = arr.map(v => (run += v));
+          return out.length >= 2 ? out : [0, totals.trueNet || 0];
+        })();
+        const heroBreaksCount = breaks.filter(b => { const d = b.date; return d && inPeriod(d); }).length;
+        // Simple mini-spark series reuse the revenue buckets where sensible
+        const heroMiniRev = heroSeries.gross.length ? heroSeries.gross : [0, totals.gross || 0];
+        const heroMiniComm = heroSeries.net.length ? heroSeries.net.map(v => Math.round(v * 1.2)) : [0, totals.comm || 0];
+        const heroMMList = financialStreams.map(s => parseFloat(s.marketMultiple) || 0).filter(m => m > 0);
+        const heroAvgMM = heroMMList.length ? heroMMList.reduce((a, b) => a + b, 0) / heroMMList.length : 0;
+        const heroMiniMM = heroMMList.length >= 2 ? heroMMList.slice(-8) : [heroAvgMM, heroAvgMM];
+        const heroMiniBreaks = heroSeries.gross.length ? heroSeries.gross.map((_, i) => heroBreaksCount / Math.max(1, heroSeries.gross.length)) : [0, heroBreaksCount];
+
         // Drill-down modal content
         const renderDrillDown = () => {
           if (!drillDown) return null;
@@ -2003,6 +2294,13 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 
         return (
           <>
+          <DashboardHero
+            net={totals.trueNet} netDelta={null}
+            rev={totals.gross} comm={totals.comm} mm={heroAvgMM} breaksCount={heroBreaksCount}
+            heroSpark={heroSpark} miniRev={heroMiniRev} miniComm={heroMiniComm} miniMM={heroMiniMM} miniBreaks={heroMiniBreaks}
+            revLabels={heroSeries.labels} revGross={heroSeries.gross} revNet={heroSeries.net}
+            tiers={heroTiers.length ? heroTiers : [{label:"—",color:"#7a6b74",count:1}]} board={heroBoard} fmt={fmt}
+          />
           <div style={{ background:"var(--bz-s1)", border:"1px solid var(--bz-line)", borderRadius:"var(--bz-radius)", padding:"22px", boxShadow:"var(--bz-shadow)" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18, flexWrap:"wrap", gap:10 }}>
               <div>
