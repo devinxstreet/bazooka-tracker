@@ -1549,12 +1549,15 @@ function DashRevChart({ id, labels, gross, net }) {
     const gGross = (c) => { const a = c.chart.chartArea; if (!a) return "#E8317A"; const g = c.chart.ctx.createLinearGradient(0,a.top,0,a.bottom); g.addColorStop(0,"#ff5c9e"); g.addColorStop(1,"#c01f5f"); return g; };
     const gNet = (c) => { const a = c.chart.chartArea; if (!a) return "#34d399"; const g = c.chart.ctx.createLinearGradient(0,a.top,0,a.bottom); g.addColorStop(0,"#5ee6a0"); g.addColorStop(1,"#1f9d6b"); return g; };
     el._chart = new window.Chart(el, {
-      type: "bar",
+      type: "line",
       data: { labels, datasets: [
-        { label: "Gross", data: gross, backgroundColor: gGross, borderRadius: 6, barPercentage: 0.64, categoryPercentage: 0.62 },
-        { label: "Net", data: net, backgroundColor: gNet, borderRadius: 6, barPercentage: 0.64, categoryPercentage: 0.62 }
+        { label: "Gross", data: gross, borderColor: "#E8317A", borderWidth: 2.5, pointRadius: 0, tension: 0.35, fill: true,
+          backgroundColor: (c) => { const a = c.chart.chartArea; if (!a) return "transparent"; const g = c.chart.ctx.createLinearGradient(0,a.top,0,a.bottom); g.addColorStop(0,"rgba(232,49,122,0.35)"); g.addColorStop(1,"rgba(232,49,122,0)"); return g; } },
+        { label: "Net", data: net, borderColor: "#34d399", borderWidth: 2.5, pointRadius: 0, tension: 0.35, fill: true,
+          backgroundColor: (c) => { const a = c.chart.chartArea; if (!a) return "transparent"; const g = c.chart.ctx.createLinearGradient(0,a.top,0,a.bottom); g.addColorStop(0,"rgba(52,211,153,0.28)"); g.addColorStop(1,"rgba(52,211,153,0)"); return g; } }
       ]},
       options: { responsive: true, maintainAspectRatio: false, animation: { duration: 700 },
+        interaction: { mode: "index", intersect: false },
         plugins: { legend: { display: false }, tooltip: { backgroundColor: "#1a1218", borderColor: "rgba(232,49,122,0.3)", borderWidth: 1, padding: 9, callbacks: { label: (c) => c.dataset.label + ": $" + c.parsed.y.toLocaleString() } } },
         scales: { x: { grid: { display: false }, ticks: { color: "#9a8a94", font: { size: 10, weight: "700" } }, border: { color: "rgba(255,255,255,0.1)" } },
           y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#7a6b74", font: { size: 9 }, callback: (v) => "$" + (v/1000) + "k" }, border: { display: false } } } }
@@ -1657,7 +1660,7 @@ function DashboardHero({ net, netDelta, rev, comm, mm, breaksCount, heroSpark, m
       <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 12, marginBottom: 14 }}>
         <div style={{ ...card, padding: "15px 17px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 800 }}>Revenue vs True Net</div>
+            <div style={{ fontSize: 12.5, fontWeight: 800 }}>Revenue vs True Net <span style={{ fontSize: 10, fontWeight: 600, color: "#7a6b74" }}>· running total</span></div>
             <div style={{ display: "flex", gap: 12, fontSize: 10.5, color: "#9a8a94" }}>
               <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: "linear-gradient(180deg,#ff4d94,#E8317A)" }} />Gross</span>
               <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: "linear-gradient(180deg,#4ade80,#34d399)" }} />Net</span>
@@ -1676,9 +1679,17 @@ function DashboardHero({ net, netDelta, rev, comm, mm, breaksCount, heroSpark, m
         <div style={{ ...card, padding: "15px 17px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 13 }}>
             <div style={{ fontSize: 12.5, fontWeight: 800 }}>Breaker Leaderboard</div>
-            <div style={{ fontSize: 10.5, color: "#9a8a94" }}>gross · net · avg mult</div>
+            <div style={{ fontSize: 10.5, color: "#9a8a94" }}>gross · Bazooka net · avg mult</div>
           </div>
           <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 11, padding: "0 6px 6px", fontSize: 9.5, fontWeight: 700, color: "#7a6b74", textTransform: "uppercase", letterSpacing: 0.5 }}>
+              <div style={{ width: 18 }} />
+              <div style={{ width: 64 }}>Breaker</div>
+              <div style={{ flex: 1 }} />
+              <div style={{ width: 64, textAlign: "right" }}>Gross</div>
+              <div style={{ width: 48, textAlign: "right" }}>Baz Net</div>
+              <div style={{ width: 38, textAlign: "right" }}>Mult</div>
+            </div>
             {board.map((r, i) => {
               const w = Math.round(r.gross / maxBoard * 100);
               return (
@@ -2152,39 +2163,62 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
         ];
         const heroTiers = tierDefs.map(t => ({ label: t.label, color: t.color, count: financialStreams.filter(s => t.test(parseFloat(s.marketMultiple) || 0)).length })).filter(t => t.count > 0);
         // Revenue vs net series — bucket the period into slices (weeks for month, months otherwise)
-        const heroSeries = (() => {
-          const byKey = {};
+        // ── Real per-bucket time series for EVERY metric. Buckets = weeks (month view)
+        //    or months (quarter/year). Each metric gets its true value per bucket, so the
+        //    sparklines show real trends — not approximations.
+        const heroBreaksCount = breaks.filter(b => { const d = b.date; return d && inPeriod(d); }).length;
+        const bucketKeyOf = (dateStr) => {
+          if (financialPeriod === "month") { const day = parseInt((dateStr || "").slice(8, 10)) || 1; return "Wk" + Math.min(4, Math.ceil(day / 7)); }
+          return (dateStr || "").slice(0, 7);
+        };
+        const commissionOf = (s) => {
+          const c = calcStream(s);
+          const sp = s.splitRep ? parseFloat(s.splitPct || 50) / 100 : 1;
+          const primary = s.splitRep ? c.commAmt * sp : c.commAmt;
+          const splitRepC = s.splitRep ? c.commAmt * (1 - sp) : 0;
+          const evt = (s.eventStaff || []).reduce((sum, _) => sum + Math.min(1000, c.bazNet * 0.15), 0);
+          return (primary - (c.repExpShare || 0)) + splitRepC + evt + (c.salesBonus || 0) + (c.tips || 0);
+        };
+        const heroBuckets = (() => {
+          const map = {};
+          const ensure = (k) => (map[k] || (map[k] = { gross: 0, net: 0, comm: 0, breaks: 0, mmSum: 0, mmN: 0 }));
           financialStreams.forEach(s => {
-            const c = calcStream(s);
-            let key;
-            if (financialPeriod === "month") { const day = parseInt((s.date || "").slice(8, 10)) || 1; key = "Wk" + Math.min(4, Math.ceil(day / 7)); }
-            else { key = (s.date || "").slice(0, 7); }
-            if (!byKey[key]) byKey[key] = { gross: 0, net: 0 };
-            byKey[key].gross += c.gross; byKey[key].net += c.bazTrueNet || 0;
+            const c = calcStream(s); const k = bucketKeyOf(s.date); const b = ensure(k);
+            b.gross += c.gross; b.net += c.bazTrueNet || 0; b.comm += commissionOf(s);
+            const mm = parseFloat(s.marketMultiple) || 0; if (mm > 0) { b.mmSum += mm; b.mmN++; }
           });
-          const keys = Object.keys(byKey).sort();
-          const labels = financialPeriod === "month" ? ["Wk1","Wk2","Wk3","Wk4"] : keys.map(k => { const [y,m]=k.split("-"); return new Date(y,m-1,1).toLocaleDateString("en-US",{month:"short"}); });
-          const srcKeys = financialPeriod === "month" ? ["Wk1","Wk2","Wk3","Wk4"] : keys;
+          breaks.forEach(bk => { if (bk.date && inPeriod(bk.date)) ensure(bucketKeyOf(bk.date)).breaks++; });
+          const keys = financialPeriod === "month" ? ["Wk1","Wk2","Wk3","Wk4"] : Object.keys(map).sort();
+          const labels = financialPeriod === "month" ? keys : keys.map(k => { const [y,m] = k.split("-"); return new Date(y, m-1, 1).toLocaleDateString("en-US", { month: "short" }); });
+          const val = (k, f) => { const b = map[k]; return b ? f(b) : 0; };
+          // Running total so the line CLIMBS through the period and never dips.
+          const cumulative = (perBucket) => { let run = 0; return perBucket.map(v => (run += v)); };
+          const grossPer  = keys.map(k => val(k, b => b.gross));
+          const netPer    = keys.map(k => val(k, b => b.net));
+          const commPer   = keys.map(k => val(k, b => b.comm));
+          const breaksPer = keys.map(k => val(k, b => b.breaks));
+          // Market multiple is a RATE, not a dollar amount — it doesn't accumulate.
+          // Show a running average (cumulative mm-sum / cumulative mm-count) so it's smooth.
+          let mmSumRun = 0, mmNRun = 0;
+          const mmRunAvg = keys.map(k => { const b = map[k]; if (b) { mmSumRun += b.mmSum; mmNRun += b.mmN; } return mmNRun ? +(mmSumRun / mmNRun).toFixed(2) : 0; });
           return {
             labels,
-            gross: srcKeys.map(k => Math.round((byKey[k] || {}).gross || 0)),
-            net: srcKeys.map(k => Math.round((byKey[k] || {}).net || 0)),
+            gross:  cumulative(grossPer).map(Math.round),
+            net:    cumulative(netPer).map(Math.round),
+            comm:   cumulative(commPer).map(Math.round),
+            breaks: cumulative(breaksPer).map(Math.round),
+            mm:     mmRunAvg,
           };
         })();
-        // Hero sparkline — cumulative true net across the series (fallback to flat if empty)
-        const heroSpark = (() => {
-          const arr = heroSeries.net.length ? heroSeries.net : [0, 0];
-          let run = 0; const out = arr.map(v => (run += v));
-          return out.length >= 2 ? out : [0, totals.trueNet || 0];
-        })();
-        const heroBreaksCount = breaks.filter(b => { const d = b.date; return d && inPeriod(d); }).length;
-        // Simple mini-spark series reuse the revenue buckets where sensible
-        const heroMiniRev = heroSeries.gross.length ? heroSeries.gross : [0, totals.gross || 0];
-        const heroMiniComm = heroSeries.net.length ? heroSeries.net.map(v => Math.round(v * 1.2)) : [0, totals.comm || 0];
+        const heroSeries = { labels: heroBuckets.labels, gross: heroBuckets.gross, net: heroBuckets.net };
+        // All hero series are cumulative running totals — they climb through the period.
+        const heroSpark = heroBuckets.net.length >= 2 ? heroBuckets.net : [0, Math.round(totals.trueNet || 0)];
+        const heroMiniRev    = heroBuckets.gross.length  >= 2 ? heroBuckets.gross  : [0, Math.round(totals.gross || 0)];
+        const heroMiniComm   = heroBuckets.comm.length   >= 2 ? heroBuckets.comm   : [0, Math.round(totals.comm || 0)];
+        const heroMiniBreaks = heroBuckets.breaks.length >= 2 ? heroBuckets.breaks : [0, heroBreaksCount];
         const heroMMList = financialStreams.map(s => parseFloat(s.marketMultiple) || 0).filter(m => m > 0);
         const heroAvgMM = heroMMList.length ? heroMMList.reduce((a, b) => a + b, 0) / heroMMList.length : 0;
-        const heroMiniMM = heroMMList.length >= 2 ? heroMMList.slice(-8) : [heroAvgMM, heroAvgMM];
-        const heroMiniBreaks = heroSeries.gross.length ? heroSeries.gross.map((_, i) => heroBreaksCount / Math.max(1, heroSeries.gross.length)) : [0, heroBreaksCount];
+        const heroMiniMM = heroBuckets.mm.filter(v => v > 0).length >= 2 ? heroBuckets.mm : [heroAvgMM, heroAvgMM];
 
         // Drill-down modal content
         const renderDrillDown = () => {
