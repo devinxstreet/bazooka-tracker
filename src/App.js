@@ -356,7 +356,7 @@ function versionSpecFor(card) {
 // A stream is "singles" (100% pass-through) if flagged either way — via the
 // isSinglesShow boolean or the sessionType dropdown. Keep these in sync.
 function isSinglesStream(s){ return !!(s && (s.isSinglesShow || s.sessionType === "singles")); }
-function calcStream(s, targetBreaker=null) {
+function calcStreamRaw(s, targetBreaker=null) {
   const gross        = parseFloat(s.grossRevenue)||0;
   const fees         = parseFloat(s.whatnotFees)||0;
   const coupons      = parseFloat(s.coupons)||0;
@@ -944,16 +944,26 @@ function useDebounce(value, delay=220) {
 // Memoized calcStream — cache results by stream id+fingerprint so we don't
 // recalculate 100 streams on every keystroke
 const streamCalcCache = new Map();
-function calcStreamMemo(s, targetBreaker=null) {
-  const key = `${s.id||""}:${s.grossRevenue}:${s.marketMultiple}:${s.newBuyers}:${s.commissionOverride}:${s.channel}:${s.collabPct}:${s.externalChannel}:${s.whatnotPromo}:${s.magpros}:${s.packagingMaterial}:${s.topLoaders}:${s.chaserCards}:${s.isSinglesShow}:${s.excludeFinancials}:${s.manualCommission}:${s.splitRep||""}:${s.splitPct||""}:${s.biguGiveawayCards}:${s.biguInsuranceCards}:${s.biguChaserCards}:${s.biguShipping}:${(s.eventStaff||[]).map(e=>e.breaker).join(",")}:${targetBreaker||""}`;
-  if (streamCalcCache.has(key)) return streamCalcCache.get(key);
-  const result = calcStream(s, targetBreaker);
+// calcStream is now the CACHED entry point — every caller benefits automatically.
+// The heavy settlement math lives in calcStreamRaw; results are memoized by a key
+// of every input that affects the outcome, so re-renders reuse prior results
+// instead of recomputing the full P&L for every stream on every paint.
+function calcStream(s, targetBreaker=null) {
+  if (!s) return calcStreamRaw(s, targetBreaker);
+  const key = `${s.id||""}:${s.grossRevenue}:${s.marketMultiple}:${s.newBuyers}:${s.commissionOverride}:${s.channel}:${s.collabPct}:${s.externalChannel}:${s.whatnotPromo}:${s.magpros}:${s.packagingMaterial}:${s.topLoaders}:${s.chaserCards}:${s.isSinglesShow}:${s.sessionType||""}:${s.excludeFinancials}:${s.manualCommission}:${s.splitRep||""}:${s.splitPct||""}:${s.biguGiveawayCards}:${s.biguInsuranceCards}:${s.biguChaserCards}:${s.biguShipping}:${(s.eventStaff||[]).map(e=>e.breaker).join(",")}:${targetBreaker||""}`;
+  const hit = streamCalcCache.get(key);
+  if (hit) return hit;
+  const result = calcStreamRaw(s, targetBreaker);
   streamCalcCache.set(key, result);
-  if (streamCalcCache.size > 500) {
+  if (streamCalcCache.size > 2000) {
     const firstKey = streamCalcCache.keys().next().value;
     streamCalcCache.delete(firstKey);
   }
   return result;
+}
+// calcStreamMemo is kept as an alias — calcStream is already cached now.
+function calcStreamMemo(s, targetBreaker=null) {
+  return calcStream(s, targetBreaker);
 }
 
 function GlobalStyles() {
@@ -54222,6 +54232,14 @@ function AppInner() {
     const BRK_CACHE = "bz_breaks_v1";
     const STR_CACHE = "bz_streams_v1";
 
+    // Streams load window: trailing ~400 days covers the widest dashboard view
+    // (year-to-date + prior-year comparison) without shipping the entire archive
+    // on every update. Older streams live in historical_data / can be loaded on demand.
+    const STREAMS_WINDOW_START = (() => {
+      const d = new Date(); d.setDate(d.getDate() - 400);
+      return d.toISOString().split("T")[0];
+    })();
+
     // Seed from cache immediately so dashboard renders fast
     try {
       const ci = localStorage.getItem(INV_CACHE); if (ci) setInventory(JSON.parse(ci));
@@ -54240,7 +54258,7 @@ function AppInner() {
         setBreaks(data);
         try { localStorage.setItem(BRK_CACHE, JSON.stringify(data)); } catch(e) {}
       }),
-      onSnapshot(query(collection(db,"streams"), orderBy("date","asc")), snap => {
+      onSnapshot(query(collection(db,"streams"), where("date",">=", STREAMS_WINDOW_START), orderBy("date","asc")), snap => {
         const data = snap.docs.map(d=>({...d.data(), id:d.id}));
         setStreams(data);
         try { localStorage.setItem(STR_CACHE, JSON.stringify(data)); } catch(e) {}
