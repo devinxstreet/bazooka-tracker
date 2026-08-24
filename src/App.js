@@ -861,11 +861,11 @@ function getZone(pct) {
 }
 
 const DARK_T = {
-  pageBg:"#000000", card:"#111111", cardBorder:"#2a2a2a",
-  inp:"#1a1a1a", inpBorder:"#333333", text:"var(--bz-ink)",
+  pageBg:"#000000", card:"var(--bz-s1)", cardBorder:"var(--bz-line-2)",
+  inp:"var(--bz-s2)", inpBorder:"#333333", text:"var(--bz-ink)",
   textSub:"#999999", textMute:"#777777",
-  rowA:"#111111", rowB:"#0d0d0d", rowHover:"#1a1a1a",
-  border:"#2a2a2a", thBg:"#000000", tdBorder:"rgba(255,255,255,0.04)",
+  rowA:"var(--bz-s1)", rowB:"var(--bz-s1)", rowHover:"var(--bz-s2)",
+  border:"var(--bz-line-2)", thBg:"#000000", tdBorder:"rgba(255,255,255,0.04)",
 };
 const LIGHT_T = {
   pageBg:"#F7F4F8", card:"#FFFFFF", cardBorder:"#EDE0EC",
@@ -878,7 +878,7 @@ const LIGHT_T = {
 function makeS(dark) {
   const T = dark ? DARK_T : LIGHT_T;
   return {
-    card: { background:T.card, border:`1px solid ${T.cardBorder}`, borderRadius:14, padding:"18px 20px" },
+    card: { background:dark ? "linear-gradient(160deg,#181016,#130d11)" : T.card, border:`1px solid ${T.cardBorder}`, borderRadius:16, padding:"18px 20px", boxShadow:dark ? "0 1px 0 rgba(255,255,255,0.03) inset, 0 6px 22px rgba(0,0,0,0.35)" : "none" },
     inp:  { background:T.inp, border:`1px solid ${T.inpBorder}`, borderRadius:8, padding:"8px 12px", color:T.text, fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box", transition:"border-color 0.15s ease" },
     lbl:  { fontSize:9, fontWeight:700, color:"#999", textTransform:"uppercase", letterSpacing:"1.2px", display:"block", marginBottom:5 },
     th:   { padding:"8px 12px", background:"var(--bz-bg)", color:"#E8317A", fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:"1px", textAlign:"left", whiteSpace:"nowrap", borderBottom:"1px solid rgba(232,49,122,0.12)" },
@@ -894,9 +894,9 @@ const S = makeS(true);
 
 function SectionLabel({ t }) {
   return (
-    <div style={{ fontSize:10, fontWeight:700, color:"var(--bz-pink)", textTransform:"uppercase", letterSpacing:"1.6px", marginBottom:14, display:"flex", alignItems:"center", gap:10 }}>
-      <span style={{ width:18, height:1, background:"var(--bz-pink)", flexShrink:0 }}/>
-      {t}
+    <div style={{ fontSize:11, fontWeight:800, color:"var(--bz-ink)", letterSpacing:"-0.01em", marginBottom:14, display:"flex", alignItems:"center", gap:9 }}>
+      <span style={{ width:3, height:14, borderRadius:2, background:"linear-gradient(180deg,var(--bz-pink-hot),var(--bz-pink))", flexShrink:0 }}/>
+      <span style={{ textTransform:"uppercase", letterSpacing:"0.8px", fontSize:10.5, color:"var(--bz-ink-2)" }}>{t}</span>
       <div style={{ flex:1, height:"1px", background:"linear-gradient(90deg,var(--bz-pink-line),transparent)" }}/>
     </div>
   );
@@ -2004,7 +2004,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 </div>
               </div>
               <div style={{ display:"flex", gap:8 }}>
-                <a href={`/quote/${q.id}`} target="_blank" rel="noreferrer" style={{ background:"#1a1a1a", color:cfg.color, border:`1px solid ${cfg.border}`, borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, textDecoration:"none" }}>{"View Quote \u2197"}</a>
+                <a href={`/quote/${q.id}`} target="_blank" rel="noreferrer" style={{ background:"var(--bz-s2)", color:cfg.color, border:`1px solid ${cfg.border}`, borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, textDecoration:"none" }}>{"View Quote \u2197"}</a>
                 <button onClick={()=>{ if(onDismissQuoteNotif) onDismissQuoteNotif(q.id); }} style={{ background:"transparent", border:"1px solid var(--bz-line-2)", color:"#999", borderRadius:8, padding:"7px 12px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>{"\u2713 Dismiss"}</button>
               </div>
             </div>
@@ -2054,7 +2054,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 const sessionIcon = {day:"☀️",night:"🌙",weekend:"📅",singles:"🃏",event:"🎉"}[p.sessionType]||"📺";
                 const bc = BC[p.breaker]?.text || "#E8317A";
                 return (
-                  <div key={p.id||i} style={{ display:"flex", alignItems:"center", gap:14, padding:"12px 16px", background:isToday?"rgba(232,49,122,0.06)":"#0d0d0d", border:`1px solid ${isToday?"rgba(232,49,122,0.3)":"#1a1a1a"}`, borderRadius:10 }}>
+                  <div key={p.id||i} style={{ display:"flex", alignItems:"center", gap:14, padding:"12px 16px", background:isToday?"rgba(232,49,122,0.06)":"var(--bz-s1)", border:`1px solid ${isToday?"rgba(232,49,122,0.3)":"var(--bz-s2)"}`, borderRadius:10 }}>
                     <div style={{ fontSize:22 }}>{sessionIcon}</div>
                     <div style={{ flex:1 }}>
                       <div style={{ fontSize:14, fontWeight:800, color:"var(--bz-ink)" }}>{p.streamName||p.breaker}</div>
@@ -2087,7 +2087,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
 
       {/* -- PAY STUB NOTIFICATIONS -- */}
       {myStubs.length > 0 && myStubs.map(stub => (
-        <div key={stub.id} style={{ background:"linear-gradient(135deg,#0a1a0a,#111)", border:"2px solid #4ade80", borderRadius:14, padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:16, flexWrap:"wrap" }}>
+        <div key={stub.id} style={{ background:"linear-gradient(135deg,#0a1a0a,var(--bz-s1))", border:"2px solid #4ade80", borderRadius:14, padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:16, flexWrap:"wrap" }}>
           <div style={{ display:"flex", alignItems:"center", gap:14 }}>
             <div style={{ fontSize:32 }}>{"\uD83D\uDCB5"}</div>
             <div>
@@ -2112,14 +2112,14 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             </div>
           </div>
           {viewStub===stub.id && (
-            <div style={{ width:"100%", borderTop:"1px solid #2a2a2a", paddingTop:14, marginTop:4 }}>
+            <div style={{ width:"100%", borderTop:"1px solid var(--bz-line-2)", paddingTop:14, marginTop:4 }}>
               <table style={{ width:"100%", borderCollapse:"collapse" }}>
                 <thead><tr>
                   {["Date","Type","Gross","Net","Rate","Commission"].map(h=><th key={h} style={S.th}>{h}</th>)}
                 </tr></thead>
                 <tbody>
                   {(stub.streams||[]).map((s,i)=>(
-                    <tr key={i} style={{ background:i%2===0?"#111111":"#0d0d0d" }}>
+                    <tr key={i} style={{ background:i%2===0?"var(--bz-s1)":"var(--bz-s1)" }}>
                       <td style={S.td}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                       <td style={{ ...S.td, color:"var(--bz-ink-2)" }}>{s.breakType}{s.binOnly?" BIN":""}{s.sessionType?<span style={{marginLeft:5,fontSize:10,color:"#7B9CFF"}}>{({day:"☀️",night:"🌙",weekend:"📅",singles:"🃏",event:"🎉"})[s.sessionType]||""}</span>:""}</td>
                       <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{s.isEventOnly||s.gross===0?"—":fmt(s.gross)}</td>
@@ -2350,7 +2350,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             ? filtered.filter(s=>!isSinglesStream(s))
             : filtered.filter(s=>!s.excludeFinancials && !isSinglesStream(s));
           return (
-            <div style={{ ...S.card, border:`1px solid #2a2a2a`, marginTop:0, padding:0, overflow:"hidden" }}>
+            <div style={{ ...S.card, border:`1px solid var(--bz-line-2)`, marginTop:0, padding:0, overflow:"hidden" }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 20px", borderBottom:"1px solid var(--bz-line)" }}>
                 <SectionLabel t={config.label} />
                 <button onClick={()=>setDrillDown(null)} style={{ background:"none", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", cursor:"pointer", fontSize:14, borderRadius:6, padding:"4px 10px", fontFamily:"inherit" }}>✕ Close</button>
@@ -2358,7 +2358,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               <div style={{ overflowX:"auto" }}>
                 <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                   <thead>
-                    <tr style={{ borderBottom:"1px solid #2a2a2a", background:"var(--bz-bg)" }}>
+                    <tr style={{ borderBottom:"1px solid var(--bz-line-2)", background:"var(--bz-bg)" }}>
                       {["Date","Breaker","Gross","Rate",
                         ...(drillDown==="trueNet" ? ["Baz Net","− Payouts","💙 IMC Reimb","= True Net"] : [
                           drillDown==="commission"?"Commission":drillDown==="imc"?"IMC (70%)":drillDown==="bazooka"?"Bazooka 30%":"Gross"
@@ -2375,7 +2375,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                           const val = config.val(s);
                           const hasReimb = (c.imcDirectReimb||0) > 0;
                           return (
-                            <tr key={s.id} style={{ borderBottom:"1px solid var(--bz-line)", background:i%2===0?"#111":"#0d0d0d" }}>
+                            <tr key={s.id} style={{ borderBottom:"1px solid var(--bz-line)", background:i%2===0?"var(--bz-s1)":"var(--bz-s1)" }}>
                               <td style={{ padding:"10px 14px", color:"var(--bz-ink-2)", whiteSpace:"nowrap" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                               <td style={{ padding:"10px 14px" }}><Badge bg={bc.bg} color={bc.text}>{s.breaker}</Badge></td>
                               <td style={{ padding:"10px 14px", color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
@@ -2399,7 +2399,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                     }
                   </tbody>
                   <tfoot>
-                    <tr style={{ background:"var(--bz-bg)", borderTop:"2px solid #2a2a2a" }}>
+                    <tr style={{ background:"var(--bz-bg)", borderTop:"2px solid var(--bz-line-2)" }}>
                       <td colSpan={4} style={{ padding:"12px 14px", fontWeight:800, color:"var(--bz-ink)", fontSize:12 }}>Total ({drillRows.length} stream{drillRows.length!==1?"s":""})</td>
                       {drillDown==="trueNet" ? <>
                         <td style={{ padding:"12px 14px", fontWeight:900, color:"#E8317A", fontSize:14 }}>{fmt(drillRows.reduce((a,s)=>a+calcStream(s).bazNet,0))}</td>
@@ -2550,7 +2550,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                     ✏️ Adjust IMC by month {Object.keys(imcAdjustments).filter(k=>parseFloat(imcAdjustments[k])).length>0?`(${Object.keys(imcAdjustments).filter(k=>parseFloat(imcAdjustments[k])).length} active)`:""}
                   </button>
                 ) : (
-                  <div style={{background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:10,padding:"14px 16px"}}>
+                  <div style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:10,padding:"14px 16px"}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                       <span style={{fontSize:12,fontWeight:700,color:"var(--bz-ink)"}}>IMC Adjustment by Month</span>
                       <button onClick={()=>setShowImcAdj(false)} style={{background:"none",border:"none",color:"var(--bz-ink-3)",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>✕ Close</button>
@@ -2581,7 +2581,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                                     <input type="number" step="0.01" value={adj}
                                       onChange={e=>updateImcAdj(mk, e.target.value)}
                                       placeholder="0.00"
-                                      style={{background:"var(--bz-s1)",border:`1px solid ${adjNum?"rgba(251,191,36,0.4)":"#2a2a2a"}`,borderRadius:6,color:adjNum?"#FBBF24":"var(--bz-ink)",padding:"4px 8px",fontSize:12,fontFamily:"inherit",outline:"none",width:100}}/>
+                                      style={{background:"var(--bz-s1)",border:`1px solid ${adjNum?"rgba(251,191,36,0.4)":"var(--bz-line-2)"}`,borderRadius:6,color:adjNum?"#FBBF24":"var(--bz-ink)",padding:"4px 8px",fontSize:12,fontFamily:"inherit",outline:"none",width:100}}/>
                                   </div>
                                   <span style={{fontSize:11,fontWeight:700,color:adjNum?"#FBBF24":"#333"}}>
                                     {adjNum ? `→ ${fmt(calcImc+adjNum)}` : ""}
@@ -2697,7 +2697,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
                 {[["month","Month"],["quarter","Quarter"],["year","Year"],["all","All Time"],["custom","Custom"]].map(([v,l])=>(
                   <button key={v} onClick={()=>setOpsPeriod(v)}
-                    style={{ background:opsPeriod===v?"rgba(232,49,122,0.15)":"transparent", border:`1px solid ${opsPeriod===v?"#E8317A":"#2a2a2a"}`, color:opsPeriod===v?"#E8317A":"#888", borderRadius:16, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                    style={{ background:opsPeriod===v?"rgba(232,49,122,0.15)":"transparent", border:`1px solid ${opsPeriod===v?"#E8317A":"var(--bz-line-2)"}`, color:opsPeriod===v?"#E8317A":"#888", borderRadius:16, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                     {l}
                   </button>
                 ))}
@@ -2705,9 +2705,9 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             </div>
             {opsPeriod==="custom" && (
               <div style={{ display:"flex", gap:8, marginBottom:12, alignItems:"center" }}>
-                <input type="date" value={opsFrom} onChange={e=>setOpsFrom(e.target.value)} style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:7, color:"var(--bz-ink)", padding:"6px 10px", fontSize:12, fontFamily:"inherit" }}/>
+                <input type="date" value={opsFrom} onChange={e=>setOpsFrom(e.target.value)} style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:7, color:"var(--bz-ink)", padding:"6px 10px", fontSize:12, fontFamily:"inherit" }}/>
                 <span style={{ color:"var(--bz-ink-3)" }}>to</span>
-                <input type="date" value={opsTo} onChange={e=>setOpsTo(e.target.value)} style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:7, color:"var(--bz-ink)", padding:"6px 10px", fontSize:12, fontFamily:"inherit" }}/>
+                <input type="date" value={opsTo} onChange={e=>setOpsTo(e.target.value)} style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:7, color:"var(--bz-ink)", padding:"6px 10px", fontSize:12, fontFamily:"inherit" }}/>
               </div>
             )}
 
@@ -2722,7 +2722,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                 { l:"Coupons Given", v:`$${totCoupons.toFixed(2)}`,  sub:"",                                    c:"#FBBF24" },
                 { l:"🟢 Zion Cases", v:totZion>0?`$${totZion.toFixed(2)}`:"--", sub:totZion>0?`~${Math.round(totZion/3)} units`:"Bazooka-only", c:"#4ade80" },
               ].map(({l,v,sub,c}) => (
-                <div key={l} style={{ background:"#1a1a1a", borderRadius:8, padding:"12px 14px", border:"1px solid var(--bz-line-2)" }}>
+                <div key={l} style={{ background:"var(--bz-s2)", borderRadius:8, padding:"12px 14px", border:"1px solid var(--bz-line-2)" }}>
                   <div style={{ fontSize:18, fontWeight:900, color:c }}>{v}</div>
                   <div style={{ fontSize:11, color:"var(--bz-ink-2)", marginTop:2 }}>{l}</div>
                   {sub && <div style={{ fontSize:10, color:"var(--bz-ink-3)", marginTop:2 }}>{sub}</div>}
@@ -2743,11 +2743,11 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               </div>
               <div className="dash-grid-4" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
                 {CARD_TYPES.map(ct => {
-                  const cc  = CC[ct]||{ text:"#888", bg:"#111" };
+                  const cc  = CC[ct]||{ text:"#888", bg:"var(--bz-s1)" };
                   const qty  = cardQtyByType[ct]||0;
                   const cost = cardCostByType[ct]||0;
                   return (
-                    <div key={ct} style={{ background:"#1a1a1a", borderRadius:8, padding:"12px 14px", border:"1px solid var(--bz-line-2)" }}>
+                    <div key={ct} style={{ background:"var(--bz-s2)", borderRadius:8, padding:"12px 14px", border:"1px solid var(--bz-line-2)" }}>
                       <div style={{ fontSize:18, fontWeight:900, color:cc.text }}>{qty}</div>
                       <div style={{ fontSize:11, color:"var(--bz-ink-2)", marginTop:2 }}>{ct.replace(" Cards","")}</div>
                       {cost>0 && <div style={{ fontSize:10, color:"var(--bz-ink-3)", marginTop:2 }}>${cost.toFixed(2)} cost</div>}
@@ -2859,7 +2859,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                           <div style={{
                             width:"100%",
                             height:m.total>0?`${Math.max((m.total/maxMonth)*64,3)}px`:"2px",
-                            background:m.isFuture?"#1a1a1a":m.total===0&&!m.isFuture?"rgba(239,68,68,0.4)":"#E8317A",
+                            background:m.isFuture?"var(--bz-s2)":m.total===0&&!m.isFuture?"rgba(239,68,68,0.4)":"#E8317A",
                             borderRadius:"2px 2px 0 0",
                             position:"relative",
                             cursor:"default",
@@ -2909,7 +2909,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                         <div style={{ fontSize:10, color:onTrack?"#4ade80":"#555", marginTop:3, fontWeight:700 }}>
                           {onTrack ? "✅ On track" : `${projPct.toFixed(0)}% of goal`}
                         </div>
-                        <div style={{ height:3, background:"#1a1a1a", borderRadius:2, marginTop:5, overflow:"hidden" }}>
+                        <div style={{ height:3, background:"var(--bz-s2)", borderRadius:2, marginTop:5, overflow:"hidden" }}>
                           <div style={{ height:"100%", width:`${ytdPct}%`, background:onTrack?"#4ade80":c, borderRadius:2, transition:"width 0.6s ease" }}/>
                         </div>
                         <div style={{ fontSize:9, color:"#8a8a8a", marginTop:2 }}>
@@ -2923,7 +2923,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             </div>
 
             {/* Year progress bar */}
-            <div style={{ height:6, background:"#1a1a1a", borderRadius:10, overflow:"hidden" }}>
+            <div style={{ height:6, background:"var(--bz-s2)", borderRadius:10, overflow:"hidden" }}>
               <div style={{ height:"100%", width:`${pct}%`, background:"linear-gradient(90deg,#E8317A,#6B2D8B)", borderRadius:10, transition:"width 0.6s ease" }}/>
             </div>
             <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
@@ -2973,7 +2973,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             const runLabel = days >= 999 ? null : days <= 0 ? "Overdue" : `~${days}d left`;
 
             return (
-              <div key={ct} style={{ background:"var(--bz-s1)", border:`1px solid ${avail < target ? (avail===0?"rgba(153,27,27,0.4)":"rgba(146,64,14,0.3)") : "#2a2a2a"}`, borderRadius:10, padding:"12px 16px" }}>
+              <div key={ct} style={{ background:"var(--bz-s1)", border:`1px solid ${avail < target ? (avail===0?"rgba(153,27,27,0.4)":"rgba(146,64,14,0.3)") : "var(--bz-line-2)"}`, borderRadius:10, padding:"12px 16px" }}>
                 <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:8 }}>
                   <span style={{ fontWeight:800, color:cc.text, fontSize:14, flex:1 }}>{ct}</span>
                   {/* Available count — the main number */}
@@ -2995,7 +2995,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   {runLabel && <span style={{ fontSize:11, color:days<=7?"#991b1b":days<=14?"#92400e":"#555", fontWeight:700, whiteSpace:"nowrap" }}>{runLabel}</span>}
                 </div>
                 {/* Progress bar: available vs target */}
-                <div style={{ height:5, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
+                <div style={{ height:5, background:"var(--bz-s2)", borderRadius:3, overflow:"hidden" }}>
                   <div style={{ height:"100%", width:`${pct*100}%`, background:pct>=1?"#4ade80":pct>=0.5?"#FBBF24":"#991b1b", borderRadius:3, transition:"width 0.4s" }}/>
                 </div>
                 <div style={{ display:"flex", justifyContent:"space-between", marginTop:4 }}>
@@ -3050,7 +3050,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
               const ok = avail >= buffer; const warn = avail >= buffer*0.5;
               const sc = ok?"#4ade80":warn?"#FBBF24":"#E8317A";
               const sl = ok?"\u2705 Stocked":warn?"\u26A0\uFE0F Low":"\uD83D\uDEA8 Critical";
-              return (<tr key={ct} style={{ background:i%2===0?"#111111":"#0d0d0d", borderBottom:"1px solid var(--bz-line)" }}>
+              return (<tr key={ct} style={{ background:i%2===0?"var(--bz-s1)":"var(--bz-s1)", borderBottom:"1px solid var(--bz-line)" }}>
                   <td style={{ padding:"14px 20px", fontWeight:800, color:cc.text, fontSize:14 }}>{ct}</td>
                   <td style={{ ...S.td, textAlign:"center", fontSize:20, fontWeight:900, color:cc.text }}>{d.total}</td>
                   <td style={{ ...S.td, textAlign:"center", fontSize:20, fontWeight:900, color:d.used>0?"#E8317A":"#333" }}>{d.used}</td>
@@ -3162,7 +3162,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                     <thead><tr>{["Month","Gross","Net","Bazooka (30%)","IMC Reimb","True Net","\uD83C\uDF31 New Buyers","Notes",""].map(h=><th key={h} style={S.th}>{h}</th>)}</tr></thead>
                     <tbody>
                       {historicalData.map((h,i) => (
-                        <tr key={h.id} style={{ background: editingId===h.id?"rgba(107,45,139,0.08)":i%2===0?"#111111":"#0d0d0d" }}>
+                        <tr key={h.id} style={{ background: editingId===h.id?"rgba(107,45,139,0.08)":i%2===0?"var(--bz-s1)":"var(--bz-s1)" }}>
                           <td style={{ ...S.td, fontWeight:700, color:"#E8317A" }}>{h.yearMonth}</td>
                           <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(parseFloat(h.grossRevenue)||0)}</td>
                           <td style={{ ...S.td, color:"var(--bz-ink)" }}>{fmt(parseFloat(h.netRevenue)||0)}</td>
@@ -3665,11 +3665,11 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                   // Auto-dismiss badge when admin views a responded quote
                   // Note: notifications are dismissed from the Dashboard, not auto-dismissed here
                   const statusCfg = {
-                    pending:   { color:"var(--bz-ink-2)",    bg:"#1a1a1a",  label:"\u23F3 Awaiting Response" },
+                    pending:   { color:"var(--bz-ink-2)",    bg:"var(--bz-s2)",  label:"\u23F3 Awaiting Response" },
                     countered: { color:"#FBBF24", bg:"#1a1400",  label:"\uD83E\uDD1D Counter Received" },
                     accepted:  { color:"#4ade80", bg:"#0a1a0a",  label:"\u2705 Accepted" },
                     declined:  { color:"#E8317A", bg:"#1a0a0a",  label:"\u274C Declined" },
-                  }[q.status] || { color:"var(--bz-ink-2)", bg:"#1a1a1a", label:q.status };
+                  }[q.status] || { color:"var(--bz-ink-2)", bg:"var(--bz-s2)", label:q.status };
 
                   const quoteUrl = `${window.location.origin}/quote/${q.id}`;
                   const expiresAt = q.expiresAt ? new Date(q.expiresAt) : new Date(new Date(q.createdAt).getTime()+7*24*60*60*1000);
@@ -3769,16 +3769,16 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                               const zone = pct < 65 ? {c:"#4ade80",l:"\uD83D\uDFE2 Green Zone"} : pct < 70 ? {c:"#FBBF24",l:"\uD83D\uDFE1 Yellow Zone"} : {c:"#E8317A",l:"\uD83D\uDD34 Red Zone"};
                               return (
                                 <div style={{ marginTop:8, display:"flex", gap:8, flexWrap:"wrap" }}>
-                                  <div style={{ background:"#1a1a1a", border:`1px solid ${zone.c}44`, borderRadius:7, padding:"5px 10px", fontSize:11 }}>
+                                  <div style={{ background:"var(--bz-s2)", border:`1px solid ${zone.c}44`, borderRadius:7, padding:"5px 10px", fontSize:11 }}>
                                     <span style={{ color:"#999" }}>Your counter: </span>
                                     <strong style={{ color:zone.c }}>{pct?pct.toFixed(1)+"%":"--"}</strong>
                                     <span style={{ color:"var(--bz-ink-3)", marginLeft:4 }}>{zone.l}</span>
                                   </div>
-                                  {origPct && <div style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:7, padding:"5px 10px", fontSize:11 }}>
+                                  {origPct && <div style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:7, padding:"5px 10px", fontSize:11 }}>
                                     <span style={{ color:"#999" }}>Our offer: </span>
                                     <strong style={{ color:"#E8317A" }}>{origPct.toFixed(1)}%</strong>
                                   </div>}
-                                  {sellerPct && <div style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:7, padding:"5px 10px", fontSize:11 }}>
+                                  {sellerPct && <div style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:7, padding:"5px 10px", fontSize:11 }}>
                                     <span style={{ color:"#999" }}>Their ask: </span>
                                     <strong style={{ color:"#FBBF24" }}>{sellerPct.toFixed(1)}%</strong>
                                   </div>}
@@ -3928,14 +3928,14 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                       autoComplete="off"
                     />
                     {suggestions.length > 0 && (
-                      <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:8, zIndex:999, overflow:"hidden", boxShadow:"0 8px 24px rgba(0,0,0,0.6)", maxHeight:240, overflowY:"auto" }}>
+                      <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:8, zIndex:999, overflow:"hidden", boxShadow:"0 8px 24px rgba(0,0,0,0.6)", maxHeight:240, overflowY:"auto" }}>
                         {suggestions.map((c,i) => {
                           const lastComp = comps.filter(x=>x.seller===c.seller).slice(-1)[0];
                           const totalBought = comps.filter(x=>x.seller===c.seller).reduce((s,x)=>s+(parseFloat(x.offer)||0),0);
                           const dealCount = comps.filter(x=>x.seller===c.seller).length;
                           return (
                             <div key={i} onMouseDown={()=>fillSeller(c)}
-                              style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", borderBottom:"1px solid #111", cursor:"pointer", background:"#1a1a1a" }}
+                              style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 12px", borderBottom:"1px solid #111", cursor:"pointer", background:"var(--bz-s2)" }}
                               className="inv-row">
                               <div style={{ flex:1, minWidth:0 }}>
                                 <div style={{ fontSize:13, fontWeight:700, color:"var(--bz-ink)" }}>{c.seller}</div>
@@ -3992,7 +3992,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
               <input type="text" inputMode="decimal" value={finalOffer}
                 onChange={e => { setFOffer(e.target.value); setLotPct(""); }}
                 placeholder={totalMkt > 0 ? calcOffer.toFixed(2) : "0.00"}
-                style={{ ...S.inp, fontWeight:700, color:(offerAmt!=null&&offerAmt>0)?"#E8317A":"var(--bz-ink-2)", border:(offerAmt!=null&&offerAmt>0)?"1.5px solid rgba(232,49,122,0.5)":"1px solid #2a2a2a" }}/>
+                style={{ ...S.inp, fontWeight:700, color:(offerAmt!=null&&offerAmt>0)?"#E8317A":"var(--bz-ink-2)", border:(offerAmt!=null&&offerAmt>0)?"1.5px solid rgba(232,49,122,0.5)":"1px solid var(--bz-line-2)" }}/>
             </div>
 
             {/* Active Offer — big */}
@@ -4025,7 +4025,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
               return (
                 <div>
                   <label style={S.lbl}>Zone</label>
-                  <div style={{ background: zc?.bg||"#111", border:`1.5px solid ${zc?.border||"#2a2a2a"}`, borderRadius:8, padding:"6px 14px", textAlign:"center" }}>
+                  <div style={{ background: zc?.bg||"var(--bz-s1)", border:`1.5px solid ${zc?.border||"var(--bz-line-2)"}`, borderRadius:8, padding:"6px 14px", textAlign:"center" }}>
                     {zc ? (
                       <>
                         <div style={{ fontSize:14, fontWeight:900, color:zc.text }}>{zc.label}</div>
@@ -4066,9 +4066,9 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                 const mv  = parseFloat(r.mktVal)||0;
                 const qty = parseInt(r.qty)||1;
                 const perCardOffer = totalMkt > 0 ? mv * dispPct : (totalCards > 0 ? dispOffer / totalCards : 0);
-                const mInp = { background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:8, color:"var(--bz-ink)", padding:"10px 12px", fontSize:16, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" };
+                const mInp = { background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:8, color:"var(--bz-ink)", padding:"10px 12px", fontSize:16, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" };
                 return (
-                  <div key={r.id} style={{ background:r.include?"#111111":"#0a0a0a", border:`1.5px solid ${r.include?"#2a2a2a":"#1a1a1a"}`, borderRadius:10, padding:"12px", opacity:r.include?1:0.5 }}>
+                  <div key={r.id} style={{ background:r.include?"var(--bz-s1)":"var(--bz-bg)", border:`1.5px solid ${r.include?"var(--bz-line-2)":"var(--bz-s2)"}`, borderRadius:10, padding:"12px", opacity:r.include?1:0.5 }}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                       <span style={{ fontSize:12, fontWeight:700, color:"var(--bz-ink-3)" }}>#{i+1}</span>
                       <label style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:"var(--bz-ink-2)", cursor:"pointer" }}>
@@ -4116,7 +4116,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                                 const hits=bobaCards.filter(c=>terms.every(t=>[c.hero||"",c.weapon||"",c.treatment||"",String(c.cardNum||""),c.notation||"",c.setName||""].join(" ").toLowerCase().includes(t))).slice(0,12);
                                 if(!hits.length) return null;
                                 return (
-                                  <div style={{position:"absolute",top:"100%",left:0,right:0,background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,zIndex:999,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",maxHeight:280,overflowY:"auto"}}>
+                                  <div style={{position:"absolute",top:"100%",left:0,right:0,background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,zIndex:999,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",maxHeight:280,overflowY:"auto"}}>
                                     <div style={{padding:"4px 10px",fontSize:10,color:"var(--bz-ink-3)",borderBottom:"1px solid #111"}}>{hits.length} match{hits.length!==1?"es":""}</div>
                                     {hits.map(c=>{
                                       const wc=PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";
@@ -4127,7 +4127,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                                           <div style={{flexShrink:0}}>
                                             {c.imageUrl
                                               ? <img src={c.imageUrl} alt={c.hero} style={{width:36,height:48,objectFit:"cover",borderRadius:4}}/>
-                                              : <div style={{width:36,height:48,background:"#2a2a2a",borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"var(--bz-ink-3)",textAlign:"center",padding:2}}>{c.hero?.split(" ")[0]}</div>
+                                              : <div style={{width:36,height:48,background:"var(--bz-line-2)",borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"var(--bz-ink-3)",textAlign:"center",padding:2}}>{c.hero?.split(" ")[0]}</div>
                                             }
                                           </div>
                                           <div style={{flex:1,minWidth:0}}>
@@ -4169,7 +4169,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                           const hits=bobaCards.filter(c=>terms.every(t=>[c.hero||"",c.weapon||"",c.treatment||"",String(c.cardNum||""),c.notation||"",c.setName||""].join(" ").toLowerCase().includes(t))).slice(0,12);
                           if(!hits.length) return null;
                           return (
-                            <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:8, zIndex:999, boxShadow:"0 8px 24px rgba(0,0,0,0.8)", maxHeight:280, overflowY:"auto" }}>
+                            <div style={{ position:"absolute", top:"100%", left:0, right:0, background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:8, zIndex:999, boxShadow:"0 8px 24px rgba(0,0,0,0.8)", maxHeight:280, overflowY:"auto" }}>
                               <div style={{padding:"4px 10px",fontSize:10,color:"var(--bz-ink-3)",borderBottom:"1px solid #111"}}>{hits.length} match{hits.length!==1?"es":""}</div>
                               {hits.map(c=>{
                                 const wc=PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";
@@ -4180,7 +4180,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                                     <div style={{flexShrink:0}}>
                                       {c.imageUrl
                                         ? <img src={c.imageUrl} alt={c.hero} style={{width:36,height:48,objectFit:"cover",borderRadius:4}}/>
-                                        : <div style={{width:36,height:48,background:"#2a2a2a",borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"var(--bz-ink-3)",textAlign:"center",padding:2}}>{c.hero?.split(" ")[0]}</div>
+                                        : <div style={{width:36,height:48,background:"var(--bz-line-2)",borderRadius:4,display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,color:"var(--bz-ink-3)",textAlign:"center",padding:2}}>{c.hero?.split(" ")[0]}</div>
                                       }
                                     </div>
                                     <div style={{flex:1,minWidth:0}}>
@@ -4223,21 +4223,21 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                         <div style={{ fontSize:11, color: r.costOverride?"#FBBF24":"#666", marginBottom:4, fontWeight:r.costOverride?700:400 }}>
                           {r.costOverride?"★ ":""}Cost/Card Override
                         </div>
-                        <input type="text" inputMode="decimal" value={r.costOverride} onChange={e=>upd(r.id,"costOverride",e.target.value)} placeholder={`auto ($${getCostPerCard(r).toFixed(2)})`} style={{ ...mInp, border:r.costOverride?"1.5px solid #FBBF2488":"1px solid #2a2a2a", color:r.costOverride?"#FBBF24":"#888" }}/>
+                        <input type="text" inputMode="decimal" value={r.costOverride} onChange={e=>upd(r.id,"costOverride",e.target.value)} placeholder={`auto ($${getCostPerCard(r).toFixed(2)})`} style={{ ...mInp, border:r.costOverride?"1.5px solid #FBBF2488":"1px solid var(--bz-line-2)", color:r.costOverride?"#FBBF24":"#888" }}/>
                       </div>
                       <div>
                         <div style={{ fontSize:11, color: r.pctOverride?"#A78BFA":"#666", marginBottom:4, fontWeight:r.pctOverride?700:400 }}>
                           {r.pctOverride?"★ ":""}Custom Comp % (e.g. 70)
                         </div>
                         <div style={{ display:"flex", alignItems:"center", gap:4 }}>
-                          <input type="number" min="0" max="100" value={r.pctOverride} onChange={e=>{upd(r.id,"pctOverride",e.target.value); upd(r.id,"costOverride","");}} placeholder="global %" style={{ ...mInp, border:r.pctOverride?"1.5px solid #A78BFA88":"1px solid #2a2a2a", color:r.pctOverride?"#A78BFA":"#888", flex:1 }}/>
+                          <input type="number" min="0" max="100" value={r.pctOverride} onChange={e=>{upd(r.id,"pctOverride",e.target.value); upd(r.id,"costOverride","");}} placeholder="global %" style={{ ...mInp, border:r.pctOverride?"1.5px solid #A78BFA88":"1px solid var(--bz-line-2)", color:r.pctOverride?"#A78BFA":"#888", flex:1 }}/>
                           <span style={{ fontSize:11, color:"var(--bz-ink-3)" }}>%</span>
                         </div>
                         {r.pctOverride && <div style={{ fontSize:10, color:"#A78BFA", marginTop:2 }}>${((parseFloat(r.mktVal)||0)*(parseFloat(r.pctOverride)/100)).toFixed(2)}/card</div>}
                       </div>
                     </div>
                     {(mv > 0 || perCardOffer > 0) && (
-                      <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 10px", background:"#1a1a1a", borderRadius:6, fontSize:12 }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 10px", background:"var(--bz-s2)", borderRadius:6, fontSize:12 }}>
                         <span style={{ color:"var(--bz-ink-2)" }}>Total: <strong style={{ color:"var(--bz-ink)" }}>${(mv*qty).toFixed(2)}</strong></span>
                         <span style={{ color:"var(--bz-ink-2)" }}>Offer/card: <strong style={{ color:"#E8317A" }}>${perCardOffer.toFixed(2)}</strong></span>
                       </div>
@@ -4245,7 +4245,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                   </div>
                 );
               })}
-              <button onClick={addRow} style={{ background:"transparent", border:"1.5px dashed #2a2a2a", color:"var(--bz-ink-2)", borderRadius:10, padding:"12px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>+ Add Card</button>
+              <button onClick={addRow} style={{ background:"transparent", border:"1.5px dashed var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:10, padding:"12px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>+ Add Card</button>
             </div>
           ) : (
           <div style={{ overflowX:"auto" }}>
@@ -4273,7 +4273,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                   })() : null;
 
                   return (
-                    <tr key={r.id} style={{ background: i%2===0?"#111":"#0d0d0d", opacity:r.include?1:0.4, borderBottom:"1px solid var(--bz-line)" }}>
+                    <tr key={r.id} style={{ background: i%2===0?"var(--bz-s1)":"var(--bz-s1)", opacity:r.include?1:0.4, borderBottom:"1px solid var(--bz-line)" }}>
 
                       {/* # */}
                       <td style={{ ...S.td, color:"var(--bz-ink-3)", width:28, textAlign:"center", fontSize:11 }}>{i+1}</td>
@@ -4298,7 +4298,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                                     onFocus={()=>{setAcOpen(r.id);setAcQuery(q=>({...q,[r.id]:r.name}));}}
                                     onBlur={()=>setTimeout(()=>setAcOpen(p=>p===r.id?null:p),150)}
                                     placeholder="Type name..." style={{ ...S.inp, padding:"5px 8px", fontSize:12, width:"100%" }}/>
-                                  {acOpen===r.id&&(acQuery[r.id]||"").length>=1&&(()=>{const raw=(acQuery[r.id]||"").toLowerCase();const hits=bobaCards.filter(c=>[c.hero||"",c.weapon||"",c.treatment||"",String(c.cardNum||""),c.notation||"",c.setName||""].join(" ").toLowerCase().includes(raw)).slice(0,8);if(!hits.length)return null;return(<div style={{position:"absolute",top:"100%",left:0,right:0,background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,zIndex:999,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",maxHeight:220,overflowY:"auto"}}>{hits.map(c=>{const label=[c.hero,c.treatment,c.weapon?"("+c.weapon+")":"",c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");return<div key={c.id} onMouseDown={()=>{upd(r.id,"name",label);if(c.mktValue||c.marketValue)upd(r.id,"mktVal",String(c.mktValue||c.marketValue||""));setAcOpen(null);}} style={{padding:"7px 10px",borderBottom:"1px solid #111",cursor:"pointer",fontSize:12,color:"var(--bz-ink)"}} className="inv-row">{label}</div>;})}</div>);})()}
+                                  {acOpen===r.id&&(acQuery[r.id]||"").length>=1&&(()=>{const raw=(acQuery[r.id]||"").toLowerCase();const hits=bobaCards.filter(c=>[c.hero||"",c.weapon||"",c.treatment||"",String(c.cardNum||""),c.notation||"",c.setName||""].join(" ").toLowerCase().includes(raw)).slice(0,8);if(!hits.length)return null;return(<div style={{position:"absolute",top:"100%",left:0,right:0,background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,zIndex:999,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",maxHeight:220,overflowY:"auto"}}>{hits.map(c=>{const label=[c.hero,c.treatment,c.weapon?"("+c.weapon+")":"",c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");return<div key={c.id} onMouseDown={()=>{upd(r.id,"name",label);if(c.mktValue||c.marketValue)upd(r.id,"mktVal",String(c.mktValue||c.marketValue||""));setAcOpen(null);}} style={{padding:"7px 10px",borderBottom:"1px solid #111",cursor:"pointer",fontSize:12,color:"var(--bz-ink)"}} className="inv-row">{label}</div>;})}</div>);})()}
                                 </div>
                                 {cardPools.filter(p=>p.cardType===r.cardType).length>0&&<button onClick={()=>setRows(p=>p.map(x=>x.id===r.id?{...x,name:"",manualEntry:false}:x))} style={{background:"none",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-3)",borderRadius:6,padding:"3px 7px",fontSize:11,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>↩</button>}
                               </div>
@@ -4318,7 +4318,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                                 const terms=raw.trim().split(/\s+/).filter(Boolean);
                                 const hits=bobaCards.filter(c=>terms.every(t=>[c.hero||"",c.weapon||"",c.treatment||"",String(c.cardNum||""),c.notation||"",c.setName||""].join(" ").toLowerCase().includes(t))).sort((a,b)=>{const s=h=>h.toLowerCase()===raw?0:h.toLowerCase().startsWith(terms[0])?1:2;return s(a.hero||"")-s(b.hero||"");}).slice(0,10);
                                 if(!hits.length)return null;
-                                return(<div style={{position:"absolute",top:"100%",left:0,right:0,background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,zIndex:999,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",maxHeight:260,overflowY:"auto"}}>
+                                return(<div style={{position:"absolute",top:"100%",left:0,right:0,background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,zIndex:999,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",maxHeight:260,overflowY:"auto"}}>
                                   {hits.map(c=>{const wc=PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";const label=[c.hero,c.treatment,c.weapon?"("+c.weapon+")":"",c.cardNum?"#"+c.cardNum:""].filter(Boolean).join(" — ");return(
                                     <div key={c.id} onMouseDown={()=>{upd(r.id,"name",label);if(c.mktValue||c.marketValue)upd(r.id,"mktVal",String(c.mktValue||c.marketValue||""));setAcOpen(null);}}
                                       style={{display:"flex",alignItems:"center",gap:8,padding:"7px 10px",cursor:"pointer",borderBottom:"1px solid #111"}} className="inv-row">
@@ -4384,12 +4384,12 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                           <input type="text" inputMode="decimal" value={r.costOverride}
                             onChange={e=>{upd(r.id,"costOverride",e.target.value);if(e.target.value)upd(r.id,"pctOverride","");}}
                             placeholder="$"
-                            style={{ ...S.inp, padding:"4px 6px", fontSize:11, width:50, color:r.costOverride?"#FBBF24":"#555", border:r.costOverride?"1px solid #FBBF2455":"1px solid #2a2a2a", textAlign:"center" }}/>
+                            style={{ ...S.inp, padding:"4px 6px", fontSize:11, width:50, color:r.costOverride?"#FBBF24":"#555", border:r.costOverride?"1px solid #FBBF2455":"1px solid var(--bz-line-2)", textAlign:"center" }}/>
                           <div style={{ display:"flex", alignItems:"center", gap:2 }}>
                             <input type="number" min="0" max="200" value={r.pctOverride}
                               onChange={e=>{upd(r.id,"pctOverride",e.target.value);if(e.target.value)upd(r.id,"costOverride","");}}
                               placeholder="%"
-                              style={{ ...S.inp, padding:"4px 4px", fontSize:11, width:40, color:r.pctOverride?"#A78BFA":"#555", border:r.pctOverride?"1px solid #A78BFA55":"1px solid #2a2a2a", textAlign:"center" }}/>
+                              style={{ ...S.inp, padding:"4px 4px", fontSize:11, width:40, color:r.pctOverride?"#A78BFA":"#555", border:r.pctOverride?"1px solid #A78BFA55":"1px solid var(--bz-line-2)", textAlign:"center" }}/>
                             <span style={{fontSize:10,color:"var(--bz-ink-3)"}}>%</span>
                           </div>
                         </div>
@@ -4459,7 +4459,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
 
           <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:16, alignItems:"center" }}>
             <Btn onClick={()=>setCustView(true)} variant="ghost">{"\uD83D\uDC41 Customer View"}</Btn>
-            <div style={{ display:"flex", alignItems:"center", gap:8, background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:8, padding:"6px 12px", cursor:"pointer" }} onClick={()=>setAllowCounter(p=>!p)}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:8, padding:"6px 12px", cursor:"pointer" }} onClick={()=>setAllowCounter(p=>!p)}>
               <div style={{ width:32, height:18, borderRadius:9, background:allowCounter?"#E8317A":"#333", position:"relative", transition:"background 0.2s", flexShrink:0 }}>
                 <div style={{ position:"absolute", top:2, left:allowCounter?14:2, width:14, height:14, borderRadius:"50%", background:"#fff", transition:"left 0.2s" }}/>
               </div>
@@ -4632,7 +4632,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
                 <div style={{ padding:"10px 14px 6px", fontSize:11, fontWeight:700, color:"var(--bz-ink-3)", textTransform:"uppercase", letterSpacing:1 }}>Deal History</div>
                 <div style={{ maxHeight:300, overflowY:"auto" }}>
                   {sorted.map((c,i)=>{ const p=c.totalMarket>0?c.offer/c.totalMarket:0; const sc={accepted:"#4ade80",declined:"#E8317A",countered:"#FBBF24",pending:"#555"}; return (
-                    <div key={c.id||i} style={{ padding:"8px 14px", borderTop:"1px solid var(--bz-line)", background:i%2===0?"#0d0d0d":"#111" }}>
+                    <div key={c.id||i} style={{ padding:"8px 14px", borderTop:"1px solid var(--bz-line)", background:i%2===0?"var(--bz-s1)":"var(--bz-s1)" }}>
                       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}>
                         <span style={{ fontSize:11, color:"var(--bz-ink-3)" }}>{c.date||"--"}</span>
                         <span style={{ fontSize:10, fontWeight:700, color:sc[c.status]||"#555", textTransform:"capitalize" }}>{c.status||"--"}</span>
@@ -4888,7 +4888,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
       {/* Pool list by type */}
       {POOL_TYPES.map(type => {
         const pools = poolsByType[type] || [];
-        const cc = CC[type] || { text:"#888", bg:"#111", border:"#333" };
+        const cc = CC[type] || { text:"#888", bg:"var(--bz-s1)", border:"#333" };
         return (
           <div key={type}>
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
@@ -4936,7 +4936,7 @@ function CardPools({ cardPools=[], onSavePool, onDeletePool, onLogPoolOut, onAdd
                         )}
                         {/* Progress bar */}
                         <div style={{ width:80 }}>
-                          <div style={{ background:"#1a1a1a", borderRadius:4, height:6, overflow:"hidden" }}>
+                          <div style={{ background:"var(--bz-s2)", borderRadius:4, height:6, overflow:"hidden" }}>
                             <div style={{ width:`${Math.max(0,Math.min(100,pct))}%`, height:"100%", background:statusC, borderRadius:4, transition:"width 0.3s" }}/>
                           </div>
                           <div style={{ fontSize:9, color:"var(--bz-ink-3)", marginTop:3, textAlign:"center" }}>{pct.toFixed(0)}% left</div>
@@ -5329,7 +5329,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
                               {lot.cards.map(c => {
                                 const isUsed    = usedIds.has(c.id);
                                 const isTransit = !isUsed && c.cardStatus==="in_transit";
-                                const cc = CC[c.cardType]||{bg:"#111",text:"#888",border:"#333"};
+                                const cc = CC[c.cardType]||{bg:"var(--bz-s1)",text:"#888",border:"#333"};
                                 const statusColor = isUsed?"#555":isTransit?"#7B9CFF":"#4ade80";
                                 const statusLabel = isUsed?"Used":isTransit?"🚚 Transit":"✅ Avail";
                                 return (
@@ -5445,7 +5445,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
               </div>
               <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                 {items.map(({ct,have,target,needed,pct,urgent}) => {
-                  const cc = CC[ct]||{text:"#888",bg:"#111"};
+                  const cc = CC[ct]||{text:"#888",bg:"var(--bz-s1)"};
                   return (
                     <div key={ct} style={{ display:"grid", gridTemplateColumns:"1fr auto auto auto", alignItems:"center", gap:12, padding:"10px 14px", background:"var(--bz-s1)", borderRadius:8, border:`1px solid ${urgent?"rgba(220,38,38,0.2)":"rgba(107,45,139,0.15)"}` }}>
                       <div>
@@ -5522,7 +5522,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
               <button onClick={handleBulkDelete} style={{ background:"var(--bz-s1)", color:"#E8317A", border:"1.5px solid #fca5a5", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{"\uD83D\uDDD1 Delete"}{selected.size} selected</button>
             )}
             {selected.size>0 && onBulkAdd && (
-              <button onClick={()=>setBulkLogMode(p=>!p)} style={{ background:bulkLogMode?"rgba(74,222,128,0.15)":"#111111", color:"#4ade80", border:"1.5px solid #4ade8044", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              <button onClick={()=>setBulkLogMode(p=>!p)} style={{ background:bulkLogMode?"rgba(74,222,128,0.15)":"var(--bz-s1)", color:"#4ade80", border:"1.5px solid #4ade8044", borderRadius:8, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                 {bulkLogMode?"✕ Cancel":"✅ Bulk Log Out"} {selected.size > 0 ? `${selected.size}` : ""}
               </button>
             )}
@@ -5573,7 +5573,7 @@ function Inventory({ defaultTab="cards", inventory, breaks, onRemove, onBulkRemo
                     const daysIn = c.dateAdded ? Math.floor((new Date()-new Date(c.dateAdded))/86400000) : null;
                     const isAging = !used && daysIn !== null && daysIn >= 60;
                     return (
-                      <tr key={c.id} className="inv-row fade-in" style={{ background:isSel?"#1a0a0f":i%2===0?"#111111":"#0d0d0d", opacity:used?0.45:1 }}>
+                      <tr key={c.id} className="inv-row fade-in" style={{ background:isSel?"#1a0a0f":i%2===0?"var(--bz-s1)":"var(--bz-s1)", opacity:used?0.45:1 }}>
                         <td style={{ ...S.td, textAlign:"center" }}><input type="checkbox" checked={isSel} onChange={()=>toggleSelect(c.id)}/></td>
                         <td style={{ ...S.td, fontWeight:700 }}>
                           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
@@ -6069,7 +6069,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
         {/* Section helper */}
         {(()=>{
           const SectionHeader = ({label, icon, sectionKey, open, onToggle}) => (
-            <button onClick={onToggle} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", background:"transparent", border:"none", borderBottom:`1px solid ${open?"rgba(232,49,122,0.3)":"#1a1a1a"}`, padding:"10px 2px 8px", cursor:"pointer", fontFamily:"inherit", marginBottom:open?14:8 }}>
+            <button onClick={onToggle} style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", background:"transparent", border:"none", borderBottom:`1px solid ${open?"rgba(232,49,122,0.3)":"var(--bz-s2)"}`, padding:"10px 2px 8px", cursor:"pointer", fontFamily:"inherit", marginBottom:open?14:8 }}>
               <span style={{ fontSize:12, fontWeight:800, color:open?"#E8317A":"#888", letterSpacing:"0.5px", textTransform:"uppercase" }}>{icon} {label}</span>
               <span style={{ fontSize:12, color:open?"#E8317A":"#555" }}>{open?"▲":"▼"}</span>
             </button>
@@ -6322,7 +6322,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                                 setRecap(p=>({...p, chaserCardIds:newSel.join(","), chaserCards:newCost>0?newCost.toFixed(2):p.chaserCards}));
                                 setRecapSaved(false);
                               }}
-                              style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 12px", cursor:"pointer", background:isSel?"#2a1520":"#111111", borderBottom:"1px solid var(--bz-line)" }}
+                              style={{ display:"flex", alignItems:"center", gap:10, padding:"7px 12px", cursor:"pointer", background:isSel?"#2a1520":"var(--bz-s1)", borderBottom:"1px solid var(--bz-line)" }}
                             >
                               <input type="checkbox" checked={isSel} readOnly style={{ flexShrink:0 }}/>
                               <span style={{ fontSize:12, fontWeight:isSel?700:400, color:"var(--bz-ink)", flex:1 }}>{c.cardName}</span>
@@ -6457,7 +6457,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               <span style={{ fontSize:11, color:"var(--bz-ink-3)", marginLeft:8 }}>Divide commission between two reps</span>
             </div>
             <select value={recap.splitRep||""} onChange={e=>rf("splitRep")(e.target.value)}
-              style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:6, color: recap.splitRep?"#FBBF24":"#555", padding:"4px 10px", fontSize:11, fontFamily:"inherit", cursor:"pointer" }}>
+              style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:6, color: recap.splitRep?"#FBBF24":"#555", padding:"4px 10px", fontSize:11, fontFamily:"inherit", cursor:"pointer" }}>
               <option value="">-- No split --</option>
               {BREAKERS.filter(b=>b!==breaker).map(b=><option key={b} value={b}>{b}</option>)}
             </select>
@@ -6533,7 +6533,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               <div style={{ fontSize:10, color:"var(--bz-ink-3)" }}>Direct payment from IMC — reduces amount owed, adds to Bazooka True Net</div>
             </div>
             <input type="number" step="0.01" value={recap.imcReimbursement||""} onChange={e=>rf("imcReimbursement")(e.target.value)} placeholder="0.00"
-              style={{ ...S.inp, width:130, color:"#60A5FA", fontWeight:700, border:recap.imcReimbursement?"1.5px solid #60A5FA44":"1px solid #2a2a2a" }}/>
+              style={{ ...S.inp, width:130, color:"#60A5FA", fontWeight:700, border:recap.imcReimbursement?"1.5px solid #60A5FA44":"1px solid var(--bz-line-2)" }}/>
             {parseFloat(recap.imcReimbursement)>0 && <div style={{ fontSize:13, fontWeight:800, color:"#60A5FA" }}>+${parseFloat(recap.imcReimbursement).toFixed(2)}</div>}
           </div>
           {parseFloat(recap.imcReimbursement)>0 && (
@@ -6650,10 +6650,10 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             <option value="">➕ Add product to this stream...</option>
             {Object.entries(PRODUCT_SETS).map(([set,types])=>(
               <optgroup key={set} label={set}>
-                {types.map(t=>{ const key=`${set} - ${t}`; return <option key={key} value={key} style={{color:"var(--bz-ink)",background:"#1a1a1a"}}>{set} — {t}</option>; })}
+                {types.map(t=>{ const key=`${set} - ${t}`; return <option key={key} value={key} style={{color:"var(--bz-ink)",background:"var(--bz-s2)"}}>{set} — {t}</option>; })}
               </optgroup>
             ))}
-            <option value="Miscellaneous" style={{color:"var(--bz-ink)",background:"#1a1a1a"}}>Miscellaneous</option>
+            <option value="Miscellaneous" style={{color:"var(--bz-ink)",background:"var(--bz-s2)"}}>Miscellaneous</option>
           </select>
           {PRODUCT_TYPES.some(pt=>parseInt(recap[`prod_${pt}`])>0) && (
             <div style={{ marginTop:8, fontSize:12, color:"var(--bz-ink-3)" }}>
@@ -6835,7 +6835,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                 onBlur={e=>{ if(onSaveImcFormUrl && e.target.value.trim()) onSaveImcFormUrl(e.target.value.trim()); }}
                 onKeyDown={e=>{ if(e.key==="Enter"&&onSaveImcFormUrl&&e.target.value.trim()) { onSaveImcFormUrl(e.target.value.trim()); e.target.blur(); }}}
                 placeholder="Paste new Google Form URL here..."
-                style={{ ...S.inp, fontSize:11, padding:"6px 10px", color:imcFormUrl?"#7B9CFF":"#555", border:imcFormUrl?"1px solid rgba(123,156,255,0.3)":"1px solid #2a2a2a", flex:1 }}
+                style={{ ...S.inp, fontSize:11, padding:"6px 10px", color:imcFormUrl?"#7B9CFF":"#555", border:imcFormUrl?"1px solid rgba(123,156,255,0.3)":"1px solid var(--bz-line-2)", flex:1 }}
               />
               {imcFormUrl && <span style={{ fontSize:10, color:"#4ade80", whiteSpace:"nowrap" }}>✓ Saved</span>}
               {!imcFormUrl && <span style={{ fontSize:10, color:"#E8317A", whiteSpace:"nowrap" }}>⚠ No URL set</span>}
@@ -6874,7 +6874,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       { l:"Exp share",   v:-rc.repExpShare,    c:"#ef4444" },
                       ...(rc.imcReimb>0?[{ l:"IMC Reimb",     v:rc.imcReimb,          c:"#4ade80" }]:[]),
                     ].filter(x=>x.v!==0).map(({l,v,c},i,arr) => (
-                      <div key={l} style={{ display:"flex", justifyContent:"space-between", paddingBottom:i<arr.length-1?"6px":0, borderBottom:i<arr.length-1?"1px solid #1a1a1a":"none" }}>
+                      <div key={l} style={{ display:"flex", justifyContent:"space-between", paddingBottom:i<arr.length-1?"6px":0, borderBottom:i<arr.length-1?"1px solid var(--bz-s2)":"none" }}>
                         <span style={{ fontSize:11, color:"var(--bz-ink-3)" }}>{l}</span>
                         <span style={{ fontSize:12, fontWeight:700, color:c }}>{v<0?"-":""}${Math.abs(v).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
                       </div>
@@ -6965,7 +6965,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                       <tr key={s.id}
                         onClick={()=>{ setBreaker(s.breaker); setDate(s.date); setEditingStreamId(s.id); setRecapSaved(false); }}
                         className="clickable-row"
-                        style={{ background:isActive?"#2a1520":i%2===0?"#111111":"#0d0d0d", cursor:"pointer", borderBottom:"1px solid #FFF0F5" }}
+                        style={{ background:isActive?"#2a1520":i%2===0?"var(--bz-s1)":"var(--bz-s1)", cursor:"pointer", borderBottom:"1px solid #FFF0F5" }}
                         title="Click to load this stream"
                       >
                         <td style={{ ...S.td, textAlign:"center" }} onClick={e=>e.stopPropagation()}>
@@ -7028,7 +7028,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   : available.filter(c=>c.cardName.toLowerCase().includes(cardSearch.toLowerCase())).map(c => {
                       const cc = CC[c.cardType]||{bg:"#F3F4F6",text:"var(--bz-ink-3)"};
                       return (
-                        <div key={c.id} onClick={()=>{setCardId(c.id);setCardSearch(c.cardName);}} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:isMobile?"14px 16px":"10px 16px", cursor:"pointer", background:cardId===c.id?"#1a0a0f":"#111111", borderBottom:"1px solid #FFF0F5" }}>
+                        <div key={c.id} onClick={()=>{setCardId(c.id);setCardSearch(c.cardName);}} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:isMobile?"14px 16px":"10px 16px", cursor:"pointer", background:cardId===c.id?"#1a0a0f":"var(--bz-s1)", borderBottom:"1px solid #FFF0F5" }}>
                           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                             <span style={{ fontWeight:700, fontSize:isMobile?15:13 }}>{c.cardName}</span>
                             <Badge bg={cc.bg} color={cc.text}>{c.cardType}</Badge>
@@ -7086,7 +7086,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
               {isMobile ? (
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:4 }}>
                   {CARD_TYPES.map(ct => (
-                    <div key={ct} style={{ display:"flex", justifyContent:"space-between", padding:"4px 8px", background:"#1a1a1a", borderRadius:6 }}>
+                    <div key={ct} style={{ display:"flex", justifyContent:"space-between", padding:"4px 8px", background:"var(--bz-s2)", borderRadius:6 }}>
                       <span style={{ fontSize:11, color:"var(--bz-ink-2)" }}>{ct.replace(" Cards","")}</span>
                       <span style={{ fontSize:11, fontWeight:700, color:CC[ct]?.text }}>{s[ct]}</span>
                     </div>
@@ -7131,7 +7131,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                   const cc=CC[b.cardType]||{bg:"#F3F4F6",text:"var(--bz-ink-3)"};
                   const isSel=histSel.has(b.id);
                   return (
-                    <tr key={b.id} className="break-row fade-in" style={{ background:isSel?"#1a0a0f":i%2===0?"#111111":"#0d0d0d" }}>
+                    <tr key={b.id} className="break-row fade-in" style={{ background:isSel?"#1a0a0f":i%2===0?"var(--bz-s1)":"var(--bz-s1)" }}>
                       <td style={{ ...S.td, textAlign:"center" }}><input type="checkbox" checked={isSel} onChange={()=>toggleHistSel(b.id)}/></td>
                       <td style={{ ...S.td, color:"var(--bz-ink-2)", fontSize:11 }}>{b.date}</td>
                       <td style={S.td}><Badge bg={bc.bg} color={bc.text}>{b.breaker}</Badge></td>
@@ -7301,7 +7301,7 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
   });
 
   const S = {
-    card: { background:"var(--bz-s1)", border:"1px solid var(--bz-line)", borderRadius:12, padding:"14px 16px" },
+    card: { background:"linear-gradient(160deg,#181016,#130d11)", border:"1px solid var(--bz-line)", borderRadius:16, padding:"14px 16px", boxShadow:"0 1px 0 rgba(255,255,255,0.03) inset, 0 6px 22px rgba(0,0,0,0.35)" },
     inp:  { background:"var(--bz-s3)", border:"1px solid var(--bz-line)", borderRadius:8, color:"var(--bz-ink)", padding:"6px 10px", fontSize:12, fontFamily:"inherit", outline:"none" },
     th:   { padding:"10px 12px", textAlign:"left", fontSize:11, color:"var(--bz-ink-3)", fontWeight:600, textTransform:"uppercase", letterSpacing:1, borderBottom:"1px solid var(--bz-line)", whiteSpace:"nowrap" },
     td:   { padding:"10px 12px", borderBottom:"1px solid var(--bz-line)", fontSize:12 },
@@ -7337,10 +7337,10 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
             ))}
             {exportPeriod==="custom" && <>
               <input type="date" value={exportFrom} onChange={e=>setExportFrom(e.target.value)}
-                style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:8, color:"var(--bz-ink)", padding:"3px 8px", fontSize:11, fontFamily:"inherit" }}/>
+                style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:8, color:"var(--bz-ink)", padding:"3px 8px", fontSize:11, fontFamily:"inherit" }}/>
               <span style={{ color:"var(--bz-ink-3)", fontSize:11 }}>to</span>
               <input type="date" value={exportTo} onChange={e=>setExportTo(e.target.value)}
-                style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:8, color:"var(--bz-ink)", padding:"3px 8px", fontSize:11, fontFamily:"inherit" }}/>
+                style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:8, color:"var(--bz-ink)", padding:"3px 8px", fontSize:11, fontFamily:"inherit" }}/>
             </>}
             <button onClick={exportCSV}
               style={{ background:"linear-gradient(135deg,#E8317A,#c02060)", color:"#fff", border:"none", borderRadius:8, padding:"5px 14px", fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
@@ -7413,7 +7413,7 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
                     const showingPeriod = exportPeriod !== "all";
                     return (
                       <tr key={b.id} onClick={()=>setSelected(selected?.id===b.id?null:b)}
-                        style={{ cursor:"pointer", background:selected?.id===b.id?"#1A1A2E":i%2===0?"#0d0d0d":"#111" }}
+                        style={{ cursor:"pointer", background:selected?.id===b.id?"#1A1A2E":i%2===0?"var(--bz-s1)":"var(--bz-s1)" }}
                         className="clickable-row">
                         <td style={S.td}>
                           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
@@ -7469,7 +7469,7 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
           const maxBuyers = stateEntries.length > 0 ? stateEntries[0][1].buyers : 1;
           function stateColor(abbr) {
             const d = stateData[abbr];
-            if (!d) return "#1a1a1a";
+            if (!d) return "var(--bz-s2)";
             const t = d.buyers / maxBuyers;
             if (t > 0.8) return "#E8317A";
             if (t > 0.6) return "#cc2a68";
@@ -7502,7 +7502,7 @@ function BuyersCRM({ defaultTab="table", buyers=[], csvImports=[], onDeleteImpor
                     </div>
                     <div style={{ maxHeight:260, overflowY:"auto" }}>
                       {stateBuyers.sort((a,b)=>(b.totalSpend||0)-(a.totalSpend||0)).map((b,i)=>(
-                        <div key={b.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 14px", borderBottom:"1px solid #111", background:i%2===0?"#0a0a0a":"#0d0d0d" }}>
+                        <div key={b.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 14px", borderBottom:"1px solid #111", background:i%2===0?"var(--bz-bg)":"var(--bz-s1)" }}>
                           <span style={{ color:"#7B9CFF", fontWeight:700, fontSize:12 }}>@{b.username}</span>
                           {b.fullName && <span style={{ fontSize:11, color:"var(--bz-ink-3)" }}>{b.fullName}</span>}
                           {b.city && <span style={{ fontSize:11, color:"#8a8a8a" }}>{b.city}</span>}
@@ -7659,7 +7659,7 @@ function RepReportCard({ streams=[], isAdmin }) {
       </div>
 
       {/* Header card */}
-      <div style={{background:`linear-gradient(135deg,${bc}11,#111)`,border:`2px solid ${bc}33`,borderRadius:14,padding:"20px 24px"}}>
+      <div style={{background:`linear-gradient(135deg,${bc}11,var(--bz-s1))`,border:`2px solid ${bc}33`,borderRadius:14,padding:"20px 24px"}}>
         <div style={{fontSize:20,fontWeight:900,color:"var(--bz-ink)",marginBottom:4}}>{selBreaker} · Report Card</div>
         <div style={{fontSize:12,color:"var(--bz-ink-3)"}}>{repStreams.length} streams in period</div>
       </div>
@@ -7693,7 +7693,7 @@ function RepReportCard({ streams=[], isAdmin }) {
         <div style={{display:"flex",gap:6,alignItems:"flex-end",height:120}}>
           {weekTrends.map((w,i)=>{
             const barH = w.mm ? (w.mm/maxMM)*100 : 0;
-            const col = w.mm ? mmColor(w.mm) : "#2a2a2a";
+            const col = w.mm ? mmColor(w.mm) : "var(--bz-line-2)";
             return (
               <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
                 <div style={{fontSize:9,color:col,fontWeight:700}}>{w.mm?w.mm.toFixed(2)+"x":""}</div>
@@ -7783,10 +7783,10 @@ function TeamLeaderboard({ streams=[], allStreams=[], isAdmin }) {
           ))}
           {period==="custom" && <>
             <input type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)}
-              style={{background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"4px 10px",fontSize:11,fontFamily:"inherit"}}/>
+              style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"4px 10px",fontSize:11,fontFamily:"inherit"}}/>
             <span style={{color:"var(--bz-ink-3)",fontSize:11}}>to</span>
             <input type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)}
-              style={{background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"4px 10px",fontSize:11,fontFamily:"inherit"}}/>
+              style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"4px 10px",fontSize:11,fontFamily:"inherit"}}/>
           </>}
           <span style={{color:"var(--bz-ink-3)",fontSize:11}}>|</span>
           {[["boba","🃏 BoBA"],["wotf","🐉 WotF"],["all","All"]].map(([id,l])=>(
@@ -7806,7 +7806,7 @@ function TeamLeaderboard({ streams=[], allStreams=[], isAdmin }) {
         {rankings.map((r,i)=>{
           const bc = BC[r.b]?.text||"#E8317A";
           return (
-            <div key={r.b} style={{background:"var(--bz-s1)",border:`2px solid ${i===0?bc+"55":"#1a1a1a"}`,borderRadius:12,padding:"16px 20px",display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+            <div key={r.b} style={{background:"var(--bz-s1)",border:`2px solid ${i===0?bc+"55":"var(--bz-s2)"}`,borderRadius:12,padding:"16px 20px",display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
               <div style={{fontSize:28,width:36,textAlign:"center"}}>{medals[i]||`#${i+1}`}</div>
               <div style={{minWidth:120}}>
                 <div style={{fontSize:16,fontWeight:900,color:bc}}>{r.b}</div>
@@ -7878,7 +7878,7 @@ function MMTrend({ streams=[], isAdmin, visibleBreakers=[] }) {
             {[1.4,1.5,1.7,2.0].map(ref=>{
               const y=((maxMM-ref)/range)*100;
               if(y<0||y>100) return null;
-              return <div key={ref} style={{position:"absolute",top:`${y}%`,left:0,right:0,borderTop:`1px dashed ${ref===1.5?"#FBBF24":"#1a1a1a"}`,display:"flex",alignItems:"center"}}>
+              return <div key={ref} style={{position:"absolute",top:`${y}%`,left:0,right:0,borderTop:`1px dashed ${ref===1.5?"#FBBF24":"var(--bz-s2)"}`,display:"flex",alignItems:"center"}}>
                 <span style={{fontSize:9,color:ref===1.5?"#FBBF24":"#333",marginLeft:4}}>{ref}x</span>
               </div>;
             })}
@@ -7893,7 +7893,7 @@ function MMTrend({ streams=[], isAdmin, visibleBreakers=[] }) {
                     const np=points[i+1];
                     return <line key={i} x1={`${p.x}%`} y1={`${p.y}%`} x2={`${np.x}%`} y2={`${np.y}%`} stroke={bc} strokeWidth="2" strokeOpacity="0.8"/>;
                   })}
-                  {points.map((p,i)=>p.mm?<circle key={i} cx={`${p.x}%`} cy={`${p.y}%`} r="4" fill={bc} stroke="#111" strokeWidth="1.5"/>:null)}
+                  {points.map((p,i)=>p.mm?<circle key={i} cx={`${p.x}%`} cy={`${p.y}%`} r="4" fill={bc} stroke="var(--bz-s1)" strokeWidth="1.5"/>:null)}
                 </svg>
               );
             })}
@@ -8045,7 +8045,7 @@ function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
             return (
               <div key={s.label} style={{display:"grid",gridTemplateColumns:"120px 1fr 100px 60px",gap:12,alignItems:"center"}}>
                 <div style={{fontSize:12,color:"var(--bz-ink-2)"}}>{s.label}</div>
-                <div style={{height:8,background:"#1a1a1a",borderRadius:4,overflow:"hidden"}}>
+                <div style={{height:8,background:"var(--bz-s2)",borderRadius:4,overflow:"hidden"}}>
                   <div style={{height:"100%",width:`${pct}%`,background:"#E8317A",borderRadius:4}}/>
                 </div>
                 <div style={{fontSize:13,fontWeight:700,color:metric==="mm"?mmColor(val):"#E8317A",textAlign:"right"}}>{metric==="gross"?fmt(val):metric==="mm"?val?val.toFixed(2)+"x":"--":val?val.toFixed(1):""}</div>
@@ -8069,7 +8069,7 @@ function TimeAnalysis({ streams=[], isAdmin, visibleBreakers=[] }) {
               return (
                 <div key={b.breaker} style={{display:"grid",gridTemplateColumns:"120px 1fr 100px 70px",gap:12,alignItems:"center"}}>
                   <div style={{fontSize:12,fontWeight:700,color:"var(--bz-ink)"}}>{b.breaker}</div>
-                  <div style={{height:8,background:"#1a1a1a",borderRadius:4,overflow:"hidden"}}>
+                  <div style={{height:8,background:"var(--bz-s2)",borderRadius:4,overflow:"hidden"}}>
                     <div style={{height:"100%",width:`${pct}%`,background:col,borderRadius:4}}/>
                   </div>
                   <div style={{fontSize:13,fontWeight:700,color:col,textAlign:"right"}}>{metric==="gross"?fmt(val):metric==="mm"?val?val.toFixed(2)+"x":"--":val?val.toFixed(1):"--"}</div>
@@ -8261,7 +8261,7 @@ function CampaignTracker({ buyers=[], streams=[] }) {
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by username..."
             style={{ ...S.inp, width:"100%" }}/>
           {searchResults.length > 0 && (
-            <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, right:0, background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:10, zIndex:99, maxHeight:240, overflowY:"auto", boxShadow:"0 8px 24px rgba(0,0,0,0.7)" }}>
+            <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, right:0, background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:10, zIndex:99, maxHeight:240, overflowY:"auto", boxShadow:"0 8px 24px rgba(0,0,0,0.7)" }}>
               {searchResults.map(b=>(
                 <div key={b.id} onClick={()=>!saving&&tagBuyer(b)}
                   style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", cursor:"pointer", borderBottom:"1px solid #111" }}
@@ -8369,7 +8369,7 @@ function BuyerRetention({ buyers=[], streams=[] }) {
       <div style={{display:"flex",gap:6}}>
         {[["overview","📊 Overview"],["firsttime","🔄 First-Time Return Rate"],["tiers","💎 Buyer Tiers"],["cohort","📅 Cohort Table"]].map(([v,l])=>(
           <button key={v} onClick={()=>setView(v)}
-            style={{background:view===v?"rgba(232,49,122,0.15)":"#111",border:`1.5px solid ${view===v?"#E8317A":"#1a1a1a"}`,color:view===v?"#E8317A":"#888",borderRadius:20,padding:"6px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+            style={{background:view===v?"rgba(232,49,122,0.15)":"var(--bz-s1)",border:`1.5px solid ${view===v?"#E8317A":"var(--bz-s2)"}`,color:view===v?"#E8317A":"#888",borderRadius:20,padding:"6px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
             {l}
           </button>
         ))}
@@ -8755,7 +8755,7 @@ function BuyerFunnel({ streams=[], isAdmin, visibleBreakers=[] }) {
             return (
               <div key={r.b} style={{display:"grid",gridTemplateColumns:"110px 1fr 60px 80px 80px",gap:12,alignItems:"center"}}>
                 <div style={{fontSize:13,fontWeight:700,color:bc}}>{r.b}</div>
-                <div style={{height:8,background:"#1a1a1a",borderRadius:4,overflow:"hidden"}}>
+                <div style={{height:8,background:"var(--bz-s2)",borderRadius:4,overflow:"hidden"}}>
                   <div style={{height:"100%",width:`${pct}%`,background:bc,borderRadius:4}}/>
                 </div>
                 <div style={{fontSize:12,fontWeight:700,color:"#4ade80",textAlign:"right"}}>{r.newBuyers}</div>
@@ -8830,7 +8830,7 @@ function RevenueConcentration({ streams=[], isAdmin }) {
                 <div style={{fontSize:12,color:"var(--bz-ink-3)",textAlign:"center"}}>#{i+1}</div>
                 <div style={{fontSize:11,color:bc,fontWeight:700}}>{s.breaker}</div>
                 <div style={{fontSize:11,color:"var(--bz-ink-3)"}}>{s.date}</div>
-                <div style={{height:6,background:"#1a1a1a",borderRadius:3,overflow:"hidden"}}>
+                <div style={{height:6,background:"var(--bz-s2)",borderRadius:3,overflow:"hidden"}}>
                   <div style={{height:"100%",width:`${pct}%`,background:"#E8317A",borderRadius:3}}/>
                 </div>
                 <div style={{fontSize:12,fontWeight:700,color:"#E8317A",textAlign:"right"}}>{fmt(g)}</div>
@@ -8973,7 +8973,7 @@ function GoalTracking({ streams=[], isAdmin, visibleBreakers=[] }) {
           const pct=goal>0?Math.min(actual/goal*100,100):0;
           const over=goal>0&&actual>=goal;
           return (
-            <div key={key} style={{background:"var(--bz-s1)",border:`1px solid ${over?"rgba(74,222,128,0.3)":"#1a1a1a"}`,borderRadius:12,padding:"16px 18px"}}>
+            <div key={key} style={{background:"var(--bz-s1)",border:`1px solid ${over?"rgba(74,222,128,0.3)":"var(--bz-s2)"}`,borderRadius:12,padding:"16px 18px"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10}}>
                 <div>
                   <div style={{fontSize:10,color:"var(--bz-ink-3)",textTransform:"uppercase",letterSpacing:1,marginBottom:4}}>{label}</div>
@@ -8984,11 +8984,11 @@ function GoalTracking({ streams=[], isAdmin, visibleBreakers=[] }) {
                   <div style={{fontSize:10,color:"var(--bz-ink-3)"}}>Goal: {fmtFn(goal)}</div>
                 </div>}
               </div>
-              {goal>0 && <div style={{height:6,background:"#1a1a1a",borderRadius:3,overflow:"hidden"}}>
+              {goal>0 && <div style={{height:6,background:"var(--bz-s2)",borderRadius:3,overflow:"hidden"}}>
                 <div style={{height:"100%",width:`${pct}%`,background:over?"#4ade80":"#E8317A",borderRadius:3,transition:"width 0.5s"}}/>
               </div>}
               {editing && <input type="number" placeholder={`Set ${label} goal...`} value={draft[key]||""} onChange={e=>setDraft(p=>({...p,[key]:e.target.value}))}
-                style={{marginTop:10,width:"100%",background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:6,color:"var(--bz-ink)",padding:"6px 10px",fontSize:12,fontFamily:"inherit",boxSizing:"border-box"}}/>}
+                style={{marginTop:10,width:"100%",background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:6,color:"var(--bz-ink)",padding:"6px 10px",fontSize:12,fontFamily:"inherit",boxSizing:"border-box"}}/>}
             </div>
           );
         })}
@@ -9010,7 +9010,7 @@ function GoalTracking({ streams=[], isAdmin, visibleBreakers=[] }) {
                   <span style={{fontSize:13,fontWeight:700,color:bc}}>{r.b}</span>
                   <span style={{fontSize:12,color:"var(--bz-ink-3)"}}>{fmt(r.gross)} {goal>0?`/ ${fmt(goal)} (${pct.toFixed(0)}%)`:""}</span>
                 </div>
-                {goal>0&&<div style={{height:8,background:"#1a1a1a",borderRadius:4,overflow:"hidden"}}>
+                {goal>0&&<div style={{height:8,background:"var(--bz-s2)",borderRadius:4,overflow:"hidden"}}>
                   <div style={{height:"100%",width:`${pct}%`,background:bc,borderRadius:4}}/>
                 </div>}
               </div>
@@ -9021,7 +9021,7 @@ function GoalTracking({ streams=[], isAdmin, visibleBreakers=[] }) {
             {BREAKERS.map(b=><div key={b} style={{display:"flex",gap:8,alignItems:"center",marginBottom:6}}>
               <span style={{fontSize:12,color:BC[b]?.text||"#E8317A",minWidth:120}}>{b}</span>
               <input type="number" placeholder="Goal..." value={draft[`${b}_gross`]||""} onChange={e=>setDraft(p=>({...p,[`${b}_gross`]:e.target.value}))}
-                style={{flex:1,background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:6,color:"var(--bz-ink)",padding:"5px 10px",fontSize:12,fontFamily:"inherit"}}/>
+                style={{flex:1,background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:6,color:"var(--bz-ink)",padding:"5px 10px",fontSize:12,fontFamily:"inherit"}}/>
             </div>)}
           </>}
         </div>
@@ -9126,7 +9126,7 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
       <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
         <span style={{ fontSize:11, color:"var(--bz-ink-3)" }}>View:</span>
         <select value={perfTab} onChange={e=>setPerfTab(e.target.value)}
-          style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:10, color:"var(--bz-ink)", padding:"8px 14px", fontSize:13, fontFamily:"inherit", cursor:"pointer", fontWeight:600 }}>
+          style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:10, color:"var(--bz-ink)", padding:"8px 14px", fontSize:13, fontFamily:"inherit", cursor:"pointer", fontWeight:600 }}>
           {[
             ["stats","📊 Stats"],
             ["weekly","📋 Weekly Report"],
@@ -9163,7 +9163,7 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
       {/* Period Filter */}
       <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
         {[["month","This Month"],["quarter","This Quarter"],["year","This Year"],["all","All Time"],["custom","Custom"]].map(([val,label]) => (
-          <button key={val} onClick={()=>setPerfPeriod(val)} style={{ background:perfPeriod===val?"#E8317A":"#1a1a1a", color:perfPeriod===val?"#fff":"#888", border:`1px solid ${perfPeriod===val?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"5px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
+          <button key={val} onClick={()=>setPerfPeriod(val)} style={{ background:perfPeriod===val?"#E8317A":"var(--bz-s2)", color:perfPeriod===val?"#fff":"#888", border:`1px solid ${perfPeriod===val?"#E8317A":"var(--bz-line-2)"}`, borderRadius:7, padding:"5px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{label}</button>
         ))}
         {perfPeriod==="custom" && (
           <>
@@ -9262,10 +9262,10 @@ function Performance({ defaultPeriod="all", defaultPerfTab="stats", breaks, user
                 <div style={{ fontSize:11, fontWeight:700, color:"var(--bz-ink-3)", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>By Breaker</div>
                 <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                   {breakerBreakdown.map(b => {
-                    const bc = BC[b.breaker]||{text:"#888",bg:"#111",border:"#333"};
+                    const bc = BC[b.breaker]||{text:"#888",bg:"var(--bz-s1)",border:"#333"};
                     const mmCol = !b.avgMM?"#555":b.avgMM>=1.7?"#4ade80":b.avgMM>=1.5?"#86efac":b.avgMM>=1.4?"#FBBF24":"#E8317A";
                     return (
-                      <div key={b.breaker} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background:"var(--bz-bg)", borderRadius:8, border:`1px solid #1a1a1a` }}>
+                      <div key={b.breaker} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background:"var(--bz-bg)", borderRadius:8, border:`1px solid var(--bz-s2)` }}>
                         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                           <span style={{ background:bc.bg, color:bc.text, border:`1px solid ${bc.border}44`, borderRadius:20, padding:"2px 10px", fontSize:11, fontWeight:700 }}>{b.breaker}</span>
                           <span style={{ fontSize:12, color:"var(--bz-ink-3)" }}>{b.streams} stream{b.streams!==1?"s":""}</span>
@@ -9726,7 +9726,7 @@ function WhatnotFollowerTracker({ isAdmin }) {
                   const val = Math.round(maxVal - t*range);
                   return (
                     <g key={t}>
-                      <line x1={padL} y1={y} x2={chartW-padR} y2={y} stroke="#1a1a1a" strokeWidth={1}/>
+                      <line x1={padL} y1={y} x2={chartW-padR} y2={y} stroke="var(--bz-s2)" strokeWidth={1}/>
                       <text x={padL-6} y={y+4} textAnchor="end" fontSize={9} fill="#444">{fmtK(val)}</text>
                     </g>
                   );
@@ -9785,7 +9785,7 @@ function WhatnotFollowerTracker({ isAdmin }) {
                 {[...entries].reverse().map((e,i)=>{
                   const prevE = [...entries].reverse()[i+1];
                   return (
-                    <tr key={e.id} style={{ borderBottom:"1px solid #111", background:i%2===0?"#111":"#0d0d0d" }}>
+                    <tr key={e.id} style={{ borderBottom:"1px solid #111", background:i%2===0?"var(--bz-s1)":"var(--bz-s1)" }}>
                       <td style={{ padding:"8px 10px", fontSize:12, color:"var(--bz-ink-2)" }}>{e.date}</td>
                       {WN_CHANNELS.map(c=>{
                         const cur = e[c.key]; const prv = prevE?.[c.key];
@@ -9940,7 +9940,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
                 const y = PAD.t + chartH * (1-t);
                 const val = minP + range * t;
                 return <g key={t}>
-                  <line x1={PAD.l} y1={y} x2={W-PAD.r} y2={y} stroke="#1a1a1a" strokeWidth="1"/>
+                  <line x1={PAD.l} y1={y} x2={W-PAD.r} y2={y} stroke="var(--bz-s2)" strokeWidth="1"/>
                   <text x={PAD.l-6} y={y+4} textAnchor="end" fill="#555" fontSize="10">${val.toFixed(0)}</text>
                 </g>;
               })}
@@ -9948,7 +9948,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
               {pathD && <path d={pathD} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"/>}
               {points.map((p,i) => (
                 <g key={i}>
-                  <circle cx={p.x} cy={p.y} r="4" fill={p.source==="stream"?color+"88":color} stroke="#111" strokeWidth="1.5"/>
+                  <circle cx={p.x} cy={p.y} r="4" fill={p.source==="stream"?color+"88":color} stroke="var(--bz-s1)" strokeWidth="1.5"/>
                   <text x={p.x} y={p.y-10} textAnchor="middle" fill={color} fontSize="10" fontWeight="700">${p.price.toFixed(0)}</text>
                 </g>
               ))}
@@ -10102,7 +10102,7 @@ function ProductInventory({ shipments=[], productUsage=[], onSaveShipment, onDel
         {(() => { const s = stock["Miscellaneous"] || { current:0, received:0, used:0 };
           const out = s.current<=0, low = s.current<=2&&!out;
           return (
-            <div style={{ background:"linear-gradient(135deg,#111,#1a1a1a)", border:"1px solid var(--bz-line-2)", borderRadius:12, padding:"12px 16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+            <div style={{ background:"linear-gradient(135deg,var(--bz-s1),var(--bz-s2))", border:"1px solid var(--bz-line-2)", borderRadius:12, padding:"12px 16px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
               <span style={{ fontSize:12, fontWeight:700, color:"var(--bz-ink-3)" }}>Miscellaneous</span>
               <div style={{ display:"flex", alignItems:"center", gap:16 }}>
                 <span style={{ fontSize:10, color:"var(--bz-ink-3)" }}>↑{s.received} · ↓{s.used}</span>
@@ -10490,8 +10490,8 @@ function SkuPriceChart({ streams }) {
         responsive:true, maintainAspectRatio:false,
         plugins:{ legend:{ labels:{ color:"var(--bz-ink-2)", font:{ size:11 }}}, tooltip:{ callbacks:{ label: c => c.dataset.label+": $"+(c.parsed.y?.toFixed(2)||"--") }}},
         scales:{
-          x:{ grid:{ color:"#1a1a1a" }, ticks:{ color:"var(--bz-ink-2)", font:{ size:10 }, maxTicksLimit:12 }},
-          y:{ grid:{ color:"#1a1a1a" }, ticks:{ color:"var(--bz-ink-2)", font:{ size:11 }, callback: v => "$"+v }, beginAtZero:false }
+          x:{ grid:{ color:"var(--bz-s2)" }, ticks:{ color:"var(--bz-ink-2)", font:{ size:10 }, maxTicksLimit:12 }},
+          y:{ grid:{ color:"var(--bz-s2)" }, ticks:{ color:"var(--bz-ink-2)", font:{ size:11 }, callback: v => "$"+v }, beginAtZero:false }
         }
       }
     });
@@ -10591,7 +10591,7 @@ function BreakPlanner({ skuPrices={}, userRole }) {
               })}
             </div>
             {totalMktVal > 0 && (
-              <div style={{ marginTop:10, padding:"10px 14px", background:"#1a1a1a", borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div style={{ marginTop:10, padding:"10px 14px", background:"var(--bz-s2)", borderRadius:8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                 <span style={{ fontSize:12, color:"var(--bz-ink-2)" }}>Total Market Value</span>
                 <span style={{ fontSize:18, fontWeight:900, color:"var(--bz-ink)" }}>${totalMktVal.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
               </div>
@@ -10675,7 +10675,7 @@ function BreakPlanner({ skuPrices={}, userRole }) {
                   const isTarget = pct === parseInt(targetPct);
                   const zc = pct>=150?"#4ade80":pct>=130?"#FBBF24":"#E8317A";
                   const zl = pct>=150?"\uD83D\uDFE2 Green":pct>=130?"\uD83D\uDFE1 Yellow":"\uD83D\uDD34 Red";
-                  return (<tr key={pct} style={{ background:isTarget?"#1a1520":i%2===0?"#111111":"#0d0d0d", borderBottom:"1px solid var(--bz-line)" }}>
+                  return (<tr key={pct} style={{ background:isTarget?"#1a1520":i%2===0?"var(--bz-s1)":"var(--bz-s1)", borderBottom:"1px solid var(--bz-line)" }}>
                       <td style={{ ...S.td, fontWeight:isTarget?900:400, color:zc }}>{pct}%{isTarget?" \u2190 target":""}</td>
                       <td style={{ ...S.td, fontWeight:900, color:isTarget?zc:"var(--bz-ink)" }}>${sp.toFixed(2)}</td>
                       <td style={{ ...S.td, color:"var(--bz-ink)" }}>${g.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
@@ -10776,7 +10776,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
   const EMPTY_PLAN = { breaker:BREAKERS[0], channel:"Bazooka Vault", products:[{id:uid(),type:"",qty:"1"}], estRevenue:"", estMultiple:"", sessionType:"", notes:"", streamName:"", repeat:"none", repeatDays:[], repeatUntil:"", staffOnDuty:[], startTime:"", endTime:"" };
   const [form, setForm] = useState(EMPTY_PLAN);
 
-  const S2 = { inp:{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:8, color:"var(--bz-ink)", padding:"9px 12px", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" }, card:{ background:"var(--bz-s1)", border:"1px solid var(--bz-line)", borderRadius:12, padding:"16px 20px" } };
+  const S2 = { inp:{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:8, color:"var(--bz-ink)", padding:"9px 12px", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box" }, card:{ background:"linear-gradient(160deg,#181016,#130d11)", border:"1px solid var(--bz-line)", borderRadius:16, padding:"16px 20px", boxShadow:"0 1px 0 rgba(255,255,255,0.03) inset, 0 6px 22px rgba(0,0,0,0.35)" } };
 
   // -- Firestore --
   useEffect(() => {
@@ -11179,8 +11179,8 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                   <span style={{fontSize:11,color:"var(--bz-ink-3)"}}>Target:</span>
                   <input type="text" inputMode="decimal" value={monthTargets[mKey]||""} onChange={e=>setMonthTargets(p=>({...p,[mKey]:e.target.value}))} placeholder="$0" style={{...S2.inp,width:90,fontSize:12,padding:"4px 8px"}}/>
                 </div>}
-                <button onClick={prevMonth} style={{background:"#1a1a1a",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink)",borderRadius:8,padding:"5px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:16,transition:"all 0.15s"}}>‹</button>
-                <button onClick={nextMonth} style={{background:"#1a1a1a",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink)",borderRadius:8,padding:"5px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:16,transition:"all 0.15s"}}>›</button>
+                <button onClick={prevMonth} style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink)",borderRadius:8,padding:"5px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:16,transition:"all 0.15s"}}>‹</button>
+                <button onClick={nextMonth} style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink)",borderRadius:8,padding:"5px 14px",cursor:"pointer",fontFamily:"inherit",fontSize:16,transition:"all 0.15s"}}>›</button>
                 {canSeeFinancials && mPlans.length > 0 && (
                   <button onClick={async()=>{
                     if (!window.confirm(`Delete all ${mPlans.length} planned streams for ${MONTH_NAMES[m]} ${y}?`)) return;
@@ -11203,7 +11203,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 {fmt2(actRev)} actual · {fmt2(projRev)} projected · {fmt2(target)} target
               </span>
             </div>
-            <div style={{height:7,background:"#1a1a1a",borderRadius:4,overflow:"hidden",position:"relative"}}>
+            <div style={{height:7,background:"var(--bz-s2)",borderRadius:4,overflow:"hidden",position:"relative"}}>
               <div style={{position:"absolute",height:"100%",width:`${Math.min(100,projRev/target*100)}%`,background:"rgba(123,156,255,0.25)",borderRadius:4,transition:"width 0.6s ease"}}/>
               <div style={{position:"absolute",height:"100%",width:`${Math.min(100,actRev/target*100)}%`,background:"linear-gradient(90deg,#4ade80,#22d3ee)",borderRadius:4,transition:"width 0.6s ease",boxShadow:"0 0 8px rgba(74,222,128,0.4)"}}/>
             </div>
@@ -11282,13 +11282,13 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                   ? `radial-gradient(circle at 50% 0%, rgba(123,156,255,${0.07+heatPct*0.16}), rgba(10,10,26,0.6))`
                   : isMissed
                     ? "radial-gradient(circle at 50% 0%, rgba(251,191,36,0.1), rgba(26,20,0,0.6))"
-                    : isPast ? "#090909" : isWeekend ? "#0e0e0e" : "#111";
+                    : isPast ? "#090909" : isWeekend ? "#0e0e0e" : "var(--bz-s1)";
 
             const borderCol = isToday ? "#E8317A66"
               : dayActRev > 0 ? "rgba(74,222,128,0.2)"
               : dayProjRev > 0 ? "rgba(123,156,255,0.15)"
               : isMissed ? "rgba(251,191,36,0.2)"
-              : "#1a1a1a";
+              : "var(--bz-s2)";
 
             return (
               <div key={day} className="cal-day" onClick={()=>openModal(ds)}
@@ -11497,10 +11497,10 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             const avail  = invAvail[ct];
             const ok     = avail >= needed;
             const pct    = needed > 0 ? Math.min(100, avail/needed*100) : 100;
-            const cc     = CC[ct]||{text:"#888",bg:"#111",border:"#222"};
+            const cc     = CC[ct]||{text:"#888",bg:"var(--bz-s1)",border:"#222"};
             const isOverridden = override !== undefined && override !== "";
             return (
-              <div key={ct} style={{background:"#1a1a1a",border:`1px solid ${ok?"#2a2a2a":"#E8317A33"}`,borderRadius:8,padding:"12px 14px"}}>
+              <div key={ct} style={{background:"var(--bz-s2)",border:`1px solid ${ok?"var(--bz-line-2)":"#E8317A33"}`,borderRadius:8,padding:"12px 14px"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                   <span style={{fontSize:12,fontWeight:700,color:cc.text}}>{ct.replace(" Cards","")}</span>
                   <span style={{fontSize:11,fontWeight:700,color:ok?"#4ade80":"#E8317A"}}>{avail} avail / {needed} needed</span>
@@ -11514,7 +11514,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                     value={override !== undefined ? override : ""}
                     onChange={e=>saveBurnRate(ct, e.target.value)}
                     placeholder={histRate > 0 ? histRate.toFixed(1) : "0"}
-                    style={{background:"var(--bz-s1)",border:`1px solid ${isOverridden?"rgba(123,156,255,0.4)":"#2a2a2a"}`,borderRadius:6,color:isOverridden?"#7B9CFF":"var(--bz-ink)",padding:"4px 8px",fontSize:12,fontFamily:"inherit",outline:"none",width:70}}
+                    style={{background:"var(--bz-s1)",border:`1px solid ${isOverridden?"rgba(123,156,255,0.4)":"var(--bz-line-2)"}`,borderRadius:6,color:isOverridden?"#7B9CFF":"var(--bz-ink)",padding:"4px 8px",fontSize:12,fontFamily:"inherit",outline:"none",width:70}}
                   />
                   {isOverridden && (
                     <button onClick={()=>saveBurnRate(ct,"")} title="Reset to historical avg"
@@ -11632,7 +11632,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 <span style={{fontSize:10,color:"var(--bz-ink-3)",textTransform:"uppercase",letterSpacing:1}}>Boxes Ripped</span>
                 <span style={{fontSize:11,fontWeight:700,color:barColor}}>{totalActualBoxes} / {totalPlannedBoxes} ({pct.toFixed(0)}%)</span>
               </div>
-              <div style={{height:8,background:"#1a1a1a",borderRadius:4,overflow:"hidden"}}>
+              <div style={{height:8,background:"var(--bz-s2)",borderRadius:4,overflow:"hidden"}}>
                 <div style={{height:"100%",width:`${pct}%`,background:`linear-gradient(90deg, #fce7f3, ${barColor})`,borderRadius:4,transition:"width 0.4s ease"}}/>
               </div>
             </div>
@@ -11649,7 +11649,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             const pct     = planned > 0 ? Math.min(100, actual/planned*100) : 0;
             const barColor = pct >= 100 ? "#4ade80" : pct >= 75 ? "#E8317A" : pct >= 50 ? "#f472b6" : pct >= 25 ? "#fbb6ce" : "#fce7f3";
             return (
-              <div key={pt} style={{background:"#1a1a1a",border:`1px solid ${actual>=planned&&actual>0?"rgba(74,222,128,0.2)":"#2a2a2a"}`,borderRadius:8,padding:"12px 14px"}}>
+              <div key={pt} style={{background:"var(--bz-s2)",border:`1px solid ${actual>=planned&&actual>0?"rgba(74,222,128,0.2)":"var(--bz-line-2)"}`,borderRadius:8,padding:"12px 14px"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                   <span style={{fontSize:12,fontWeight:700,color}}>{PT_EMOJI[pt]||"📦"} {pt}</span>
                   {actual >= planned && actual > 0 && <span style={{fontSize:10,color:"#4ade80",fontWeight:700}}>✅ Done</span>}
@@ -11729,7 +11729,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             const bc=BC[b]||{text:"#888"};
             const bActuals=mActuals.filter(a=>a.breaker===b);
             return (
-              <div key={b} style={{background:"#1a1a1a",border:`1px solid ${bc.border||"#2a2a2a"}`,borderRadius:8,padding:"12px 14px"}}>
+              <div key={b} style={{background:"var(--bz-s2)",border:`1px solid ${bc.border||"var(--bz-line-2)"}`,borderRadius:8,padding:"12px 14px"}}>
                 <div style={{fontSize:14,fontWeight:900,color:bc.text,marginBottom:8}}>{b}</div>
                 <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:3}}>Planned: <strong style={{color:"var(--bz-ink)"}}>{bp.planned} streams</strong></div>
                 <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:3}}>Actual: <strong style={{color:"#4ade80"}}>{bActuals.length} done</strong></div>
@@ -12436,7 +12436,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 <thead>
                   <tr>
                     {["Tier","Gross","Net Rev (81%)","IMC 70%","Bazooka 30%"].map(h=>(
-                      <th key={h} style={{padding:"6px 10px",borderBottom:"1px solid #2a2a2a",color:"var(--bz-ink-3)",fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,textAlign:h==="Tier"?"left":"right"}}>{h}</th>
+                      <th key={h} style={{padding:"6px 10px",borderBottom:"1px solid var(--bz-line-2)",color:"var(--bz-ink-3)",fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1,textAlign:h==="Tier"?"left":"right"}}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -12631,7 +12631,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             <span style={{ fontSize:10, color:"var(--bz-ink-3)", textTransform:"uppercase", letterSpacing:1 }}>Month Progress</span>
             <span style={{ fontSize:10, color:"var(--bz-ink-3)" }}>{dayOfMonth}/{daysInMonth} days</span>
           </div>
-          <div style={{ height:6, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
+          <div style={{ height:6, background:"var(--bz-s2)", borderRadius:3, overflow:"hidden" }}>
             <div style={{ height:"100%", width:`${pctMonthElapsed*100}%`, background:"#333", borderRadius:3 }}/>
           </div>
         </div>
@@ -12695,12 +12695,12 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
               <div>
                 <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:4}}>Start Date</div>
                 <input type="date" value={vacForm.startDate} onChange={e=>setVacForm(p=>({...p,startDate:e.target.value,endDate:p.endDate<e.target.value?e.target.value:p.endDate}))}
-                  style={{background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+                  style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
               </div>
               <div>
                 <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:4}}>End Date</div>
                 <input type="date" value={vacForm.endDate} min={vacForm.startDate} onChange={e=>setVacForm(p=>({...p,endDate:e.target.value}))}
-                  style={{background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+                  style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 10px",fontSize:12,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
               </div>
             </div>
             {vacForm.startDate && vacForm.endDate && (
@@ -12711,7 +12711,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             <div>
               <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:4}}>Note (optional)</div>
               <input value={vacForm.note} onChange={e=>setVacForm(p=>({...p,note:e.target.value}))} placeholder="e.g. Family vacation, Surgery..."
-                style={{background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 10px",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+                style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 10px",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
             </div>
             <div style={{display:"flex",gap:8,marginTop:4}}>
               <button onClick={saveVacation} disabled={savingVac||!vacForm.startDate||!vacForm.endDate}
@@ -12752,7 +12752,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
             <div style={{marginBottom:14}}>
               <div style={{fontSize:11,fontWeight:700,color:"var(--bz-ink-2)",marginBottom:6,textTransform:"uppercase",letterSpacing:1}}>Planned Streams</div>
               {dayPlans.map(p=>(
-                <div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"#1a1a1a",borderRadius:8,marginBottom:6}}>
+                <div key={p.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",background:"var(--bz-s2)",borderRadius:8,marginBottom:6}}>
                   <div>
                     <div style={{fontSize:12,fontWeight:700,color:BC[p.breaker]||"#E8317A"}}>{p.streamName||p.breaker}</div>
                     <div style={{fontSize:11,color:"var(--bz-ink-3)"}}>{p.breaker}{p.sessionType?" · "+p.sessionType:""}{canSeeFinancials&&liveRevenue(p)>0?" · "+fmt2(liveRevenue(p)):""}</div>
@@ -13010,7 +13010,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
                 <span style={{fontSize:11,color:"var(--bz-ink-3)"}}>Week starting:</span>
                 <input type="date" value={shareWeekStart} onChange={e=>setShareWeekStart(e.target.value)}
-                  style={{background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:6,color:"var(--bz-ink)",padding:"5px 8px",fontSize:12,fontFamily:"inherit",outline:"none"}}/>
+                  style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:6,color:"var(--bz-ink)",padding:"5px 8px",fontSize:12,fontFamily:"inherit",outline:"none"}}/>
               </div>
 
               {/* Preview */}
@@ -13054,7 +13054,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                   });
                   navigator.clipboard.writeText(`Bazooka Breaks — Week of ${shareWeekStart}\n\n${lines.join("\n")}`);
                 }}
-                  style={{background:"#1a1a1a",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:10,padding:"11px 16px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
+                  style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:10,padding:"11px 16px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
                   📋 Copy Text
                 </button>
               </div>
@@ -13094,7 +13094,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
               <div style={{marginBottom:16}}>
                 <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:6}}>Paste TO (week starting)</div>
                 <input type="date" value={copyWeekDst} onChange={e=>setCopyWeekDst(e.target.value)}
-                  style={{background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
+                  style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",outline:"none",width:"100%",boxSizing:"border-box"}}/>
                 {copyWeekSrc && copyWeekDst && (() => {
                   const srcEnd = new Date(copyWeekSrc+"T12:00:00"); srcEnd.setDate(srcEnd.getDate()+6);
                   const wPlans = plans.filter(p=>p.date>=copyWeekSrc&&p.date<=srcEnd.toISOString().slice(0,10));
@@ -13120,9 +13120,9 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
         ))}
         {viewMode==="month"&&(
           <>
-            <button onClick={prevMonth} style={{background:"#1a1a1a",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink)",borderRadius:8,padding:"6px 14px",cursor:"pointer",fontFamily:"inherit"}}>‹ Prev</button>
+            <button onClick={prevMonth} style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink)",borderRadius:8,padding:"6px 14px",cursor:"pointer",fontFamily:"inherit"}}>‹ Prev</button>
             <span style={{fontSize:13,fontWeight:700,color:"var(--bz-ink)",minWidth:140,textAlign:"center"}}>{MONTH_NAMES[curMonth]} {curYear}</span>
-            <button onClick={nextMonth} style={{background:"#1a1a1a",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink)",borderRadius:8,padding:"6px 14px",cursor:"pointer",fontFamily:"inherit"}}>Next ›</button>
+            <button onClick={nextMonth} style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink)",borderRadius:8,padding:"6px 14px",cursor:"pointer",fontFamily:"inherit"}}>Next ›</button>
             <button onClick={()=>{setCurYear(today.getFullYear());setCurMonth(today.getMonth());}} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",borderRadius:8,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Today</button>
             {canBuildCalendar && <button onClick={()=>{setCopyWeekSrc("");setCopyWeekDst("");setCopyWeekModal(true);}} style={{background:"transparent",border:"1px solid rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.4)",borderRadius:8,padding:"6px 12px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>📋 Copy Week</button>}
             <button onClick={()=>{
@@ -13263,7 +13263,7 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
                 return(
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginTop:6}}>
                     {[{l:"Streams",v:mPlans.length,c:"#7B9CFF"},{l:"Projected",v:fmt2(projRev),c:"#FBBF24"},{l:"Actual",v:fmt2(actRev),c:"#4ade80"}].map(({l,v,c})=>(
-                      <div key={l} style={{background:"#1a1a1a",borderRadius:6,padding:"8px 10px",textAlign:"center"}}>
+                      <div key={l} style={{background:"var(--bz-s2)",borderRadius:6,padding:"8px 10px",textAlign:"center"}}>
                         <div style={{fontSize:14,fontWeight:900,color:c}}>{v}</div>
                         <div style={{fontSize:9,color:"var(--bz-ink-3)",marginTop:2,textTransform:"uppercase",letterSpacing:1}}>{l}</div>
                       </div>
@@ -13497,7 +13497,7 @@ function BobaWeaponsSection({ data, isAdmin, save }) {
               <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", marginBottom:6 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                   <span style={{ fontSize:14, fontWeight:900, color:wc }}>{w.name}</span>
-                  {w.rarity && <span style={{ fontSize:10, color:"var(--bz-ink-3)", background:"#1a1a1a", borderRadius:5, padding:"2px 8px" }}>{w.rarity}</span>}
+                  {w.rarity && <span style={{ fontSize:10, color:"var(--bz-ink-3)", background:"var(--bz-s2)", borderRadius:5, padding:"2px 8px" }}>{w.rarity}</span>}
                 </div>
                 <div style={{ display:"flex", gap:6, flexShrink:0 }}>
                   {w.tip && <button onClick={()=>copy(w.tip,i)} style={{ background:`${wc}18`, border:`1px solid ${wc}33`, color:wc, borderRadius:6, padding:"3px 10px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{copied===i?"✅":"📋"} Copy Tip</button>}
@@ -13533,7 +13533,7 @@ function BobaHypeLinesSection({ data, isAdmin, save }) {
       ) : (data.hypelines||[]).length>0 ? (
         <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
           {(data.hypelines||[]).map((line,i)=>(
-            <button key={i} onClick={()=>copyLine(line,i)} style={{ background:copied===i?"rgba(74,222,128,0.12)":"rgba(255,255,255,0.04)", border:`1px solid ${copied===i?"rgba(74,222,128,0.3)":"#2a2a2a"}`, color:copied===i?"#4ade80":"var(--bz-ink-2)", borderRadius:8, padding:"8px 14px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit", textAlign:"left" }}>
+            <button key={i} onClick={()=>copyLine(line,i)} style={{ background:copied===i?"rgba(74,222,128,0.12)":"rgba(255,255,255,0.04)", border:`1px solid ${copied===i?"rgba(74,222,128,0.3)":"var(--bz-line-2)"}`, color:copied===i?"#4ade80":"var(--bz-ink-2)", borderRadius:8, padding:"8px 14px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit", textAlign:"left" }}>
               {copied===i?"✅ Copied!":'"'+line+'"'}
             </button>
           ))}
@@ -13928,7 +13928,7 @@ function WotFHypeLinesSection({ data, isAdmin, save }) {
       ) : (data.hypelines||[]).length > 0 ? (
         <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
           {(data.hypelines||[]).map((line,i) => (
-            <button key={i} onClick={()=>copyLine(line,i)} style={{ background:copied===i?"rgba(74,222,128,0.12)":"rgba(255,255,255,0.04)", border:`1px solid ${copied===i?"rgba(74,222,128,0.3)":"#2a2a2a"}`, color:copied===i?"#4ade80":"var(--bz-ink-2)", borderRadius:8, padding:"8px 14px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit", textAlign:"left" }}>
+            <button key={i} onClick={()=>copyLine(line,i)} style={{ background:copied===i?"rgba(74,222,128,0.12)":"rgba(255,255,255,0.04)", border:`1px solid ${copied===i?"rgba(74,222,128,0.3)":"var(--bz-line-2)"}`, color:copied===i?"#4ade80":"var(--bz-ink-2)", borderRadius:8, padding:"8px 14px", fontSize:12, fontWeight:600, cursor:"pointer", fontFamily:"inherit", textAlign:"left" }}>
               {copied===i ? "✅ Copied!" : `"${line}"`}
             </button>
           ))}
@@ -14193,20 +14193,20 @@ function ShowNotes({ userRole }) {
             {allNames.map(name => (
               <div key={name} style={{ display:"flex", alignItems:"center" }}>
                 <button onClick={()=>{ setActiveName(name); setEditing(false); }}
-                  style={{ background:activeName===name?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${activeName===name?"#E8317A":"#2a2a2a"}`, color:activeName===name?"#E8317A":"#888", borderRadius:isAdmin?"8px 0 0 8px":"8px", padding:"7px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  style={{ background:activeName===name?"rgba(232,49,122,0.12)":"var(--bz-s1)", border:`1.5px solid ${activeName===name?"#E8317A":"var(--bz-line-2)"}`, color:activeName===name?"#E8317A":"#888", borderRadius:isAdmin?"8px 0 0 8px":"8px", padding:"7px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                   {name}
                 </button>
                 {isAdmin && <>
                   <button onClick={()=>startEdit(name)}
-                    style={{ background:"var(--bz-bg)", border:"1.5px solid #2a2a2a", borderLeft:"none", color:"var(--bz-ink-3)", borderRadius:"0", padding:"7px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Edit">✏️</button>
+                    style={{ background:"var(--bz-bg)", border:"1.5px solid var(--bz-line-2)", borderLeft:"none", color:"var(--bz-ink-3)", borderRadius:"0", padding:"7px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Edit">✏️</button>
                   <button onClick={()=>deleteNote(name)}
-                    style={{ background:"var(--bz-bg)", border:"1.5px solid #2a2a2a", borderLeft:"none", color:"#8a8a8a", borderRadius:"0 8px 8px 0", padding:"7px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Delete">✕</button>
+                    style={{ background:"var(--bz-bg)", border:"1.5px solid var(--bz-line-2)", borderLeft:"none", color:"#8a8a8a", borderRadius:"0 8px 8px 0", padding:"7px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }} title="Delete">✕</button>
                 </>}
               </div>
             ))}
             {isAdmin && (
               <button onClick={()=>{ setEditing(true); setNoteName(""); setNoteText(""); setActiveName(null); }}
-                style={{ background:"transparent", border:"1.5px dashed #2a2a2a", color:"var(--bz-ink-3)", borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                style={{ background:"transparent", border:"1.5px dashed var(--bz-line-2)", color:"var(--bz-ink-3)", borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                 + New Template
               </button>
             )}
@@ -14396,11 +14396,11 @@ function BreakSpots() {
             {allSetNames.map(name => (
               <div key={name} style={{ display:"flex", alignItems:"center", gap:0 }}>
                 <button onClick={()=>setActiveSet(activeSet===name?null:name)}
-                  style={{ background:activeSet===name?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${activeSet===name?"#E8317A":"#2a2a2a"}`, color:activeSet===name?"#E8317A":"#888", borderRadius:"8px 0 0 8px", padding:"7px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  style={{ background:activeSet===name?"rgba(232,49,122,0.12)":"var(--bz-s1)", border:`1.5px solid ${activeSet===name?"#E8317A":"var(--bz-line-2)"}`, color:activeSet===name?"#E8317A":"#888", borderRadius:"8px 0 0 8px", padding:"7px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                   {name} <span style={{ fontSize:10, opacity:0.6 }}>({(savedSets[name]||[]).length})</span>
                 </button>
                 <button onClick={()=>deleteSet(name)}
-                  style={{ background:"var(--bz-bg)", border:"1.5px solid #2a2a2a", borderLeft:"none", color:"#8a8a8a", borderRadius:"0 8px 8px 0", padding:"7px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
+                  style={{ background:"var(--bz-bg)", border:"1.5px solid var(--bz-line-2)", borderLeft:"none", color:"#8a8a8a", borderRadius:"0 8px 8px 0", padding:"7px 8px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>✕</button>
               </div>
             ))}
           </div>
@@ -14726,7 +14726,7 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
     <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
 
       {/* Header */}
-      <div style={{ background:"linear-gradient(135deg,#0d0d1a,#111)", border:"1px solid #1a1a2e", borderRadius:14, padding:"20px 24px" }}>
+      <div style={{ background:"linear-gradient(135deg,#0d0d1a,var(--bz-s1))", border:"1px solid #1a1a2e", borderRadius:14, padding:"20px 24px" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
           <div>
             <div style={{ fontSize:20, fontWeight:900, color:"var(--bz-ink)" }}>🏈 Hero Break Builder</div>
@@ -14737,10 +14737,10 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
             {/* Randomizer inline controls — always visible */}
             <div style={{ display:"flex", gap:6, alignItems:"center" }}>
               <input type="number" min="1" max="20" value={randSquadCount} onChange={e=>setRandSquadCount(Math.max(1,parseInt(e.target.value)||1))}
-                style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:6, color:"#A78BFA", padding:"4px 8px", fontSize:11, fontFamily:"inherit", width:52, textAlign:"center" }}/>
+                style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:6, color:"#A78BFA", padding:"4px 8px", fontSize:11, fontFamily:"inherit", width:52, textAlign:"center" }}/>
               <span style={{ fontSize:10, color:"var(--bz-ink-3)" }}>squads</span>
               <input type="number" min="1" max="10" value={randHeroesPerSquad} onChange={e=>setRandHeroesPerSquad(Math.max(1,parseInt(e.target.value)||1))}
-                style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:6, color:"#A78BFA", padding:"4px 8px", fontSize:11, fontFamily:"inherit", width:44, textAlign:"center" }}/>
+                style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:6, color:"#A78BFA", padding:"4px 8px", fontSize:11, fontFamily:"inherit", width:44, textAlign:"center" }}/>
               <span style={{ fontSize:10, color:"var(--bz-ink-3)" }}>/squad</span>
               <button onClick={()=>{ setBreakMode("squad"); randomizeSquads(); }}
                 disabled={heroes.length < randSquadCount * randHeroesPerSquad}
@@ -14767,13 +14767,13 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
             <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
               {filteredBobaSetNames.length > 0 && filteredBobaSetNames.map(s => (
                 <button key={s} onClick={()=>{ setSelectedSets(prev => { const n=new Set(prev); n.has(s)?n.delete(s):n.add(s); return n; }); setCheckedHeroes(new Set()); setTierFilter("all"); }}
-                  style={{ background:selectedSets.has(s)?"rgba(232,49,122,0.15)":"#1a1a1a", color:selectedSets.has(s)?"#E8317A":"#555", border:`1.5px solid ${selectedSets.has(s)?"#E8317A44":"#2a2a2a"}`, borderRadius:20, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                  style={{ background:selectedSets.has(s)?"rgba(232,49,122,0.15)":"var(--bz-s2)", color:selectedSets.has(s)?"#E8317A":"#555", border:`1.5px solid ${selectedSets.has(s)?"#E8317A44":"var(--bz-line-2)"}`, borderRadius:20, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
                   🃏 {s}
                 </button>
               ))}
               {Object.keys(HERO_SETS).map(s => (
                 <button key={s} onClick={()=>{ setSelectedSets(prev => { const n=new Set(prev); n.has(s)?n.delete(s):n.add(s); return n; }); setCheckedHeroes(new Set()); setTierFilter("all"); }}
-                  style={{ background:selectedSets.has(s)?"rgba(96,165,250,0.15)":"#1a1a1a", color:selectedSets.has(s)?"#60A5FA":"#555", border:`1.5px solid ${selectedSets.has(s)?"#60A5FA44":"#2a2a2a"}`, borderRadius:20, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                  style={{ background:selectedSets.has(s)?"rgba(96,165,250,0.15)":"var(--bz-s2)", color:selectedSets.has(s)?"#60A5FA":"#555", border:`1.5px solid ${selectedSets.has(s)?"#60A5FA44":"var(--bz-line-2)"}`, borderRadius:20, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
                   🏈 {s}
                 </button>
               ))}
@@ -14792,7 +14792,7 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
 
           {/* Search */}
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search heroes or players..."
-            style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:8, color:"var(--bz-ink)", padding:"8px 12px", fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+            style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:8, color:"var(--bz-ink)", padding:"8px 12px", fontSize:13, fontFamily:"inherit", outline:"none" }}/>
 
           {/* View mode */}
           <div style={{ display:"flex", background:"var(--bz-bg)", border:"1px solid var(--bz-line)", borderRadius:8, overflow:"hidden" }}>
@@ -14812,7 +14812,7 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
               const cfg = TIER_CFG[t];
               return (
                 <button key={t} onClick={()=>setTierFilter(t)}
-                  style={{ background:tierFilter===t?(cfg?.bg||"rgba(232,49,122,0.12)"):"transparent", color:tierFilter===t?(cfg?.color||"#E8317A"):"#555", border:`1px solid ${tierFilter===t?(cfg?.border||"#E8317A44"):"#2a2a2a"}`, borderRadius:20, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  style={{ background:tierFilter===t?(cfg?.bg||"rgba(232,49,122,0.12)"):"transparent", color:tierFilter===t?(cfg?.color||"#E8317A"):"#555", border:`1px solid ${tierFilter===t?(cfg?.border||"#E8317A44"):"var(--bz-line-2)"}`, borderRadius:20, padding:"4px 14px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                   {t === "all" ? `All (${tierCounts.all})` : `${cfg?.badge || t} (${tierCounts[t]})`}
                 </button>
               );
@@ -14821,7 +14821,7 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
           <div style={{ display:"flex", gap:8, alignItems:"center" }}>
             {/* Sort */}
             <select value={sortBy} onChange={e=>setSortBy(e.target.value)}
-              style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:8, color:"var(--bz-ink)", padding:"5px 10px", fontSize:11, fontFamily:"inherit", cursor:"pointer" }}>
+              style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:8, color:"var(--bz-ink)", padding:"5px 10px", fontSize:11, fontFamily:"inherit", cursor:"pointer" }}>
               <option value="power-desc">⚡ Power: High → Low</option>
               <option value="power-asc">⚡ Power: Low → High</option>
               <option value="name-asc">A → Z Hero Name</option>
@@ -14830,7 +14830,7 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
             </select>
             {/* Hide assigned */}
             <button onClick={()=>setShowAssigned(p=>!p)}
-              style={{ background:!showAssigned?"rgba(232,49,122,0.12)":"transparent", color:!showAssigned?"#E8317A":"#555", border:`1px solid ${!showAssigned?"#E8317A44":"#2a2a2a"}`, borderRadius:8, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              style={{ background:!showAssigned?"rgba(232,49,122,0.12)":"transparent", color:!showAssigned?"#E8317A":"#555", border:`1px solid ${!showAssigned?"#E8317A44":"var(--bz-line-2)"}`, borderRadius:8, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
               {showAssigned ? "👁 Show All" : "✓ Hide Assigned"}
             </button>
           </div>
@@ -14934,7 +14934,7 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
                 return (
                   <div key={heroKey}
                     onClick={() => breakMode === "single" ? toggleHero(heroKey) : addToSquad(h)}
-                    style={{ background: isChecked ? cfg.bg : "#111", border:`1.5px solid ${isChecked ? cfg.color : "#1a1a1a"}`, borderRadius:10, padding:"12px", cursor: isChecked && breakMode==="squad" ? "not-allowed" : "pointer", position:"relative", opacity: isChecked ? 0.45 : 1, transition:"all 0.15s" }}>
+                    style={{ background: isChecked ? cfg.bg : "var(--bz-s1)", border:`1.5px solid ${isChecked ? cfg.color : "var(--bz-s2)"}`, borderRadius:10, padding:"12px", cursor: isChecked && breakMode==="squad" ? "not-allowed" : "pointer", position:"relative", opacity: isChecked ? 0.45 : 1, transition:"all 0.15s" }}>
 
                     {/* Tier badge + set name if multiple sets */}
                     <div style={{ fontSize:9, fontWeight:800, color:cfg.color, textTransform:"uppercase", letterSpacing:1, marginBottom:6, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -14973,7 +14973,7 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
                 return (
                   <div key={heroKey}
                     onClick={() => breakMode === "single" ? toggleHero(heroKey) : addToSquad(h)}
-                    style={{ background: isChecked ? cfg.bg : "#111", border:`1.5px solid ${isChecked ? cfg.color : "#1a1a1a"}`, borderRadius:8, padding:"10px 14px", cursor: isChecked && breakMode==="squad" ? "not-allowed" : "pointer", display:"flex", alignItems:"center", gap:12, opacity: isChecked ? 0.45 : 1, transition:"all 0.15s" }}>
+                    style={{ background: isChecked ? cfg.bg : "var(--bz-s1)", border:`1.5px solid ${isChecked ? cfg.color : "var(--bz-s2)"}`, borderRadius:8, padding:"10px 14px", cursor: isChecked && breakMode==="squad" ? "not-allowed" : "pointer", display:"flex", alignItems:"center", gap:12, opacity: isChecked ? 0.45 : 1, transition:"all 0.15s" }}>
                     <div style={{ fontSize:10, fontWeight:800, color:cfg.color, minWidth:28 }}>
                       {h.tier === "Featured Auto" ? "⭐" : h.tier === "Highlighted" ? "💜" : "🔵"}
                     </div>
@@ -15003,7 +15003,7 @@ function HeroBreakBuilder({ userRole, bobaCards=[] }) {
 
             {squads.map(sq => (
               <div key={sq.id}
-                style={{ background: activeSquad === sq.id ? "#0d1a0d" : "#111", border:`2px solid ${activeSquad === sq.id ? "#4ade80" : "#1a1a1a"}`, borderRadius:10, padding:"12px 14px", cursor:"pointer" }}
+                style={{ background: activeSquad === sq.id ? "#0d1a0d" : "var(--bz-s1)", border:`2px solid ${activeSquad === sq.id ? "#4ade80" : "var(--bz-s2)"}`, borderRadius:10, padding:"12px 14px", cursor:"pointer" }}
                 onClick={() => setActiveSquad(sq.id === activeSquad ? null : sq.id)}>
 
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom: sq.heroes.length ? 10 : 0 }}>
@@ -15075,7 +15075,7 @@ function Streams({ defaultStreamTab="recap", inventory, breaks, onAdd, onBulkAdd
       <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
         {STREAM_TABS.map(t => (
           <button key={t.id} onClick={()=>setStreamTab(t.id)}
-            style={{ background:streamTab===t.id?"rgba(232,49,122,0.12)":"transparent", color:streamTab===t.id?"#E8317A":"#555", border:`1.5px solid ${streamTab===t.id?"#E8317A44":"#2a2a2a"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+            style={{ background:streamTab===t.id?"rgba(232,49,122,0.12)":"transparent", color:streamTab===t.id?"#E8317A":"#555", border:`1.5px solid ${streamTab===t.id?"#E8317A44":"var(--bz-line-2)"}`, borderRadius:20, padding:"6px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
             {t.label}
           </button>
         ))}
@@ -15102,7 +15102,7 @@ function StubRow({ stub, S, onDeletePayStub }) {
     <div style={{ background:"var(--bz-bg)", border:"1px solid var(--bz-line)", borderRadius:10, overflow:"hidden" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"12px 16px", flexWrap:"wrap", gap:8 }}>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <div style={{ width:32, height:32, borderRadius:"50%", background:"#1a1a1a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>{"\uD83D\uDCB5"}</div>
+          <div style={{ width:32, height:32, borderRadius:"50%", background:"var(--bz-s2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>{"\uD83D\uDCB5"}</div>
           <div>
             <div style={{ display:"flex", alignItems:"center", gap:8 }}>
               <span style={{ fontWeight:800, fontSize:13, color:"var(--bz-ink)" }}>{stub.breaker}</span>
@@ -15120,7 +15120,7 @@ function StubRow({ stub, S, onDeletePayStub }) {
             <div style={{ fontSize:9, color:"var(--bz-ink-3)", textTransform:"uppercase", letterSpacing:1 }}>Commission</div>
           </div>
           <div style={{ display:"flex", gap:6 }}>
-            <button onClick={()=>setExpanded(p=>!p)} style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:7, padding:"5px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>{expanded?"\u25B2 Hide":"\u25BC View"}</button>
+            <button onClick={()=>setExpanded(p=>!p)} style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:7, padding:"5px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>{expanded?"\u25B2 Hide":"\u25BC View"}</button>
             <button onClick={()=>{ if(window.confirm(`Delete pay stub for ${stub.breaker}?\n\nThis removes it from their dashboard too.`)) onDeletePayStub(stub.id); }} style={{ background:"#1a0a0a", border:"1px solid #E8317A33", color:"#E8317A", borderRadius:7, padding:"5px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>{"\uD83D\uDDD1"}</button>
           </div>
         </div>
@@ -15133,7 +15133,7 @@ function StubRow({ stub, S, onDeletePayStub }) {
             </tr></thead>
             <tbody>
               {(stub.streams||[]).map((s,i)=>(
-                <tr key={i} style={{ background:i%2===0?"#111111":"#0d0d0d" }}>
+                <tr key={i} style={{ background:i%2===0?"var(--bz-s1)":"var(--bz-s1)" }}>
                   <td style={S.td}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                   <td style={{ ...S.td, color:"var(--bz-ink-2)" }}>{s.breakType}{s.binOnly?" BIN":""}{s.sessionType?<span style={{marginLeft:5,fontSize:11,color:"#7B9CFF"}}>{({day:"\u2600\uFE0F",night:"\uD83C\uDF19",weekend:"\uD83D\uDCC5",event:"\uD83C\uDF89"})[s.sessionType]||""}</span>:""}</td>
                   <td style={{ ...S.td, color:"#E8317A", fontWeight:700 }}>{fmt(s.gross)}</td>
@@ -15732,7 +15732,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                       });
                     } catch(e) { console.error("Pay stub save failed:", e); alert("Failed to send stub: " + e.message); }
                   }} variant="green" disabled={stubStreams.length===0}>{"\uD83D\uDCE4 Send to"}{targetBreaker}</Btn>
-                  <div style={{ display:"flex", alignItems:"center", gap:8, background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:8, padding:"5px 12px" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:8, padding:"5px 12px" }}>
                     <span style={{ fontSize:11, color:"#999" }}>PDF View:</span>
                     <button onClick={()=>setStubAdminView(false)} style={{ background:!stubAdminView?"#E8317A":"transparent", color:!stubAdminView?"#fff":"#888", border:"none", borderRadius:5, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Rep</button>
                     <button onClick={()=>setStubAdminView(true)} style={{ background:stubAdminView?"#1A1A2E":"transparent", color:stubAdminView?"#E8317A":"#888", border:"none", borderRadius:5, padding:"3px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Admin</button>
@@ -15780,7 +15780,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                           <tbody>
                             {stubStreams.map((s,i)=>{
                               const c=calcS(s);
-                              return <tr key={s.id} style={{ background:i%2===0?"#111111":"#0d0d0d" }}>
+                              return <tr key={s.id} style={{ background:i%2===0?"var(--bz-s1)":"var(--bz-s1)" }}>
                                 <td style={{ ...S.td, padding:"6px 10px" }}>{new Date(s.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</td>
                                 <td style={{ ...S.td, padding:"6px 10px", color:"var(--bz-ink-2)" }}>{s.breakType||"Auction"}{s.binOnly?" BIN":""}</td>
                                 <td style={{ ...S.td, padding:"6px 10px", color:"#E8317A", fontWeight:700 }}>{fmt(c.gross)}</td>
@@ -15921,9 +15921,9 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
               {/* Filter by breaker */}
               <div style={{ display:"flex", gap:8, marginBottom:12, flexWrap:"wrap", alignItems:"center" }}>
                 <span style={{ fontSize:11, color:"#999" }}>Filter:</span>
-                <button onClick={()=>setStubHistFilter("")} style={{ background:!stubHistFilter?"#1A1A2E":"transparent", color:!stubHistFilter?"#E8317A":"#888", border:`1.5px solid ${!stubHistFilter?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>All</button>
+                <button onClick={()=>setStubHistFilter("")} style={{ background:!stubHistFilter?"#1A1A2E":"transparent", color:!stubHistFilter?"#E8317A":"#888", border:`1.5px solid ${!stubHistFilter?"#E8317A":"var(--bz-line-2)"}`, borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>All</button>
                 {BREAKERS.map(b=>(
-                  <button key={b} onClick={()=>setStubHistFilter(b)} style={{ background:stubHistFilter===b?"#1A1A2E":"transparent", color:stubHistFilter===b?"#E8317A":"#888", border:`1.5px solid ${stubHistFilter===b?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{b}</button>
+                  <button key={b} onClick={()=>setStubHistFilter(b)} style={{ background:stubHistFilter===b?"#1A1A2E":"transparent", color:stubHistFilter===b?"#E8317A":"#888", border:`1.5px solid ${stubHistFilter===b?"#E8317A":"var(--bz-line-2)"}`, borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{b}</button>
                 ))}
               </div>
 
@@ -16043,7 +16043,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
 
             return (
               <div key={s.id} onClick={()=>setViewStream(s.id)} className="card-hover"
-                style={{ background:"var(--bz-s1)", borderRadius:12, border:`1px solid ${isEventOnly?"rgba(167,139,250,0.25)":isSplitRep?"rgba(251,191,36,0.25)":"#1a1a1a"}`, cursor:"pointer", overflow:"hidden" }}>
+                style={{ background:"var(--bz-s1)", borderRadius:12, border:`1px solid ${isEventOnly?"rgba(167,139,250,0.25)":isSplitRep?"rgba(251,191,36,0.25)":"var(--bz-s2)"}`, cursor:"pointer", overflow:"hidden" }}>
 
                 {/* Top accent bar — color = performance */}
                 {mm > 0 && !isEventOnly && <div style={{ height:3, background:mmColor, opacity:0.7 }}/>}
@@ -16057,7 +16057,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                       </span>
                       <span style={{ background:bc.bg, color:bc.text, borderRadius:6, padding:"2px 8px", fontSize:11, fontWeight:700 }}>{s.breaker}</span>
                       {s.channel && s.channel !== "Bazooka Vault" && <span style={{ fontSize:10, color:"#7B9CFF", background:"rgba(123,156,255,0.1)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>📺 {s.channel}</span>}
-                      {s.binOnly && <span style={{ fontSize:10, color:"var(--bz-ink-2)", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>BIN</span>}
+                      {s.binOnly && <span style={{ fontSize:10, color:"var(--bz-ink-2)", background:"var(--bz-s2)", borderRadius:4, padding:"1px 6px" }}>BIN</span>}
                       {s.isSinglesShow && <span style={{ fontSize:10, color:"#FBBF24", background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>🃏 Singles</span>}
                       {isEventOnly && <span style={{ fontSize:10, color:"#A78BFA", background:"rgba(167,139,250,0.1)", border:"1px solid rgba(167,139,250,0.25)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>🎪 Event Fee</span>}
                       {isSplitRep && <span style={{ fontSize:10, color:"#FBBF24", background:"rgba(251,191,36,0.1)", border:"1px solid rgba(251,191,36,0.25)", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>✂️ Split</span>}
@@ -16076,7 +16076,7 @@ function Commission({ streams, onSave, onDelete, user, userRole, historicalData=
                     </div>
 
                     {/* Rate + MM — color coded */}
-                    <div style={{ background:mm>0?mmBg:"#0d0d0d", borderRadius:8, padding:"10px 12px", border:`1px solid ${mm>0?mmColor+"22":"transparent"}` }}>
+                    <div style={{ background:mm>0?mmBg:"var(--bz-s1)", borderRadius:8, padding:"10px 12px", border:`1px solid ${mm>0?mmColor+"22":"transparent"}` }}>
                       <div style={{ fontSize:15, fontWeight:800, color:mm>0?mmColor:"#888" }}>
                         {isEventOnly ? "15% evt" : `${(c.rate*100).toFixed(0)}%`}
                       </div>
@@ -16292,7 +16292,7 @@ function SharedDeck({ deckId }) {
     navigator.clipboard.writeText(window.location.href).then(()=>{ setCopied(true); setTimeout(()=>setCopied(false), 2000); });
   };
 
-  const wrap = { minHeight:"100vh", background:"#0a0a0a", color:"#fff", fontFamily:"'DM Sans',system-ui,sans-serif", padding:"32px 20px" };
+  const wrap = { minHeight:"100vh", background:"var(--bz-bg)", color:"#fff", fontFamily:"'DM Sans',system-ui,sans-serif", padding:"32px 20px" };
 
   // A shared deck link is often the first thing someone sees of Bazooka \u2014 frequently a stranger,
   // on a phone, from a Whatnot chat. A line of grey text on a black page reads as broken. A skeleton
@@ -16404,8 +16404,8 @@ function SharedDeck({ deckId }) {
           {[...deckCards].sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0)).map((c,i)=>{
             const wc = PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)] || "#666";
             return (
-              <div key={`${c.id}_${i}`} style={{background:"#111", border:"1px solid #262626", borderRadius:9, overflow:"hidden"}}>
-                <div style={{position:"relative", aspectRatio:"3/4", background:`linear-gradient(135deg, ${wc}18, #0a0a0a 70%)`}}>
+              <div key={`${c.id}_${i}`} style={{background:"var(--bz-s1)", border:"1px solid #262626", borderRadius:9, overflow:"hidden"}}>
+                <div style={{position:"relative", aspectRatio:"3/4", background:`linear-gradient(135deg, ${wc}18, var(--bz-bg) 70%)`}}>
                   {c.imageUrl
                     ? <img src={c.imageUrl} alt={c.hero} loading="lazy" decoding="async" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}}/>
                     : <div style={{width:"100%",height:"100%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"rgba(255,255,255,0.2)"}}>no image</div>}
@@ -16681,7 +16681,7 @@ function PublicDeckBuilder() {
     return true;
   }).sort((a,b)=>(parseFloat(b.power)||0)-(parseFloat(a.power)||0));
 
-  const S = { inp:{ background:"var(--bz-s3)", border:"1px solid var(--bz-line)", borderRadius:8, color:"var(--bz-ink)", padding:"6px 10px", fontSize:12, fontFamily:"inherit", outline:"none", width:"100%" }, card:{ background:"var(--bz-s1)", border:"1px solid var(--bz-line)", borderRadius:12, padding:"14px 16px" } };
+  const S = { inp:{ background:"var(--bz-s3)", border:"1px solid var(--bz-line)", borderRadius:8, color:"var(--bz-ink)", padding:"6px 10px", fontSize:12, fontFamily:"inherit", outline:"none", width:"100%" }, card:{ background:"linear-gradient(160deg,#181016,#130d11)", border:"1px solid var(--bz-line)", borderRadius:16, padding:"14px 16px", boxShadow:"0 1px 0 rgba(255,255,255,0.03) inset, 0 6px 22px rgba(0,0,0,0.35)" } };
 
   if (loading) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"var(--bz-bg)", color:"#E8317A", fontSize:16, fontWeight:700 }}>Loading cards...</div>;
 
@@ -16712,7 +16712,7 @@ function PublicDeckBuilder() {
               return <span style={{ fontSize:11, color:"#FBBF24", fontWeight:700, alignSelf:"center" }}>{reg+"/"+savedDecks.length+" registered \u00B7 "+pending+" pending"}</span>;
             })()}
             {savedDecks.map(d=>(
-              <div key={d.id} style={{ display:"flex", alignItems:"center", gap:4, background:deckLoadId===d.id?"#1A1A2E":"#1a1a1a", border:`1px solid ${d.registered?"#4ade80":(deckLoadId===d.id?"#7B9CFF":"#2a2a2a")}`, borderRadius:8, padding:"4px 10px" }}>
+              <div key={d.id} style={{ display:"flex", alignItems:"center", gap:4, background:deckLoadId===d.id?"#1A1A2E":"var(--bz-s2)", border:`1px solid ${d.registered?"#4ade80":(deckLoadId===d.id?"#7B9CFF":"var(--bz-line-2)")}`, borderRadius:8, padding:"4px 10px" }}>
                 <button onClick={()=>toggleRegistered(d)} title={d.registered?"Registered — click to unmark":"Mark as registered"}
                   style={{ background:"none", border:"none", cursor:"pointer", fontSize:13, lineHeight:1, padding:"0 2px",
                            color:d.registered?"#4ade80":"#555" }}>
@@ -16754,7 +16754,7 @@ function PublicDeckBuilder() {
                 const over = (isSpec||isApexMadness) && parseFloat(p)>160;
                 return (
                   <button key={p} onClick={()=>setDeckFilterPowers(prev=>{ const n=new Set(prev); n.has(p)?n.delete(p):n.add(p); return n; })}
-                    style={{ background:sel?(over?"#E8317A":"#FBBF2433"):"#111", border:`1px solid ${sel?(over?"#E8317A":"#FBBF24"):"#2a2a2a"}`, color:sel?(over?"#E8317A":"#FBBF24"):"#555", borderRadius:6, padding:"3px 9px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                    style={{ background:sel?(over?"#E8317A":"#FBBF2433"):"var(--bz-s1)", border:`1px solid ${sel?(over?"#E8317A":"#FBBF24"):"var(--bz-line-2)"}`, color:sel?(over?"#E8317A":"#FBBF24"):"#555", borderRadius:6, padding:"3px 9px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
                     {p}{over?" \u26A0":""}
                   </button>
                 );
@@ -16769,7 +16769,7 @@ function PublicDeckBuilder() {
                 const wc = PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";
                 return (
                   <div key={c.id} onClick={()=>{ if(ok) setDeckCards(p=>[...p,c.id]); }}
-                    style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 14px", borderBottom:"1px solid #111", background:i%2===0?"#0a0a0a":"#0d0d0d", cursor:ok?"pointer":"not-allowed", opacity:ok?1:0.35 }}
+                    style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 14px", borderBottom:"1px solid #111", background:i%2===0?"var(--bz-bg)":"var(--bz-s1)", cursor:ok?"pointer":"not-allowed", opacity:ok?1:0.35 }}
                     title={!ok?reason:""}>
                     {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:36, height:48, objectFit:"cover", borderRadius:4, flexShrink:0 }}/>}
                     <div style={{ flex:1, minWidth:0 }}>
@@ -16800,7 +16800,7 @@ function PublicDeckBuilder() {
                   </div>
                 ))}
               </div>
-              {weaponEntries.length > 0 && <div>{weaponEntries.map(([w,cnt])=>{ const wc=PUBLIC_WEAPON_COLORS[w]||"#444"; const pct=Math.round(cnt/inDeck.length*100); return (<div key={w} style={{ marginBottom:5 }}><div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}><span style={{ fontSize:11, color:wc, fontWeight:700 }}>{w}</span><span style={{ fontSize:11, color:"var(--bz-ink-3)" }}>{cnt} ({pct}%)</span></div><div style={{ height:4, background:"#1a1a1a", borderRadius:2 }}><div style={{ width:`${pct}%`, height:"100%", background:wc, borderRadius:2 }}/></div></div>); })}</div>}
+              {weaponEntries.length > 0 && <div>{weaponEntries.map(([w,cnt])=>{ const wc=PUBLIC_WEAPON_COLORS[w]||"#444"; const pct=Math.round(cnt/inDeck.length*100); return (<div key={w} style={{ marginBottom:5 }}><div style={{ display:"flex", justifyContent:"space-between", marginBottom:2 }}><span style={{ fontSize:11, color:wc, fontWeight:700 }}>{w}</span><span style={{ fontSize:11, color:"var(--bz-ink-3)" }}>{cnt} ({pct}%)</span></div><div style={{ height:4, background:"var(--bz-s2)", borderRadius:2 }}><div style={{ width:`${pct}%`, height:"100%", background:wc, borderRadius:2 }}/></div></div>); })}</div>}
               {isApexMadness && inDeck.length > 0 && (
                 <div style={{ marginTop:12 }}>
                   <div style={{ fontSize:10, color:"#A855F7", fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Treatment Unlocks</div>
@@ -16812,7 +16812,7 @@ function PublicDeckBuilder() {
                           <span style={{ fontSize:11, color:unlocked?"#A855F7":"#888", fontWeight:unlocked?700:400 }}>{unlocked?"\uD83D\uDD13":"\uD83D\uDD12"} {t}</span>
                           <span style={{ fontSize:11, color:unlocked?"#A855F7":"#555" }}>{core}/10{unlocked?` · ${apex}/1 apex`:""}</span>
                         </div>
-                        <div style={{ height:3, background:"#1a1a1a", borderRadius:2 }}>
+                        <div style={{ height:3, background:"var(--bz-s2)", borderRadius:2 }}>
                           <div style={{ width:`${Math.min(100,core/10*100)}%`, height:"100%", background:unlocked?"#A855F7":"#333", borderRadius:2 }}/>
                         </div>
                       </div>
@@ -16829,7 +16829,7 @@ function PublicDeckBuilder() {
                 </select>
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:4 }}>
-                {(()=>{ const sorted=[...inDeck].sort((a,b)=>{ if(deckSlotSort==="power") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0); if(deckSlotSort==="name") return (a.hero||"").localeCompare(b.hero||""); if(deckSlotSort==="weapon") return (a.weapon||"").localeCompare(b.weapon||""); return 0; }); return Array.from({length:PUBLIC_DECK_SIZE}).map((_,i)=>{ const c=sorted[i]; if(c){ const wc=PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#444"; return (<div key={i} title={`${c.hero} -- ${c.weapon||""} ${c.power||""}`} onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))} style={{ aspectRatio:"3/4", borderRadius:4, overflow:"hidden", position:"relative", cursor:"pointer", border:`1.5px solid ${wc}44`, background:"#1a1a1a" }}>{c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>:<div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:7, color:wc, fontWeight:700, textAlign:"center", padding:2 }}>{c.hero?.split(" ")[0]}</div>}</div>); } return (<div key={i} style={{ aspectRatio:"3/4", borderRadius:4, border:"1px dashed #1a1a1a", background:"#080808", display:"flex", alignItems:"center", justifyContent:"center" }}><span style={{ fontSize:9, color:"#aaa", fontWeight:700 }}>{i+1}</span></div>); }); })()}
+                {(()=>{ const sorted=[...inDeck].sort((a,b)=>{ if(deckSlotSort==="power") return (parseFloat(b.power)||0)-(parseFloat(a.power)||0); if(deckSlotSort==="name") return (a.hero||"").localeCompare(b.hero||""); if(deckSlotSort==="weapon") return (a.weapon||"").localeCompare(b.weapon||""); return 0; }); return Array.from({length:PUBLIC_DECK_SIZE}).map((_,i)=>{ const c=sorted[i]; if(c){ const wc=PUBLIC_WEAPON_COLORS[canonWeapon(c.weapon)]||"#444"; return (<div key={i} title={`${c.hero} -- ${c.weapon||""} ${c.power||""}`} onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))} style={{ aspectRatio:"3/4", borderRadius:4, overflow:"hidden", position:"relative", cursor:"pointer", border:`1.5px solid ${wc}44`, background:"var(--bz-s2)" }}>{c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>:<div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:7, color:wc, fontWeight:700, textAlign:"center", padding:2 }}>{c.hero?.split(" ")[0]}</div>}</div>); } return (<div key={i} style={{ aspectRatio:"3/4", borderRadius:4, border:"1px dashed var(--bz-s2)", background:"#080808", display:"flex", alignItems:"center", justifyContent:"center" }}><span style={{ fontSize:9, color:"#aaa", fontWeight:700 }}>{i+1}</span></div>); }); })()}
               </div>
               {inDeck.length>0 && <button onClick={()=>{ if(window.confirm("Clear deck?")) setDeckCards([]); }} style={{ marginTop:10, background:"transparent", border:"1px solid #E8317A22", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>{"\u2715 Clear"}</button>}
             </div>
@@ -16961,7 +16961,7 @@ function PublicPlaybookBuilder() {
     return (a.hero||"").localeCompare(b.hero||"");
   });
 
-  const S = { inp:{ background:"var(--bz-s3)", border:"1px solid var(--bz-line)", borderRadius:8, color:"var(--bz-ink)", padding:"6px 10px", fontSize:12, fontFamily:"inherit", outline:"none", width:"100%" }, card:{ background:"var(--bz-s1)", border:"1px solid var(--bz-line)", borderRadius:12, padding:"14px 16px" } };
+  const S = { inp:{ background:"var(--bz-s3)", border:"1px solid var(--bz-line)", borderRadius:8, color:"var(--bz-ink)", padding:"6px 10px", fontSize:12, fontFamily:"inherit", outline:"none", width:"100%" }, card:{ background:"linear-gradient(160deg,#181016,#130d11)", border:"1px solid var(--bz-line)", borderRadius:16, padding:"14px 16px", boxShadow:"0 1px 0 rgba(255,255,255,0.03) inset, 0 6px 22px rgba(0,0,0,0.35)" } };
 
   if (loading) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"var(--bz-bg)", color:"#E8317A", fontSize:16, fontWeight:700 }}>Loading plays...</div>;
 
@@ -16990,7 +16990,7 @@ function PublicPlaybookBuilder() {
           <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:14, marginTop:-6 }}>
             <span style={{ fontSize:11, color:"var(--bz-ink-3)", fontWeight:700, alignSelf:"center" }}>Saved:</span>
             {savedPlaybooks.map(p=>(
-              <div key={p.id} style={{ display:"flex", alignItems:"center", gap:4, background:pbLoadId===p.id?"#1A1A2E":"#1a1a1a", border:`1px solid ${pbLoadId===p.id?"#7B9CFF":"#2a2a2a"}`, borderRadius:8, padding:"4px 10px" }}>
+              <div key={p.id} style={{ display:"flex", alignItems:"center", gap:4, background:pbLoadId===p.id?"#1A1A2E":"var(--bz-s2)", border:`1px solid ${pbLoadId===p.id?"#7B9CFF":"var(--bz-line-2)"}`, borderRadius:8, padding:"4px 10px" }}>
                 <button onClick={()=>loadPlaybook(p)} style={{ background:"none", border:"none", color:pbLoadId===p.id?"#7B9CFF":"#888", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>{p.name} <span style={{ color:"var(--bz-ink-3)", fontWeight:400 }}>({(p.playCount||0)+(p.bonusCount||0)})</span></button>
                 <button onClick={()=>duplicatePlaybook(p)} title="Duplicate — opens a copy you can edit and save separately" style={{ background:"none", border:"none", color:"#8a8a8a", cursor:"pointer", fontSize:12, lineHeight:1, padding:"0 3px" }}>⧉</button>
                 <button onClick={()=>deletePlaybook(p.id)} title="Delete this playbook" style={{ background:"none", border:"none", color:"#8a8a8a", cursor:"pointer", fontSize:14, lineHeight:1, padding:"0 2px" }}>×</button>
@@ -17016,7 +17016,7 @@ function PublicPlaybookBuilder() {
                 const wouldExceedPlay = (parseFloat(c.dbs)||0)>0 && totalDbs+(parseFloat(c.dbs)||0)>PUBLIC_DBS_CAP;
                 const wouldExceedBpl  = wouldExceedPlay;
                 return (
-                  <div key={c.id} style={{ borderBottom:"1px solid #111", background:i%2===0?"#0a0a0a":"#0d0d0d" }}>
+                  <div key={c.id} style={{ borderBottom:"1px solid #111", background:i%2===0?"var(--bz-bg)":"var(--bz-s1)" }}>
                     <div style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 14px" }}>
                       {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:36, height:48, objectFit:"cover", borderRadius:4, flexShrink:0 }}/>}
                       <div style={{ flex:1, minWidth:0 }}>
@@ -17063,17 +17063,17 @@ function PublicPlaybookBuilder() {
                 ))}
               </div>
               <div style={{ marginBottom:10 }}>
-                <div style={{ height:6, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
+                <div style={{ height:6, background:"var(--bz-s2)", borderRadius:3, overflow:"hidden" }}>
                   <div style={{ width:`${Math.min(playCount/PUBLIC_PLAY_LIMIT*100,100)}%`, height:"100%", borderRadius:3, background:playFull?"#E8317A":"linear-gradient(90deg,#E8317A,#7B2FF7)", transition:"width 0.3s" }}/>
                 </div>
                 <div style={{ fontSize:10, color:"var(--bz-ink-3)", marginTop:4 }}>{PUBLIC_PLAY_LIMIT-playCount} play slots remaining</div>
               </div>
-              <div style={{ background:dbsOver?"#1a0a0a":"#0a0a0a", border:`1px solid ${dbsOver?"#E8317A44":"#2a2a2a"}`, borderRadius:8, padding:"10px 12px" }}>
+              <div style={{ background:dbsOver?"#1a0a0a":"var(--bz-bg)", border:`1px solid ${dbsOver?"#E8317A44":"var(--bz-line-2)"}`, borderRadius:8, padding:"10px 12px" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
                   <span style={{ fontSize:11, fontWeight:800, color:dbsOver?"#E8317A":"#A855F7" }}>{"\uD83D\uDCB0 DBS"}</span>
                   <span style={{ fontSize:11, fontWeight:700, color:dbsOver?"#E8317A":dbsPct>80?"#FBBF24":"#4ade80" }}>{Math.round(totalDbs)} / {PUBLIC_DBS_CAP}</span>
                 </div>
-                <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden", marginBottom:6 }}>
+                <div style={{ height:8, background:"var(--bz-s2)", borderRadius:4, overflow:"hidden", marginBottom:6 }}>
                   <div style={{ width:`${dbsPct}%`, height:"100%", borderRadius:4, background:dbsOver?"#E8317A":dbsPct>80?"linear-gradient(90deg,#FBBF24,#E8317A)":"linear-gradient(90deg,#A855F7,#7B9CFF)", transition:"width 0.3s" }}/>
                 </div>
                 <div style={{ display:"flex", justifyContent:"space-between", fontSize:10 }}>
@@ -17084,8 +17084,8 @@ function PublicPlaybookBuilder() {
             </div>
             {pbResolved.length>0 && (
               <div style={{ ...S.card, padding:0, overflow:"hidden" }}>
-                {pbResolved.filter(e=>e.type==="play").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>{"\u2694\uFE0F Plays ("}{pbResolved.filter(e=>e.type==="play").length})</div>{pbResolved.filter(e=>e.type==="play").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"var(--bz-ink-3)", width:18, textAlign:"center", flexShrink:0 }}>{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"var(--bz-ink)" }}>{c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{hasPlayCost(c)&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#8a8a8a",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const arr=[...pbCards]; const idx=arr.findIndex((x,j)=>x.type==="play"&&j===pbCards.filter((y,k)=>k<=j&&y.type==="play").length-1+pbCards.slice(0,pbCards.findIndex((y,k)=>{ let pi=0; for(let l=0;l<k;l++) if(pbCards[l].type==="play") pi++; return pi===i&&pbCards[k].type==="play"; })).length-1); const playArr=pbCards.filter(x=>x.type==="play"); const target=playArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"var(--bz-ink-3)", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>{"\u00D7"}</button></div>); })}</div>}
-                {pbResolved.filter(e=>e.type==="bonus").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#7B9CFF", textTransform:"uppercase", letterSpacing:1, borderTop:"1px solid var(--bz-line)" }}>{"\u2B50 Bonus Plays ("}{pbResolved.filter(e=>e.type==="bonus").length})</div>{pbResolved.filter(e=>e.type==="bonus").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}><div style={{ fontSize:12, color:"var(--bz-ink-3)", width:18, flexShrink:0 }}>B{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF" }}>{c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{hasPlayCost(c)&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#8a8a8a",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const bonusArr=pbCards.filter(x=>x.type==="bonus"); const target=bonusArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"var(--bz-ink-3)", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>{"\u00D7"}</button></div>); })}</div>}
+                {pbResolved.filter(e=>e.type==="play").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1 }}>{"\u2694\uFE0F Plays ("}{pbResolved.filter(e=>e.type==="play").length})</div>{pbResolved.filter(e=>e.type==="play").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"var(--bz-s1)":"var(--bz-bg)" }}><div style={{ fontSize:12, color:"var(--bz-ink-3)", width:18, textAlign:"center", flexShrink:0 }}>{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"var(--bz-ink)" }}>{c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{hasPlayCost(c)&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#8a8a8a",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const arr=[...pbCards]; const idx=arr.findIndex((x,j)=>x.type==="play"&&j===pbCards.filter((y,k)=>k<=j&&y.type==="play").length-1+pbCards.slice(0,pbCards.findIndex((y,k)=>{ let pi=0; for(let l=0;l<k;l++) if(pbCards[l].type==="play") pi++; return pi===i&&pbCards[k].type==="play"; })).length-1); const playArr=pbCards.filter(x=>x.type==="play"); const target=playArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"var(--bz-ink-3)", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>{"\u00D7"}</button></div>); })}</div>}
+                {pbResolved.filter(e=>e.type==="bonus").length>0&&<div><div style={{ padding:"10px 14px 6px", fontSize:10, fontWeight:700, color:"#7B9CFF", textTransform:"uppercase", letterSpacing:1, borderTop:"1px solid var(--bz-line)" }}>{"\u2B50 Bonus Plays ("}{pbResolved.filter(e=>e.type==="bonus").length})</div>{pbResolved.filter(e=>e.type==="bonus").map((e,i)=>{ const c=e.card; return (<div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"var(--bz-s1)":"var(--bz-bg)" }}><div style={{ fontSize:12, color:"var(--bz-ink-3)", width:18, flexShrink:0 }}>B{i+1}</div>{c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}<div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:12, fontWeight:800, color:"#7B9CFF" }}>{c.hero}</div><div style={{ display:"flex", gap:6, fontSize:10, marginTop:1 }}>{hasPlayCost(c)&&<span style={{ color:"#FBBF24" }}>Cost: {c.playCost}</span>}{c.dbs!==undefined&&<span style={{ color:"#A855F7" }}>DBS: {c.dbs}</span>}{c.setName&&<span style={{ color:"#8a8a8a",fontStyle:"italic" }}>{c.setName}</span>}</div></div><button onClick={()=>{ const bonusArr=pbCards.filter(x=>x.type==="bonus"); const target=bonusArr[i]; const gi=pbCards.indexOf(target); const a=[...pbCards]; a.splice(gi,1); setPbCards(a); }} style={{ background:"none", border:"none", color:"var(--bz-ink-3)", cursor:"pointer", fontSize:14, padding:"2px 4px", flexShrink:0 }}>{"\u00D7"}</button></div>); })}</div>}
                 <div style={{ padding:"10px 14px" }}><button onClick={()=>{ if(window.confirm("Clear playbook?")) setPbCards([]); }} style={{ background:"transparent", border:"1px solid #E8317A22", color:"#E8317A", borderRadius:7, padding:"4px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>{"\u2715 Clear"}</button></div>
               </div>
             )}
@@ -17211,7 +17211,7 @@ function BobaShowcase({ uid }) {
 
   return (
     <div style={{ minHeight:"100vh", background:"#050505", fontFamily:"'Trebuchet MS','Segoe UI',sans-serif", color:"var(--bz-ink)" }}>
-      <div style={{ background:"linear-gradient(180deg,#0d0d0d 0%,#050505 100%)", borderBottom:"1px solid var(--bz-line)", padding:"24px 32px" }}>
+      <div style={{ background:"linear-gradient(180deg,var(--bz-s1) 0%,#050505 100%)", borderBottom:"1px solid var(--bz-line)", padding:"24px 32px" }}>
         <div style={{ maxWidth:1200, margin:"0 auto" }}>
           <div style={{ display:"flex", alignItems:"flex-start", gap:20, marginBottom:20, flexWrap:"wrap" }}>
             <div style={{ flex:1 }}>
@@ -17227,7 +17227,7 @@ function BobaShowcase({ uid }) {
                 </div>
               )}
             </div>
-            <button onClick={copyLink} style={{ background: copied ? "#0a1a0a" : "#1a1a1a", border:`1px solid ${copied?"#4ade80":"#2a2a2a"}`, color: copied ? "#4ade80" : "#888", borderRadius:10, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:6, transition:"all 0.2s" }}>
+            <button onClick={copyLink} style={{ background: copied ? "#0a1a0a" : "var(--bz-s2)", border:`1px solid ${copied?"#4ade80":"var(--bz-line-2)"}`, color: copied ? "#4ade80" : "#888", borderRadius:10, padding:"8px 16px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", gap:6, transition:"all 0.2s" }}>
               {copied ? "\u2705 Copied!" : "\uD83D\uDD17 Share Link"}
             </button>
           </div>
@@ -17284,7 +17284,7 @@ function BobaShowcase({ uid }) {
                   const pIdx = totalPages <= 9 ? i : Math.max(0, Math.min(totalPages - 9, page - 4)) + i;
                   return (
                     <button key={pIdx} onClick={()=>goPage(pIdx)}
-                      style={{ background:page===pIdx?"#E8317A":"transparent", color:page===pIdx?"#fff":"#444", border:`1px solid ${page===pIdx?"#E8317A":"#2a2a2a"}`, borderRadius:6, width:30, height:30, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                      style={{ background:page===pIdx?"#E8317A":"transparent", color:page===pIdx?"#fff":"#444", border:`1px solid ${page===pIdx?"#E8317A":"var(--bz-line-2)"}`, borderRadius:6, width:30, height:30, fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                       {pIdx+1}
                     </button>
                   );
@@ -17344,7 +17344,7 @@ function BobaShowcase({ uid }) {
               ); })()}
               <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:20 }}>
                 {spotlight.weapon    && <span style={{ fontSize:12, color:SHOWCASE_WEAPON_COLORS[spotlight.weapon]||"#888", background:(SHOWCASE_WEAPON_COLORS[spotlight.weapon]||"#888")+"22", borderRadius:6, padding:"3px 10px", fontWeight:700 }}>{spotlight.weapon}</span>}
-                {spotlight.treatment && <span style={{ fontSize:12, color:"var(--bz-ink-2)", background:"#1a1a1a", borderRadius:6, padding:"3px 10px" }}>{spotlight.treatment}</span>}
+                {spotlight.treatment && <span style={{ fontSize:12, color:"var(--bz-ink-2)", background:"var(--bz-s2)", borderRadius:6, padding:"3px 10px" }}>{spotlight.treatment}</span>}
                 {spotlight.notation  && <span style={{ fontSize:12, color:"#FBBF24", background:"#FBBF2422", borderRadius:6, padding:"3px 10px", fontWeight:700 }}>{spotlight.notation}</span>}
               </div>
               {spotlight.power && (
@@ -17357,9 +17357,9 @@ function BobaShowcase({ uid }) {
               {spotlight.variation && <div style={{ fontSize:12, color:"var(--bz-ink-3)", marginBottom:16 }}>{spotlight.variation}</div>}
               <div style={{ display:"flex", gap:10, marginTop:8 }}>
                 <button onClick={()=>{ const i=filtered.indexOf(spotlight); if(i>0) setSpotlight(filtered[i-1]); }} disabled={filtered.indexOf(spotlight)===0}
-                  style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:8, padding:"8px 14px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>{"\u2190 Prev"}</button>
+                  style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:8, padding:"8px 14px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>{"\u2190 Prev"}</button>
                 <button onClick={()=>{ const i=filtered.indexOf(spotlight); if(i<filtered.length-1) setSpotlight(filtered[i+1]); }} disabled={filtered.indexOf(spotlight)===filtered.length-1}
-                  style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:8, padding:"8px 14px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>{"Next \u2192"}</button>
+                  style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:8, padding:"8px 14px", fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>{"Next \u2192"}</button>
                 <button onClick={()=>setSpotlight(null)}
                   style={{ background:"transparent", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-3)", borderRadius:8, padding:"8px 16px", fontSize:12, cursor:"pointer", fontFamily:"inherit", marginLeft:"auto" }}>{"\u2715 Close"}</button>
               </div>
@@ -17818,14 +17818,14 @@ function BobaCardImpl({ c, isOwned, isBorrowed=false, ownedQty, flippedCard, set
 
   const QtyControls = () => (
     <div style={{ display:"flex", alignItems:"center", gap:4 }} onClick={e=>e.stopPropagation()}>
-      <button onClick={()=>setOwnedQty(c.id, Math.max(0, qty-1))} style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:5, width:22, height:22, fontSize:13, cursor:"pointer", fontFamily:"inherit", lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>{"\u2212"}</button>
+      <button onClick={()=>setOwnedQty(c.id, Math.max(0, qty-1))} style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:5, width:22, height:22, fontSize:13, cursor:"pointer", fontFamily:"inherit", lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>{"\u2212"}</button>
       <input
         type="number" inputMode="numeric" min="0" value={qty}
         onClick={e=>{e.stopPropagation(); e.target.select();}}
         onChange={e=>{ const v=parseInt(e.target.value,10); setOwnedQty(c.id, isNaN(v)?0:Math.max(0,v)); }}
-        style={{ width:38, height:22, fontSize:12, fontWeight:700, color:qty>0?"#4ade80":"#888", textAlign:"center", background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:5, fontFamily:"inherit", padding:0, MozAppearance:"textfield" }}
+        style={{ width:38, height:22, fontSize:12, fontWeight:700, color:qty>0?"#4ade80":"#888", textAlign:"center", background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:5, fontFamily:"inherit", padding:0, MozAppearance:"textfield" }}
       />
-      <button onClick={()=>setOwnedQty(c.id, qty+1)} style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:5, width:22, height:22, fontSize:13, cursor:"pointer", fontFamily:"inherit", lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
+      <button onClick={()=>setOwnedQty(c.id, qty+1)} style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:5, width:22, height:22, fontSize:13, cursor:"pointer", fontFamily:"inherit", lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
     </div>
   );
 
@@ -17883,7 +17883,7 @@ function BobaCardImpl({ c, isOwned, isBorrowed=false, ownedQty, flippedCard, set
         )}
         <div ref={cardRef} style={{ position:"relative", width:"100%", height:"100%", transition:"transform 0.2s ease, box-shadow 0.2s ease", borderRadius:10, cursor:"pointer", willChange:"transform" }} onClick={handleClick}>
          <div className="boba-flipper" style={{ position:"relative", width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.55s cubic-bezier(0.34,1.3,0.5,1)", transform:isFlipped?"rotateY(180deg)":"rotateY(0deg)", willChange:"transform" }}>
-          <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isBorrowed?"#7B9CFF":isOwned?"#4ade80":"#1a1a1a"}`, boxShadow:isBorrowed?"0 0 0 1px rgba(123,156,255,0.4), 0 4px 18px rgba(123,156,255,0.25)":isOwned?"0 0 0 1px rgba(74,222,128,0.35), 0 4px 18px rgba(74,222,128,0.22)":"none" }}>
+          <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:10, overflow:"hidden", border:`2px solid ${isBorrowed?"#7B9CFF":isOwned?"#4ade80":"var(--bz-s2)"}`, boxShadow:isBorrowed?"0 0 0 1px rgba(123,156,255,0.4), 0 4px 18px rgba(123,156,255,0.25)":isOwned?"0 0 0 1px rgba(74,222,128,0.35), 0 4px 18px rgba(74,222,128,0.22)":"none" }}>
             <img src={_displayImg} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}
               onError={e=>{ e.currentTarget.style.visibility="hidden"; }}/>
             {_isScanImg && <div style={{ position:"absolute", top:6, left:6, zIndex:4, background:"rgba(0,0,0,0.7)", border:"1px solid rgba(74,222,128,0.5)", color:"#4ade80", borderRadius:6, padding:"2px 7px", fontSize:9, fontWeight:800, letterSpacing:0.5, backdropFilter:"blur(3px)" }}>📸 Your scan</div>}
@@ -17894,7 +17894,7 @@ function BobaCardImpl({ c, isOwned, isBorrowed=false, ownedQty, flippedCard, set
             {isMetallicFoil && <div ref={metallicRef} style={{ position:"absolute", inset:0, borderRadius:10, mixBlendMode:"screen", opacity:0, transition:"opacity 0.08s ease", pointerEvents:"none", zIndex:3 }}/>}
             {!onExpand && <div className="boba-flip-pill" style={{ position:"absolute", bottom:6, right:6, display:"flex", alignItems:"center", gap:3, fontSize:10, color:"#fff", fontWeight:700, background:"rgba(0,0,0,0.6)", borderRadius:12, padding:"3px 8px", backdropFilter:"blur(4px)", border:"1px solid rgba(255,255,255,0.15)", pointerEvents:"none" }}>{"\uD83D\uDD04"} flip</div>}
           </div>
-          <div onPointerDown={()=>onCardActivity&&onCardActivity()} onPointerMove={()=>onCardActivity&&onCardActivity()} onKeyDown={()=>onCardActivity&&onCardActivity()} style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"var(--bz-s1)", border:`2px solid ${isBorrowed?"#7B9CFF":isOwned?"#4ade80":"#2a2a2a"}`, borderRadius:10, padding:isSmallCard?"8px 9px":"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between", overflow:"hidden" }}>
+          <div onPointerDown={()=>onCardActivity&&onCardActivity()} onPointerMove={()=>onCardActivity&&onCardActivity()} onKeyDown={()=>onCardActivity&&onCardActivity()} style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", background:"var(--bz-s1)", border:`2px solid ${isBorrowed?"#7B9CFF":isOwned?"#4ade80":"var(--bz-line-2)"}`, borderRadius:10, padding:isSmallCard?"8px 9px":"12px 14px", display:"flex", flexDirection:"column", justifyContent:"space-between", overflow:"hidden" }}>
             <div style={{ overflowY:"auto", overflowX:"hidden", flex:1, minHeight:0, display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
             <div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
@@ -17905,7 +17905,7 @@ function BobaCardImpl({ c, isOwned, isBorrowed=false, ownedQty, flippedCard, set
               {!isSmallCard && <>
               <div style={{ display:"flex", gap:4, flexWrap:"wrap", marginBottom:4 }}>
                 {c.weapon && <span style={{ fontSize:10, color:wc, background:wc+"22", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.weapon}</span>}
-                {c.treatment && <span style={{ fontSize:10, color:"var(--bz-ink-2)", background:"#1a1a1a", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
+                {c.treatment && <span style={{ fontSize:10, color:"var(--bz-ink-2)", background:"var(--bz-s2)", borderRadius:4, padding:"1px 6px" }}>{c.treatment}</span>}
                 {c.notation && <span style={{ fontSize:10, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 6px", fontWeight:700 }}>{c.notation}</span>}
               </div>
               {(c.inspiredBy||c.athlete) && (()=>{
@@ -17997,9 +17997,9 @@ function BobaCardImpl({ c, isOwned, isBorrowed=false, ownedQty, flippedCard, set
     );
   }
   return (
-    <div onClick={handleClick} style={{ aspectRatio:"3/4", background:isBorrowed?"linear-gradient(160deg,#0d1424,#0a0f1a)":isOwned?"linear-gradient(160deg,#0d2416,#0a1a0a)":"#111111", border:`2px solid ${isBorrowed?"#7B9CFF":isOwned?"#4ade80":"#1a1a1a"}`, boxShadow:isBorrowed?"0 0 0 1px rgba(123,156,255,0.35), 0 4px 16px rgba(123,156,255,0.2)":isOwned?"0 0 0 1px rgba(74,222,128,0.3), 0 4px 16px rgba(74,222,128,0.18)":"none", borderRadius:10, overflow:"hidden", display:"flex", flexDirection:"column", cursor:"pointer" }}>
+    <div onClick={handleClick} style={{ aspectRatio:"3/4", background:isBorrowed?"linear-gradient(160deg,#0d1424,#0a0f1a)":isOwned?"linear-gradient(160deg,#0d2416,#0a1a0a)":"var(--bz-s1)", border:`2px solid ${isBorrowed?"#7B9CFF":isOwned?"#4ade80":"var(--bz-s2)"}`, boxShadow:isBorrowed?"0 0 0 1px rgba(123,156,255,0.35), 0 4px 16px rgba(123,156,255,0.2)":isOwned?"0 0 0 1px rgba(74,222,128,0.3), 0 4px 16px rgba(74,222,128,0.18)":"none", borderRadius:10, overflow:"hidden", display:"flex", flexDirection:"column", cursor:"pointer" }}>
       {/* "Image coming soon" art placeholder — fills the card-art area */}
-      <div {...dropProps} style={{ position:"relative", flex:"1 1 58%", minHeight:0, background:`linear-gradient(135deg, ${wc}18, #0a0a0a 70%)`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", borderBottom:`1px solid ${wc}22` }}>
+      <div {...dropProps} style={{ position:"relative", flex:"1 1 58%", minHeight:0, background:`linear-gradient(135deg, ${wc}18, var(--bz-bg) 70%)`, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", borderBottom:`1px solid ${wc}22` }}>
         {(dragOver||dropBusy) && (
           <div style={{ position:"absolute", inset:0, zIndex:5, borderRadius:8, pointerEvents:"none",
             border:"2px dashed #4ade80", background:"rgba(74,222,128,0.2)",
@@ -18038,7 +18038,7 @@ function BobaCardImpl({ c, isOwned, isBorrowed=false, ownedQty, flippedCard, set
             </span>
           )}
           {c.weapon && <span style={{ fontSize:9, color:wc, background:wc+"22", borderRadius:4, padding:"1px 5px", fontWeight:700 }}>{c.weapon}</span>}
-          {c.treatment && <span style={{ fontSize:9, color:"var(--bz-ink-2)", background:"#1a1a1a", borderRadius:4, padding:"1px 5px" }}>{c.treatment}</span>}
+          {c.treatment && <span style={{ fontSize:9, color:"var(--bz-ink-2)", background:"var(--bz-s2)", borderRadius:4, padding:"1px 5px" }}>{c.treatment}</span>}
           {c.notation && <span style={{ fontSize:9, color:"#FBBF24", background:"#FBBF2422", borderRadius:4, padding:"1px 5px", fontWeight:700 }}>{c.notation}</span>}
         </div>
         {(() => { const packs = foundInFor(c, foundInMap); if(!packs.length) return null; return <div style={{ display:"inline-flex", alignItems:"center", gap:3, flexWrap:"wrap", alignSelf:"flex-start" }}><span style={{ color:"var(--bz-ink-3)", fontSize:9, fontWeight:700 }}>Found In:</span>{packs.map(pk => <span key={pk.id} style={{ background:`${pk.color}1a`, border:`1px solid ${pk.color}44`, borderRadius:5, padding:"1px 5px", fontSize:9, fontWeight:700, color:pk.color }}>{pk.label}</span>)}</div>; })()}
@@ -18611,7 +18611,7 @@ function SetListView({ cards=[], owned={}, toggleOwned, activeSet, setActiveSet,
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         {sets.map(s=>(
           <button key={s} onClick={()=>{setActiveSet(s);setExpandedHero(null);}}
-            style={{background:curSet===s?"rgba(232,49,122,0.15)":"#111",border:`1.5px solid ${curSet===s?"#E8317A":"#1a1a1a"}`,color:curSet===s?"#E8317A":"#888",borderRadius:20,padding:"6px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+            style={{background:curSet===s?"rgba(232,49,122,0.15)":"var(--bz-s1)",border:`1.5px solid ${curSet===s?"#E8317A":"var(--bz-s2)"}`,color:curSet===s?"#E8317A":"#888",borderRadius:20,padding:"6px 16px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
             {s}
           </button>
         ))}
@@ -18629,10 +18629,10 @@ function SetListView({ cards=[], owned={}, toggleOwned, activeSet, setActiveSet,
         const builtIn = getPlayerNote(hero);
 
         return (
-          <div key={hero} style={{background:"var(--bz-s1)",border:`1px solid ${isExpanded?"#E8317A33":hasCard?"rgba(74,222,128,0.2)":"#1a1a1a"}`,borderRadius:10,overflow:"hidden"}}>
+          <div key={hero} style={{background:"var(--bz-s1)",border:`1px solid ${isExpanded?"#E8317A33":hasCard?"rgba(74,222,128,0.2)":"var(--bz-s2)"}`,borderRadius:10,overflow:"hidden"}}>
             <div onClick={()=>setExpandedHero(isExpanded?null:hero)}
               style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",cursor:"pointer"}}>
-              <div style={{width:8,height:8,borderRadius:"50%",background:hasCard?"#4ade80":"#2a2a2a",flexShrink:0}}/>
+              <div style={{width:8,height:8,borderRadius:"50%",background:hasCard?"#4ade80":"var(--bz-line-2)",flexShrink:0}}/>
               <div style={{flex:1,fontSize:14,fontWeight:700,color:"var(--bz-ink)"}}>{hero}</div>
               {(saved?.notes || builtIn) && <span style={{fontSize:10,color:"#E8317A",background:"rgba(232,49,122,0.1)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:6,padding:"2px 8px",fontWeight:700}}>🎙 Notes</span>}
               <span style={{color:"var(--bz-ink-3)",fontSize:11}}>{isExpanded?"▲":"▼"}</span>
@@ -18725,7 +18725,7 @@ function BroadcasterNotes({ cards=[] }) {
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         {sets.map(s=>(
           <button key={s} onClick={()=>{setActiveSet(s);setExpandedHero(null);setSearch("");}}
-            style={{background:curSet===s?"rgba(232,49,122,0.15)":"#111",border:`1.5px solid ${curSet===s?"#E8317A":"#1a1a1a"}`,color:curSet===s?"#E8317A":"#888",borderRadius:20,padding:"7px 18px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+            style={{background:curSet===s?"rgba(232,49,122,0.15)":"var(--bz-s1)",border:`1.5px solid ${curSet===s?"#E8317A":"var(--bz-s2)"}`,color:curSet===s?"#E8317A":"#888",borderRadius:20,padding:"7px 18px",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
             {s} <span style={{color:"var(--bz-ink-3)",fontSize:10,marginLeft:4}}>({[...new Set(cards.filter(c=>c.setName===s).map(c=>c.hero).filter(Boolean))].length})</span>
           </button>
         ))}
@@ -18746,7 +18746,7 @@ function BroadcasterNotes({ cards=[] }) {
         const hasNotes = !!(builtIn||saved?.notes);
 
         return (
-          <div key={hero} style={{background:"var(--bz-s1)",border:`1px solid ${isExpanded?"rgba(232,49,122,0.4)":"#1a1a1a"}`,borderRadius:12,overflow:"hidden",transition:"border-color 0.2s"}}>
+          <div key={hero} style={{background:"var(--bz-s1)",border:`1px solid ${isExpanded?"rgba(232,49,122,0.4)":"var(--bz-s2)"}`,borderRadius:12,overflow:"hidden",transition:"border-color 0.2s"}}>
             <div onClick={()=>setExpandedHero(isExpanded?null:hero)}
               style={{display:"flex",alignItems:"center",gap:12,padding:"14px 18px",cursor:"pointer"}}>
               <div style={{flex:1}}>
@@ -19160,7 +19160,7 @@ function CompanyDirectory({ userRole }) {
         <div style={{ display:"flex", gap:4 }}>
           {["All",...DIR_GROUPS].map(g=>(
             <button key={g} onClick={()=>setGroupF(g)}
-              style={{ background:groupF===g?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${groupF===g?"#E8317A":"#2a2a2a"}`, color:groupF===g?"#E8317A":"#888", borderRadius:7, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+              style={{ background:groupF===g?"rgba(232,49,122,0.12)":"var(--bz-s1)", border:`1.5px solid ${groupF===g?"#E8317A":"var(--bz-line-2)"}`, color:groupF===g?"#E8317A":"#888", borderRadius:7, padding:"6px 12px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
               {g}
             </button>
           ))}
@@ -19329,7 +19329,7 @@ function ManualCardImage() {
             </div>
           ) : (
             <div onDragOver={e=>e.preventDefault()} onDrop={e=>{ e.preventDefault(); const f=e.dataTransfer.files[0]; if(f)setImg(f); }}
-              style={{ border:"2px dashed #2a2a2a", borderRadius:10, padding:"24px", textAlign:"center", marginBottom:12, cursor:"pointer" }}>
+              style={{ border:"2px dashed var(--bz-line-2)", borderRadius:10, padding:"24px", textAlign:"center", marginBottom:12, cursor:"pointer" }}>
               <div style={{ fontSize:11, color:"var(--bz-ink-3)" }}>Drop image here or</div>
               <input type="file" accept="image/*" onChange={e=>setImg(e.target.files[0])} style={{ display:"none" }} id="manual-img"/>
               <label htmlFor="manual-img" style={{ color:"#7B9CFF", fontSize:11, cursor:"pointer", textDecoration:"underline" }}>browse</label>
@@ -19965,7 +19965,7 @@ function SwanCityBulkImport() {
     finally { setRunning(false); }
   }
 
-  const tcell = { padding: "4px 8px", fontSize: 11, borderBottom: "1px solid #1a1a1a", whiteSpace: "nowrap" };
+  const tcell = { padding: "4px 8px", fontSize: 11, borderBottom: "1px solid var(--bz-s2)", whiteSpace: "nowrap" };
 
   return (
     <div>
@@ -20152,7 +20152,7 @@ function TreatmentMerge() {
   }
 
   const S = {
-    card: { background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:12, padding:18 },
+    card: { background:"var(--bz-s1)", border:"1px solid var(--bz-line-2)", borderRadius:12, padding:18 },
   };
 
   if (loading) return <div style={S.card}><div style={{fontSize:12,color:"var(--bz-ink-3)"}}>Loading cards{"\u2026"}</div></div>;
@@ -20170,7 +20170,7 @@ function TreatmentMerge() {
 
       <div style={{fontSize:11,fontWeight:800,color:"var(--bz-ink-2)",marginBottom:6,letterSpacing:0.5}}>KEEP THIS TREATMENT</div>
       <select value={target} onChange={e=>{setTarget(e.target.value); setSources(prev=>{const n=new Set(prev); n.delete(e.target.value); return n;});}}
-        style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"9px 12px",fontSize:13,color:"#fff",fontFamily:"inherit",marginBottom:16,cursor:"pointer"}}>
+        style={{width:"100%",background:"var(--bz-bg)",border:"1px solid #333",borderRadius:8,padding:"9px 12px",fontSize:13,color:"#fff",fontFamily:"inherit",marginBottom:16,cursor:"pointer"}}>
         <option value="">{"\u2014"} choose {"\u2014"}</option>
         {treatments.map(([t,n])=><option key={t} value={t}>{t} ({n})</option>)}
       </select>
@@ -20180,11 +20180,11 @@ function TreatmentMerge() {
           <div style={{fontSize:11,fontWeight:800,color:"var(--bz-ink-2)",marginBottom:6,letterSpacing:0.5}}>
             FOLD THESE INTO {"\u201C"}{target}{"\u201D"}
           </div>
-          <div style={{border:"1px solid #2a2a2a",borderRadius:10,maxHeight:280,overflowY:"auto",marginBottom:14}}>
+          <div style={{border:"1px solid var(--bz-line-2)",borderRadius:10,maxHeight:280,overflowY:"auto",marginBottom:14}}>
             {treatments.filter(([t])=>t!==target).map(([t,n])=>{
               const on = sources.has(t);
               return (
-                <label key={t} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 12px",borderBottom:"1px solid #1a1a1a",cursor:"pointer",background:on?"rgba(232,49,122,0.1)":"transparent"}}>
+                <label key={t} style={{display:"flex",alignItems:"center",gap:9,padding:"8px 12px",borderBottom:"1px solid var(--bz-s2)",cursor:"pointer",background:on?"rgba(232,49,122,0.1)":"transparent"}}>
                   <input type="checkbox" checked={on} onChange={()=>setSources(prev=>{const s=new Set(prev); s.has(t)?s.delete(t):s.add(t); return s;})} style={{accentColor:"#E8317A",cursor:"pointer"}}/>
                   <span style={{flex:1,fontSize:12.5,fontWeight:on?800:600,color:on?"#E8317A":"#ccc"}}>{t}</span>
                   <span style={{fontSize:11,color:"var(--bz-ink-3)"}}>{n} card{n===1?"":"s"}</span>
@@ -20196,7 +20196,7 @@ function TreatmentMerge() {
       )}
 
       {sources.size>0 && (
-        <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid #2a2a2a",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
+        <div style={{background:"rgba(255,255,255,0.03)",border:"1px solid var(--bz-line-2)",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
           <div style={{fontSize:12.5,fontWeight:800,color:"#fff",marginBottom:6}}>
             {affected.length} card{affected.length===1?"":"s"} would change to {"\u201C"}{target}{"\u201D"}
           </div>
@@ -20297,7 +20297,7 @@ function JunkPlayCleanup() {
     setRunning(false);
   }
 
-  const S = { card:{ background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:12, padding:18 } };
+  const S = { card:{ background:"var(--bz-s1)", border:"1px solid var(--bz-line-2)", borderRadius:12, padding:18 } };
 
   if (loading) return <div style={S.card}><div style={{fontSize:12,color:"var(--bz-ink-3)"}}>Scanning cards{"\u2026"}</div></div>;
 
@@ -20339,9 +20339,9 @@ function JunkPlayCleanup() {
             </div>
           )}
 
-          <div style={{border:"1px solid #2a2a2a",borderRadius:10,maxHeight:300,overflowY:"auto",marginBottom:14}}>
+          <div style={{border:"1px solid var(--bz-line-2)",borderRadius:10,maxHeight:300,overflowY:"auto",marginBottom:14}}>
             {analyzed.slice(0,150).map(({card:c, goodTwin})=>(
-              <div key={c.id} style={{padding:"8px 12px",borderBottom:"1px solid #1a1a1a",fontSize:11,fontFamily:"monospace",display:"flex",alignItems:"center",gap:8}}>
+              <div key={c.id} style={{padding:"8px 12px",borderBottom:"1px solid var(--bz-s2)",fontSize:11,fontFamily:"monospace",display:"flex",alignItems:"center",gap:8}}>
                 <span style={{color:goodTwin?"#EF4444":"#FBBF24",fontWeight:800,minWidth:52}}>{goodTwin?"DELETE":"KEEP"}</span>
                 <span style={{color:"var(--bz-ink-2)",minWidth:130}}>{c.setName}</span>
                 <span style={{color:"var(--bz-ink-2)",minWidth:60}}>{c.cardNum}</span>
@@ -20528,7 +20528,7 @@ function CardDeduper() {
     setRunning(false);
   }
 
-  const S = { card:{background:"#0d0d0d",border:"1px solid #2a2a2a",borderRadius:12,padding:18,marginTop:14} };
+  const S = { card:{background:"var(--bz-s1)",border:"1px solid var(--bz-line-2)",borderRadius:12,padding:18,marginTop:14} };
   const totalDrop = groups ? groups.reduce((n,g)=>n+g.drop.length,0) : 0;
 
   return (
@@ -20545,7 +20545,7 @@ function CardDeduper() {
         {[["strict","Exact match","Same set, number, name, treatment, weapon and power."],
           ["loose","Same card, drifted data","Same set, number, name AND treatment \u2014 forgives weapon and power drift only. Treatment is never ignored: some sets reuse a card number across different inserts."]].map(([m,label,help])=>(
           <button key={m} onClick={()=>{setMode(m); setGroups(null); setDone(null);}} title={help}
-            style={{flex:1,textAlign:"left",background:mode===m?"rgba(123,156,255,0.12)":"transparent",border:`1px solid ${mode===m?"#7B9CFF":"#2a2a2a"}`,borderRadius:10,padding:"10px 12px",cursor:"pointer",fontFamily:"inherit"}}>
+            style={{flex:1,textAlign:"left",background:mode===m?"rgba(123,156,255,0.12)":"transparent",border:`1px solid ${mode===m?"#7B9CFF":"var(--bz-line-2)"}`,borderRadius:10,padding:"10px 12px",cursor:"pointer",fontFamily:"inherit"}}>
             <div style={{fontSize:12.5,fontWeight:800,color:mode===m?"#7B9CFF":"#ccc",marginBottom:2}}>{label}</div>
             <div style={{fontSize:10.5,color:"var(--bz-ink-3)",lineHeight:1.45}}>{help}</div>
           </button>
@@ -20561,14 +20561,14 @@ function CardDeduper() {
 
 
       <button onClick={scan} disabled={loading||running}
-        style={{background:(loading||running)?"#1a1a1a":"linear-gradient(135deg,#7B9CFF,#7B2FF7)",color:(loading||running)?"#555":"#fff",border:"none",borderRadius:8,padding:"10px 22px",fontSize:13,fontWeight:800,cursor:(loading||running)?"not-allowed":"pointer",fontFamily:"inherit"}}>
+        style={{background:(loading||running)?"var(--bz-s2)":"linear-gradient(135deg,#7B9CFF,#7B2FF7)",color:(loading||running)?"#555":"#fff",border:"none",borderRadius:8,padding:"10px 22px",fontSize:13,fontWeight:800,cursor:(loading||running)?"not-allowed":"pointer",fontFamily:"inherit"}}>
         {loading?"Scanning all cards…":"Scan for duplicates"}
       </button>
 
       {err && <div style={{marginTop:12,color:"#EF4444",fontSize:12}}>⚠ {err}</div>}
 
       {groups && (
-        <div style={{marginTop:16,background:"#141414",border:"1px solid #2a2a2a",borderRadius:10,padding:14}}>
+        <div style={{marginTop:16,background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:10,padding:14}}>
           {orphanFloats.length>0 && (
             <div style={{marginBottom:12,padding:"10px 12px",background:"rgba(251,191,36,0.08)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:8}}>
               <div style={{fontSize:12.5,fontWeight:800,color:"#FBBF24",marginBottom:3}}>
@@ -20606,7 +20606,7 @@ function CardDeduper() {
                 </div>
               ))}
               <button onClick={runDedupe} disabled={running}
-                style={{marginTop:14,background:running?"#1a1a1a":"#E8317A",color:running?"#555":"#fff",border:"none",borderRadius:8,padding:"11px 22px",fontSize:13,fontWeight:800,cursor:running?"not-allowed":"pointer",fontFamily:"inherit"}}>
+                style={{marginTop:14,background:running?"var(--bz-s2)":"#E8317A",color:running?"#555":"#fff",border:"none",borderRadius:8,padding:"11px 22px",fontSize:13,fontWeight:800,cursor:running?"not-allowed":"pointer",fontFamily:"inherit"}}>
                 {running
                   ? `Working… ${done?.deleted||0}/${totalDrop}`
                   : [totalDrop?`Delete ${totalDrop.toLocaleString()} duplicates`:"", orphanFloats.length?`fix ${orphanFloats.length.toLocaleString()} card numbers`:""].filter(Boolean).join(" · ")}
@@ -20707,7 +20707,7 @@ function FoundInEditor() {
     setSaving(false);
   }
 
-  const S = { card:{background:"#0d0d0d",border:"1px solid #2a2a2a",borderRadius:12,padding:18,marginTop:14} };
+  const S = { card:{background:"var(--bz-s1)",border:"1px solid var(--bz-line-2)",borderRadius:12,padding:18,marginTop:14} };
 
   return (
     <div style={S.card}>
@@ -20721,14 +20721,14 @@ function FoundInEditor() {
       {loading ? <div style={{fontSize:12,color:"var(--bz-ink-3)"}}>Loading{"\u2026"}</div> : (
         <>
           <select value={setName} onChange={e=>setSetName(e.target.value)}
-            style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:13,color:"#fff",fontFamily:"inherit",cursor:"pointer",marginBottom:14}}>
+            style={{width:"100%",background:"var(--bz-bg)",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:13,color:"#fff",fontFamily:"inherit",cursor:"pointer",marginBottom:14}}>
             <option value="">{"\u2014 Choose a set \u2014"}</option>
             {setNames.map(s2 => <option key={s2} value={s2}>{s2}</option>)}
           </select>
 
           {setName && (
-            <div style={{border:"1px solid #2a2a2a",borderRadius:10,overflow:"hidden"}}>
-              <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,padding:"9px 12px",background:"#141414",borderBottom:"1px solid #2a2a2a",fontSize:10,fontWeight:800,color:"var(--bz-ink-3)",textTransform:"uppercase",letterSpacing:0.6}}>
+            <div style={{border:"1px solid var(--bz-line-2)",borderRadius:10,overflow:"hidden"}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,padding:"9px 12px",background:"var(--bz-s2)",borderBottom:"1px solid var(--bz-line-2)",fontSize:10,fontWeight:800,color:"var(--bz-ink-3)",textTransform:"uppercase",letterSpacing:0.6}}>
                 <span>Treatment</span><span>Found in</span>
               </div>
               {treatments.map(([t,n]) => (
@@ -20761,7 +20761,7 @@ function FoundInEditor() {
 
           {setName && (
             <button onClick={save} disabled={saving}
-              style={{marginTop:14,background:saving?"#1a1a1a":(saved?"#4ade80":"linear-gradient(135deg,#E8317A,#7B2FF7)"),color:saving?"#555":(saved?"#062b13":"#fff"),border:"none",borderRadius:8,padding:"11px 22px",fontSize:13,fontWeight:800,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit"}}>
+              style={{marginTop:14,background:saving?"var(--bz-s2)":(saved?"#4ade80":"linear-gradient(135deg,#E8317A,#7B2FF7)"),color:saving?"#555":(saved?"#062b13":"#fff"),border:"none",borderRadius:8,padding:"11px 22px",fontSize:13,fontWeight:800,cursor:saving?"not-allowed":"pointer",fontFamily:"inherit"}}>
               {saving ? "Saving\u2026" : saved ? "\u2713 Saved \u2014 live for everyone" : "Save"}
             </button>
           )}
@@ -20906,7 +20906,7 @@ function PrefixMapper() {
     setRunning(false);
   }
 
-  const S = { card:{background:"#0d0d0d",border:"1px solid #2a2a2a",borderRadius:12,padding:18,marginTop:14} };
+  const S = { card:{background:"var(--bz-s1)",border:"1px solid var(--bz-line-2)",borderRadius:12,padding:18,marginTop:14} };
 
   return (
     <div style={S.card}>
@@ -20921,14 +20921,14 @@ function PrefixMapper() {
       {loading ? <div style={{fontSize:12,color:"var(--bz-ink-3)"}}>Loading checklist…</div> : (
         <>
           <select value={setName} onChange={e=>{setSetName(e.target.value); setRules({});}}
-            style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:13,color:"#fff",fontFamily:"inherit",cursor:"pointer",marginBottom:14}}>
+            style={{width:"100%",background:"var(--bz-bg)",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:13,color:"#fff",fontFamily:"inherit",cursor:"pointer",marginBottom:14}}>
             <option value="">— Choose a set —</option>
             {setNames.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
 
           {setName && (
-            <div style={{border:"1px solid #2a2a2a",borderRadius:10,overflow:"hidden"}}>
-              <div style={{display:"grid",gridTemplateColumns:"90px 1fr 150px 130px",gap:8,padding:"9px 12px",background:"#141414",borderBottom:"1px solid #2a2a2a",fontSize:10,fontWeight:800,color:"var(--bz-ink-3)",textTransform:"uppercase",letterSpacing:0.6}}>
+            <div style={{border:"1px solid var(--bz-line-2)",borderRadius:10,overflow:"hidden"}}>
+              <div style={{display:"grid",gridTemplateColumns:"90px 1fr 150px 130px",gap:8,padding:"9px 12px",background:"var(--bz-s2)",borderBottom:"1px solid var(--bz-line-2)",fontSize:10,fontWeight:800,color:"var(--bz-ink-3)",textTransform:"uppercase",letterSpacing:0.6}}>
                 <span>Prefix</span><span>Currently</span><span>Set treatment →</span><span>Set type →</span>
               </div>
               {prefixes.map(p => {
@@ -20960,7 +20960,7 @@ function PrefixMapper() {
                     <div style={{position:"relative"}}>
                       <input list={`treat-${p.prefix}`} value={r.treatment||""} placeholder="—"
                         onChange={e=>setRule(p.prefix,"treatment",e.target.value)}
-                        style={{background:"#0b0b0b",border:`1px solid ${r.treatment?"#4ade80":"#333"}`,borderRadius:7,padding:"7px 9px",fontSize:12,color:"#fff",fontFamily:"inherit",width:"100%"}}/>
+                        style={{background:"var(--bz-bg)",border:`1px solid ${r.treatment?"#4ade80":"#333"}`,borderRadius:7,padding:"7px 9px",fontSize:12,color:"#fff",fontFamily:"inherit",width:"100%"}}/>
                       {/* Only the treatments that appear in THIS set — and you can still type a name
                           that isn't there yet, which is exactly what you need when a whole prefix is
                           currently mislabelled (e.g. Plays sitting under "Battlefoil"). */}
@@ -20970,7 +20970,7 @@ function PrefixMapper() {
                       </datalist>
                     </div>
                     <select value={r.cardType||""} onChange={e=>setRule(p.prefix,"cardType",e.target.value)}
-                      style={{background:"#0b0b0b",border:`1px solid ${r.cardType?"#4ade80":"#333"}`,borderRadius:7,padding:"7px 9px",fontSize:12,color:"#fff",fontFamily:"inherit",width:"100%",cursor:"pointer"}}>
+                      style={{background:"var(--bz-bg)",border:`1px solid ${r.cardType?"#4ade80":"#333"}`,borderRadius:7,padding:"7px 9px",fontSize:12,color:"#fff",fontFamily:"inherit",width:"100%",cursor:"pointer"}}>
                       <option value="">—</option>
                       {CARD_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
                     </select>
@@ -20984,7 +20984,7 @@ function PrefixMapper() {
 
           {pending.length>0 && (
             <button onClick={apply} disabled={running}
-              style={{marginTop:14,background:running?"#1a1a1a":"linear-gradient(135deg,#4ade80,#22c55e)",color:running?"#555":"#062b13",border:"none",borderRadius:8,padding:"11px 22px",fontSize:13,fontWeight:800,cursor:running?"not-allowed":"pointer",fontFamily:"inherit"}}>
+              style={{marginTop:14,background:running?"var(--bz-s2)":"linear-gradient(135deg,#4ade80,#22c55e)",color:running?"#555":"#062b13",border:"none",borderRadius:8,padding:"11px 22px",fontSize:13,fontWeight:800,cursor:running?"not-allowed":"pointer",fontFamily:"inherit"}}>
               {running ? `Updating… ${done?.updated||0}/${done?.total||0}` : `Apply to ${affected.toLocaleString()} cards`}
             </button>
           )}
@@ -21087,7 +21087,7 @@ function SetMerger() {
     setRunning(false);
   }
 
-  const S={ card:{background:"#0d0d0d",border:"1px solid #2a2a2a",borderRadius:12,padding:18,marginTop:14} };
+  const S={ card:{background:"var(--bz-s1)",border:"1px solid var(--bz-line-2)",borderRadius:12,padding:18,marginTop:14} };
 
   if(loading) return <div style={{...S.card,color:"#888"}}>Loading checklist from the database… (62k+ cards can take 30–60s)</div>;
   if(loadErr) return <div style={{...S.card,color:"#EF4444"}}>Failed to load: {loadErr}</div>;
@@ -21107,7 +21107,7 @@ function SetMerger() {
         {setNames.map(s=>{
           const on=sources.has(s);
           return <button key={s} onClick={()=>{ setSources(p=>{const n=new Set(p); n.has(s)?n.delete(s):n.add(s); return n;}); setPreview(null); }}
-            style={{background:on?"rgba(232,49,122,0.18)":"#141414",border:`1px solid ${on?"#E8317A":"#2a2a2a"}`,color:on?"#E8317A":"#888",borderRadius:14,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+            style={{background:on?"rgba(232,49,122,0.18)":"var(--bz-s2)",border:`1px solid ${on?"#E8317A":"var(--bz-line-2)"}`,color:on?"#E8317A":"#888",borderRadius:14,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
             {s} ({countOf(s)})
           </button>;
         })}
@@ -21118,19 +21118,19 @@ function SetMerger() {
       <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:16}}>
         {setNames.filter(s=>!sources.has(s)).map(s=>(
           <button key={s} onClick={()=>{ setTarget(s); setPreview(null); }}
-            style={{background:target===s?"rgba(74,222,128,0.18)":"#141414",border:`1px solid ${target===s?"#4ade80":"#2a2a2a"}`,color:target===s?"#4ade80":"#888",borderRadius:14,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+            style={{background:target===s?"rgba(74,222,128,0.18)":"var(--bz-s2)",border:`1px solid ${target===s?"#4ade80":"var(--bz-line-2)"}`,color:target===s?"#4ade80":"#888",borderRadius:14,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
             {s} ({countOf(s)})
           </button>
         ))}
       </div>
 
       <button onClick={buildPreview} disabled={!sources.size||!target}
-        style={{background:(sources.size&&target)?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#1a1a1a",color:(sources.size&&target)?"#fff":"#555",border:"none",borderRadius:8,padding:"10px 22px",fontSize:13,fontWeight:800,cursor:(sources.size&&target)?"pointer":"not-allowed",fontFamily:"inherit"}}>
+        style={{background:(sources.size&&target)?"linear-gradient(135deg,#E8317A,#7B2FF7)":"var(--bz-s2)",color:(sources.size&&target)?"#fff":"#555",border:"none",borderRadius:8,padding:"10px 22px",fontSize:13,fontWeight:800,cursor:(sources.size&&target)?"pointer":"not-allowed",fontFamily:"inherit"}}>
         Preview merge
       </button>
 
       {preview && (
-        <div style={{marginTop:16,background:"#141414",border:"1px solid #2a2a2a",borderRadius:10,padding:14}}>
+        <div style={{marginTop:16,background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:10,padding:14}}>
           <div style={{fontSize:13,fontWeight:800,color:"#fff",marginBottom:8}}>Preview</div>
           <div style={{fontSize:12,color:"#4ade80",marginBottom:4}}>✓ {preview.matched.length} cards matched by card # — old data copied over, then old card deleted.</div>
           <div style={{fontSize:12,color:"#4ade80",marginBottom:4}}>
@@ -21142,7 +21142,7 @@ function SetMerger() {
             </div>
           )}
           <button onClick={runMerge} disabled={running||!preview.matched.length}
-            style={{marginTop:12,background:running?"#1a1a1a":"#E8317A",color:running?"#555":"#fff",border:"none",borderRadius:8,padding:"10px 22px",fontSize:13,fontWeight:800,cursor:running?"not-allowed":"pointer",fontFamily:"inherit"}}>
+            style={{marginTop:12,background:running?"var(--bz-s2)":"#E8317A",color:running?"#555":"#fff",border:"none",borderRadius:8,padding:"10px 22px",fontSize:13,fontWeight:800,cursor:running?"not-allowed":"pointer",fontFamily:"inherit"}}>
             {running?"Merging…":`Merge & delete ${preview.matched.length} old cards`}
           </button>
         </div>
@@ -21830,7 +21830,7 @@ function CardSetImporter({ userRole }) {
   // ── Image import ─────────────────────────────────────────────────────────
   function onFolderDrop(e) {
     e.preventDefault();
-    e.currentTarget && (e.currentTarget.style.borderColor = "#2a2a2a");
+    e.currentTarget && (e.currentTarget.style.borderColor = "var(--bz-line-2)");
     const items = [...(e.dataTransfer?.items || [])];
     if (!items.length) return;
     setResults(null); setErrors([]);
@@ -22107,7 +22107,7 @@ function CardSetImporter({ userRole }) {
       <div style={{ display:"flex", gap:8 }}>
         {[["single","➕ Add Card"],["data","📄 Import Data"],["images","🖼 Import by Filename"],["prefix","🏷 Prefixes"],["foundin","📦 Found In"],["treatments","🏷 Merge Treatments"],["junkplays","🧹 Junk Plays"],["dedupe","🧬 Dedupe"],["merge","🔀 Merge Sets"],["cleanup","🧹 Cleanup"],["manual","🎯 Manual Image"]].map(([m,l])=>(
           <button key={m} onClick={()=>{ setMode(m); setResults(null); setErrors([]); }}
-            style={{ background:mode===m?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${mode===m?"#E8317A":"#2a2a2a"}`, color:mode===m?"#E8317A":"#888", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+            style={{ background:mode===m?"rgba(232,49,122,0.12)":"var(--bz-s1)", border:`1.5px solid ${mode===m?"#E8317A":"var(--bz-line-2)"}`, color:mode===m?"#E8317A":"#888", borderRadius:8, padding:"8px 18px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
             {l}
           </button>
         ))}
@@ -22125,7 +22125,7 @@ function CardSetImporter({ userRole }) {
                 <div key={k} style={{display:"flex",flexDirection:"column",gap:4}}>
                   <label style={{fontSize:11,fontWeight:700,color:"var(--bz-ink-3)"}}>{label}</label>
                   <input value={newCard[k]} onChange={e=>setNewCard(v=>({...v,[k]:e.target.value}))} placeholder={ph}
-                    style={{background:"#0d0d0d",border:"1.5px solid #2a2a2a",color:"var(--bz-ink)",borderRadius:8,padding:"8px 10px",fontSize:13,fontFamily:"inherit"}}/>
+                    style={{background:"var(--bz-s1)",border:"1.5px solid var(--bz-line-2)",color:"var(--bz-ink)",borderRadius:8,padding:"8px 10px",fontSize:13,fontFamily:"inherit"}}/>
                 </div>
               ))}
             </div>
@@ -22143,7 +22143,7 @@ function CardSetImporter({ userRole }) {
               shows exactly what is new versus what already exists, and writes ONLY the new ones —
               so it is safe to run against a set that is partly there, which is the situation when
               recovering cards lost to the old id collision. */}
-          <div style={{marginTop:18,paddingTop:16,borderTop:"1px solid #2a2a2a"}}>
+          <div style={{marginTop:18,paddingTop:16,borderTop:"1px solid var(--bz-line-2)"}}>
             <div style={{fontSize:13,fontWeight:900,color:"#fff",marginBottom:4}}>{"\uD83D\uDCE5"} Add a whole insert</div>
             <div style={{fontSize:11.5,color:"#888",lineHeight:1.6,marginBottom:10}}>
               Paste rows from a spreadsheet (tab or comma separated). Include a header row with
@@ -22160,7 +22160,7 @@ function CardSetImporter({ userRole }) {
                 </div>
                 <input value={bulkSetName} onChange={e=>{setBulkSetName(e.target.value); setBulkPreview(null);}}
                   list="bulk-set-list" placeholder="e.g. 2025 Alpha Update"
-                  style={{width:"100%",background:"#0b0b0b",border:"1px solid "+(bulkSetName?"rgba(74,222,128,0.5)":"rgba(251,191,36,0.5)"),borderRadius:8,padding:"8px 10px",fontSize:12,color:"#fff",fontFamily:"inherit"}}/>
+                  style={{width:"100%",background:"var(--bz-bg)",border:"1px solid "+(bulkSetName?"rgba(74,222,128,0.5)":"rgba(251,191,36,0.5)"),borderRadius:8,padding:"8px 10px",fontSize:12,color:"#fff",fontFamily:"inherit"}}/>
                 <datalist id="bulk-set-list">
                   {[...new Set(cards.map(c=>c.setName).filter(Boolean))].sort().map(s=><option key={s} value={s}/>)}
                 </datalist>
@@ -22169,7 +22169,7 @@ function CardSetImporter({ userRole }) {
                 <div style={{fontSize:10.5,fontWeight:800,color:"var(--bz-ink-3)",marginBottom:4}}>Treatment (optional)</div>
                 <input value={bulkTreatment} onChange={e=>{setBulkTreatment(e.target.value); setBulkPreview(null);}}
                   list="bulk-treat-list" placeholder="e.g. Skyline"
-                  style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"8px 10px",fontSize:12,color:"#fff",fontFamily:"inherit"}}/>
+                  style={{width:"100%",background:"var(--bz-bg)",border:"1px solid #333",borderRadius:8,padding:"8px 10px",fontSize:12,color:"#fff",fontFamily:"inherit"}}/>
                 <datalist id="bulk-treat-list">
                   {[...new Set(cards.map(c=>c.treatment).filter(Boolean))].sort().map(t=><option key={t} value={t}/>)}
                 </datalist>
@@ -22178,7 +22178,7 @@ function CardSetImporter({ userRole }) {
                 <div style={{fontSize:10.5,fontWeight:800,color:"var(--bz-ink-3)",marginBottom:4}}>Weapon (optional)</div>
                 <input value={bulkWeapon} onChange={e=>{setBulkWeapon(e.target.value); setBulkPreview(null);}}
                   list="bulk-weap-list" placeholder="e.g. Fire"
-                  style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"8px 10px",fontSize:12,color:"#fff",fontFamily:"inherit"}}/>
+                  style={{width:"100%",background:"var(--bz-bg)",border:"1px solid #333",borderRadius:8,padding:"8px 10px",fontSize:12,color:"#fff",fontFamily:"inherit"}}/>
                 <datalist id="bulk-weap-list">
                   {[...new Set(cards.map(c=>c.weapon).filter(Boolean))].sort().map(w=><option key={w} value={w}/>)}
                 </datalist>
@@ -22207,7 +22207,7 @@ function CardSetImporter({ userRole }) {
             <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:8}}>{"\u2026"}or paste the rows below.</div>
             <textarea value={bulkText} onChange={e=>{setBulkText(e.target.value); setBulkPreview(null);}}
               rows={7} placeholder={"Set\tCard #\tHero\tTreatment\tWeapon\tPower\n2025 Tecmo Bowl\tS130\tMajik Man\tSkyline\tGlow\t80"}
-              style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:12,color:"#fff",fontFamily:"ui-monospace,monospace",lineHeight:1.5}}/>
+              style={{width:"100%",background:"var(--bz-bg)",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:12,color:"#fff",fontFamily:"ui-monospace,monospace",lineHeight:1.5}}/>
             <div style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}>
               <button onClick={previewBulkInsert} disabled={bulkBusy||!bulkText.trim()}
                 style={{background:bulkBusy?"#333":"rgba(123,156,255,0.15)",border:"1px solid rgba(123,156,255,0.5)",color:"#7B9CFF",borderRadius:8,padding:"9px 14px",fontSize:12.5,fontWeight:800,cursor:bulkBusy?"default":"pointer",fontFamily:"inherit"}}>
@@ -22273,14 +22273,14 @@ function CardSetImporter({ userRole }) {
         <>
           <div style={{ fontSize:12, color:"var(--bz-ink-3)" }}>Drop the <code style={{ color:"#7B9CFF" }}>tecmo_cards_final.json</code> file to import all card data into Firestore.</div>
           <div onDragOver={e=>e.preventDefault()} onDrop={onJsonDrop}
-            style={{ border:"2px dashed #2a2a2a", borderRadius:14, padding:"40px 24px", textAlign:"center", background:"var(--bz-bg)", cursor:"pointer" }}>
+            style={{ border:"2px dashed var(--bz-line-2)", borderRadius:14, padding:"40px 24px", textAlign:"center", background:"var(--bz-bg)", cursor:"pointer" }}>
             <div style={{ fontSize:28, marginBottom:10 }}>📂</div>
             <div style={{ fontSize:14, fontWeight:700, color:"var(--bz-ink)", marginBottom:6 }}>
               {files.length>0 ? `${files.length} file${files.length!==1?"s":""} ready` : "Drop JSON files here"}
             </div>
             <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginBottom:12 }}>or click to browse</div>
             <input type="file" accept=".json" multiple onChange={onJsonDrop} style={{ display:"none" }} id="json-input"/>
-            <label htmlFor="json-input" style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:7, padding:"7px 18px", fontSize:12, fontWeight:700, cursor:"pointer" }}>Browse</label>
+            <label htmlFor="json-input" style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:7, padding:"7px 18px", fontSize:12, fontWeight:700, cursor:"pointer" }}>Browse</label>
           </div>
           {files.length>0 && (
             <div style={{ ...S.card }}>
@@ -22299,7 +22299,7 @@ function CardSetImporter({ userRole }) {
           </div>
           {/* Without this, placeholder art can never be replaced — the resume-skip treats a placeholder
               as "already done" and refuses the real scan. */}
-          <label style={{ display:"flex", alignItems:"center", gap:9, cursor:"pointer", background:imgOverwrite?"rgba(232,49,122,0.1)":"rgba(255,255,255,0.03)", border:"1px solid "+(imgOverwrite?"rgba(232,49,122,0.45)":"#2a2a2a"), borderRadius:10, padding:"10px 12px", margin:"10px 0" }}>
+          <label style={{ display:"flex", alignItems:"center", gap:9, cursor:"pointer", background:imgOverwrite?"rgba(232,49,122,0.1)":"rgba(255,255,255,0.03)", border:"1px solid "+(imgOverwrite?"rgba(232,49,122,0.45)":"var(--bz-line-2)"), borderRadius:10, padding:"10px 12px", margin:"10px 0" }}>
             <input type="checkbox" checked={imgOverwrite} onChange={e=>setImgOverwrite(e.target.checked)} style={{ accentColor:"#E8317A", width:16, height:16 }}/>
             <span style={{ fontSize:12.5, fontWeight:800, color:imgOverwrite?"#E8317A":"rgba(255,255,255,0.65)" }}>
               Replace images that already exist
@@ -22312,9 +22312,9 @@ function CardSetImporter({ userRole }) {
             In Finder, <strong style={{ color:"var(--bz-ink)" }}>select all your image folders</strong> at once (Cmd+A or Cmd+click each one), then <strong style={{ color:"#E8317A" }}>drag them all onto the box below</strong>. All folders load in one go. Uploads 20 at a time.
           </div>
           <div onDragOver={e=>{ e.preventDefault(); e.currentTarget.style.borderColor="#E8317A"; e.currentTarget.style.background="rgba(232,49,122,0.05)"; }}
-               onDragLeave={e=>{ e.currentTarget.style.borderColor="#2a2a2a"; e.currentTarget.style.background="#0d0d0d"; }}
-               onDrop={e=>{ e.currentTarget.style.borderColor="#2a2a2a"; e.currentTarget.style.background="#0d0d0d"; onFolderDrop(e); }}
-            style={{ border:"2px dashed #2a2a2a", borderRadius:14, padding:"60px 24px", textAlign:"center", background:"var(--bz-bg)", transition:"all 0.2s", cursor:"default" }}>
+               onDragLeave={e=>{ e.currentTarget.style.borderColor="var(--bz-line-2)"; e.currentTarget.style.background="var(--bz-s1)"; }}
+               onDrop={e=>{ e.currentTarget.style.borderColor="var(--bz-line-2)"; e.currentTarget.style.background="var(--bz-s1)"; onFolderDrop(e); }}
+            style={{ border:"2px dashed var(--bz-line-2)", borderRadius:14, padding:"60px 24px", textAlign:"center", background:"var(--bz-bg)", transition:"all 0.2s", cursor:"default" }}>
             <div style={{ fontSize:36, marginBottom:12 }}>📂</div>
             <div style={{ fontSize:15, fontWeight:800, color:"var(--bz-ink)", marginBottom:6 }}>
               {imgFiles.length>0
@@ -22425,7 +22425,7 @@ function CardSetImporter({ userRole }) {
       {importing && progress && (
         <div style={{ ...S.card }}>
           <div style={{ fontSize:12, color:"var(--bz-ink-2)", marginBottom:8 }}>{progress.label}</div>
-          <div style={{ background:"#1a1a1a", borderRadius:99, height:10, overflow:"hidden", marginBottom:6 }}>
+          <div style={{ background:"var(--bz-s2)", borderRadius:99, height:10, overflow:"hidden", marginBottom:6 }}>
             <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#E8317A,#7B9CFF)", borderRadius:99, transition:"width 0.3s ease" }}/>
           </div>
           <div style={{ fontSize:12, color:"var(--bz-ink-3)" }}>{progress.done.toLocaleString()} / {progress.total.toLocaleString()} ({pct}%)</div>
@@ -22437,7 +22437,7 @@ function CardSetImporter({ userRole }) {
           other blast card together. #BL… cards are genuinely Silver Blast and must NOT be touched.
           PREVIEW FIRST — a bulk treatment rewrite is painful to undo. */}
       {mode==="data" && (
-      <div style={{ background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:12, padding:16, marginTop:14 }}>
+      <div style={{ background:"var(--bz-s1)", border:"1px solid var(--bz-line-2)", borderRadius:12, padding:16, marginTop:14 }}>
         <div style={{ fontSize:13, fontWeight:800, color:"var(--bz-ink)", marginBottom:4 }}>💥 Fix Alpha Blast autos</div>
         <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginBottom:12, lineHeight:1.6 }}>
           Sets every <strong>Alpha Blast</strong> card whose card number starts with <strong>BBFA</strong> to the
@@ -22542,7 +22542,7 @@ function CardSetImporter({ userRole }) {
       {/* Rebuild snapshot — the app reads a prebuilt snapshot, NOT boba_checklist directly.
           If an import wrote cards but they don't show up, the snapshot is stale. Fix it here. */}
       {mode==="data" && (
-      <div style={{ background:"#0d0d0d", border:"1px solid #2a2a2a", borderRadius:12, padding:16, marginTop:14 }}>
+      <div style={{ background:"var(--bz-s1)", border:"1px solid var(--bz-line-2)", borderRadius:12, padding:16, marginTop:14 }}>
         <div style={{ fontSize:13, fontWeight:800, color:"var(--bz-ink)", marginBottom:4 }}>🔄 Rebuild Card Snapshot</div>
         <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginBottom:12, lineHeight:1.6 }}>
           The app loads cards from a prebuilt snapshot for speed — not straight from the database. If you imported
@@ -22592,7 +22592,7 @@ function CardSetImporter({ userRole }) {
           } catch(e){ setErrors([`Rebuild failed: ${e.message}`]); }
           setImporting(false); setProgress(null);
         }} disabled={importing}
-          style={{ background:importing?"#1a1a1a":"linear-gradient(135deg,#7B9CFF,#7B2FF7)", color:importing?"#555":"#fff", border:"none", borderRadius:8, padding:"10px 22px", fontSize:13, fontWeight:800, cursor:importing?"not-allowed":"pointer", fontFamily:"inherit" }}>
+          style={{ background:importing?"var(--bz-s2)":"linear-gradient(135deg,#7B9CFF,#7B2FF7)", color:importing?"#555":"#fff", border:"none", borderRadius:8, padding:"10px 22px", fontSize:13, fontWeight:800, cursor:importing?"not-allowed":"pointer", fontFamily:"inherit" }}>
           {importing?"Working…":"Rebuild snapshot from database"}
         </button>
       </div>
@@ -24062,7 +24062,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
           {/* View toggles */}
           <div style={{ display:"flex", gap:3, flexWrap:"wrap" }} className="view-mode-row">
             {[["cards","🃏 Cards"],["setlist","📋 Set List"],["treatments","📋 Treatments"],["rainbow","🌈 Rainbow"],["supers","⭐ Supers"],["1of1","💎 1/1s"],["stats","📊 Stats"],["wants","🎯 Wants"],["deck","⚔️ Deck"],["playbook","📖 Playbook"]].map(([v,l])=>(
-              <button key={v} onClick={()=>setViewMode(v)} style={{ background:viewMode===v?"#1A1A2E":"transparent", color:viewMode===v?"#E8317A":"var(--bz-ink-2)", border:`1.5px solid ${viewMode===v?"#E8317A":"#2a2a2a"}`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{l}</button>
+              <button key={v} onClick={()=>setViewMode(v)} style={{ background:viewMode===v?"#1A1A2E":"transparent", color:viewMode===v?"#E8317A":"var(--bz-ink-2)", border:`1.5px solid ${viewMode===v?"#E8317A":"var(--bz-line-2)"}`, borderRadius:7, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>{l}</button>
             ))}
           </div>
           {/* Action buttons -- compact */}
@@ -24170,7 +24170,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                       <span style={{ fontSize:10, color:isComplete?"#4ade80":"#666", fontWeight:isComplete?700:400, width:220, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", flexShrink:0 }}>
                         {isComplete?"\uD83C\uDF08 ":""}{imp.setName}
                       </span>
-                      <div style={{ flex:1, height:4, background:"#1a1a1a", borderRadius:2, overflow:"hidden" }}>
+                      <div style={{ flex:1, height:4, background:"var(--bz-s2)", borderRadius:2, overflow:"hidden" }}>
                         <div className="bz-rainbow-fill" style={{ width:`${setPct}%`, height:"100%", borderRadius:2, transition:"width 0.3s" }}/>
                       </div>
                       <span style={{ fontSize:10, color:isComplete?"#4ade80":setPct>0?"#FBBF24":"#333", minWidth:80, textAlign:"right", flexShrink:0 }}>
@@ -24201,7 +24201,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                 value={imgImportSet}
                 onChange={e=>setImgImportSet(e.target.value)}
                 autoFocus
-                style={{ width:"100%", background:"var(--bz-bg)", border:"1.5px solid #2a2a2a", borderRadius:8, color:imgImportSet?"var(--bz-ink)":"#666", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
+                style={{ width:"100%", background:"var(--bz-bg)", border:"1.5px solid var(--bz-line-2)", borderRadius:8, color:imgImportSet?"var(--bz-ink)":"#666", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none", cursor:"pointer" }}>
                 <option value="">-- No set filter (filename / Vision only) --</option>
                 {sets.map(s=><option key={s} value={s}>{s}</option>)}
               </select>
@@ -24298,7 +24298,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
               </button>
             </div>
           </div>
-          <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden", marginBottom:8 }}>
+          <div style={{ height:8, background:"var(--bz-s2)", borderRadius:4, overflow:"hidden", marginBottom:8 }}>
             <div style={{ width:`${scanProgress.total > 0 ? Math.round(scanProgress.current/scanProgress.total*100) : 0}%`, height:"100%", background:"linear-gradient(90deg,#7B9CFF,#C084FC)", borderRadius:4, transition:"width 0.3s" }}/>
           </div>
           <div style={{ display:"flex", justifyContent:"space-between", fontSize:11 }}>
@@ -24325,7 +24325,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
               )}
             </div>
             <button onClick={()=>{ setScanModal(false); setPhotoScan(null); setScanQty(1); }}
-              style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:8, padding:"6px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
               Done
             </button>
           </div>
@@ -24362,7 +24362,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                     <div style={{ display:"flex", gap:12, padding:"14px" }}>
                       {c.imageUrl
                         ? <img src={c.imageUrl} alt={c.hero} style={{ width:72, height:96, objectFit:"cover", borderRadius:10, flexShrink:0, boxShadow:"0 4px 16px rgba(0,0,0,0.6)" }}/>
-                        : <div style={{ width:72, height:96, background:"#1a1a1a", borderRadius:10, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, color:"var(--bz-ink-3)", textAlign:"center" }}>{c.hero?.split(" ")[0]}</div>
+                        : <div style={{ width:72, height:96, background:"var(--bz-s2)", borderRadius:10, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, color:"var(--bz-ink-3)", textAlign:"center" }}>{c.hero?.split(" ")[0]}</div>
                       }
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontSize:16, fontWeight:900, color:"var(--bz-ink)", marginBottom:4 }}>{c.hero}</div>
@@ -24395,7 +24395,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         style={{ flex:1, background:"#4ade80", color:"#000", border:"none", borderRadius:8, padding:"10px 0", fontSize:14, fontWeight:900, cursor:"pointer", fontFamily:"inherit" }}>
                         {"\u2713 Add"}{scanQty > 1 ? `${scanQty}\u00D7` : ""} to Collection
                       </button>
-                      <label style={{ background:"#1a1a1a", color:"var(--bz-ink-3)", border:"1px solid var(--bz-line-2)", borderRadius:8, padding:"10px 14px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center" }}>
+                      <label style={{ background:"var(--bz-s2)", color:"var(--bz-ink-3)", border:"1px solid var(--bz-line-2)", borderRadius:8, padding:"10px 14px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center" }}>
                         Retake
                         <input type="file" accept="image/*" onChange={e=>{ const f=e.target.files[0]; if(f){ setPhotoScan(null); setScanQty(1); scanCardPhoto(f); } e.target.value=""; }} style={{ display:"none" }}/>
                       </label>
@@ -24447,7 +24447,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                       <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0", borderBottom:"1px solid #111" }}>
                         {c.imageUrl
                           ? <img src={c.imageUrl} alt={c.hero} style={{ width:32, height:42, objectFit:"cover", borderRadius:5, flexShrink:0 }}/>
-                          : <div style={{ width:32, height:42, background:"#1a1a1a", borderRadius:5, flexShrink:0 }}/>
+                          : <div style={{ width:32, height:42, background:"var(--bz-s2)", borderRadius:5, flexShrink:0 }}/>
                         }
                         <div style={{ flex:1, minWidth:0 }}>
                           <div style={{ fontSize:13, fontWeight:700, color:"var(--bz-ink)" }}>{c.hero}</div>
@@ -24483,7 +24483,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
       {imgScanProgress && (
         <div style={{ position:"fixed",bottom:24,right:24,zIndex:9999,background:"#0a1a0a",border:"1.5px solid #4ade8044",borderRadius:12,padding:"16px 20px",minWidth:300,boxShadow:"0 8px 40px rgba(0,0,0,0.8)",fontFamily:"'Trebuchet MS',sans-serif" }}>
           <div style={{ fontWeight:700, color:"#4ade80", fontSize:14, marginBottom:10 }}>{"\uD83D\uDDBC Scanning Images..."}</div>
-          <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden", marginBottom:8 }}>
+          <div style={{ height:8, background:"var(--bz-s2)", borderRadius:4, overflow:"hidden", marginBottom:8 }}>
             <div style={{ width:`${imgScanProgress.total > 0 ? Math.round(imgScanProgress.current/imgScanProgress.total*100) : 0}%`, height:"100%", background:"linear-gradient(90deg,#4ade80,#7B9CFF)", borderRadius:4, transition:"width 0.3s" }}/>
           </div>
           <div style={{ display:"flex", justifyContent:"space-between", fontSize:11 }}>
@@ -24565,7 +24565,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
           <span style={{ fontSize:10, color:"var(--bz-ink-3)", marginRight:2 }}>Power:</span>
           {[250,200,195,190,185,180,175,170,165,160,155,150,145,140,135,130,125,120,115,110,105,100,95,90,85,80,75].map(p=>(
             <button key={p} onClick={()=>{setFilterPower(prev=>{const n=new Set(prev);n.has(p)?n.delete(p):n.add(p);return n;});setPage(1);}}
-              style={{ background:filterPower.has(p)?"rgba(232,49,122,0.15)":"transparent", color:filterPower.has(p)?"#E8317A":"#555", border:`1px solid ${filterPower.has(p)?"#E8317A":"#2a2a2a"}`, borderRadius:5, padding:"2px 7px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+              style={{ background:filterPower.has(p)?"rgba(232,49,122,0.15)":"transparent", color:filterPower.has(p)?"#E8317A":"#555", border:`1px solid ${filterPower.has(p)?"#E8317A":"var(--bz-line-2)"}`, borderRadius:5, padding:"2px 7px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
               {p}
             </button>
           ))}
@@ -24632,12 +24632,12 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                     <button onClick={()=>deleteCustomTracker(tracker.id)} style={{ background:"transparent", border:"1px solid rgba(232,49,122,0.3)", color:"#E8317A", borderRadius:6, padding:"4px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>Delete</button>
                   </div>
                 </div>
-                <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden", marginBottom:14 }}>
+                <div style={{ height:8, background:"var(--bz-s2)", borderRadius:4, overflow:"hidden", marginBottom:14 }}>
                   <div className="bz-rainbow-fill" style={{ width:`${pct}%`, height:"100%", transition:"width .3s" }}/>
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))", gap:8 }}>
                   {inSet.map(r => (
-                    <div key={r.hero} style={{ background:r.complete?"rgba(74,222,128,0.08)":"var(--bz-s1)", border:`1.5px solid ${r.complete?"rgba(74,222,128,0.4)":"#1a1a1a"}`, borderRadius:9, padding:"10px 12px" }}>
+                    <div key={r.hero} style={{ background:r.complete?"rgba(74,222,128,0.08)":"var(--bz-s1)", border:`1.5px solid ${r.complete?"rgba(74,222,128,0.4)":"var(--bz-s2)"}`, borderRadius:9, padding:"10px 12px" }}>
                       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:6 }}>
                         <span style={{ fontSize:12, fontWeight:800, color:r.complete?"var(--bz-ink)":"#666" }}>{r.complete?"✅ ":""}{r.hero}</span>
                       </div>
@@ -24755,7 +24755,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                   return (a.treatment||"").localeCompare(b.treatment||"");
                 });
                 return (
-                  <div key={hero} style={{ background:"var(--bz-s1)", border:`1.5px solid ${complete?"#ffffff22":ownedCount>0?"#FBBF2422":"#1a1a1a"}`, borderRadius:10, overflow:"hidden" }}>
+                  <div key={hero} style={{ background:"var(--bz-s1)", border:`1.5px solid ${complete?"#ffffff22":ownedCount>0?"#FBBF2422":"var(--bz-s2)"}`, borderRadius:10, overflow:"hidden" }}>
                     {/* Hero row -- click to expand */}
                     <div onClick={()=>setExpandedHero(isExpanded ? null : hero)} style={{ padding:"12px 14px", cursor:"pointer", display:"flex", alignItems:"center", gap:12 }}>
                       <div style={{ flex:1 }}>
@@ -24777,7 +24777,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                               const sp = Math.round(sd.owned/sd.total*100);
                               const sc = sd.owned===sd.total?"#4ade80":sd.owned>0?"#FBBF24":"#555";
                               return (
-                                <div key={setName} style={{ display:"flex", alignItems:"center", gap:4, background:"#1a1a1a", borderRadius:5, padding:"2px 8px" }}>
+                                <div key={setName} style={{ display:"flex", alignItems:"center", gap:4, background:"var(--bz-s2)", borderRadius:5, padding:"2px 8px" }}>
                                   <span style={{ fontSize:10, color:"var(--bz-ink-3)" }}>{setName}:</span>
                                   <span style={{ fontSize:10, fontWeight:700, color:sc }}>{sd.owned}/{sd.total}</span>
                                   {sd.owned===sd.total && <span style={{ fontSize:10 }}>{"\uD83C\uDF08"}</span>}
@@ -24787,7 +24787,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                           </div>
                         )}
                         {/* Rainbow progress bar */}
-                        <div style={{ height:6, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
+                        <div style={{ height:6, background:"var(--bz-s2)", borderRadius:3, overflow:"hidden" }}>
                           <div className="bz-rainbow-fill" style={{
                             width:`${pct}%`, height:"100%", borderRadius:3, transition:"width 0.3s"
                           }}/>
@@ -24867,7 +24867,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
               // Filter expanded cards by owned status
               const visibleTcards = treatOwnedFilter === "owned" ? tcards.filter(c=>owned[c.id]) : treatOwnedFilter === "missing" ? tcards.filter(c=>!owned[c.id]) : tcards;
               return (
-                <div key={treatment} style={{ background:"var(--bz-s1)", border:`1.5px solid ${complete?"#ffffff22":pct>0?"#FBBF2422":"#1a1a1a"}`, borderRadius:10, overflow:"hidden" }}>
+                <div key={treatment} style={{ background:"var(--bz-s1)", border:`1.5px solid ${complete?"#ffffff22":pct>0?"#FBBF2422":"var(--bz-s2)"}`, borderRadius:10, overflow:"hidden" }}>
                   {/* Treatment header row */}
                   <div onClick={()=>setExpandedTreat(isExp ? null : treatment)} style={{ padding:"12px 14px", cursor:"pointer", display:"flex", alignItems:"center", gap:12 }}>
                     <div style={{ flex:1 }}>
@@ -24882,7 +24882,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                           <span style={{ color:"#8a8a8a", fontSize:12 }}>{isExp?"\u25B2":"\u25BC"}</span>
                         </div>
                       </div>
-                      <div style={{ height:6, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
+                      <div style={{ height:6, background:"var(--bz-s2)", borderRadius:3, overflow:"hidden" }}>
                         <div className="bz-rainbow-fill" style={{
                           width:`${pct}%`, height:"100%", borderRadius:3, transition:"width 0.3s"
                         }}/>
@@ -24994,7 +24994,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         Super Foils are 1/1 cards. Upload a photo of your card as proof — an admin will verify your claim before it counts toward the community tracker.
                       </div>
                       <label style={{ display: "block", marginBottom: 16 }}>
-                        <div style={{ background: claimPhoto ? "#0a1a0a" : "#0a0a0a", border: `2px dashed ${claimPhoto ? "#F59E0B" : "#2a2a2a"}`, borderRadius: 12, padding: "20px", textAlign: "center", cursor: "pointer" }}>
+                        <div style={{ background: claimPhoto ? "#0a1a0a" : "var(--bz-bg)", border: `2px dashed ${claimPhoto ? "#F59E0B" : "var(--bz-line-2)"}`, borderRadius: 12, padding: "20px", textAlign: "center", cursor: "pointer" }}>
                           {claimPhoto ? (
                             <img src={claimPhoto} alt="proof" style={{ maxHeight: 200, maxWidth: "100%", borderRadius: 8, objectFit: "contain" }}/>
                           ) : (
@@ -25017,7 +25017,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                       <div style={{ display: "flex", gap: 10 }}>
                         <button onClick={() => { if (claimPhoto) submitClaim(claimModal, claimPhoto); }}
                           disabled={!claimPhoto || claimSubmitting}
-                          style={{ flex: 1, background: claimPhoto ? "#F59E0B" : "#1a1a1a", color: claimPhoto ? "#000" : "#555", border: "none", borderRadius: 12, padding: "12px", fontSize: 14, fontWeight: 800, cursor: claimPhoto ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
+                          style={{ flex: 1, background: claimPhoto ? "#F59E0B" : "var(--bz-s2)", color: claimPhoto ? "#000" : "#555", border: "none", borderRadius: 12, padding: "12px", fontSize: 14, fontWeight: 800, cursor: claimPhoto ? "pointer" : "not-allowed", fontFamily: "inherit" }}>
                           {claimSubmitting ? "Submitting..." : "Submit Claim"}
                         </button>
                         <button onClick={() => { setClaimModal(null); setClaimPhoto(null); }}
@@ -25041,7 +25041,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                     style={{ width:"100%", background:"var(--bz-bg)", border:"1px solid var(--bz-line-2)", borderRadius:10, padding:"11px 13px", fontSize:14, color:"#fff", fontFamily:"inherit", marginBottom:18, boxSizing:"border-box" }}/>
                   <div style={{ display:"flex", gap:10 }}>
                     <button onClick={async()=>{ if(!recordName.trim())return; const c=recordModal.card; try{ await setDoc(doc(db,"super_claims",c.id),{ cardId:c.id, cardName:c.hero, cardNum:c.cardNum, setName:c.setName||"", cardImage:c.imageUrl||null, userId:null, userName:recordName.trim(), recordedByAdmin:user?.displayName||user?.email||"Admin", photoUrl:null, status:"verified", createdAt:new Date().toISOString(), reviewedAt:new Date().toISOString() },{merge:true}); setRecordModal(null); setRecordName(""); }catch(e){ alert("Failed: "+e.message); } }}
-                      disabled={!recordName.trim()} style={{ flex:1, background:recordName.trim()?"linear-gradient(135deg,#F59E0B,#FBBF24)":"#1a1a1a", color:recordName.trim()?"#000":"#555", border:"none", borderRadius:12, padding:"12px", fontSize:14, fontWeight:800, cursor:recordName.trim()?"pointer":"not-allowed", fontFamily:"inherit" }}>🏆 Record Hit</button>
+                      disabled={!recordName.trim()} style={{ flex:1, background:recordName.trim()?"linear-gradient(135deg,#F59E0B,#FBBF24)":"var(--bz-s2)", color:recordName.trim()?"#000":"#555", border:"none", borderRadius:12, padding:"12px", fontSize:14, fontWeight:800, cursor:recordName.trim()?"pointer":"not-allowed", fontFamily:"inherit" }}>🏆 Record Hit</button>
                     <button onClick={()=>{ setRecordModal(null); setRecordName(""); }} style={{ background:"transparent", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:12, padding:"12px 20px", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
                   </div>
                 </div>
@@ -25085,7 +25085,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                   <div style={{ fontSize: 11, color: "var(--bz-ink-3)" }}>found & verified</div>
                 </div>
               </div>
-              <div style={{ height: 10, background: "#1a1a1a", borderRadius: 5, overflow: "hidden" }}>
+              <div style={{ height: 10, background: "var(--bz-s2)", borderRadius: 5, overflow: "hidden" }}>
                 <div style={{ height: "100%", width: `${totalSupers > 0 ? (verifiedCount / totalSupers * 100) : 0}%`, background: "linear-gradient(90deg, #F59E0B, #FBBF24, #FDE68A, #FBBF24, #F59E0B)", backgroundSize: "200% 100%", animation: "gradientShift 3s ease infinite", borderRadius: 5, transition: "width 0.5s ease" }}/>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
@@ -25105,9 +25105,9 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
               const isFull = setVerified.length === setSuperCards.length;
 
               return (
-                <div key={setName} style={{ background: "var(--bz-s1)", border: `1px solid ${isFull ? "#F59E0B44" : "#2a2a2a"}`, borderRadius: 14, overflow: "hidden" }}>
+                <div key={setName} style={{ background: "var(--bz-s1)", border: `1px solid ${isFull ? "#F59E0B44" : "var(--bz-line-2)"}`, borderRadius: 14, overflow: "hidden" }}>
                   {/* Set header */}
-                  <div style={{ padding: "16px 20px", background: isFull ? "linear-gradient(135deg, #1a1200, #111)" : "#111" }}>
+                  <div style={{ padding: "16px 20px", background: isFull ? "linear-gradient(135deg, #1a1200, #111)" : "var(--bz-s1)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                       <div>
                         <div style={{ fontSize: 14, fontWeight: 800, color: isFull ? "#F59E0B" : "var(--bz-ink)" }}>
@@ -25122,7 +25122,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                       </div>
                     </div>
                     {/* Progress bar */}
-                    <div style={{ height: 8, background: "#1a1a1a", borderRadius: 4, overflow: "hidden" }}>
+                    <div style={{ height: 8, background: "var(--bz-s2)", borderRadius: 4, overflow: "hidden" }}>
                       <div style={{ height: "100%", width: `${verPct}%`, background: isFull ? "linear-gradient(90deg,#F59E0B,#FBBF24,#FDE68A,#FBBF24,#F59E0B)" : "linear-gradient(90deg,#F59E0B,#FBBF24)", backgroundSize: "200% 100%", animation: isFull ? "gradientShift 2s ease infinite" : "none", borderRadius: 4, transition: "width 0.5s ease" }}/>
                     </div>
                   </div>
@@ -25138,7 +25138,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                       const myClaim    = claim?.userId === user?.uid;
 
                       return (
-                        <div key={c.id} style={{ background: isVerified ? "#1a1200" : "#0a0a0a", border: `1.5px solid ${isVerified ? "#F59E0B" : isPending ? "#F59E0B44" : "#1a1a1a"}`, borderRadius: 10, overflow: "hidden", position: "relative" }}>
+                        <div key={c.id} style={{ background: isVerified ? "#1a1200" : "var(--bz-bg)", border: `1.5px solid ${isVerified ? "#F59E0B" : isPending ? "#F59E0B44" : "var(--bz-s2)"}`, borderRadius: 10, overflow: "hidden", position: "relative" }}>
                           {c.imageUrl && (
                             <div style={{ position: "relative" }}>
                               <img src={c.imageUrl} alt={c.hero} style={{ width: "100%", aspectRatio: "3/4", objectFit: "cover", display: "block", opacity: isVerified ? 1 : 0.6, filter: isVerified ? "none" : "grayscale(30%)" }}/>
@@ -25256,7 +25256,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                     style={{ width:"100%", background:"var(--bz-bg)", border:"1px solid var(--bz-line-2)", borderRadius:10, padding:"11px 13px", fontSize:14, color:"#fff", fontFamily:"inherit", marginBottom:18, boxSizing:"border-box" }}/>
                   <div style={{ display:"flex", gap:10 }}>
                     <button onClick={async()=>{ if(!recordName.trim())return; const c=recordModal.card; try{ await setDoc(doc(db,"oneof1_claims",c.id),{ cardId:c.id, cardName:c.hero, cardNum:c.cardNum, setName:c.setName||"", treatment:c.treatment||"", cardImage:c.imageUrl||null, userId:null, submitterName:recordName.trim(), recordedByAdmin:user?.displayName||user?.email||"Admin", photoUrl:null, status:"verified", dateHit:new Date().toLocaleDateString(), createdAt:new Date().toISOString(), reviewedAt:new Date().toISOString() },{merge:true}); setRecordModal(null); setRecordName(""); }catch(e){ alert("Failed: "+e.message); } }}
-                      disabled={!recordName.trim()} style={{ flex:1, background:recordName.trim()?"linear-gradient(135deg,#9333EA,#C084FC)":"#1a1a1a", color:recordName.trim()?"#fff":"#555", border:"none", borderRadius:12, padding:"12px", fontSize:14, fontWeight:800, cursor:recordName.trim()?"pointer":"not-allowed", fontFamily:"inherit" }}>🏆 Record Hit</button>
+                      disabled={!recordName.trim()} style={{ flex:1, background:recordName.trim()?"linear-gradient(135deg,#9333EA,#C084FC)":"var(--bz-s2)", color:recordName.trim()?"#fff":"#555", border:"none", borderRadius:12, padding:"12px", fontSize:14, fontWeight:800, cursor:recordName.trim()?"pointer":"not-allowed", fontFamily:"inherit" }}>🏆 Record Hit</button>
                     <button onClick={()=>{ setRecordModal(null); setRecordName(""); }} style={{ background:"transparent", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:12, padding:"12px 20px", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
                   </div>
                 </div>
@@ -25283,7 +25283,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
 
                       {/* Photo */}
                       <label style={{ display:"block", marginBottom:14 }}>
-                        <div style={{ background:onePhoto?"#0a0a1a":"#0a0a0a", border:`2px dashed ${onePhoto?"#9333EA":"#2a2a2a"}`, borderRadius:12, padding:20, textAlign:"center", cursor:"pointer" }}>
+                        <div style={{ background:onePhoto?"#0a0a1a":"var(--bz-bg)", border:`2px dashed ${onePhoto?"#9333EA":"var(--bz-line-2)"}`, borderRadius:12, padding:20, textAlign:"center", cursor:"pointer" }}>
                           {onePhoto
                             ? <img src={onePhoto} alt="" style={{ maxHeight:180, maxWidth:"100%", borderRadius:8, objectFit:"contain" }}/>
                             : <><div style={{ fontSize:32, marginBottom:8 }}>📸</div>
@@ -25324,7 +25324,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                       <div style={{ display:"flex", gap:10 }}>
                         <button onClick={()=>{ if(onePhoto) submitOneClaim(oneModal, onePhoto, oneStory, oneDate, oneName); }}
                           disabled={!onePhoto||oneSubmitting}
-                          style={{ flex:1, background:onePhoto?"#9333EA":"#1a1a1a", color:onePhoto?"#000":"#555", border:"none", borderRadius:12, padding:14, fontSize:14, fontWeight:800, cursor:onePhoto?"pointer":"not-allowed", fontFamily:"inherit" }}>
+                          style={{ flex:1, background:onePhoto?"#9333EA":"var(--bz-s2)", color:onePhoto?"#000":"#555", border:"none", borderRadius:12, padding:14, fontSize:14, fontWeight:800, cursor:onePhoto?"pointer":"not-allowed", fontFamily:"inherit" }}>
                           {oneSubmitting?"Submitting...":"Submit Claim"}
                         </button>
                         <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setAdminClaimMode(false); }}
@@ -25337,7 +25337,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
             )}
 
             {/* Global header */}
-            <div style={{ background:"linear-gradient(135deg,#1a0a2e,#0d0d0d)", border:"1px solid rgba(245,158,11,0.2)", borderRadius:16, padding:"20px 24px" }}>
+            <div style={{ background:"linear-gradient(135deg,#1a0a2e,var(--bz-s1))", border:"1px solid rgba(245,158,11,0.2)", borderRadius:16, padding:"20px 24px" }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                 <div>
                   <div style={{ fontSize:11, fontWeight:700, color:"#9333EA", textTransform:"uppercase", letterSpacing:2, marginBottom:4 }}>💎 Community Secret 1/1 Hunt</div>
@@ -25348,7 +25348,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                   <div style={{ fontSize:11, color:"var(--bz-ink-3)" }}>found & verified</div>
                 </div>
               </div>
-              <div style={{ height:10, background:"#1a1a1a", borderRadius:5, overflow:"hidden" }}>
+              <div style={{ height:10, background:"var(--bz-s2)", borderRadius:5, overflow:"hidden" }}>
                 <div style={{ height:"100%", width:`${totalCount>0?(verifiedCount1/totalCount*100):0}%`, background:"linear-gradient(90deg,#6B21A8,#9333EA,#C084FC,#E879F9,#A855F7,#7C3AED,#6B21A8)", backgroundSize:"200% 100%", animation:"gradientShift 3s ease infinite", borderRadius:5, transition:"width 0.5s ease" }}/>
               </div>
               <div style={{ display:"flex", justifyContent:"space-between", marginTop:6 }}>
@@ -25390,8 +25390,8 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
               const isFull = setVerified.length===setCards.length && setCards.length>0;
 
               return (
-                <div key={setName} style={{ background:"var(--bz-s1)", border:`1px solid ${isFull?"#9333EA44":"#2a2a2a"}`, borderRadius:14, overflow:"hidden" }}>
-                  <div style={{ padding:"16px 20px", background:isFull?"linear-gradient(135deg,#1a0a2e,#111)":"#111" }}>
+                <div key={setName} style={{ background:"var(--bz-s1)", border:`1px solid ${isFull?"#9333EA44":"var(--bz-line-2)"}`, borderRadius:14, overflow:"hidden" }}>
+                  <div style={{ padding:"16px 20px", background:isFull?"linear-gradient(135deg,#1a0a2e,var(--bz-s1))":"var(--bz-s1)" }}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                       <div>
                         <div style={{ fontSize:14, fontWeight:800, color:isFull?"#9333EA":"var(--bz-ink)" }}>{isFull?"🏆 ":"💎 "}{setName}</div>
@@ -25399,7 +25399,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                       </div>
                       <div style={{ fontSize:22, fontWeight:900, color:"#9333EA" }}>{setVerified.length}<span style={{ fontSize:12, color:"var(--bz-ink-3)", fontWeight:400 }}>/{setCards.length}</span></div>
                     </div>
-                    <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden" }}>
+                    <div style={{ height:8, background:"var(--bz-s2)", borderRadius:4, overflow:"hidden" }}>
                       <div style={{ height:"100%", width:`${verPct}%`, background:isFull?"linear-gradient(90deg,#6B21A8,#9333EA,#C084FC,#E879F9,#A855F7,#7C3AED,#6B21A8)":"linear-gradient(90deg,#7C3AED,#A855F7,#C084FC)", backgroundSize:"200% 100%", animation:isFull?"gradientShift 2s ease infinite":"none", borderRadius:4, transition:"width 0.5s ease" }}/>
                     </div>
                   </div>
@@ -25412,7 +25412,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                       const myOwned    = owned?.[c.id];
 
                       return (
-                        <div key={c.id} style={{ background:isVerified?"#1a0a2e":"#0a0a0a", border:`1.5px solid ${isVerified?"#9333EA":isPending?"#9333EA44":"#1a1a1a"}`, borderRadius:10, overflow:"hidden", position:"relative" }}>
+                        <div key={c.id} style={{ background:isVerified?"#1a0a2e":"var(--bz-bg)", border:`1.5px solid ${isVerified?"#9333EA":isPending?"#9333EA44":"var(--bz-s2)"}`, borderRadius:10, overflow:"hidden", position:"relative" }}>
                           {c.imageUrl && (
                             <div style={{ position:"relative" }}>
                               <img src={c.imageUrl} alt={c.hero} style={{ width:"100%", aspectRatio:"3/4", objectFit:"cover", display:"block", opacity:isVerified?1:0.5, filter:isVerified?"none":"grayscale(40%)" }}/>
@@ -25540,7 +25540,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                 {treatStats.map(({t,total,owned:o,pct:p,missing})=>(
                   <div key={t} style={{ display:"flex", alignItems:"center", gap:8 }}>
                     <span style={{ fontSize:11, color:p===100?"#4ade80":"var(--bz-ink-2)", minWidth:200, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{p===100?"\uD83C\uDF08 ":""}{t}</span>
-                    <div style={{ flex:1, height:5, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
+                    <div style={{ flex:1, height:5, background:"var(--bz-s2)", borderRadius:3, overflow:"hidden" }}>
                       <div className="bz-rainbow-fill" style={{ width:`${p}%`, height:"100%", borderRadius:3 }}/>
                     </div>
                     <span style={{ fontSize:11, fontWeight:700, color:p===100?"#4ade80":p>0?"#FBBF24":"#555", minWidth:80, textAlign:"right" }}>{o}/{total} ({p}%)</span>
@@ -25582,7 +25582,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         <span style={{ fontSize:12, fontWeight:700, color:wc }}>{w}</span>
                         <span style={{ fontSize:11, color:p===100?"#4ade80":p>0?"#FBBF24":"#555", fontWeight:700 }}>{o}/{total}</span>
                       </div>
-                      <div style={{ height:4, background:"#1a1a1a", borderRadius:2, overflow:"hidden" }}>
+                      <div style={{ height:4, background:"var(--bz-s2)", borderRadius:2, overflow:"hidden" }}>
                         <div style={{ width:`${p}%`, height:"100%", background:wc, borderRadius:2 }}/>
                       </div>
                       <div style={{ fontSize:10, color:"var(--bz-ink-3)", marginTop:4, textAlign:"right" }}>{p}%</div>
@@ -25795,7 +25795,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
               {savedDecks.length > 0 && (
                 <div style={{ marginTop:10, display:"flex", gap:6, flexWrap:"wrap" }}>
                   {savedDecks.map(d=>(
-                    <div key={d.id} style={{ display:"flex", alignItems:"center", gap:4, background:deckLoadId===d.id?"#1A1A2E":"#1a1a1a", border:`1px solid ${d.registered?"#4ade80":(deckLoadId===d.id?"#7B9CFF":"#2a2a2a")}`, borderRadius:8, padding:"4px 10px" }}>
+                    <div key={d.id} style={{ display:"flex", alignItems:"center", gap:4, background:deckLoadId===d.id?"#1A1A2E":"var(--bz-s2)", border:`1px solid ${d.registered?"#4ade80":(deckLoadId===d.id?"#7B9CFF":"var(--bz-line-2)")}`, borderRadius:8, padding:"4px 10px" }}>
                       <button onClick={()=>toggleRegistered(d)} title={d.registered?"Registered — click to unmark":"Mark as registered"}
                         style={{ background:"none", border:"none", cursor:"pointer", fontSize:13, lineHeight:1, padding:"0 2px",
                                  color:d.registered?"#4ade80":"#555" }}>
@@ -25818,7 +25818,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                 {/* Filters */}
                 <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
                   {/* Owned only toggle */}
-                  <div style={{ display:"flex", alignItems:"center", gap:6, background:"#1a1a1a", border:`1px solid ${deckOwnedOnly?"#4ade80":"#2a2a2a"}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}
+                  <div style={{ display:"flex", alignItems:"center", gap:6, background:"var(--bz-s2)", border:`1px solid ${deckOwnedOnly?"#4ade80":"var(--bz-line-2)"}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}
                     onClick={()=>setDeckOwnedOnly(p=>!p)}>
                     <div style={{ width:28, height:16, borderRadius:8, background:deckOwnedOnly?"#4ade80":"#333", position:"relative", transition:"background 0.2s", flexShrink:0 }}>
                       <div style={{ position:"absolute", top:2, left:deckOwnedOnly?12:2, width:12, height:12, borderRadius:"50%", background:"#fff", transition:"left 0.2s" }}/>
@@ -25860,7 +25860,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                           if (next.has(p)) next.delete(p); else next.add(p);
                           return next;
                         });
-                      }} style={{ background:sel?(over?"#E8317A":"#FBBF2433"):"#111", border:`1px solid ${sel?(over?"#E8317A":"#FBBF24"):"#2a2a2a"}`, color:sel?(over?"#E8317A":"#FBBF24"):"#555", borderRadius:6, padding:"3px 9px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                      }} style={{ background:sel?(over?"#E8317A":"#FBBF2433"):"var(--bz-s1)", border:`1px solid ${sel?(over?"#E8317A":"#FBBF24"):"var(--bz-line-2)"}`, color:sel?(over?"#E8317A":"#FBBF24"):"#555", borderRadius:6, padding:"3px 9px", fontSize:11, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
                         {p}{over?" \u26A0":""}
                       </button>
                     );
@@ -25884,7 +25884,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         const { ok, reason } = canAdd(c);
                         return (
                           <div key={c.id} onClick={()=>{ if(ok) setDeckCards(p=>[...p,c.id]); }}
-                            style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 14px", borderBottom:"1px solid #111", background:i%2===0?"#0a0a0a":"#0d0d0d", cursor:ok?"pointer":"not-allowed", opacity:ok?1:0.35 }}
+                            style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 14px", borderBottom:"1px solid #111", background:i%2===0?"var(--bz-bg)":"var(--bz-s1)", cursor:ok?"pointer":"not-allowed", opacity:ok?1:0.35 }}
                             className="inv-row"
                             title={!ok?reason:""}>
                             {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:36, height:48, objectFit:"cover", borderRadius:4, flexShrink:0 }}/>}
@@ -25964,7 +25964,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                                   {core}/10 core{unlocked ? ` · ${apex}/1 apex` : ""}
                                 </span>
                               </div>
-                              <div style={{ height:4, background:"#1a1a1a", borderRadius:2, overflow:"hidden" }}>
+                              <div style={{ height:4, background:"var(--bz-s2)", borderRadius:2, overflow:"hidden" }}>
                                 <div style={{ width:`${pct}%`, height:"100%", background: unlocked ? "#A855F7" : "#333", borderRadius:2, transition:"width 0.3s" }}/>
                               </div>
                             </div>
@@ -26021,7 +26021,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                               <span style={{ fontSize:11, color:wc, fontWeight:700 }}>{w}</span>
                               <span style={{ fontSize:11, color:"var(--bz-ink-3)" }}>{count} ({pct}%)</span>
                             </div>
-                            <div style={{ height:4, background:"#1a1a1a", borderRadius:2, overflow:"hidden" }}>
+                            <div style={{ height:4, background:"var(--bz-s2)", borderRadius:2, overflow:"hidden" }}>
                               <div style={{ width:`${pct}%`, height:"100%", background:wc, borderRadius:2 }}/>
                             </div>
                           </div>
@@ -26036,7 +26036,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                       <div style={{ fontSize:10, color:"var(--bz-ink-3)", fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Heroes ({heroCover.size})</div>
                       <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
                         {[...heroCover].sort().map(h=>(
-                          <span key={h} style={{ fontSize:10, background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:5, padding:"2px 7px", color:"var(--bz-ink-2)" }}>{h}</span>
+                          <span key={h} style={{ fontSize:10, background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:5, padding:"2px 7px", color:"var(--bz-ink-2)" }}>{h}</span>
                         ))}
                       </div>
                     </div>
@@ -26072,7 +26072,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         return (
                           <div key={i} title={`${c.hero} -- ${c.weapon||""} ${c.power||""}`}
                             onClick={()=>setDeckCards(p=>p.filter(id=>id!==c.id))}
-                            style={{ aspectRatio:"3/4", borderRadius:4, overflow:"hidden", position:"relative", cursor:"pointer", border:`1.5px solid ${wc}44`, background:"#1a1a1a" }}>
+                            style={{ aspectRatio:"3/4", borderRadius:4, overflow:"hidden", position:"relative", cursor:"pointer", border:`1.5px solid ${wc}44`, background:"var(--bz-s2)" }}>
                             {c.imageUrl
                               ? <img src={c.imageUrl} alt={c.hero} loading="lazy" decoding="async" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/>
                               : <div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:7, color:wc, fontWeight:700, textAlign:"center", padding:2, lineHeight:1.2 }}>{c.hero?.split(" ")[0]}</div>
@@ -26082,7 +26082,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         );
                       }
                       return (
-                        <div key={i} style={{ aspectRatio:"3/4", borderRadius:4, border:"1px dashed #1a1a1a", background:"#080808", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                        <div key={i} style={{ aspectRatio:"3/4", borderRadius:4, border:"1px dashed var(--bz-s2)", background:"#080808", display:"flex", alignItems:"center", justifyContent:"center" }}>
                           <span style={{ fontSize:9, color:"#aaa", fontWeight:700 }}>{i+1}</span>
                         </div>
                       );
@@ -26163,7 +26163,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
               {savedPlaybooks.length > 0 && (
                 <div style={{ marginTop:10, display:"flex", gap:6, flexWrap:"wrap" }}>
                   {savedPlaybooks.map(pb=>(
-                    <div key={pb.id} style={{ display:"flex", alignItems:"center", gap:4, background:pbLoadId===pb.id?"#1A1A2E":"#1a1a1a", border:`1px solid ${pbLoadId===pb.id?"#7B9CFF":"#2a2a2a"}`, borderRadius:8, padding:"4px 10px" }}>
+                    <div key={pb.id} style={{ display:"flex", alignItems:"center", gap:4, background:pbLoadId===pb.id?"#1A1A2E":"var(--bz-s2)", border:`1px solid ${pbLoadId===pb.id?"#7B9CFF":"var(--bz-line-2)"}`, borderRadius:8, padding:"4px 10px" }}>
                       <button onClick={()=>loadPlaybook(pb)} style={{ background:"none", border:"none", color:pbLoadId===pb.id?"#7B9CFF":"#888", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                         {pb.name} <span style={{ color:"var(--bz-ink-3)", fontWeight:400 }}>({pb.playCount}P{pb.bonusCount>0?` +${pb.bonusCount}B`:""})</span>
                       </button>
@@ -26180,7 +26180,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
               <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                 <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
                   {/* Owned toggle */}
-                  <div style={{ display:"flex", alignItems:"center", gap:6, background:"#1a1a1a", border:`1px solid ${pbOwnedOnly?"#4ade80":"#2a2a2a"}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}
+                  <div style={{ display:"flex", alignItems:"center", gap:6, background:"var(--bz-s2)", border:`1px solid ${pbOwnedOnly?"#4ade80":"var(--bz-line-2)"}`, borderRadius:8, padding:"5px 10px", cursor:"pointer" }}
                     onClick={()=>setPbOwnedOnly(p=>!p)}>
                     <div style={{ width:28, height:16, borderRadius:8, background:pbOwnedOnly?"#4ade80":"#333", position:"relative", transition:"background 0.2s", flexShrink:0 }}>
                       <div style={{ position:"absolute", top:2, left:pbOwnedOnly?12:2, width:12, height:12, borderRadius:"50%", background:"#fff", transition:"left 0.2s" }}/>
@@ -26219,7 +26219,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                     const isOwned = ownedSet.has(c.id);
                     const wc = WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";
                     return (
-                      <div key={c.id} style={{ borderBottom:"1px solid #111", background:i%2===0?"#0a0a0a":"#0d0d0d" }}>
+                      <div key={c.id} style={{ borderBottom:"1px solid #111", background:i%2===0?"var(--bz-bg)":"var(--bz-s1)" }}>
                         <div style={{ display:"flex", alignItems:"center", gap:10, padding:"9px 14px" }}>
                           {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:36, height:48, objectFit:"cover", borderRadius:4, flexShrink:0, opacity:isOwned?1:0.4 }}/>}
                           <div style={{ flex:1, minWidth:0 }}>
@@ -26286,20 +26286,20 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                   </div>
                   {/* Play slots bar */}
                   <div style={{ marginBottom:12 }}>
-                    <div style={{ height:6, background:"#1a1a1a", borderRadius:3, overflow:"hidden" }}>
+                    <div style={{ height:6, background:"var(--bz-s2)", borderRadius:3, overflow:"hidden" }}>
                       <div style={{ width:`${Math.min(playCount/PLAY_LIMIT*100,100)}%`, height:"100%", borderRadius:3, background:playFull?"#E8317A":"linear-gradient(90deg,#E8317A,#7B2FF7)", transition:"width 0.3s" }}/>
                     </div>
                     <div style={{ fontSize:10, color:"var(--bz-ink-3)", marginTop:4 }}>{PLAY_LIMIT-playCount} play slots remaining</div>
                   </div>
                   {/* DBS cap */}
-                  <div style={{ background: dbsOver?"#1a0a0a":"#0a0a0a", border:`1px solid ${dbsOver?"#E8317A44":"#2a2a2a"}`, borderRadius:8, padding:"10px 12px" }}>
+                  <div style={{ background: dbsOver?"#1a0a0a":"var(--bz-bg)", border:`1px solid ${dbsOver?"#E8317A44":"var(--bz-line-2)"}`, borderRadius:8, padding:"10px 12px" }}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", marginBottom:6 }}>
                       <span style={{ fontSize:11, fontWeight:800, color: dbsOver?"#E8317A":"#A855F7" }}>{"\uD83D\uDCB0 DBS"}</span>
                       <span style={{ fontSize:11, fontWeight:700, color: dbsOver?"#E8317A":dbsPct>80?"#FBBF24":"#4ade80" }}>
                         {Math.round(totalDbs)} / {DBS_CAP}
                       </span>
                     </div>
-                    <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden", marginBottom:6 }}>
+                    <div style={{ height:8, background:"var(--bz-s2)", borderRadius:4, overflow:"hidden", marginBottom:6 }}>
                       <div style={{ width:`${dbsPct}%`, height:"100%", borderRadius:4, transition:"width 0.3s",
                         background: dbsOver?"#E8317A": dbsPct>80?"linear-gradient(90deg,#FBBF24,#E8317A)":"linear-gradient(90deg,#A855F7,#7B9CFF)" }}/>
                     </div>
@@ -26325,7 +26325,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                           const c = e.card;
                           const wc = WEAPON_COLORS[canonWeapon(c.weapon)]||"#444";
                           return (
-                            <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}>
+                            <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"var(--bz-s1)":"var(--bz-bg)" }}>
                               <div style={{ fontSize:12, color:"var(--bz-ink-3)", width:18, textAlign:"center", flexShrink:0 }}>{i+1}</div>
                               {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}
                               <div style={{ flex:1, minWidth:0 }}>
@@ -26349,7 +26349,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
                         {pbResolved.filter(e=>e.type==="bonus").map((e,i) => {
                           const c = e.card;
                           return (
-                            <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"#0d0d0d":"#0a0a0a" }}>
+                            <div key={i} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 14px", borderTop:"1px solid #111", background:i%2===0?"var(--bz-s1)":"var(--bz-bg)" }}>
                               <div style={{ fontSize:12, color:"var(--bz-ink-3)", width:18, textAlign:"center", flexShrink:0 }}>B{i+1}</div>
                               {c.imageUrl && <img src={c.imageUrl} alt={c.hero} style={{ width:28, height:37, objectFit:"cover", borderRadius:3, flexShrink:0 }}/>}
                               <div style={{ flex:1, minWidth:0 }}>
@@ -26397,7 +26397,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
               100% { background-position: 400px 0; }
             }
             .skeleton-card {
-              background: linear-gradient(90deg, #111 25%, #1a1a1a 50%, #111 75%);
+              background: linear-gradient(90deg, #111 25%, var(--bz-s2) 50%, #111 75%);
               background-size: 800px 100%;
               animation: skeletonShimmer 1.4s infinite linear;
               border-radius: 12px;
@@ -26500,7 +26500,7 @@ function BobaChecklist({ defaultView="cards", userRole, user, onScanUpdate, onCh
           ) : (
             <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
               {imports.map(imp=>(
-                <div key={imp.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background:"#1a1a1a", borderRadius:8, gap:8 }}>
+                <div key={imp.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background:"var(--bz-s2)", borderRadius:8, gap:8 }}>
                   <div style={{ flex:1, minWidth:0 }}>
                     {renamingId === imp.id ? (
                       <div style={{ display:"flex", gap:6, alignItems:"center" }}>
@@ -26939,7 +26939,7 @@ function TradesPanel({ user, tradeOffers, onRespond, onCancel, onTracking, onRec
             <div style={{display:"flex",gap:7,marginBottom:10,flexWrap:"wrap"}}>
               <input value={draft} onChange={e=>setTrackDraft(d=>({...d,[t.id]:e.target.value}))}
                 placeholder="Your tracking number\u2026"
-                style={{flex:1,minWidth:170,background:"#0b0b0b",border:"1px solid #333",borderRadius:7,padding:"8px 11px",fontSize:12,color:"#fff",fontFamily:"inherit"}}/>
+                style={{flex:1,minWidth:170,background:"var(--bz-bg)",border:"1px solid #333",borderRadius:7,padding:"8px 11px",fontSize:12,color:"#fff",fontFamily:"inherit"}}/>
               <button onClick={()=>onTracking(t, draft)} disabled={!draft.trim()}
                 style={{background:draft.trim()?"rgba(255,255,255,0.08)":"transparent",border:"1px solid #333",color:draft.trim()?"#ccc":"#555",borderRadius:7,padding:"8px 14px",fontSize:11.5,fontWeight:700,cursor:draft.trim()?"pointer":"not-allowed",fontFamily:"inherit"}}>Save</button>
             </div>
@@ -27122,7 +27122,7 @@ function TradeOfferModal({ trader, cards, owned, tradeBait, myTrades = [], myUid
   }
 
   const Picker = ({ list, sel, setter, empty, accent }) => (
-    <div style={{border:"1px solid #2a2a2a",borderRadius:10,maxHeight:220,overflowY:"auto",padding:6}}>
+    <div style={{border:"1px solid var(--bz-line-2)",borderRadius:10,maxHeight:220,overflowY:"auto",padding:6}}>
       {list.length === 0
         ? <div style={{padding:"18px 10px",textAlign:"center",fontSize:11.5,color:"var(--bz-ink-3)",lineHeight:1.6}}>{empty}</div>
         : list.map(c => {
@@ -27145,7 +27145,7 @@ function TradeOfferModal({ trader, cards, owned, tradeBait, myTrades = [], myUid
 
   return (
     <div onClick={()=>!sending&&onClose()} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:14600,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2a2a2a",borderRadius:16,padding:22,maxWidth:640,width:"100%",maxHeight:"88vh",overflowY:"auto"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:16,padding:22,maxWidth:640,width:"100%",maxHeight:"88vh",overflowY:"auto"}}>
         <div style={{fontSize:17,fontWeight:900,color:"#fff",marginBottom:4}}>
           {"\uD83D\uDD01"} Offer a trade to {trader.name}
         </div>
@@ -27181,13 +27181,13 @@ function TradeOfferModal({ trader, cards, owned, tradeBait, myTrades = [], myUid
             <div style={{fontSize:10,color:"#a0a0a0",marginBottom:3,fontWeight:700}}>{"\uD83D\uDCB5"} Cash I'll add</div>
             <input type="number" inputMode="decimal" min="0" value={myCash} onChange={e=>setMyCash(e.target.value)}
               placeholder="0.00" autoFocus={cashFirst}
-              style={{width:"100%",background:"#0b0b0b",border:"1px solid "+(parseFloat(myCash)>0?"rgba(74,222,128,0.5)":"#333"),borderRadius:8,padding:"9px 11px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
+              style={{width:"100%",background:"var(--bz-bg)",border:"1px solid "+(parseFloat(myCash)>0?"rgba(74,222,128,0.5)":"#333"),borderRadius:8,padding:"9px 11px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
           </div>
           <div style={{flex:1,minWidth:130}}>
             <div style={{fontSize:10,color:"#a0a0a0",marginBottom:3,fontWeight:700}}>Cash they'll add</div>
             <input type="number" inputMode="decimal" min="0" value={theirCash} onChange={e=>setTheirCash(e.target.value)}
               placeholder="0.00"
-              style={{width:"100%",background:"#0b0b0b",border:"1px solid "+(parseFloat(theirCash)>0?"rgba(74,222,128,0.5)":"#333"),borderRadius:8,padding:"9px 11px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
+              style={{width:"100%",background:"var(--bz-bg)",border:"1px solid "+(parseFloat(theirCash)>0?"rgba(74,222,128,0.5)":"#333"),borderRadius:8,padding:"9px 11px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
           </div>
         </div>
         {(parseFloat(myCash)>0 || parseFloat(theirCash)>0) && give.size===0 && want.size>0 && (
@@ -27197,7 +27197,7 @@ function TradeOfferModal({ trader, cards, owned, tradeBait, myTrades = [], myUid
         )}
         <textarea value={note} onChange={e=>setNote(e.target.value)} rows={2}
           placeholder="Add a note (optional)\u2026"
-          style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:12.5,color:"#fff",fontFamily:"inherit",resize:"vertical",marginBottom:14}}/>
+          style={{width:"100%",background:"var(--bz-bg)",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:12.5,color:"#fff",fontFamily:"inherit",resize:"vertical",marginBottom:14}}/>
 
         <div style={{display:"flex",gap:8}}>
           <button disabled={!canSend} onClick={send}
@@ -29343,7 +29343,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                   {pbAvail.length===0?<div style={{padding:40,textAlign:"center",color:"rgba(255,255,255,0.2)"}}>No plays match{evt?` the ${evt.name} checklist`:" filters"}</div>:
                   pbView==="list"?
                   <div style={{display:"flex",flexDirection:"column",gap:2}}>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 60px 55px 80px 70px",gap:8,padding:"6px 12px",fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:1,borderBottom:"1px solid rgba(255,255,255,0.1)",position:"sticky",top:0,background:"#0d0d0d",zIndex:2}}>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 60px 55px 80px 70px",gap:8,padding:"6px 12px",fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:1,borderBottom:"1px solid rgba(255,255,255,0.1)",position:"sticky",top:0,background:"var(--bz-s1)",zIndex:2}}>
                       <span>Play</span><span style={{textAlign:"center"}}>Type</span><span style={{textAlign:"center"}}>Cost</span><span style={{textAlign:"center"}}>DBS</span><span style={{textAlign:"center"}}>Add</span>
                     </div>
                     {pbAvail.map((c)=>{
@@ -29485,7 +29485,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                     {savedPlaybooks.length>0 && (
                       <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:8}}>
                         {savedPlaybooks.map(p=>(
-                          <div key={p.id} style={{display:"flex",alignItems:"center",gap:3,background:pbLoadId===p.id?"#1A1A2E":"#1a1a1a",border:`1px solid ${pbLoadId===p.id?"#7B9CFF":"#2a2a2a"}`,borderRadius:7,padding:"3px 8px"}}>
+                          <div key={p.id} style={{display:"flex",alignItems:"center",gap:3,background:pbLoadId===p.id?"#1A1A2E":"var(--bz-s2)",border:`1px solid ${pbLoadId===p.id?"#7B9CFF":"var(--bz-line-2)"}`,borderRadius:7,padding:"3px 8px"}}>
                             <button onClick={()=>loadPbTab(p)} style={{background:"none",border:"none",color:pbLoadId===p.id?"#7B9CFF":"#888",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{p.name} <span style={{color:"var(--bz-ink-3)",fontWeight:400}}>({(p.playCount||0)+(p.bonusCount||0)})</span></button>
                             <button onClick={()=>deletePbTab(p.id)} style={{background:"none",border:"none",color:"#8a8a8a",cursor:"pointer",fontSize:13,lineHeight:1,padding:"0 1px"}}>×</button>
                           </div>
@@ -29560,7 +29560,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                           : (makeup.counts[expandedCat].cards).map((e,i)=>{
                               const c=e.card;
                               return (
-                                <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderTop:i?"1px solid #1a1a1a":"none"}}>
+                                <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",borderTop:i?"1px solid var(--bz-s2)":"none"}}>
                                   {c.imageUrl&&<img src={c.imageUrl} alt={c.hero} style={{width:22,height:29,objectFit:"cover",borderRadius:3,flexShrink:0}}/>}
                                   <div style={{flex:1,minWidth:0}}>
                                     <div style={{fontSize:11,fontWeight:700,color:"#eee",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{c.playName||c.hero}</div>
@@ -29688,24 +29688,24 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
               };
               return (
                 <div onClick={()=>setShowPbPickList(false)} style={{position:"fixed",inset:0,zIndex:13000,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:24,overflowY:"auto"}}>
-                  <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:680,background:"#fff",color:"#111",borderRadius:14,padding:"26px 30px 30px",boxShadow:"0 24px 80px rgba(0,0,0,0.6)",margin:"auto"}}>
+                  <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:680,background:"#fff",color:"var(--bz-s1)",borderRadius:14,padding:"26px 30px 30px",boxShadow:"0 24px 80px rgba(0,0,0,0.6)",margin:"auto"}}>
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:18}}>
                       <div style={{display:"inline-flex",border:"1.5px solid #e3e3e3",borderRadius:9,overflow:"hidden"}}>
                         {[["cardnum","Play no."],["name","Name"],["cost","DBS"],["set","Set"]].map(([k,label],idx)=>(
                           <button key={k} onClick={()=>setPbPickSort(k)}
-                            style={{background:pbPickSort===k?"#111":"#fff",color:pbPickSort===k?"#fff":"#777",border:"none",borderLeft:idx===0?"none":"1px solid #e3e3e3",padding:"8px 13px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
+                            style={{background:pbPickSort===k?"var(--bz-s1)":"#fff",color:pbPickSort===k?"#fff":"#777",border:"none",borderLeft:idx===0?"none":"1px solid #e3e3e3",padding:"8px 13px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
                         ))}
                       </div>
                       <div style={{display:"flex",gap:8}}>
-                        <button onClick={doCopy} style={{background:pbCopied?"#0a7a3a":"#fff",color:pbCopied?"#fff":"#111",border:"1.5px solid "+(pbCopied?"#0a7a3a":"#ccc"),borderRadius:9,padding:"8px 16px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{pbCopied?"✓ Copied":"📋 Copy List"}</button>
-                        <button onClick={openPrint} style={{background:"#111",color:"#fff",border:"1.5px solid #111",borderRadius:9,padding:"8px 18px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Print / PDF</button>
+                        <button onClick={doCopy} style={{background:pbCopied?"#0a7a3a":"#fff",color:pbCopied?"#fff":"var(--bz-s1)",border:"1.5px solid "+(pbCopied?"#0a7a3a":"#ccc"),borderRadius:9,padding:"8px 16px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>{pbCopied?"✓ Copied":"📋 Copy List"}</button>
+                        <button onClick={openPrint} style={{background:"var(--bz-s1)",color:"#fff",border:"1.5px solid #111",borderRadius:9,padding:"8px 18px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Print / PDF</button>
                         <button onClick={()=>setShowPbPickList(false)} style={{background:"#fff",color:"#999",border:"1.5px solid #ddd",borderRadius:9,width:36,height:36,fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:"inherit",lineHeight:1}}>{"\u00d7"}</button>
                       </div>
                     </div>
                     <div style={{marginBottom:18,paddingBottom:14,borderBottom:"3px solid #111"}}>
                       <div style={{fontSize:11,fontWeight:800,letterSpacing:"1.6px",textTransform:"uppercase",color:"#B45309",marginBottom:4}}>Pick list</div>
                       <div style={{fontSize:26,fontWeight:900,letterSpacing:"-0.6px",lineHeight:1.05}}>{pbName||"Playbook"}</div>
-                      <div style={{marginTop:9,fontSize:12,color:"#999"}}><b style={{color:"#111"}}>{sorted.length}</b> plays · sorted by {pbPickSort==="cardnum"?"play number":pbPickSort}{(()=>{ const pulled=sorted.filter(e=>pbPickChecked[e.id]).length; return pulled>0?<span style={{color:"#0a7a3a",fontWeight:800}}> · {pulled} pulled</span>:null; })()}</div>
+                      <div style={{marginTop:9,fontSize:12,color:"#999"}}><b style={{color:"var(--bz-s1)"}}>{sorted.length}</b> plays · sorted by {pbPickSort==="cardnum"?"play number":pbPickSort}{(()=>{ const pulled=sorted.filter(e=>pbPickChecked[e.id]).length; return pulled>0?<span style={{color:"#0a7a3a",fontWeight:800}}> · {pulled} pulled</span>:null; })()}</div>
                     </div>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
                       <thead><tr>
@@ -29720,7 +29720,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                           <tr key={e.id} onClick={()=>setPbPickChecked(p=>({...p,[e.id]:!p[e.id]}))}
                             style={{pageBreakInside:"avoid",cursor:"pointer",background:done?"#fafafa":"transparent",opacity:done?0.45:1,transition:"opacity 140ms ease, background 140ms ease"}}>
                             <td style={{width:34,textAlign:"center",padding:"9px 6px",borderBottom:"1px solid #ededed"}}>
-                              <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:19,height:19,borderRadius:5,border:"1.5px solid "+(done?"#111":"#ccc"),background:done?"#111":"#fff",color:"#fff",fontSize:12,fontWeight:900,lineHeight:1}}>{done?"\u2713":""}</span>
+                              <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:19,height:19,borderRadius:5,border:"1.5px solid "+(done?"var(--bz-s1)":"#ccc"),background:done?"var(--bz-s1)":"#fff",color:"#fff",fontSize:12,fontWeight:900,lineHeight:1}}>{done?"\u2713":""}</span>
                             </td>
                             <td style={{fontSize:11.5,color:"#666",fontWeight:700,padding:"9px 6px",borderBottom:"1px solid #ededed"}}>{c.setName||"—"}</td>
                             <td style={{padding:"9px 6px",borderBottom:"1px solid #ededed"}}><span style={{fontWeight:800,fontSize:14}}>{c.playName||c.hero||"—"}</span>{bonus&&<span style={{fontSize:8.5,fontWeight:900,color:"#B45309",background:"#FEF3C7",border:"1px solid #FDE68A",borderRadius:4,padding:"0 4px",marginLeft:5}}>BONUS</span>}</td>
@@ -29729,7 +29729,7 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                           </tr>
                         );})}
                         <tr>
-                          <td colSpan={4} style={{textAlign:"right",padding:"12px 6px 6px",borderTop:"2.5px solid #111",fontSize:11,fontWeight:900,letterSpacing:"0.8px",textTransform:"uppercase",color:"#111"}}>Total DBS</td>
+                          <td colSpan={4} style={{textAlign:"right",padding:"12px 6px 6px",borderTop:"2.5px solid #111",fontSize:11,fontWeight:900,letterSpacing:"0.8px",textTransform:"uppercase",color:"var(--bz-s1)"}}>Total DBS</td>
                           <td style={{textAlign:"right",padding:"12px 6px 6px",borderTop:"2.5px solid #111",fontSize:20,fontWeight:900,fontVariantNumeric:"tabular-nums"}}>{Math.round(totalDbsPick)}</td>
                         </tr>
                       </tbody>
@@ -30351,7 +30351,7 @@ function SubAnimOverlay({ anim, whose, cardBackUrl, isMobile }) {
         <div style={{position:"relative", width:cardW, height:cardW*1.4, margin:"0 auto"}}>
           {/* Outgoing hero: flips face-up, then slides out to discard. */}
           <div style={{position:"absolute", inset:0, borderRadius:9, overflow:"hidden",
-                       border:"2px solid #F87171", background:"#111",
+                       border:"2px solid #F87171", background:"var(--bz-s1)",
                        transformStyle:"preserve-3d",
                        animation:"bzSubFlip 360ms ease-out both, bzSubOut 900ms cubic-bezier(.5,0,.75,0) 620ms forwards"}}>
             {b.img
@@ -30488,7 +30488,7 @@ function ArenaShuffleCeremony({ hand, onDone, isMobile }) {
                   <div style={{
                     width: "100%", aspectRatio: "5/7", borderRadius: 7,
                     border: landed ? "2px solid rgba(255,255,255,0.22)" : "2px dashed rgba(255,255,255,0.13)",
-                    background: landed ? "#111" : "transparent",
+                    background: landed ? "var(--bz-s1)" : "transparent",
                     overflow: "hidden", position: "relative",
                     opacity: landed ? 1 : 0,
                     "--fx": fromX, "--fy": "90px",
@@ -32907,7 +32907,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
     return (
       <div style={{
         width:"100%", aspectRatio:"5/7", borderRadius:8, overflow:"hidden", position:"relative",
-        border:`2px solid ${wc}`, background:"#111", opacity: dim ? 0.55 : 1,
+        border:`2px solid ${wc}`, background:"var(--bz-s1)", opacity: dim ? 0.55 : 1,
         // Struck cards get hit; the WINNING card lunges forward, so the blow reads as
         // coming from a specific card rather than appearing out of nowhere.
         animation: struck   ? "bzShake 560ms ease-in-out"
@@ -33076,7 +33076,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           <div style={{display:"flex",gap:14,alignItems:"center"}}>
             <div style={{width:70,aspectRatio:"5/7",borderRadius:7,overflow:"hidden",flexShrink:0,
                          border:"2px solid #dc2626",
-                         background: cardBackUrl ? "#111" : CARD_BACK_FALLBACK,
+                         background: cardBackUrl ? "var(--bz-s1)" : CARD_BACK_FALLBACK,
                          display:"flex",alignItems:"center",justifyContent:"center"}}>
               {cardBackUrl
                 ? <img src={cardBackUrl} alt="current card back"
@@ -33113,7 +33113,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           <div style={{display:"flex",gap:14,alignItems:"center"}}>
             <div style={{width:120,aspectRatio:"16/9",borderRadius:7,overflow:"hidden",flexShrink:0,
                          border:"2px solid #E8317A",
-                         background: playmatUrl ? "#111" : "linear-gradient(rgba(10,4,4,0.6),rgba(10,4,4,0.8))",
+                         background: playmatUrl ? "var(--bz-s1)" : "linear-gradient(rgba(10,4,4,0.6),rgba(10,4,4,0.8))",
                          display:"flex",alignItems:"center",justifyContent:"center"}}>
               {playmatUrl
                 ? <img src={playmatUrl} alt="current playmat"
@@ -33732,7 +33732,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
                     {n > 0 ? (
                       <>
                         {/* stacked shadow cards behind the top for depth */}
-                        {n > 1 && <div style={{position:"absolute",inset:0,transform:"translate(3px,3px)",borderRadius:8,background:"#0a0a0a",border:`1px solid ${accent}55`}}/>}
+                        {n > 1 && <div style={{position:"absolute",inset:0,transform:"translate(3px,3px)",borderRadius:8,background:"var(--bz-bg)",border:`1px solid ${accent}55`}}/>}
                         {n > 2 && <div style={{position:"absolute",inset:0,transform:"translate(6px,6px)",borderRadius:8,background:"#080808",border:`1px solid ${accent}33`}}/>}
                         <div style={{position:"relative",width:"100%",height:"100%",borderRadius:8,overflow:"hidden",
                                      border:`2px solid ${accent}`,
@@ -33781,7 +33781,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
           onPick={()=>{}}
           renderCard={(b)=>(
             <div style={{width:"100%",aspectRatio:"5/7",borderRadius:8,overflow:"hidden",
-                         border:"2px solid rgba(255,255,255,0.18)",background:"#111",position:"relative"}}>
+                         border:"2px solid rgba(255,255,255,0.18)",background:"var(--bz-s1)",position:"relative"}}>
               {b.img
                 ? <img src={b.img} alt={b.hero} style={{width:"100%",height:"100%",objectFit:"cover"}} />
                 : <div style={{padding:6,fontSize:9,fontWeight:800,color:"#fff"}}>{b.hero}</div>}
@@ -33879,7 +33879,7 @@ function ArenaTab({ user, cards, savedDecks, WEAPON_COLORS, canonWeapon, isMobil
                                 <div key={b.id+bi}
                                   onClick={()=>{ commitBattle("sub", bi); setSubOpen(false); }}
                                   style={{cursor:"pointer",borderRadius:6,overflow:"hidden",
-                                          border:"2px solid rgba(251,191,36,0.4)",background:"#111",position:"relative"}}>
+                                          border:"2px solid rgba(251,191,36,0.4)",background:"var(--bz-s1)",position:"relative"}}>
                                   {b.img
                                     ? <img src={b.img} alt={b.hero} style={{width:"100%",aspectRatio:"5/7",objectFit:"cover",display:"block"}} />
                                     : <div style={{padding:6,fontSize:9,fontWeight:800,color:"#fff"}}>{b.hero}</div>}
@@ -34931,7 +34931,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         const col = id==="family" ? "#C084FC" : id==="all" ? "rgba(255,255,255,0.5)" : "#4ade80";
                         return (
                           <button key={id} onClick={()=>setMode(id)}
-                            style={{background:on?(id==="all"?"rgba(255,255,255,0.08)":`${col}22`):"transparent",border:`1px solid ${on?col:"#2a2a2a"}`,color:on?col:"rgba(255,255,255,0.45)",borderRadius:14,padding:"6px 12px",fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                            style={{background:on?(id==="all"?"rgba(255,255,255,0.08)":`${col}22`):"transparent",border:`1px solid ${on?col:"var(--bz-line-2)"}`,color:on?col:"rgba(255,255,255,0.45)",borderRadius:14,padding:"6px 12px",fontSize:11.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>
                             {label}{on && id==="mine" && ownedCount>0 ? ` (${ownedCount})` : ""}
                           </button>
                         );
@@ -35203,7 +35203,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                           : <span style={{width:"100%",fontSize:10.5,color:"#FBBF24",fontWeight:700}}>{reg+"/"+savedDecks.length+" registered \u00B7 "+pending+" to register"}</span>;
                       })()}
                       {savedDecks.map(d=>(
-                        <div key={d.id} style={{display:"flex",alignItems:"center",gap:3,background:deckLoadId===d.id?"#1A1A2E":"#1a1a1a",border:`1px solid ${d.registered?"#4ade80":(deckLoadId===d.id?"#7B9CFF":"#2a2a2a")}`,borderRadius:7,padding:"3px 8px"}}>
+                        <div key={d.id} style={{display:"flex",alignItems:"center",gap:3,background:deckLoadId===d.id?"#1A1A2E":"var(--bz-s2)",border:`1px solid ${d.registered?"#4ade80":(deckLoadId===d.id?"#7B9CFF":"var(--bz-line-2)")}`,borderRadius:7,padding:"3px 8px"}}>
                           <button onClick={()=>toggleDeckRegistered(d)} title={d.registered?"Registered — click to unmark":"Mark as registered"}
                             style={{background:"none",border:"none",cursor:"pointer",fontSize:12,lineHeight:1,padding:"0 2px",color:d.registered?"#4ade80":"#555"}}>
                             {d.registered?"\u2713":"\u25CB"}
@@ -35227,7 +35227,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                               <button onClick={()=>setGiveDeckFor(giveDeckFor===d.id?null:d.id)} title="Give this deck to a family member (moves it to their account)"
                                 style={{background:"none",border:"none",color: giveDeckFor===d.id ? "#C084FC" : "#8a8a8a",cursor:"pointer",fontSize:12,padding:"0 2px"}}>🎁</button>
                               {giveDeckFor===d.id && (
-                                <div style={{position:"absolute",right:0,top:22,zIndex:50,background:"#1a1a1a",border:"1px solid #3a3a3a",borderRadius:8,padding:6,minWidth:150,boxShadow:"0 8px 24px rgba(0,0,0,0.5)"}}>
+                                <div style={{position:"absolute",right:0,top:22,zIndex:50,background:"var(--bz-s2)",border:"1px solid #3a3a3a",borderRadius:8,padding:6,minWidth:150,boxShadow:"0 8px 24px rgba(0,0,0,0.5)"}}>
                                   <div style={{fontSize:9.5,fontWeight:700,color:"var(--bz-ink-3)",textTransform:"uppercase",letterSpacing:0.6,padding:"3px 6px 5px"}}>Give deck to…</div>
                                   {familyList.map(fm => (
                                     <button key={fm.uid} onClick={()=>{ setGiveDeckFor(null); giveDeckToFamily && giveDeckToFamily(d, fm.uid, fm.name); }}
@@ -35478,7 +35478,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
             };
             return (
             <div onClick={()=>setShowPickList(false)} className="pick-list-overlay" style={{position:"fixed",inset:0,zIndex:13000,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(6px)",display:"flex",alignItems:"flex-start",justifyContent:"center",padding:24,overflowY:"auto"}}>
-              <div onClick={e=>e.stopPropagation()} className="pick-list-sheet" style={{width:"100%",maxWidth:760,background:"#fff",color:"#111",borderRadius:14,padding:"26px 30px 30px",boxShadow:"0 24px 80px rgba(0,0,0,0.6)",position:"relative",margin:"auto"}}>
+              <div onClick={e=>e.stopPropagation()} className="pick-list-sheet" style={{width:"100%",maxWidth:760,background:"#fff",color:"var(--bz-s1)",borderRadius:14,padding:"26px 30px 30px",boxShadow:"0 24px 80px rgba(0,0,0,0.6)",position:"relative",margin:"auto"}}>
                 {/* Screen-only controls (hidden when printing) */}
                 <div className="pick-list-controls" style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:18}}>
                   {/* Sort is a segmented control rather than loose buttons: the options are mutually
@@ -35486,7 +35486,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                   <div style={{display:"inline-flex",border:"1.5px solid #e3e3e3",borderRadius:9,overflow:"hidden"}}>
                     {[["power","Power"],["cardnum","Card no."],["weapon","Weapon"],["treatment","Treatment"]].map(([k,label],idx)=>(
                       <button key={k} onClick={()=>setPickSort(k)}
-                        style={{background:pickSort===k?"#111":"#fff",color:pickSort===k?"#fff":"#777",
+                        style={{background:pickSort===k?"var(--bz-s1)":"#fff",color:pickSort===k?"#fff":"#777",
                           border:"none",borderLeft: idx===0?"none":"1px solid #e3e3e3",
                           padding:"8px 13px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit",
                           letterSpacing:"0.2px",transition:"background 120ms ease"}}>
@@ -35500,7 +35500,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         inside that dialog on every platform, so a separate button promised an outcome
                         that never existed. */}
                     <button onClick={()=>openPickPrint(true)}
-                      style={{background:"#111",color:"#fff",border:"1.5px solid #111",borderRadius:9,padding:"8px 18px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+                      style={{background:"var(--bz-s1)",color:"#fff",border:"1.5px solid #111",borderRadius:9,padding:"8px 18px",fontSize:11.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
                       Print / PDF
                     </button>
                     <button onClick={()=>setShowPickList(false)} aria-label="Close pick list"
@@ -35527,7 +35527,7 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                       from the list, which is the part you are actually working from. */}
                   <div style={{height:3,background:"#eee",borderRadius:2,marginTop:11,overflow:"hidden"}}>
                     <div style={{height:"100%",width:`${inDeck.length?Math.round(pulled/inDeck.length*100):0}%`,
-                      background:"#111",transition:"width 220ms ease"}}/>
+                      background:"var(--bz-s1)",transition:"width 220ms ease"}}/>
                   </div>
                 </div>
                 <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
@@ -35568,8 +35568,8 @@ function DeckBuilderTab({ user, deckCards, setDeckCards, deckName, setDeckName, 
                         <td style={{padding:"10px 6px",textAlign:"center",borderLeft:`3px solid ${WEAPON_COLORS[canonWeapon(c.weapon)]||"#e8e8e8"}`}}>
                           <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",
                             width:19,height:19,borderRadius:5,
-                            border:"1.5px solid " + (done ? "#111" : "#ccc"),
-                            background: done ? "#111" : "#fff",
+                            border:"1.5px solid " + (done ? "var(--bz-s1)" : "#ccc"),
+                            background: done ? "var(--bz-s1)" : "#fff",
                             color:"#fff",fontSize:12,fontWeight:900,lineHeight:1}}>
                             {done ? "\u2713" : ""}
                           </span>
@@ -35716,7 +35716,7 @@ function OfferModal({ offerModal, offerSent, setOfferModal, offerAmt, setOfferAm
   return (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}
           onClick={()=>{if(offerSent){setOfferModal(null);setOfferAmt("");setOfferNote("");setOfferSent(false);}}}>
-          <div style={{background:"linear-gradient(135deg,#0d0d0d,#1a1400)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:20,padding:28,maxWidth:400,width:"100%"}} onClick={e=>e.stopPropagation()}>
+          <div style={{background:"linear-gradient(135deg,var(--bz-s1),#1a1400)",border:"1px solid rgba(251,191,36,0.3)",borderRadius:20,padding:28,maxWidth:400,width:"100%"}} onClick={e=>e.stopPropagation()}>
             {offerSent?(
               <div style={{textAlign:"center",padding:"20px 0"}}>
                 <div style={{fontSize:52,marginBottom:16}}>{"\uD83E\uDD1D"}</div>
@@ -36066,7 +36066,7 @@ function ScanModal({ scanModal, setScanModal, photoScan, setPhotoScan, scanSessi
               return (
                 <div style={{background:`linear-gradient(135deg,rgba(10,26,10,0.8),rgba(0,0,0,0.8))`,border:`1.5px solid rgba(74,222,128,0.3)`,borderRadius:20,padding:20,backdropFilter:"blur(10px)",animation:"floatUp 0.3s ease"}}>
                   <div style={{display:"flex",gap:14,marginBottom:16}}>
-                    {c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{width:80,height:107,objectFit:"cover",borderRadius:10,flexShrink:0,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}/>:<div style={{width:80,height:107,background:"#1a1a1a",borderRadius:10,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"var(--bz-ink-3)"}}>{c.hero}</div>}
+                    {c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{width:80,height:107,objectFit:"cover",borderRadius:10,flexShrink:0,boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}/>:<div style={{width:80,height:107,background:"var(--bz-s2)",borderRadius:10,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"var(--bz-ink-3)"}}>{c.hero}</div>}
                     <div>
                       <div style={{fontSize:18,fontWeight:900,color:"var(--bz-ink)",marginBottom:4}}>{c.hero}</div>
                       <div style={{fontSize:12,color:wc,fontWeight:700,marginBottom:2}}>{c.weapon}</div>
@@ -36203,7 +36203,7 @@ function CompModal({ compCard, setCompCard, marketSales, WEAPON_COLORS , cards, 
   const near = stats(nearSales);
   return (
   <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",zIndex:12500,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)",padding:16}} onClick={()=>setCompCard(null)}>
-    <div style={{background:"linear-gradient(135deg,#0d0d0d,#0a0d1a)",border:`1px solid ${wc}33`,borderRadius:24,width:"100%",maxWidth:560,maxHeight:"90vh",overflowY:"auto",boxShadow:`0 40px 120px ${wc}22`,animation:"floatUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
+    <div style={{background:"linear-gradient(135deg,var(--bz-s1),#0a0d1a)",border:`1px solid ${wc}33`,borderRadius:24,width:"100%",maxWidth:560,maxHeight:"90vh",overflowY:"auto",boxShadow:`0 40px 120px ${wc}22`,animation:"floatUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
       {/* Header */}
       <div style={{display:"flex",gap:14,padding:"24px 24px 20px",borderBottom:`1px solid ${wc}22`}}>
         {c.imageUrl?<img src={c.imageUrl} alt={c.hero} style={{width:64,height:85,objectFit:"cover",borderRadius:10,flexShrink:0,boxShadow:`0 8px 24px ${wc}44`}}/>:<div style={{width:64,height:85,background:"rgba(255,255,255,0.04)",borderRadius:10,flexShrink:0}}/>}
@@ -36434,7 +36434,7 @@ function CardFxOverlay({ fx, onDone }) {
           </div>
           {/* card */}
           <div style={{ position:"absolute", inset:0, borderRadius:12, overflow:"hidden", border:"2.5px solid #FBBF24", boxShadow:"0 0 40px rgba(251,191,36,0.6), inset 0 0 30px rgba(251,191,36,0.15)" }}>
-            {img ? <img src={img} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/> : <div style={{ width:"100%", height:"100%", background:"#1a1a1a" }}/>}
+            {img ? <img src={img} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/> : <div style={{ width:"100%", height:"100%", background:"var(--bz-s2)" }}/>}
             {/* scan line */}
             <div style={{ position:"absolute", left:0, right:0, height:"45%", background:"linear-gradient(180deg, transparent, rgba(251,191,36,0.35), transparent)", animation:"huntScan 1.6s ease forwards" }}/>
             {/* targeting corners */}
@@ -36480,7 +36480,7 @@ function CardFxOverlay({ fx, onDone }) {
       ))}
       {/* card */}
       <div style={{ position:"relative", width:"min(250px,58vw)", aspectRatio:"3/4", animation:"caughtCardIn 2.3s cubic-bezier(0.34,1.56,0.64,1) forwards", borderRadius:14, overflow:"hidden", border:"3px solid #4ade80", boxShadow:"0 0 50px rgba(74,222,128,0.7), 0 0 100px rgba(232,49,122,0.4)" }}>
-        {img ? <img src={img} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/> : <div style={{ width:"100%", height:"100%", background:"#1a1a1a" }}/>}
+        {img ? <img src={img} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", display:"block" }}/> : <div style={{ width:"100%", height:"100%", background:"var(--bz-s2)" }}/>}
         <div style={{ position:"absolute", top:8, right:8, background:"#4ade80", color:"#000", borderRadius:20, padding:"4px 12px", fontSize:13, fontWeight:900 }}>✅ GOT IT</div>
       </div>
       {/* text */}
@@ -37144,7 +37144,7 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp, onUploa
 
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:13500, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", padding:16, backdropFilter:"blur(4px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:"#141414", border:"1px solid var(--bz-line-2)", borderRadius:16, width:"min(460px,100%)", maxHeight:"86vh", overflowY:"auto", padding:"20px 22px" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:16, width:"min(460px,100%)", maxHeight:"86vh", overflowY:"auto", padding:"20px 22px" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
           <div>
             <div style={{ fontSize:11, color:"#999", fontWeight:700, letterSpacing:1, textTransform:"uppercase" }}>Collection Details</div>
@@ -37173,7 +37173,7 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp, onUploa
           <div style={{ margin:"12px 0" }}>
             <div style={{ fontSize:11, color:"#999", fontWeight:700, marginBottom:6 }}>Your copies ({lots.length})</div>
             {lots.map((l,i)=>(
-              <div key={l.id} style={{ display:"flex", alignItems:"center", gap:8, background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:8, padding:"8px 10px", marginBottom:6 }}>
+              <div key={l.id} style={{ display:"flex", alignItems:"center", gap:8, background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:8, padding:"8px 10px", marginBottom:6 }}>
                 {/* Front / back thumbnails. photoUrl is the original single-photo field (the front);
                     photoBackUrl was added later so existing scans keep working untouched. */}
                 {(l.photoUrl || l.photoBackUrl) && (
@@ -37182,7 +37182,7 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp, onUploa
                     <div key={side} style={{ position:"relative" }}>
                       <img src={url} alt={side} title={side} style={{ width:38, height:51, objectFit:"cover", borderRadius:6, border:"1px solid var(--bz-line-2)" }}/>
                       <div style={{ position:"absolute", bottom:-1, left:0, right:0, textAlign:"center", fontSize:7, fontWeight:800, color:"#fff", background:"rgba(0,0,0,0.6)", borderRadius:"0 0 5px 5px" }}>{side}</div>
-                      <button onClick={()=>{ if(window.confirm(`Delete the ${side} photo?`)) onUpdate(l.id, { ...l, [side==="front"?"photoUrl":"photoBackUrl"]:"" }); }} title={`Delete ${side} photo`} style={{ position:"absolute", top:-6, right:-6, background:"#1a1a1a", border:"1px solid #5a2a2a", color:"#E8317A", borderRadius:"50%", width:18, height:18, fontSize:11, cursor:"pointer", lineHeight:1, padding:0, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
+                      <button onClick={()=>{ if(window.confirm(`Delete the ${side} photo?`)) onUpdate(l.id, { ...l, [side==="front"?"photoUrl":"photoBackUrl"]:"" }); }} title={`Delete ${side} photo`} style={{ position:"absolute", top:-6, right:-6, background:"var(--bz-s2)", border:"1px solid #5a2a2a", color:"#E8317A", borderRadius:"50%", width:18, height:18, fontSize:11, cursor:"pointer", lineHeight:1, padding:0, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
                     </div>
                   ))}
                   </div>
@@ -37226,7 +37226,7 @@ function LotModal({ card, lots, onAdd, onUpdate, onRemove, onClose, inp, onUploa
         )}
 
         {/* Add / edit form */}
-        <div style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:10, padding:"12px 14px", marginTop:8 }}>
+        <div style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:10, padding:"12px 14px", marginTop:8 }}>
           <div style={{ fontSize:12, fontWeight:800, color:"#fff", marginBottom:10 }}>{editId?"Edit copy":"+ Add a copy"}</div>
           <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:8 }}>
             {LOT_METHODS.map(m=>(
@@ -37407,7 +37407,7 @@ function ReviewModal({ sale, onSubmit, onClose, inp }) {
   if (!sale) return null;
   return (
     <div onClick={onClose} style={{ position:"fixed", inset:0, zIndex:10005, background:"rgba(0,0,0,0.8)", display:"flex", alignItems:"center", justifyContent:"center", padding:16, backdropFilter:"blur(6px)" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:"#141414", border:"1px solid var(--bz-line-2)", borderRadius:18, width:"min(420px,100%)", padding:"24px 26px" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:18, width:"min(420px,100%)", padding:"24px 26px" }}>
         <div style={{ fontSize:11, color:"#999", fontWeight:700, letterSpacing:1, textTransform:"uppercase", marginBottom:4 }}>Rate your seller</div>
         <div style={{ fontSize:18, fontWeight:900, color:"#fff", marginBottom:2 }}>{sale.sellerName||"Seller"}</div>
         <div style={{ fontSize:12, color:"#a0a0a0", marginBottom:18 }}>{sale.cardName}{sale.price?` · $${Number(sale.price).toFixed(2)}`:""}</div>
@@ -37425,7 +37425,7 @@ function ReviewModal({ sale, onSubmit, onClose, inp }) {
         <textarea value={text} onChange={e=>setText(e.target.value)} placeholder="Add a review (optional) — how was the transaction?" rows={3} maxLength={600} style={{...inp, width:"100%", resize:"none", marginBottom:14 }}/>
         <div style={{ display:"flex", gap:10 }}>
           <button onClick={()=>stars>0 && onSubmit(sale, stars, text)} disabled={stars===0}
-            style={{ flex:1, background:stars>0?"linear-gradient(135deg,#E8317A,#FBBF24)":"#2a2a2a", border:"none", color:stars>0?"#fff":"#666", borderRadius:10, padding:"11px", fontSize:14, fontWeight:800, cursor:stars>0?"pointer":"not-allowed", fontFamily:"inherit" }}>Submit Review</button>
+            style={{ flex:1, background:stars>0?"linear-gradient(135deg,#E8317A,#FBBF24)":"var(--bz-line-2)", border:"none", color:stars>0?"#fff":"#666", borderRadius:10, padding:"11px", fontSize:14, fontWeight:800, cursor:stars>0?"pointer":"not-allowed", fontFamily:"inherit" }}>Submit Review</button>
           <button onClick={onClose} style={{ background:"transparent", border:"1px solid var(--bz-line-2)", color:"var(--bz-ink-2)", borderRadius:10, padding:"11px 18px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Later</button>
         </div>
       </div>
@@ -37468,7 +37468,7 @@ function SellerBadge({ uid, name, marketSales=[], inline=true, onViewProfile }) 
       onClick={e=>{ e.stopPropagation(); setOpen(o=>!o); loadStats(); }}>
       <span style={{ color:"#7B9CFF", fontWeight:700, cursor:"pointer", textDecoration:"underline", textDecorationStyle:"dotted", textUnderlineOffset:2 }}>{name||"Collector"}</span>
       {open && (
-        <div onClick={e=>e.stopPropagation()} style={{ position:"absolute", bottom:"calc(100% + 8px)", left:0, zIndex:10010, width:250, maxHeight:340, overflowY:"auto", background:"#141414", border:"1px solid var(--bz-line-2)", borderRadius:12, boxShadow:"0 12px 40px rgba(0,0,0,0.7)", padding:"14px 16px", cursor:"default" }}>
+        <div onClick={e=>e.stopPropagation()} style={{ position:"absolute", bottom:"calc(100% + 8px)", left:0, zIndex:10010, width:250, maxHeight:340, overflowY:"auto", background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:12, boxShadow:"0 12px 40px rgba(0,0,0,0.7)", padding:"14px 16px", cursor:"default" }}>
           <div style={{ fontSize:14, fontWeight:900, color:"#fff", marginBottom:2 }}>{name||"Collector"}</div>
           {onViewProfile && uid && <button onClick={e=>{ e.stopPropagation(); onViewProfile(uid); setOpen(false); }} style={{ background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", border:"none", borderRadius:7, padding:"5px 12px", fontSize:11, fontWeight:800, cursor:"pointer", fontFamily:"inherit", marginBottom:8, width:"100%" }}>View Full Profile →</button>}
           {stats?.handle && <div style={{ fontSize:11, color:"#7B9CFF", fontWeight:700, marginBottom:8 }}>{stats.handle}</div>}
@@ -37493,11 +37493,11 @@ function SellerBadge({ uid, name, marketSales=[], inline=true, onViewProfile }) 
                 )}
               </div>
               {written.length>0 && (
-                <div style={{ marginTop:6, borderTop:"1px solid #2a2a2a", paddingTop:10 }}>
+                <div style={{ marginTop:6, borderTop:"1px solid var(--bz-line-2)", paddingTop:10 }}>
                   <div style={{ fontSize:10, color:"#999", fontWeight:700, letterSpacing:1, textTransform:"uppercase", marginBottom:8 }}>Recent reviews</div>
                   <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                     {written.slice(0,6).map((r,i)=>(
-                      <div key={i} style={{ background:"#1a1a1a", borderRadius:8, padding:"8px 10px" }}>
+                      <div key={i} style={{ background:"var(--bz-s2)", borderRadius:8, padding:"8px 10px" }}>
                         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
                           <span style={{ fontSize:11, color:"#FBBF24", fontWeight:700 }}>{"⭐".repeat(r.stars||0)}</span>
                           <span style={{ fontSize:9, color:"var(--bz-ink-3)" }}>{(r.createdAt||"").split("T")[0]}</span>
@@ -37925,11 +37925,11 @@ function OnboardingModal({ user, onComplete, inp }) {
 
   return (
     <div style={{ position:"fixed", inset:0, zIndex:10020, background:"rgba(0,0,0,0.9)", display:"flex", alignItems:"center", justifyContent:"center", padding:16, backdropFilter:"blur(10px)" }}>
-      <div style={{ background:"linear-gradient(135deg,#0d0d0d,#140810)", border:"1px solid rgba(232,49,122,0.3)", borderRadius:22, width:"min(440px,100%)", padding:"32px 30px", boxShadow:"0 40px 120px rgba(232,49,122,0.2)" }}>
+      <div style={{ background:"linear-gradient(135deg,var(--bz-s1),#140810)", border:"1px solid rgba(232,49,122,0.3)", borderRadius:22, width:"min(440px,100%)", padding:"32px 30px", boxShadow:"0 40px 120px rgba(232,49,122,0.2)" }}>
         {/* progress */}
         <div style={{ display:"flex", gap:6, marginBottom:22 }}>
-          <div style={{ flex:1, height:4, borderRadius:2, background: step>=1 ? "#E8317A" : "#2a2a2a" }}/>
-          <div style={{ flex:1, height:4, borderRadius:2, background: step>=2 ? "#E8317A" : "#2a2a2a" }}/>
+          <div style={{ flex:1, height:4, borderRadius:2, background: step>=1 ? "#E8317A" : "var(--bz-line-2)" }}/>
+          <div style={{ flex:1, height:4, borderRadius:2, background: step>=2 ? "#E8317A" : "var(--bz-line-2)" }}/>
         </div>
 
         {step===1 ? (
@@ -37962,7 +37962,7 @@ function OnboardingModal({ user, onComplete, inp }) {
 
             {(()=>{ const ok = status==="available"||status==="mine"; return (
             <button onClick={claimUsername} disabled={!ok||saving}
-              style={{ width:"100%", background: ok?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#2a2a2a", color: ok?"#fff":"#666", border:"none", borderRadius:12, padding:"13px", fontSize:15, fontWeight:800, cursor: ok?"pointer":"not-allowed", fontFamily:"inherit" }}>
+              style={{ width:"100%", background: ok?"linear-gradient(135deg,#E8317A,#7B2FF7)":"var(--bz-line-2)", color: ok?"#fff":"#666", border:"none", borderRadius:12, padding:"13px", fontSize:15, fontWeight:800, cursor: ok?"pointer":"not-allowed", fontFamily:"inherit" }}>
               {saving ? "Claiming…" : "Claim it →"}
             </button>
             ); })()}
@@ -37976,8 +37976,8 @@ function OnboardingModal({ user, onComplete, inp }) {
               <label style={{ position:"relative", cursor: uploading?"wait":"pointer" }}>
                 {photoURL
                   ? <img src={photoURL} alt="" style={{ width:96, height:96, borderRadius:"50%", objectFit:"cover", border:"3px solid #E8317A", boxShadow:"0 0 24px rgba(232,49,122,0.4)" }}/>
-                  : <div style={{ width:96, height:96, borderRadius:"50%", background:"#1a1a1a", border:"2px dashed rgba(255,255,255,0.2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:32, color:"var(--bz-ink-3)" }}>{uploading?"…":"📷"}</div>}
-                <div style={{ position:"absolute", bottom:0, right:0, background:"#E8317A", borderRadius:"50%", width:28, height:28, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, border:"2px solid #0d0d0d" }}>✎</div>
+                  : <div style={{ width:96, height:96, borderRadius:"50%", background:"var(--bz-s2)", border:"2px dashed rgba(255,255,255,0.2)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:32, color:"var(--bz-ink-3)" }}>{uploading?"…":"📷"}</div>}
+                <div style={{ position:"absolute", bottom:0, right:0, background:"#E8317A", borderRadius:"50%", width:28, height:28, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, border:"2px solid var(--bz-s1)" }}>✎</div>
                 <input type="file" accept="image/*" style={{ display:"none" }} disabled={uploading} onChange={e=>{const f=e.target.files?.[0]; if(f)uploadPic(f); e.target.value="";}}/>
               </label>
             </div>
@@ -38152,7 +38152,7 @@ function Leaderboard({ user, marketSales=[], onViewProfile }) {
             const isMe = user && r.uid===user.uid;
             const tier = lbTier(r.collectionCount);
             return (
-              <div key={r.uid} onClick={()=>onViewProfile&&onViewProfile(r.uid)} style={{ display:"flex", alignItems:"center", gap:12, background:isMe?"rgba(232,49,122,0.1)":"#111", border:`1px solid ${isMe?"rgba(232,49,122,0.4)":"#222"}`, borderRadius:12, padding:"10px 14px", cursor:onViewProfile?"pointer":"default", transition:"background 0.15s" }} onMouseEnter={e=>{if(onViewProfile)e.currentTarget.style.background=isMe?"rgba(232,49,122,0.16)":"#1a1a1a";}} onMouseLeave={e=>{e.currentTarget.style.background=isMe?"rgba(232,49,122,0.1)":"#111";}}>
+              <div key={r.uid} onClick={()=>onViewProfile&&onViewProfile(r.uid)} style={{ display:"flex", alignItems:"center", gap:12, background:isMe?"rgba(232,49,122,0.1)":"var(--bz-s1)", border:`1px solid ${isMe?"rgba(232,49,122,0.4)":"#222"}`, borderRadius:12, padding:"10px 14px", cursor:onViewProfile?"pointer":"default", transition:"background 0.15s" }} onMouseEnter={e=>{if(onViewProfile)e.currentTarget.style.background=isMe?"rgba(232,49,122,0.16)":"var(--bz-s2)";}} onMouseLeave={e=>{e.currentTarget.style.background=isMe?"rgba(232,49,122,0.1)":"var(--bz-s1)";}}>
                 <div style={{ width:30, textAlign:"center", fontSize:i<3?20:14, fontWeight:900, color:i<3?"#FBBF24":"#666" }}>{medal(i)}</div>
                 {r.photoURL
                   ? <img src={r.photoURL} alt="" style={{ width:36, height:36, borderRadius:"50%", objectFit:"cover", border:"1px solid var(--bz-line-2)" }}/>
@@ -38880,7 +38880,7 @@ See you in there!
       'td.n{width:44px;color:#666;font-weight:700;}td.nm{font-weight:800;}td.v{color:#555;font-size:11.5px;}td.w{width:84px;color:#555;}td.p{width:52px;font-weight:900;}td.s{width:110px;color:#777;font-size:11px;}td.d{width:56px;font-weight:900;font-variant-numeric:tabular-nums;}'+
       '.bt{font-size:8px;font-weight:900;color:#B45309;background:#FEF3C7;border:1px solid #FDE68A;border-radius:3px;padding:0 3px;}'+
       '.subtot td{border-top:2.5px solid #111;font-weight:900;padding-top:8px;}.subtot .l{text-align:right;font-size:10px;letter-spacing:1px;text-transform:uppercase;}'+
-      '.grand{margin-top:18px;display:flex;justify-content:space-between;align-items:center;background:'+(over?"#FEE2E2":"#111")+';color:'+(over?"#991B1B":"#fff")+';border-radius:10px;padding:12px 18px;}'+
+      '.grand{margin-top:18px;display:flex;justify-content:space-between;align-items:center;background:'+(over?"#FEE2E2":"var(--bz-s1)")+';color:'+(over?"#991B1B":"#fff")+';border-radius:10px;padding:12px 18px;}'+
       '.grand .gl{font-size:12px;font-weight:900;letter-spacing:1.5px;text-transform:uppercase;}.grand .gv{font-size:24px;font-weight:900;font-variant-numeric:tabular-nums;}'+
       '.cap{font-size:10px;opacity:0.7;margin-left:8px;font-weight:700;}'+
       '.btns{margin-bottom:16px;}button{background:#111;color:#fff;border:none;border-radius:9px;padding:9px 18px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;}'+
@@ -46201,7 +46201,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
           {label} <span style={{fontSize:9,opacity:0.6,transform:open?"rotate(180deg)":"none",transition:"transform 0.15s"}}>▼</span>
         </button>
         {open && !isMobile && (
-          <div style={{position:"absolute",top:"100%",left:0,minWidth:190,background:"#141414",border:"1px solid var(--bz-line-2)",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.7)",padding:6,zIndex:700}}>
+          <div style={{position:"absolute",top:"100%",left:0,minWidth:190,background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.7)",padding:6,zIndex:700}}>
             {items.map(it=>(
               <button key={it.id} onClick={()=>{setActiveTab(it.id);setNavMenu(null);}} style={{
                 display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",gap:10,
@@ -46434,7 +46434,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 <input value={resetConfirmText} onChange={e=>setResetConfirmText(e.target.value)} placeholder="RESET" style={{width:"100%",background:"var(--bz-bg)",color:"#fff",border:"1px solid var(--bz-line-2)",borderRadius:8,padding:"10px 12px",fontSize:14,fontFamily:"inherit",marginBottom:16,letterSpacing:2}}/>
                 <div style={{display:"flex",gap:10}}>
                   <button onClick={()=>setResetModal(false)} style={{flex:1,background:"transparent",border:"1px solid var(--bz-line-2)",color:"#999",borderRadius:10,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-                  <button disabled={resetConfirmText!=="RESET"} onClick={runMarketplaceReset} style={{flex:2,background:resetConfirmText==="RESET"?"linear-gradient(135deg,#E8317A,#b91c5c)":"#2a2a2a",border:"none",color:resetConfirmText==="RESET"?"#fff":"#666",borderRadius:10,padding:"11px",fontSize:13,fontWeight:900,cursor:resetConfirmText==="RESET"?"pointer":"not-allowed",fontFamily:"inherit"}}>Wipe Marketplace & Messages</button>
+                  <button disabled={resetConfirmText!=="RESET"} onClick={runMarketplaceReset} style={{flex:2,background:resetConfirmText==="RESET"?"linear-gradient(135deg,#E8317A,#b91c5c)":"var(--bz-line-2)",border:"none",color:resetConfirmText==="RESET"?"#fff":"#666",borderRadius:10,padding:"11px",fontSize:13,fontWeight:900,cursor:resetConfirmText==="RESET"?"pointer":"not-allowed",fontFamily:"inherit"}}>Wipe Marketplace & Messages</button>
                 </div>
               </>
             )}
@@ -46940,13 +46940,13 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   {c.power && <div style={{ fontSize:15, fontWeight:900, color:wc, background:wc+"18", border:`1px solid ${wc}44`, borderRadius:8, padding:"4px 12px" }}>{c.power}⚡ POWER</div>}
                   {c.dbs!==undefined && c.dbs!=="" && <div style={{ fontSize:15, fontWeight:900, color:"#C084FC", background:"rgba(192,132,252,0.12)", border:"1px solid #C084FC44", borderRadius:8, padding:"4px 12px" }}>DBS {c.dbs}</div>}
                   {hasPlayCost(c) && <div style={{ fontSize:15, fontWeight:900, color:"#FBBF24", background:"rgba(251,191,36,0.12)", border:"1px solid #FBBF2444", borderRadius:8, padding:"4px 12px" }}>Cost {c.playCost}</div>}
-                  {c.cardNum && <div style={{ fontSize:13, fontWeight:700, color:"#aaa", background:"#1a1a1a", borderRadius:8, padding:"5px 12px" }}>#{c.cardNum}</div>}
+                  {c.cardNum && <div style={{ fontSize:13, fontWeight:700, color:"#aaa", background:"var(--bz-s2)", borderRadius:8, padding:"5px 12px" }}>#{c.cardNum}</div>}
                 </div>
                 <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                   {c.weapon && <span style={{ fontSize:12, color:wc, background:wc+"22", borderRadius:6, padding:"3px 10px", fontWeight:700 }}>{c.weapon}</span>}
-                  {c.treatment && <span style={{ fontSize:12, color:"#bbb", background:"#1a1a1a", borderRadius:6, padding:"3px 10px" }}>{c.treatment}</span>}
+                  {c.treatment && <span style={{ fontSize:12, color:"#bbb", background:"var(--bz-s2)", borderRadius:6, padding:"3px 10px" }}>{c.treatment}</span>}
                   {c.notation && <span style={{ fontSize:12, color:"#FBBF24", background:"#FBBF2422", borderRadius:6, padding:"3px 10px", fontWeight:700 }}>{c.notation}</span>}
-                  {c.variation && <span style={{ fontSize:12, color:"var(--bz-ink-2)", background:"#1a1a1a", borderRadius:6, padding:"3px 10px" }}>{c.variation}</span>}
+                  {c.variation && <span style={{ fontSize:12, color:"var(--bz-ink-2)", background:"var(--bz-s2)", borderRadius:6, padding:"3px 10px" }}>{c.variation}</span>}
                 </div>
                 {is1of1 && (
                   <div style={{ background: claimVerified ? "rgba(147,51,234,0.12)" : "rgba(74,222,128,0.08)", border:`1.5px solid ${claimVerified ? "#9333EA" : claimPending ? "#FBBF24" : "#4ade80"}66`, borderRadius:12, padding:"14px 16px" }}>
@@ -47614,7 +47614,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
 
         return (
           <div onClick={()=>!bulkEditing&&setBulkEditOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",zIndex:14000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-            <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2a2a2a",borderRadius:14,padding:22,maxWidth:560,width:"100%",maxHeight:"85vh",overflowY:"auto"}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:14,padding:22,maxWidth:560,width:"100%",maxHeight:"85vh",overflowY:"auto"}}>
               <div style={{fontSize:16,fontWeight:900,color:"#7B9CFF",marginBottom:6}}>
                 {"\u270F\uFE0F"} Edit {sel.length} card{sel.length===1?"":"s"}
               </div>
@@ -47623,7 +47623,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 changes the shared database {"\u2014"} so it applies for everyone.
               </div>
 
-              <div style={{border:"1px solid #2a2a2a",borderRadius:10,overflow:"hidden",marginBottom:16}}>
+              <div style={{border:"1px solid var(--bz-line-2)",borderRadius:10,overflow:"hidden",marginBottom:16}}>
                 {BULK_FIELDS.map(f => {
                   const on = f.id in bulkEdits;
                   const d = distinctFor(f.id);
@@ -47647,7 +47647,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                             disabled={bulkEditing}
                             type={f.id==="power" ? "number" : "text"}
                             placeholder={f.id==="power" ? "e.g. 150 \u2014 blank to clear" : `New ${f.label.toLowerCase()}\u2026`}
-                            style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:7,padding:"8px 11px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
+                            style={{width:"100%",background:"var(--bz-bg)",border:"1px solid #333",borderRadius:7,padding:"8px 11px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
                         {f.isImage && (
                           <div style={{marginTop:8,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                             <label style={{fontSize:11.5,fontWeight:700,color:"#7B9CFF",cursor:bulkImgUploading?"wait":"pointer",background:"rgba(123,156,255,0.1)",border:"1px solid rgba(123,156,255,0.35)",borderRadius:7,padding:"7px 12px"}}>
@@ -47711,7 +47711,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
         const confirmed = bulkDelText.trim() === String(n);
         return (
           <div onClick={()=>!bulkDeleting&&setBulkDelOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",zIndex:14000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-            <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #7f1d1d",borderRadius:14,padding:22,maxWidth:540,width:"100%",maxHeight:"85vh",overflowY:"auto"}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-s2)",border:"1px solid #7f1d1d",borderRadius:14,padding:22,maxWidth:540,width:"100%",maxHeight:"85vh",overflowY:"auto"}}>
               <div style={{fontSize:17,fontWeight:900,color:"#EF4444",marginBottom:8}}>
                 {"\u26A0\uFE0F"} Delete {n} card{n===1?"":"s"} from the database?
               </div>
@@ -47720,7 +47720,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 collector, not just you. Anyone who owns {n===1?"it":"them"} will lose {n===1?"it":"them"} from their collection.
                 <strong style={{color:"#EF4444"}}> This cannot be undone.</strong>
               </div>
-              <div style={{background:"#0b0b0b",border:"1px solid #2a2a2a",borderRadius:9,padding:"10px 12px",marginBottom:14,maxHeight:180,overflowY:"auto"}}>
+              <div style={{background:"var(--bz-bg)",border:"1px solid var(--bz-line-2)",borderRadius:9,padding:"10px 12px",marginBottom:14,maxHeight:180,overflowY:"auto"}}>
                 {sample.map(c=>(
                   <div key={c.id} style={{fontSize:11,fontFamily:"monospace",color:"var(--bz-ink-2)",padding:"3px 0",display:"flex",gap:8}}>
                     <span style={{minWidth:110,color:"var(--bz-ink-3)"}}>{c.setName}</span>
@@ -47735,7 +47735,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 Type <strong style={{color:"#EF4444"}}>{n}</strong> to confirm:
               </div>
               <input value={bulkDelText} onChange={e=>setBulkDelText(e.target.value)} autoFocus disabled={bulkDeleting}
-                style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:14,color:"#fff",fontFamily:"monospace",marginBottom:12}}/>
+                style={{width:"100%",background:"var(--bz-bg)",border:"1px solid #333",borderRadius:8,padding:"10px 12px",fontSize:14,color:"#fff",fontFamily:"monospace",marginBottom:12}}/>
               <div style={{display:"flex",gap:8}}>
                 <button disabled={!confirmed||bulkDeleting} onClick={bulkDeleteCards}
                   style={{flex:1,background:confirmed?"#EF4444":"#2a1515",color:confirmed?"#fff":"#666",border:"none",borderRadius:9,padding:"11px",fontSize:13,fontWeight:800,cursor:(confirmed&&!bulkDeleting)?"pointer":"not-allowed",fontFamily:"inherit"}}>
@@ -47782,7 +47782,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       {/* ── KIDS MANAGER ──────────────────────────────────────────────────────────────────── */}
       {kidsModal && (
         <div onClick={()=>setKidsModal(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(3px)",zIndex:13000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2f2f2f",borderRadius:16,padding:22,width:"100%",maxWidth:420,boxShadow:"0 24px 70px rgba(0,0,0,0.7)"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-s2)",border:"1px solid #2f2f2f",borderRadius:16,padding:22,width:"100%",maxWidth:420,boxShadow:"0 24px 70px rgba(0,0,0,0.7)"}}>
             <div style={{fontSize:16,fontWeight:800,color:"#fff",marginBottom:4}}>🧒 Kids' Collections</div>
             <div style={{fontSize:11.5,color:"#9a9a9a",marginBottom:16,lineHeight:1.6}}>
               Tag cards you own to a kid's binder. The cards stay in <strong>your</strong> collection and still count
@@ -47792,7 +47792,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
               <div key={g.id} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                 <span style={{width:10,height:10,borderRadius:"50%",background:g.color,flexShrink:0}}/>
                 <input defaultValue={g.name} onBlur={e=>renameKidGroup(g.id, e.target.value)}
-                  style={{flex:1,background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"7px 10px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
+                  style={{flex:1,background:"var(--bz-bg)",border:"1px solid #333",borderRadius:8,padding:"7px 10px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
                 <span style={{fontSize:11,color:"#9a9a9a",whiteSpace:"nowrap"}}>
                   {kidCounts[g.id]||0} cards
                 </span>
@@ -47802,7 +47802,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
             ))}
             <form onSubmit={e=>{e.preventDefault(); const v=e.target.kidname.value; if(addKidGroup(v)) e.target.reset();}} style={{display:"flex",gap:8,marginTop:12}}>
               <input name="kidname" placeholder="Add a kid's name…" autoComplete="off"
-                style={{flex:1,background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"9px 12px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
+                style={{flex:1,background:"var(--bz-bg)",border:"1px solid #333",borderRadius:8,padding:"9px 12px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
               <button type="submit" style={{background:"#7B9CFF",color:"#04122e",border:"none",borderRadius:8,padding:"9px 16px",fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Add</button>
             </form>
             <button onClick={()=>setKidsModal(false)} style={{marginTop:16,width:"100%",background:"transparent",border:"1px solid #333",color:"#c9c9c9",borderRadius:8,padding:"9px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Done</button>
@@ -47816,7 +47816,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
         const have = parseInt(owned[c.id])||0;
         return (
           <div onClick={()=>setSellModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(3px)",zIndex:13000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-            <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2f2f2f",borderRadius:16,padding:22,width:"100%",maxWidth:400,boxShadow:"0 24px 70px rgba(0,0,0,0.7)"}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-s2)",border:"1px solid #2f2f2f",borderRadius:16,padding:22,width:"100%",maxWidth:400,boxShadow:"0 24px 70px rgba(0,0,0,0.7)"}}>
               <div style={{fontSize:16,fontWeight:800,color:"#fff",marginBottom:2}}>Move this card on</div>
               <div style={{fontSize:12.5,color:"#c9c9c9",marginBottom:4}}>{c.hero} · #{c.cardNum} · {c.treatment}</div>
               <div style={{fontSize:11,color:"#9a9a9a",marginBottom:16,lineHeight:1.6}}>
@@ -47833,12 +47833,12 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   <div style={{flex:1}}>
                     <label style={{fontSize:10.5,color:"#9a9a9a",fontWeight:700,display:"block",marginBottom:4}}>How many</label>
                     <input name="qty" type="number" min="1" max={have} defaultValue="1"
-                      style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"8px 10px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
+                      style={{width:"100%",background:"var(--bz-bg)",border:"1px solid #333",borderRadius:8,padding:"8px 10px",fontSize:13,color:"#fff",fontFamily:"inherit"}}/>
                   </div>
                   <div style={{flex:2}}>
                     <label style={{fontSize:10.5,color:"#9a9a9a",fontWeight:700,display:"block",marginBottom:4}}>What happened</label>
                     <select name="reason" defaultValue="sold"
-                      style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"8px 10px",fontSize:13,color:"#fff",fontFamily:"inherit",cursor:"pointer"}}>
+                      style={{width:"100%",background:"var(--bz-bg)",border:"1px solid #333",borderRadius:8,padding:"8px 10px",fontSize:13,color:"#fff",fontFamily:"inherit",cursor:"pointer"}}>
                       <option value="sold">Sold</option>
                       <option value="traded">Traded</option>
                       <option value="gifted">Gifted</option>
@@ -47848,10 +47848,10 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 </div>
                 <label style={{fontSize:10.5,color:"#9a9a9a",fontWeight:700,display:"block",marginBottom:4}}>Price (optional)</label>
                 <input name="price" type="number" step="0.01" placeholder="e.g. 45.00"
-                  style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"8px 10px",fontSize:13,color:"#fff",fontFamily:"inherit",marginBottom:10}}/>
+                  style={{width:"100%",background:"var(--bz-bg)",border:"1px solid #333",borderRadius:8,padding:"8px 10px",fontSize:13,color:"#fff",fontFamily:"inherit",marginBottom:10}}/>
                 <label style={{fontSize:10.5,color:"#9a9a9a",fontWeight:700,display:"block",marginBottom:4}}>Note (optional)</label>
                 <input name="note" placeholder="Who to, what for…"
-                  style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",borderRadius:8,padding:"8px 10px",fontSize:13,color:"#fff",fontFamily:"inherit",marginBottom:16}}/>
+                  style={{width:"100%",background:"var(--bz-bg)",border:"1px solid #333",borderRadius:8,padding:"8px 10px",fontSize:13,color:"#fff",fontFamily:"inherit",marginBottom:16}}/>
                 <div style={{display:"flex",gap:8}}>
                   <button type="button" onClick={()=>setSellModal(null)} style={{flex:1,background:"transparent",border:"1px solid #333",color:"#c9c9c9",borderRadius:8,padding:"10px",fontSize:12.5,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
                   <button type="submit" style={{flex:1,background:"#E8317A",border:"none",color:"#fff",borderRadius:8,padding:"10px",fontSize:12.5,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>Confirm</button>
@@ -47865,14 +47865,14 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       {/* ── FORMERLY OWNED ────────────────────────────────────────────────────────────────── */}
       {soldView && (
         <div onClick={()=>setSoldView(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",backdropFilter:"blur(3px)",zIndex:13000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2f2f2f",borderRadius:16,padding:22,width:"100%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column",boxShadow:"0 24px 70px rgba(0,0,0,0.7)"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-s2)",border:"1px solid #2f2f2f",borderRadius:16,padding:22,width:"100%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column",boxShadow:"0 24px 70px rgba(0,0,0,0.7)"}}>
             <div style={{fontSize:16,fontWeight:800,color:"#fff",marginBottom:2}}>📜 Formerly owned</div>
             <div style={{fontSize:11.5,color:"#9a9a9a",marginBottom:12}}>
               Cards you've sold, traded, or given away. These don't count toward your collection — the record is just here so nothing gets lost. Search a trade partner's name to see everything that went to them.
             </div>
             {soldLog.length > 0 && (
               <input value={soldSearch} onChange={e=>setSoldSearch(e.target.value)} placeholder="Search partner name or card (e.g. Avalogaming)"
-                style={{width:"100%",background:"#0b0b0b",border:"1px solid #333",color:"#fff",borderRadius:8,padding:"9px 12px",fontSize:13,fontFamily:"inherit",marginBottom:12,boxSizing:"border-box"}}/>
+                style={{width:"100%",background:"var(--bz-bg)",border:"1px solid #333",color:"#fff",borderRadius:8,padding:"9px 12px",fontSize:13,fontFamily:"inherit",marginBottom:12,boxSizing:"border-box"}}/>
             )}
             {soldLog.length===0 ? (
               <div style={{fontSize:12.5,color:"#9a9a9a",textAlign:"center",padding:"30px 0"}}>Nothing here yet.</div>
@@ -47894,7 +47894,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   const c = cards.find(x=>x.id===e.cardId) || {};
                   const REASON = { sold:"Sold", traded:"Traded", gifted:"Gifted", lost:"Lost" };
                   return (
-                    <div key={e.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 11px",background:"#0b0b0b",border:"1px solid #333",borderRadius:9}}>
+                    <div key={e.id} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 11px",background:"var(--bz-bg)",border:"1px solid #333",borderRadius:9}}>
                       {c.imageUrl && <img src={c.imageUrl} alt="" style={{width:32,height:44,objectFit:"cover",borderRadius:4,flexShrink:0}}/>}
                       <div style={{minWidth:0,flex:1}}>
                         <div style={{fontSize:12.5,fontWeight:700,color:"#fff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
@@ -47925,7 +47925,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
           current data would be a second disaster on top of the first. */}
       {restoreModal && (
         <div onClick={()=>!restoreModal.busy && setRestoreModal(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:9000,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"#111",border:"1px solid #2a2a2a",borderRadius:16,padding:20,maxWidth:460,width:"100%",maxHeight:"85vh",overflowY:"auto"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-s1)",border:"1px solid var(--bz-line-2)",borderRadius:16,padding:20,maxWidth:460,width:"100%",maxHeight:"85vh",overflowY:"auto"}}>
             <div style={{fontSize:17,fontWeight:900,color:"#fff",marginBottom:6}}>{"\u267B\uFE0F"} Restore from Backup</div>
 
             {restoreModal.report ? (
@@ -48020,7 +48020,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
           Quantities start at 0 so nothing is recorded that you didn't ask for. */}
       {versionAsk && (
         <div onClick={()=>setVersionAsk(null)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:12500,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"#111",border:"1px solid #2a2a2a",borderRadius:16,padding:20,maxWidth:400,width:"100%"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-s1)",border:"1px solid var(--bz-line-2)",borderRadius:16,padding:20,maxWidth:400,width:"100%"}}>
             <div style={{fontSize:16,fontWeight:900,color:"#fff",marginBottom:4}}>{versionAsk.spec.label}</div>
             <div style={{fontSize:12.5,color:"var(--bz-ink-2)",lineHeight:1.6,marginBottom:14}}>
               <strong style={{color:"#fff"}}>{versionAsk.card.hero || versionAsk.card.playName}</strong>
@@ -48032,7 +48032,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 const n = versionAsk.counts?.[opt] || 0;
                 const bump = d => setVersionAsk(v => ({ ...v, counts: { ...(v.counts||{}), [opt]: Math.max(0, (v.counts?.[opt]||0) + d) } }));
                 return (
-                  <div key={opt} style={{display:"flex",alignItems:"center",gap:10,background:n>0?"rgba(74,222,128,0.1)":"rgba(255,255,255,0.03)",border:"1px solid "+(n>0?"rgba(74,222,128,0.45)":"#2a2a2a"),borderRadius:10,padding:"8px 10px"}}>
+                  <div key={opt} style={{display:"flex",alignItems:"center",gap:10,background:n>0?"rgba(74,222,128,0.1)":"rgba(255,255,255,0.03)",border:"1px solid "+(n>0?"rgba(74,222,128,0.45)":"var(--bz-line-2)"),borderRadius:10,padding:"8px 10px"}}>
                     <span style={{flex:1,fontSize:13.5,fontWeight:800,color:n>0?"#4ade80":"var(--bz-ink-2)"}}>{opt}</span>
                     <button onClick={()=>bump(-1)} disabled={n===0}
                       style={{background:"transparent",border:"none",color:n>0?"#4ade80":"rgba(255,255,255,0.2)",fontSize:19,fontWeight:900,cursor:n>0?"pointer":"default",padding:"2px 10px",fontFamily:"inherit",lineHeight:1}}>
@@ -48171,7 +48171,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                           <span style={{fontSize:10,color:"var(--bz-ink-3)"}}>Return by</span>
                           <input type="date" value={lot.returnBy||""}
                             onChange={e=>setLoanReturnBy(lot.id, e.target.value)}
-                            style={{background:"#111",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink)",
+                            style={{background:"var(--bz-s1)",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink)",
                                     borderRadius:6,padding:"3px 6px",fontSize:11,fontFamily:"inherit"}} />
                           {lot.returnBy && (()=>{
                             const days = Math.ceil((new Date(lot.returnBy+"T00:00:00") - new Date(todayLocal()+"T00:00:00"))/86400000);
@@ -48374,7 +48374,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       {onboarding && user && <OnboardingModal user={user} inp={inp} onComplete={(uname,purl)=>{ setMyUsername(uname); if(purl)setMyPhotoURL(purl); usernameClaimedThisSession.current=true; try{localStorage.setItem("bazooka_username_"+user.uid,uname); if(purl)localStorage.setItem("bazooka_photo_"+user.uid,purl);}catch(e){} setOnboarding(false); showToast(`Welcome, @${uname}!`); }} />}
       {userMissingModal && (
         <div onClick={()=>setUserMissingModal(false)} style={{position:"fixed",inset:0,zIndex:10003,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)"}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #333",borderRadius:18,width:"min(600px,100%)",maxHeight:"88vh",overflowY:"auto",padding:"24px 24px 22px"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-s2)",border:"1px solid #333",borderRadius:18,width:"min(600px,100%)",maxHeight:"88vh",overflowY:"auto",padding:"24px 24px 22px"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
               <div style={{fontSize:19,fontWeight:900,color:"#fff"}}>⏳ Pending Cards</div>
               <button onClick={()=>setUserMissingModal(false)} style={{background:"none",border:"none",color:"#c9c9c9",fontSize:24,cursor:"pointer",lineHeight:1}}>×</button>
@@ -48404,7 +48404,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       )}
       {missingCardsModal && (
         <div onClick={()=>setMissingCardsModal(false)} style={{position:"fixed",inset:0,zIndex:10003,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)"}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #333",borderRadius:18,width:"min(620px,100%)",maxHeight:"88vh",overflowY:"auto",padding:"24px 24px 22px"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-s2)",border:"1px solid #333",borderRadius:18,width:"min(620px,100%)",maxHeight:"88vh",overflowY:"auto",padding:"24px 24px 22px"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
               <div style={{fontSize:19,fontWeight:900,color:"#fff"}}>🗂️ Missing Cards</div>
               <button onClick={()=>setMissingCardsModal(false)} style={{background:"none",border:"none",color:"var(--bz-ink-2)",fontSize:24,cursor:"pointer",lineHeight:1}}>×</button>
@@ -48434,7 +48434,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       )}
       {importModal && (
         <div onClick={()=>{ if(!importing){ setImportModal(false); setImportRows(null); setImportRaw(null); setImportSetMap({}); setImportColMap(null); setColMapConfirmed(false); } }} style={{position:"fixed",inset:0,zIndex:10003,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)"}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid var(--bz-line-2)",borderRadius:18,width:"min(560px,100%)",maxHeight:"88vh",overflowY:"auto",padding:"24px 24px 22px"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:18,width:"min(560px,100%)",maxHeight:"88vh",overflowY:"auto",padding:"24px 24px 22px"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
               <div style={{fontSize:19,fontWeight:900,color:"#fff"}}>Import Your Collection</div>
               <button onClick={()=>{ if(!importing){ setImportModal(false); setImportRows(null); setImportRaw(null); setImportSetMap({}); setImportColMap(null); setColMapConfirmed(false); } }} style={{background:"none",border:"none",color:"var(--bz-ink-2)",fontSize:24,cursor:"pointer",lineHeight:1}}>×</button>
@@ -48662,7 +48662,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       )}
       {editProfileOpen && user && (
         <div onClick={()=>setEditProfileOpen(false)} style={{position:"fixed",inset:0,zIndex:10003,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(6px)"}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid var(--bz-line-2)",borderRadius:18,width:"min(420px,100%)",padding:"24px 24px 22px"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:18,width:"min(420px,100%)",padding:"24px 24px 22px"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
               <div style={{fontSize:18,fontWeight:900,color:"#fff"}}>Edit Profile</div>
               <button onClick={()=>setEditProfileOpen(false)} style={{background:"none",border:"none",color:"var(--bz-ink-2)",fontSize:24,cursor:"pointer",lineHeight:1}}>×</button>
@@ -48720,7 +48720,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       {/* Sign-in modal */}
       {signingIn&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.9)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)"}} onClick={()=>setSigningIn(false)}>
-          <div style={{background:"linear-gradient(135deg,#0d0d0d,#1a0a12)",border:"1px solid rgba(232,49,122,0.3)",borderRadius:24,padding:40,textAlign:"center",maxWidth:380,boxShadow:"0 40px 120px rgba(232,49,122,0.2)",animation:"floatUp 0.4s ease"}} onClick={e=>e.stopPropagation()}>
+          <div style={{background:"linear-gradient(135deg,var(--bz-s1),#1a0a12)",border:"1px solid rgba(232,49,122,0.3)",borderRadius:24,padding:40,textAlign:"center",maxWidth:380,boxShadow:"0 40px 120px rgba(232,49,122,0.2)",animation:"floatUp 0.4s ease"}} onClick={e=>e.stopPropagation()}>
             <div style={{fontSize:48,marginBottom:16}}>{"\uD83C\uDCCF"}</div>
             <div style={{fontSize:22,fontWeight:900,color:"var(--bz-ink)",marginBottom:8}}>Join the Community</div>
             <div style={{fontSize:13,color:"rgba(255,255,255,0.4)",marginBottom:28,lineHeight:1.6}}>Track your collection, scan cards, build decks, and connect with BoBA collectors worldwide.</div>
@@ -48761,7 +48761,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       {/* Listing modal */}
       {listModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:13000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(20px)"}} onClick={()=>setListModal(null)}>
-          <div style={{background:"linear-gradient(135deg,#0d0d0d,#0a1a0a)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:24,padding:32,width:420,maxWidth:"90vw",boxShadow:"0 40px 120px rgba(74,222,128,0.15)",animation:"floatUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
+          <div style={{background:"linear-gradient(135deg,var(--bz-s1),#0a1a0a)",border:"1px solid rgba(74,222,128,0.3)",borderRadius:24,padding:32,width:420,maxWidth:"90vw",boxShadow:"0 40px 120px rgba(74,222,128,0.15)",animation:"floatUp 0.3s ease"}} onClick={e=>e.stopPropagation()}>
             <div style={{fontSize:18,fontWeight:900,color:"#4ade80",marginBottom:4}}>{"\uD83D\uDCB0 List for Sale/Trade"}</div>
             <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginBottom:20}}>{listModal.hero} · {listModal.treatment} · {listModal.power}{"\u26A1"}</div>
             <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
@@ -48816,7 +48816,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       {/* Payment info popup */}
       {paymentPopup&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:24}} onClick={()=>setPaymentPopup(null)}>
-          <div style={{background:"linear-gradient(135deg,#0a1a0a,#0d0d0d)",border:"1px solid rgba(74,222,128,0.4)",borderRadius:20,padding:28,maxWidth:400,width:"100%"}} onClick={e=>e.stopPropagation()}>
+          <div style={{background:"linear-gradient(135deg,#0a1a0a,var(--bz-s1))",border:"1px solid rgba(74,222,128,0.4)",borderRadius:20,padding:28,maxWidth:400,width:"100%"}} onClick={e=>e.stopPropagation()}>
             <div style={{fontSize:24,textAlign:"center",marginBottom:8}}>{"\uD83C\uDF89"}</div>
             <div style={{fontSize:18,fontWeight:900,color:"#4ade80",textAlign:"center",marginBottom:4}}>Purchase Complete!</div>
             <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",textAlign:"center",marginBottom:20}}>{paymentPopup.cardName} {"\u00B7"} {"$"}{(paymentPopup.price||0).toFixed(2)}</div>
@@ -49041,7 +49041,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 </button>
                 {profileMenuOpen&&(
                   <div style={{position:"absolute",top:"100%",right:0,minWidth:200,paddingTop:10,zIndex:600}}>
-                  <div style={{background:"#141414",border:"1px solid var(--bz-line-2)",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.7)",padding:6}}>
+                  <div style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.7)",padding:6}}>
                     <div style={{padding:"8px 12px 10px",borderBottom:"1px solid var(--bz-line)",marginBottom:4}}>
                       <div style={{fontSize:13,fontWeight:800,color:"#fff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{myUsername?`@${myUsername}`:(user.displayName||"Collector")}</div>
                       <div style={{fontSize:10,color:"#999",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{user.email}</div>
@@ -49361,7 +49361,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
       {msgPanelOpen&&user&&(
         <>
           <div onClick={()=>setMsgPanelOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1000,backdropFilter:"blur(2px)"}}/>
-          <div style={{position:"fixed",top:0,right:0,bottom:0,width:"min(460px,100%)",background:"var(--bz-bg)",borderLeft:"1px solid #2a2a2a",zIndex:1001,boxShadow:"-8px 0 40px rgba(0,0,0,0.6)",display:"flex",flexDirection:"column",animation:"slideInRight 0.25s ease"}}>
+          <div style={{position:"fixed",top:0,right:0,bottom:0,width:"min(460px,100%)",background:"var(--bz-bg)",borderLeft:"1px solid var(--bz-line-2)",zIndex:1001,boxShadow:"-8px 0 40px rgba(0,0,0,0.6)",display:"flex",flexDirection:"column",animation:"slideInRight 0.25s ease"}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 20px",borderBottom:"1px solid var(--bz-line)"}}>
               <div style={{fontSize:16,fontWeight:900,color:"#fff"}}>💬 Messages</div>
               <button onClick={()=>setMsgPanelOpen(false)} style={{background:"none",border:"none",color:"var(--bz-ink-2)",fontSize:24,cursor:"pointer",lineHeight:1}}>×</button>
@@ -49574,7 +49574,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                         <div style={{ fontSize:18, fontWeight:900, color:"#9333EA", marginBottom:4 }}>{oneEditMode?"✏️ Edit Claim":adminClaimMode?"🎯 Record Secret 1/1 Hit (Admin)":"💎 Claim Secret 1/1"}</div>
                         <div style={{ fontSize:13, color:"var(--bz-ink-2)", marginBottom:20 }}>{oneModal.hero} #{oneModal.cardNum} · {oneModal.treatment}</div>
                         <label style={{ display:"block", marginBottom:14 }}>
-                          <div style={{ background:onePhoto?"#0a0a1a":"#0a0a0a", border:`2px dashed ${onePhoto?"#9333EA":"#2a2a2a"}`, borderRadius:12, padding:20, textAlign:"center", cursor:"pointer" }}>
+                          <div style={{ background:onePhoto?"#0a0a1a":"var(--bz-bg)", border:`2px dashed ${onePhoto?"#9333EA":"var(--bz-line-2)"}`, borderRadius:12, padding:20, textAlign:"center", cursor:"pointer" }}>
                             {onePhoto ? <img src={(onePhoto&&onePhoto.preview)?onePhoto.preview:onePhoto} alt="" style={{ maxHeight:180, maxWidth:"100%", borderRadius:8, objectFit:"contain" }}/> : <><div style={{ fontSize:32, marginBottom:8 }}>📸</div><div style={{ fontSize:13, fontWeight:700, color:"#9333EA" }}>Tap to upload photo</div></>}
                           </div>
                           <input type="file" accept="image/*" capture="environment" style={{ display:"none" }}
@@ -49624,7 +49624,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                             } catch(e){ alert("Upload failed: "+e.message); }
                             setOneSubmitting(false);
                           }} disabled={(!onePhoto && !oneEditMode)||oneSubmitting}
-                            style={{ flex:1, background:(onePhoto||oneEditMode)?"#9333EA":"#1a1a1a", color:(onePhoto||oneEditMode)?"#fff":"#555", border:"none", borderRadius:12, padding:14, fontSize:14, fontWeight:800, cursor:(onePhoto||oneEditMode)?"pointer":"not-allowed", fontFamily:"inherit" }}>
+                            style={{ flex:1, background:(onePhoto||oneEditMode)?"#9333EA":"var(--bz-s2)", color:(onePhoto||oneEditMode)?"#fff":"#555", border:"none", borderRadius:12, padding:14, fontSize:14, fontWeight:800, cursor:(onePhoto||oneEditMode)?"pointer":"not-allowed", fontFamily:"inherit" }}>
                             {oneSubmitting?"Saving...":(oneEditMode?"💾 Save Changes":"Submit Claim")}
                           </button>
                           <button onClick={()=>{ setOneModal(null); setOnePhoto(null); setOneStory(""); setOneDate(""); setOneName(""); setAdminClaimMode(false); setOneEditMode(false); }}
@@ -49637,7 +49637,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
               )}
 
               {/* Header */}
-              <div style={{ background:"linear-gradient(135deg,#1a0a2e,#0d0d0d)", border:"1px solid rgba(147,51,234,0.2)", borderRadius:16, padding:"20px 24px" }}>
+              <div style={{ background:"linear-gradient(135deg,#1a0a2e,var(--bz-s1))", border:"1px solid rgba(147,51,234,0.2)", borderRadius:16, padding:"20px 24px" }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                   <div>
                     <div style={{ fontSize:11, fontWeight:700, color:"#9333EA", textTransform:"uppercase", letterSpacing:2, marginBottom:4 }}>💎 Community Secret 1/1 Hunt</div>
@@ -49648,7 +49648,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                     <div style={{ fontSize:11, color:"var(--bz-ink-3)" }}>found & verified</div>
                   </div>
                 </div>
-                <div style={{ height:10, background:"#1a1a1a", borderRadius:5, overflow:"hidden" }}>
+                <div style={{ height:10, background:"var(--bz-s2)", borderRadius:5, overflow:"hidden" }}>
                   <div style={{ height:"100%", width:`${totalCount>0?(verifiedCount1/totalCount*100):0}%`, background:"linear-gradient(90deg,#6B21A8,#9333EA,#C084FC,#E879F9,#A855F7,#7C3AED,#6B21A8)", backgroundSize:"200% 100%", animation:"gradientShift 3s ease infinite", borderRadius:5, transition:"width 0.5s ease" }}/>
                 </div>
               </div>
@@ -49759,8 +49759,8 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 const collapseKey=`${secret1GroupBy}:${setName}`;
                 const isCollapsed=q ? false : !expandedOneGroups[collapseKey];
                 return (
-                  <div key={setName} style={{ background:"var(--bz-s1)", border:`1px solid ${isFull?"#9333EA44":"#2a2a2a"}`, borderRadius:14, overflow:"hidden" }}>
-                    <div onClick={()=>setExpandedOneGroups(p=>({...p,[collapseKey]:!p[collapseKey]}))} style={{ padding:"16px 20px", background:isFull?"linear-gradient(135deg,#1a0a2e,#111)":"#111", cursor:"pointer", userSelect:"none" }}>
+                  <div key={setName} style={{ background:"var(--bz-s1)", border:`1px solid ${isFull?"#9333EA44":"var(--bz-line-2)"}`, borderRadius:14, overflow:"hidden" }}>
+                    <div onClick={()=>setExpandedOneGroups(p=>({...p,[collapseKey]:!p[collapseKey]}))} style={{ padding:"16px 20px", background:isFull?"linear-gradient(135deg,#1a0a2e,var(--bz-s1))":"var(--bz-s1)", cursor:"pointer", userSelect:"none" }}>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
                         <div>
                           <div style={{ fontSize:14, fontWeight:800, color:isFull?"#9333EA":"var(--bz-ink)" }}>{isFull?"🏆 ":"💎 "}{setName}</div>
@@ -49771,7 +49771,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                           <span style={{ color:"rgba(255,255,255,0.3)", fontSize:14 }}>{isCollapsed?"▼":"▲"}</span>
                         </div>
                       </div>
-                      <div style={{ height:8, background:"#1a1a1a", borderRadius:4, overflow:"hidden" }}>
+                      <div style={{ height:8, background:"var(--bz-s2)", borderRadius:4, overflow:"hidden" }}>
                         <div style={{ height:"100%", width:`${verPct}%`, background:"linear-gradient(90deg,#7C3AED,#A855F7,#C084FC)", borderRadius:4, transition:"width 0.5s ease" }}/>
                       </div>
                     </div>
@@ -49887,7 +49887,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                     <div style={{ fontSize:13, fontWeight:800, color:"#F59E0B" }}>📦 Bulk upload /34 photos</div>
                     <div style={{ fontSize:11, color:"var(--bz-ink-2)", marginTop:2 }}>Select up to 34 images. Each is mapped to a serial by the number in its filename (e.g. <strong style={{color:"#bbb"}}>1.jpg … 34.jpg</strong>) and marked as a verified hit.</div>
                   </div>
-                  <label style={{ display:"inline-block", background: bojax34Uploading ? "#1a1a1a" : "linear-gradient(135deg,#F59E0B,#E8317A)", color: bojax34Uploading ? "#666" : "#fff", borderRadius:10, padding:"10px 18px", fontSize:13, fontWeight:800, cursor: bojax34Uploading ? "wait" : "pointer", fontFamily:"inherit" }}>
+                  <label style={{ display:"inline-block", background: bojax34Uploading ? "var(--bz-s2)" : "linear-gradient(135deg,#F59E0B,#E8317A)", color: bojax34Uploading ? "#666" : "#fff", borderRadius:10, padding:"10px 18px", fontSize:13, fontWeight:800, cursor: bojax34Uploading ? "wait" : "pointer", fontFamily:"inherit" }}>
                     {bojax34Uploading ? `Uploading ${bojax34Uploading.done}/${bojax34Uploading.total}…` : "⬆️ Choose images"}
                     <input type="file" accept="image/*" multiple style={{ display:"none" }} disabled={!!bojax34Uploading}
                       onChange={e=>{ const fs=e.target.files; if(fs&&fs.length) bulkUploadBojax34(fs); e.target.value=""; }}/>
@@ -49903,7 +49903,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   const pending  = cl && cl.status==="pending";
                   const stateColor = verified ? "#F59E0B" : pending ? "#FBBF24" : "#333";
                   return (
-                    <div key={serial} style={{ background: verified?"rgba(245,158,11,0.1)":pending?"rgba(251,191,36,0.06)":"#0d0d0d", border:`1.5px solid ${stateColor}${verified||pending?"":"55"}`, borderRadius:12, padding:"12px", textAlign:"center", position:"relative" }}>
+                    <div key={serial} style={{ background: verified?"rgba(245,158,11,0.1)":pending?"rgba(251,191,36,0.06)":"var(--bz-s1)", border:`1.5px solid ${stateColor}${verified||pending?"":"55"}`, borderRadius:12, padding:"12px", textAlign:"center", position:"relative" }}>
                       <div style={{ fontSize:18, fontWeight:900, color: verified?"#F59E0B":pending?"#FBBF24":"#666" }}>{serial}<span style={{ fontSize:11, color:"var(--bz-ink-3)" }}>/34</span></div>
                       {(() => {
                         const baseArt = bjCard?.imageUrl || cl?.cardImage || null;
@@ -49981,7 +49981,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                 <input type="date" value={bojaxDate} onClick={e=>e.target.showPicker&&e.target.showPicker()} onChange={e=>setBojaxDate(e.target.value)} style={{ width:"100%", background:"#0d0d12", border:"1px solid rgba(255,255,255,0.15)", color:"#fff", borderRadius:8, padding:"9px 11px", fontSize:16, fontFamily:"inherit", boxSizing:"border-box", marginTop:4, marginBottom:12 }}/>
                 <label style={{ fontSize:11, color:"#F59E0B", fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Story (optional)</label>
                 <textarea value={bojaxStory} onChange={e=>setBojaxStory(e.target.value)} placeholder="How'd you land it?" rows={2} style={{ width:"100%", background:"#0d0d12", border:"1px solid rgba(255,255,255,0.15)", color:"#fff", borderRadius:8, padding:"9px 11px", fontSize:14, fontFamily:"inherit", boxSizing:"border-box", marginTop:4, marginBottom:12, resize:"vertical" }}/>
-                <label style={{ display:"block", background: bojaxPhoto?"#0a1a0a":"#0a0a0a", border:`2px dashed ${bojaxPhoto?"#F59E0B":"#2a2a2a"}`, borderRadius:12, padding:"18px", textAlign:"center", cursor:"pointer", marginBottom:14 }}>
+                <label style={{ display:"block", background: bojaxPhoto?"#0a1a0a":"var(--bz-bg)", border:`2px dashed ${bojaxPhoto?"#F59E0B":"var(--bz-line-2)"}`, borderRadius:12, padding:"18px", textAlign:"center", cursor:"pointer", marginBottom:14 }}>
                   {bojaxPhoto ? <img src={bojaxPhoto} alt="proof" style={{ maxHeight:180, maxWidth:"100%", borderRadius:8 }}/> : <div style={{ color:"#999", fontSize:13 }}>📸 Tap to add a photo of your card</div>}
                   <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>{ const f=e.target.files?.[0]; if(f){ const r=new FileReader(); r.onload=ev=>setBojaxPhoto(ev.target.result); r.readAsDataURL(f); } }}/>
                 </label>
@@ -50092,7 +50092,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                         <div style={{fontSize:13,color:"var(--bz-ink-2)",marginBottom:16}}>{claimModal.hero} #{claimModal.cardNum} · {claimModal.setName}</div>
                         <div style={{fontSize:12,color:"var(--bz-ink-3)",marginBottom:16,lineHeight:1.6}}>{adminClaimMode?"Recording on behalf of the puller — this goes straight in as verified. Photo required.":"Super Foils are 1/1 cards. Upload a clear photo as proof — an admin will verify before it counts on the tracker."}</div>
                         <label style={{display:"block",marginBottom:16}}>
-                          <div style={{background:claimPhoto?"#0a1a0a":"#0a0a0a",border:`2px dashed ${claimPhoto?"#F59E0B":"#2a2a2a"}`,borderRadius:12,padding:"20px",textAlign:"center",cursor:"pointer"}}>
+                          <div style={{background:claimPhoto?"#0a1a0a":"var(--bz-bg)",border:`2px dashed ${claimPhoto?"#F59E0B":"var(--bz-line-2)"}`,borderRadius:12,padding:"20px",textAlign:"center",cursor:"pointer"}}>
                             {claimPhoto?(
                               <img src={(claimPhoto&&claimPhoto.preview)?claimPhoto.preview:claimPhoto} alt="proof" style={{maxHeight:200,maxWidth:"100%",borderRadius:8,objectFit:"contain"}}/>
                             ):(
@@ -50123,7 +50123,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                         </div>
                         <div style={{display:"flex",gap:10}}>
                           <button onClick={()=>{ const pd=(claimPhoto&&claimPhoto.existing)?null:(claimPhoto&&claimPhoto.preview?claimPhoto.preview:claimPhoto); if(editClaimMode||claimPhoto){submitClaim(claimModal,pd);} }} disabled={(!editClaimMode&&!claimPhoto)||claimSubmitting}
-                            style={{flex:1,background:(editClaimMode||claimPhoto)?"#F59E0B":"#1a1a1a",color:(editClaimMode||claimPhoto)?"#000":"#555",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:800,cursor:(editClaimMode||claimPhoto)?"pointer":"not-allowed",fontFamily:"inherit"}}>
+                            style={{flex:1,background:(editClaimMode||claimPhoto)?"#F59E0B":"var(--bz-s2)",color:(editClaimMode||claimPhoto)?"#000":"#555",border:"none",borderRadius:12,padding:"12px",fontSize:14,fontWeight:800,cursor:(editClaimMode||claimPhoto)?"pointer":"not-allowed",fontFamily:"inherit"}}>
                             {claimSubmitting?"Saving...":(editClaimMode?"💾 Save Changes":"Submit Claim")}
                           </button>
                           <button onClick={()=>{setClaimModal(null);setClaimPhoto(null);setClaimStory("");setClaimName("");setClaimDate("");setAdminClaimMode(false);setEditClaimMode(false);}} style={{background:"transparent",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-2)",borderRadius:12,padding:"12px 20px",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
@@ -50439,7 +50439,7 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                               zIndex sits below the menu (9999) but above page content. */}
                           <div onPointerDown={(e)=>{ e.stopPropagation(); setMultiOpen(null); }}
                                style={{position:"fixed",inset:0,zIndex:9990}}/>
-                          <div className="filter-menu" style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:9999,background:"#141414",border:"1px solid #2a2a2a",borderRadius:10,padding:6,minWidth:200,maxHeight:320,overflowY:"auto",boxShadow:"0 10px 30px rgba(0,0,0,0.6)"}}>
+                          <div className="filter-menu" style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:9999,background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:10,padding:6,minWidth:200,maxHeight:320,overflowY:"auto",boxShadow:"0 10px 30px rgba(0,0,0,0.6)"}}>
                             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 8px 6px",borderBottom:"1px solid #222",marginBottom:4}}>
                               <span style={{fontSize:10,color:"var(--bz-ink-2)",fontWeight:700,letterSpacing:0.5}}>{label.toUpperCase()}</span>
                               {sel.size>0 && <button onClick={()=>{setSel(new Set());preserveScroll();setPage(1);}} style={{background:"none",border:"none",color:"var(--bz-ink-3)",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Clear</button>}
@@ -50549,8 +50549,8 @@ async function sendTradeOffer({ toUid, toName, theirCards=[], myCards=[], note, 
                   <>
                     <div onPointerDown={(e)=>{ e.stopPropagation(); setPowerMenuOpen(false); }}
                          style={{position:"fixed",inset:0,zIndex:9990}}/>
-                    <div className="filter-menu" style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:9999,background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",width:180,maxHeight:280,overflowY:"auto",padding:6}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 8px 6px",borderBottom:"1px solid #2a2a2a",marginBottom:4}}>
+                    <div className="filter-menu" style={{position:"absolute",top:"calc(100% + 4px)",left:0,zIndex:9999,background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,boxShadow:"0 8px 24px rgba(0,0,0,0.8)",width:180,maxHeight:280,overflowY:"auto",padding:6}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 8px 6px",borderBottom:"1px solid var(--bz-line-2)",marginBottom:4}}>
                         <span style={{fontSize:10,color:"var(--bz-ink-2)",fontWeight:700,letterSpacing:1}}>POWER LEVEL</span>
                         {filterPower.size>0 && <button onClick={()=>{setFilterPower(new Set());preserveScroll();setPage(1);}} style={{background:"none",border:"none",color:"#E8317A",fontSize:10,cursor:"pointer",fontFamily:"inherit"}}>Clear</button>}
                       </div>
@@ -51707,7 +51707,7 @@ function PublicChaseTracker() {
       `}</style>
 
       {/* Hero header */}
-      <div style={{ position:"relative", overflow:"hidden", background:"linear-gradient(135deg,#0a0a0a 0%,#0d0010 50%,#0a0a0a 100%)", borderBottom:"1px solid var(--bz-line)", padding:"48px 24px 40px" }}>
+      <div style={{ position:"relative", overflow:"hidden", background:"linear-gradient(135deg,var(--bz-bg) 0%,#0d0010 50%,var(--bz-bg) 100%)", borderBottom:"1px solid var(--bz-line)", padding:"48px 24px 40px" }}>
         {/* Ambient orbs */}
         <div style={{ position:"absolute", top:-60, left:"10%", width:300, height:300, borderRadius:"50%", background:"radial-gradient(circle,rgba(232,49,122,0.08) 0%,transparent 70%)", pointerEvents:"none" }}/>
         <div style={{ position:"absolute", top:-40, right:"15%", width:200, height:200, borderRadius:"50%", background:"radial-gradient(circle,rgba(123,156,255,0.07) 0%,transparent 70%)", pointerEvents:"none" }}/>
@@ -51744,7 +51744,7 @@ function PublicChaseTracker() {
 
         {loading && (
           <div style={{ textAlign:"center", padding:80 }}>
-            <div style={{ width:40, height:40, borderRadius:"50%", border:"3px solid #1a1a1a", borderTopColor:"#E8317A", animation:"spin 0.8s linear infinite", margin:"0 auto 16px" }}/>
+            <div style={{ width:40, height:40, borderRadius:"50%", border:"3px solid var(--bz-s2)", borderTopColor:"#E8317A", animation:"spin 0.8s linear infinite", margin:"0 auto 16px" }}/>
             <div style={{ color:"var(--bz-ink-3)", fontSize:13 }}>Loading chases...</div>
           </div>
         )}
@@ -51783,7 +51783,7 @@ function PublicChaseTracker() {
 
                   return (
                     <div key={chase.id} className="chase-card"
-                      style={{ background:"linear-gradient(160deg,#111 0%,#0d0d0d 100%)", border:`1px solid ${isOpen?color+"44":"#1a1a1a"}`, borderRadius:16, overflow:"hidden", boxShadow:isOpen?`0 0 40px ${color}11`:"none" }}>
+                      style={{ background:"linear-gradient(160deg,var(--bz-s1) 0%,var(--bz-s1) 100%)", border:`1px solid ${isOpen?color+"44":"var(--bz-s2)"}`, borderRadius:16, overflow:"hidden", boxShadow:isOpen?`0 0 40px ${color}11`:"none" }}>
 
                       {/* Accent line */}
                       <div style={{ height:3, background:`linear-gradient(90deg,${color},${color}44,transparent)` }}/>
@@ -51805,7 +51805,7 @@ function PublicChaseTracker() {
                         </div>
 
                         {/* Rainbow progress bar */}
-                        <div style={{ background:"#1a1a1a", borderRadius:99, height:8, overflow:"hidden", position:"relative" }}>
+                        <div style={{ background:"var(--bz-s2)", borderRadius:99, height:8, overflow:"hidden", position:"relative" }}>
                           {/* Full rainbow track (always rendered, clipped by width) */}
                           <div style={{ position:"absolute", inset:0, borderRadius:99, background:"linear-gradient(90deg,#94A3B8 0%,#EF4444 14%,#F97316 28%,#38BDF8 42%,#4ade80 57%,#A78BFA 71%,#EC4899 85%,#FBBF24 100%)", opacity:0.15 }}/>
                           {/* Filled portion */}
@@ -51919,7 +51919,7 @@ function PublicChaseTracker() {
                       placeholder="@yourusername"
                       style={{ background:"var(--bz-bg)", border:"1px solid var(--bz-line-2)", borderRadius:10, padding:"11px 14px", color:"var(--bz-ink)", fontSize:14, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box", transition:"border-color 0.15s" }}
                       onFocus={e=>e.target.style.borderColor="#E8317A"}
-                      onBlur={e=>e.target.style.borderColor="#2a2a2a"}/>
+                      onBlur={e=>e.target.style.borderColor="var(--bz-line-2)"}/>
                   </div>
                   <div>
                     <label style={{ fontSize:10, fontWeight:700, color:"var(--bz-ink-3)", textTransform:"uppercase", letterSpacing:"1.2px", display:"block", marginBottom:6 }}>Message <span style={{ color:"var(--bz-ink-3)" }}>(optional)</span></label>
@@ -51928,11 +51928,11 @@ function PublicChaseTracker() {
                       rows={3}
                       style={{ background:"var(--bz-bg)", border:"1px solid var(--bz-line-2)", borderRadius:10, padding:"11px 14px", color:"var(--bz-ink)", fontSize:13, fontFamily:"inherit", outline:"none", width:"100%", boxSizing:"border-box", resize:"none", lineHeight:1.6, transition:"border-color 0.15s" }}
                       onFocus={e=>e.target.style.borderColor="#E8317A"}
-                      onBlur={e=>e.target.style.borderColor="#2a2a2a"}/>
+                      onBlur={e=>e.target.style.borderColor="var(--bz-line-2)"}/>
                   </div>
                   <div>
                     <label style={{ fontSize:10, fontWeight:700, color:"var(--bz-ink-3)", textTransform:"uppercase", letterSpacing:"1.2px", display:"block", marginBottom:6 }}>Photo <span style={{ color:"var(--bz-ink-3)" }}>(optional)</span></label>
-                    <label style={{ display:"flex", alignItems:"center", gap:10, background:"var(--bz-bg)", border:"1px dashed #2a2a2a", borderRadius:10, padding:"12px 14px", cursor:"pointer" }}>
+                    <label style={{ display:"flex", alignItems:"center", gap:10, background:"var(--bz-bg)", border:"1px dashed var(--bz-line-2)", borderRadius:10, padding:"12px 14px", cursor:"pointer" }}>
                       <span style={{ fontSize:18 }}>📷</span>
                       <span style={{ fontSize:12, color:formData.photo?"#4ade80":"#555" }}>{formData.photo?formData.photo.name:"Tap to add a photo"}</span>
                       <input type="file" accept="image/*" style={{ display:"none" }} onChange={e=>setFormData(p=>({...p,photo:e.target.files[0]||null}))}/>
@@ -51942,11 +51942,11 @@ function PublicChaseTracker() {
 
                 <div style={{ display:"flex", gap:10, marginTop:22 }}>
                   <button onClick={submitHaveCard} disabled={!formData.discord.trim()||submitting}
-                    style={{ flex:1, background:(!formData.discord.trim()||submitting)?"#1a1a1a":"linear-gradient(135deg,#E8317A,#c41e5a)", border:"none", color:(!formData.discord.trim()||submitting)?"#444":"#fff", borderRadius:10, padding:"13px", fontSize:14, fontWeight:800, cursor:(!formData.discord.trim()||submitting)?"not-allowed":"pointer", fontFamily:"inherit", transition:"all 0.15s", boxShadow:(!formData.discord.trim()||submitting)?"none":"0 8px 24px rgba(232,49,122,0.35)" }}>
+                    style={{ flex:1, background:(!formData.discord.trim()||submitting)?"var(--bz-s2)":"linear-gradient(135deg,#E8317A,#c41e5a)", border:"none", color:(!formData.discord.trim()||submitting)?"#444":"#fff", borderRadius:10, padding:"13px", fontSize:14, fontWeight:800, cursor:(!formData.discord.trim()||submitting)?"not-allowed":"pointer", fontFamily:"inherit", transition:"all 0.15s", boxShadow:(!formData.discord.trim()||submitting)?"none":"0 8px 24px rgba(232,49,122,0.35)" }}>
                     {submitting ? "Sending..." : "Send →"}
                   </button>
                   <button onClick={()=>{ setSubmitForm(null); setFormData({discord:"",message:"",photo:null}); }}
-                    style={{ background:"#1a1a1a", border:"1px solid var(--bz-line-2)", color:"#999", borderRadius:10, padding:"13px 18px", fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>
+                    style={{ background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", color:"#999", borderRadius:10, padding:"13px 18px", fontSize:14, cursor:"pointer", fontFamily:"inherit" }}>
                     ✕
                   </button>
                 </div>
@@ -52150,7 +52150,7 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
               {CHASE_MODES.map(m=>(
                 <button key={m.id} onClick={()=>{ setFMode(m.id); setFHero(""); setFWeapon(""); setFTreat(""); }}
                   title={m.desc}
-                  style={{ background:fMode===m.id?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1.5px solid ${fMode===m.id?"#E8317A":"#2a2a2a"}`, color:fMode===m.id?"#E8317A":"#888", borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                  style={{ background:fMode===m.id?"rgba(232,49,122,0.12)":"var(--bz-s1)", border:`1.5px solid ${fMode===m.id?"#E8317A":"var(--bz-line-2)"}`, color:fMode===m.id?"#E8317A":"#888", borderRadius:8, padding:"7px 14px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                   {m.label}
                 </button>
               ))}
@@ -52255,7 +52255,7 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
                 <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                   <span style={{ fontSize:15, fontWeight:900, color:"var(--bz-ink)" }}>{chase.setName}</span>
                   <span style={{ fontSize:11, color:bc, background:`${bc}18`, borderRadius:5, padding:"2px 8px", fontWeight:700 }}>{chase.breaker}</span>
-                  <span style={{ fontSize:11, color:"var(--bz-ink-2)", background:"#1a1a1a", borderRadius:5, padding:"2px 8px" }}>{chase.chaseType}</span>
+                  <span style={{ fontSize:11, color:"var(--bz-ink-2)", background:"var(--bz-s2)", borderRadius:5, padding:"2px 8px" }}>{chase.chaseType}</span>
                   {pending.length>0&&<span style={{ background:"rgba(232,49,122,0.15)", border:"1px solid rgba(232,49,122,0.3)", color:"#E8317A", borderRadius:10, padding:"1px 8px", fontSize:11, fontWeight:700 }}>🔔 {pending.length} new</span>}
                 </div>
                 {chase.description&&<div style={{ fontSize:11, color:"var(--bz-ink-3)", marginTop:3 }}>{chase.description}</div>}
@@ -52268,7 +52268,7 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
             </div>
 
             {/* Rainbow progress */}
-            <div style={{ background:"#1a1a1a", borderRadius:99, height:8, overflow:"hidden", position:"relative", marginBottom:8 }}>
+            <div style={{ background:"var(--bz-s2)", borderRadius:99, height:8, overflow:"hidden", position:"relative", marginBottom:8 }}>
               <div style={{ position:"absolute", inset:0, background:"linear-gradient(90deg,#94A3B8,#EF4444,#F97316,#38BDF8,#4ade80,#A78BFA,#EC4899,#FBBF24)", opacity:0.12, borderRadius:99 }}/>
               <div style={{ width:`${pct}%`, height:"100%", background:"linear-gradient(90deg,#94A3B8,#EF4444,#F97316,#38BDF8,#4ade80,#A78BFA,#EC4899,#FBBF24)", borderRadius:99, transition:"width 0.6s cubic-bezier(0.22,1,0.36,1)" }}/>
             </div>
@@ -52300,7 +52300,7 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
                   <div style={{ display:"flex", gap:6, marginBottom:10, flexWrap:"wrap" }}>
                     {[["weapon","⚔️ Weapon"],["treatment","✨ Treatment"],["power","💪 Power"],["hero","🦸 Hero"]].map(([k,l])=>(
                       <button key={k} onClick={()=>setChaseSorts(p=>({...p,[chase.id]:k}))}
-                        style={{ background:sortKey===k?"rgba(232,49,122,0.12)":"#0d0d0d", border:`1px solid ${sortKey===k?"#E8317A":"#2a2a2a"}`, color:sortKey===k?"#E8317A":"#555", borderRadius:6, padding:"4px 10px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
+                        style={{ background:sortKey===k?"rgba(232,49,122,0.12)":"var(--bz-s1)", border:`1px solid ${sortKey===k?"#E8317A":"var(--bz-line-2)"}`, color:sortKey===k?"#E8317A":"#555", borderRadius:6, padding:"4px 10px", fontSize:10, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
                         {l}
                       </button>
                     ))}
@@ -52317,13 +52317,13 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
                   const wc = WEAPON_COLORS[weapon]||"#888";
                   return (
                     <div key={card.cardId||card.name} onClick={()=>toggleOwned(chase.id,card.cardId,card.owned)}
-                      style={{ display:"flex", alignItems:"center", gap:10, background:card.owned?"rgba(74,222,128,0.05)":"#0d0d0d", border:`1px solid ${card.owned?"rgba(74,222,128,0.2)":`${wc}33`}`, borderRadius:10, padding:"10px", cursor:"pointer", transition:"all 0.12s ease", position:"relative", overflow:"hidden" }}
+                      style={{ display:"flex", alignItems:"center", gap:10, background:card.owned?"rgba(74,222,128,0.05)":"var(--bz-s1)", border:`1px solid ${card.owned?"rgba(74,222,128,0.2)":`${wc}33`}`, borderRadius:10, padding:"10px", cursor:"pointer", transition:"all 0.12s ease", position:"relative", overflow:"hidden" }}
                       className="inv-row">
                       {/* Owned overlay */}
                       {card.owned && <div style={{ position:"absolute", inset:0, background:"rgba(74,222,128,0.04)", borderRadius:10, pointerEvents:"none" }}/>}
 
                       {/* Card image */}
-                      <div style={{ width:52, height:72, flexShrink:0, borderRadius:6, overflow:"hidden", background:"#1a1a1a", border:`1px solid ${wc}33`, position:"relative" }}>
+                      <div style={{ width:52, height:72, flexShrink:0, borderRadius:6, overflow:"hidden", background:"var(--bz-s2)", border:`1px solid ${wc}33`, position:"relative" }}>
                         {imageUrl
                           ? <img src={imageUrl} alt={hero} style={{ width:"100%", height:"100%", objectFit:"cover", opacity:card.owned?0.5:1, filter:card.owned?"grayscale(0.3)":"none", transition:"opacity 0.2s" }}/>
                           : <div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center" }}>
@@ -52342,7 +52342,7 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
                         </div>
                         <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
                           {weapon && <span style={{ fontSize:10, fontWeight:800, color:wc, background:`${wc}18`, borderRadius:4, padding:"2px 7px" }}>{weapon}</span>}
-                          {treatment && <span style={{ fontSize:10, color:"var(--bz-ink-2)", background:"#1a1a1a", borderRadius:4, padding:"2px 7px" }}>{treatment}</span>}
+                          {treatment && <span style={{ fontSize:10, color:"var(--bz-ink-2)", background:"var(--bz-s2)", borderRadius:4, padding:"2px 7px" }}>{treatment}</span>}
                         </div>
                         {cardNum && <div style={{ fontSize:10, color:"#8a8a8a", marginTop:3 }}>#{cardNum}</div>}
                       </div>
@@ -52365,7 +52365,7 @@ function ChaseManager({ user, userRole, bobaCards=[] }) {
                 <div style={{ fontSize:10, fontWeight:700, color:"#E8317A", textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Submissions ({subs.length})</div>
                 <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                   {subs.sort((a,b)=>new Date(b.submittedAt)-new Date(a.submittedAt)).map(sub=>(
-                    <div key={sub.id} style={{ background:"var(--bz-bg)", border:`1px solid ${sub.status==="pending"?"rgba(232,49,122,0.2)":sub.status==="acquired"?"rgba(74,222,128,0.15)":"#1a1a1a"}`, borderRadius:8, padding:"10px 14px" }}>
+                    <div key={sub.id} style={{ background:"var(--bz-bg)", border:`1px solid ${sub.status==="pending"?"rgba(232,49,122,0.2)":sub.status==="acquired"?"rgba(74,222,128,0.15)":"var(--bz-s2)"}`, borderRadius:8, padding:"10px 14px" }}>
                       <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:10 }}>
                         <div>
                           <div style={{ fontSize:13, fontWeight:700, color:"var(--bz-ink)" }}>{sub.cardName}</div>
@@ -52681,7 +52681,7 @@ function PublicSellPage() {
                               className="inv-row">
                               {c.imageUrl
                                 ? <img src={c.imageUrl} alt={c.hero} style={{ width:32, height:42, objectFit:"cover", borderRadius:4, flexShrink:0 }}/>
-                                : <div style={{ width:32, height:42, background:"#2a2a2a", borderRadius:4, flexShrink:0 }}/>
+                                : <div style={{ width:32, height:42, background:"var(--bz-line-2)", borderRadius:4, flexShrink:0 }}/>
                               }
                               <div style={{ flex:1, minWidth:0 }}>
                                 <div style={{ fontSize:13, fontWeight:700, color:"var(--bz-ink)" }}>{c.hero}</div>
@@ -52705,7 +52705,7 @@ function PublicSellPage() {
               </div>
             ))}
           </div>
-          <button onClick={addRow} style={{ marginTop:12, background:"transparent", border:"1.5px dashed #2a2a2a", color:"var(--bz-ink-3)", borderRadius:8, padding:"10px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>
+          <button onClick={addRow} style={{ marginTop:12, background:"transparent", border:"1.5px dashed var(--bz-line-2)", color:"var(--bz-ink-3)", borderRadius:8, padding:"10px", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit", width:"100%" }}>
             + Add Another Card
           </button>
         </div>
@@ -52738,7 +52738,7 @@ function PublicSellPage() {
                 </div>
               ))}
               {photos.length < 4 && (
-                <label style={{ width:100, height:100, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", border:"1px dashed #2a2a2a", borderRadius:8, cursor:"pointer", color:"var(--bz-ink-3)", fontSize:12, gap:4 }}>
+                <label style={{ width:100, height:100, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", border:"1px dashed var(--bz-line-2)", borderRadius:8, cursor:"pointer", color:"var(--bz-ink-3)", fontSize:12, gap:4 }}>
                   <span style={{ fontSize:24 }}>+</span>Add more
                   <input type="file" accept="image/*" multiple onChange={handlePhotoSelect} style={{ display:"none" }}/>
                 </label>
@@ -52957,7 +52957,7 @@ function PublicQuote({ quoteId }) {
                   </select>
                   <input value={paymentHandle} onChange={e=>setPaymentHandle(e.target.value)}
                     placeholder={payment==="PayPal"?"PayPal email or @username":payment==="Zelle"?"Zelle email or phone":"your handle / account"}
-                    style={{ background:"var(--bz-bg)", border:`1.5px solid ${paymentHandle?"#4ade80":"#2a2a2a"}`, borderRadius:8, color:"var(--bz-ink)", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+                    style={{ background:"var(--bz-bg)", border:`1.5px solid ${paymentHandle?"#4ade80":"var(--bz-line-2)"}`, borderRadius:8, color:"var(--bz-ink)", padding:"10px 12px", fontSize:13, fontFamily:"inherit", outline:"none" }}/>
                 </div>
                 {payment && !paymentHandle && <div style={{ fontSize:11, color:"#FBBF24", marginTop:6 }}>⚠ Please enter your {payment} email or handle</div>}
               </div>
@@ -52967,7 +52967,7 @@ function PublicQuote({ quoteId }) {
             <button
               onClick={()=>{ if(!quote.seller?.payment && (!payment||!paymentHandle)) return; submitResponse("accepted"); }}
               disabled={!quote.seller?.payment && (!payment||!paymentHandle)}
-              style={{ width:"100%", background:(!quote.seller?.payment && (!payment||!paymentHandle))?"#1a1a1a":"#4ade80", color:(!quote.seller?.payment && (!payment||!paymentHandle))?"#444":"#000", border:"none", borderRadius:12, padding:"18px 0", fontSize:18, fontWeight:900, cursor:(!quote.seller?.payment && (!payment||!paymentHandle))?"not-allowed":"pointer", fontFamily:"inherit", marginBottom:10, transition:"all 0.15s" }}>
+              style={{ width:"100%", background:(!quote.seller?.payment && (!payment||!paymentHandle))?"var(--bz-s2)":"#4ade80", color:(!quote.seller?.payment && (!payment||!paymentHandle))?"#444":"#000", border:"none", borderRadius:12, padding:"18px 0", fontSize:18, fontWeight:900, cursor:(!quote.seller?.payment && (!payment||!paymentHandle))?"not-allowed":"pointer", fontFamily:"inherit", marginBottom:10, transition:"all 0.15s" }}>
               {(!quote.seller?.payment && (!payment||!paymentHandle))
                 ? "Enter payment method above to accept"
                 : `✅ Accept Offer — $${offer.toFixed(2)}`}
@@ -53250,17 +53250,17 @@ function ShippingHub({ userRole, streams=[] }) {
             <div>
               <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:4}}>Order Number *</div>
               <input value={form.orderNumber} onChange={e=>rf("orderNumber")(e.target.value)} placeholder="Whatnot order #"
-                style={{width:"100%",background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+                style={{width:"100%",background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
             </div>
             <div>
               <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:4}}>Stream Date</div>
               <input type="date" value={form.streamDate} onChange={e=>rf("streamDate")(e.target.value)}
-                style={{width:"100%",background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+                style={{width:"100%",background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
             </div>
             <div>
               <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:4}}>Buyer Username</div>
               <input value={form.buyerUsername} onChange={e=>rf("buyerUsername")(e.target.value)} placeholder="@username"
-                style={{width:"100%",background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+                style={{width:"100%",background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
             </div>
           </div>
           <div style={{marginBottom:12}}>
@@ -53277,13 +53277,13 @@ function ShippingHub({ userRole, streams=[] }) {
           <div style={{marginBottom:12}}>
             <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:4}}>Description</div>
             <textarea value={form.description} onChange={e=>rf("description")(e.target.value)} placeholder="What happened? Include any relevant details..."
-              style={{width:"100%",background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box",minHeight:80,resize:"vertical"}}/>
+              style={{width:"100%",background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box",minHeight:80,resize:"vertical"}}/>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
             <div>
               <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:4}}>Status</div>
               <select value={form.status} onChange={e=>rf("status")(e.target.value)}
-                style={{width:"100%",background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",cursor:"pointer",boxSizing:"border-box"}}>
+                style={{width:"100%",background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",cursor:"pointer",boxSizing:"border-box"}}>
                 <option value="open">🔴 Open</option>
                 <option value="resolved">✅ Resolved</option>
               </select>
@@ -53292,7 +53292,7 @@ function ShippingHub({ userRole, streams=[] }) {
               <div>
                 <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:4}}>Resolution</div>
                 <select value={form.resolution} onChange={e=>rf("resolution")(e.target.value)}
-                  style={{width:"100%",background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",cursor:"pointer",boxSizing:"border-box"}}>
+                  style={{width:"100%",background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",cursor:"pointer",boxSizing:"border-box"}}>
                   <option value="">-- Select outcome --</option>
                   {RESOLUTIONS.map(r=><option key={r.id} value={r.id}>{r.label}</option>)}
                 </select>
@@ -53303,7 +53303,7 @@ function ShippingHub({ userRole, streams=[] }) {
             <div style={{marginBottom:12}}>
               <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:4}}>Resolution Notes</div>
               <input value={form.resolutionNotes} onChange={e=>rf("resolutionNotes")(e.target.value)} placeholder="What was the outcome? Card sent, tracking delivered, etc."
-                style={{width:"100%",background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+                style={{width:"100%",background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
             </div>
           )}
           <div style={{display:"flex",gap:10}}>
@@ -53482,9 +53482,9 @@ function WeeklyReport({ streams=[], userRole }) {
           </div>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-          <button onClick={()=>setWeekOffset(p=>p+1)} style={{background:"#1a1a1a",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-3)",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:12}}>← Prev</button>
-          {weekOffset>0&&<button onClick={()=>setWeekOffset(0)} style={{background:"#1a1a1a",border:"1px solid #E8317A",color:"#E8317A",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700}}>This Week</button>}
-          <button onClick={()=>setWeekOffset(p=>Math.max(0,p-1))} disabled={weekOffset===0} style={{background:"#1a1a1a",border:"1px solid var(--bz-line-2)",color:weekOffset===0?"#333":"#555",borderRadius:8,padding:"6px 12px",cursor:weekOffset===0?"default":"pointer",fontFamily:"inherit",fontSize:12}}>Next →</button>
+          <button onClick={()=>setWeekOffset(p=>p+1)} style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-3)",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:12}}>← Prev</button>
+          {weekOffset>0&&<button onClick={()=>setWeekOffset(0)} style={{background:"var(--bz-s2)",border:"1px solid #E8317A",color:"#E8317A",borderRadius:8,padding:"6px 12px",cursor:"pointer",fontFamily:"inherit",fontSize:11,fontWeight:700}}>This Week</button>}
+          <button onClick={()=>setWeekOffset(p=>Math.max(0,p-1))} disabled={weekOffset===0} style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",color:weekOffset===0?"#333":"#555",borderRadius:8,padding:"6px 12px",cursor:weekOffset===0?"default":"pointer",fontFamily:"inherit",fontSize:12}}>Next →</button>
           <button onClick={()=>window.print()} style={{background:"rgba(232,49,122,0.1)",border:"1px solid rgba(232,49,122,0.3)",color:"#E8317A",borderRadius:8,padding:"6px 16px",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700}}>🖨 Print</button>
         </div>
       </div>
@@ -53493,7 +53493,7 @@ function WeeklyReport({ streams=[], userRole }) {
 
       {thisWeek.length>0 && <>
         {/* Team summary */}
-        <div style={{background:"linear-gradient(135deg,#0d0d1a,#111)",border:"1px solid #1a1a2e",borderRadius:14,padding:"20px 24px"}}>
+        <div style={{background:"linear-gradient(135deg,#0d0d1a,var(--bz-s1))",border:"1px solid #1a1a2e",borderRadius:14,padding:"20px 24px"}}>
           <div style={{fontSize:14,fontWeight:800,color:"var(--bz-ink)",marginBottom:14}}>🏆 Team Summary</div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12}}>
             {[
@@ -53563,7 +53563,7 @@ function WeeklyReport({ streams=[], userRole }) {
                   {s.rep&&s.rep!=="Team"&&s.rep!=="Custom"&&<div style={{fontSize:11,fontWeight:700,color:bc,minWidth:60,paddingTop:2}}>{s.rep}</div>}
                   {editingSug===s.id ? (
                     <div style={{flex:1,display:"flex",gap:8}}>
-                      <textarea value={editText} onChange={e=>setEditText(e.target.value)} style={{flex:1,background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:6,color:"var(--bz-ink)",padding:"6px 10px",fontSize:12,fontFamily:"inherit",minHeight:60,resize:"vertical"}}/>
+                      <textarea value={editText} onChange={e=>setEditText(e.target.value)} style={{flex:1,background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:6,color:"var(--bz-ink)",padding:"6px 10px",fontSize:12,fontFamily:"inherit",minHeight:60,resize:"vertical"}}/>
                       <div style={{display:"flex",flexDirection:"column",gap:4}}>
                         <button onClick={()=>saveSugEdit(s.id)} style={{background:"rgba(74,222,128,0.15)",border:"1px solid rgba(74,222,128,0.3)",color:"#4ade80",borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:700}}>Save</button>
                         <button onClick={()=>setEditingSug(null)} style={{background:"none",border:"1px solid var(--bz-line-2)",color:"var(--bz-ink-3)",borderRadius:6,padding:"4px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
@@ -53747,16 +53747,15 @@ function Finance({ streams=[], userRole, quotes=[] }) {
       {/* Header */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12}}>
         <div>
-          <div style={{fontSize:22,fontWeight:900,color:"var(--bz-ink)"}}>💰 Cash Flow</div>
-          <div style={{fontSize:12,color:"var(--bz-ink-3)",marginTop:2}}>CEO / CFO only · Gross revenue in vs. cash out</div>
+          <div style={{fontSize:20,fontWeight:900,color:"var(--bz-ink)",letterSpacing:"-0.02em",display:"flex",alignItems:"center",gap:10}}><span className="bzx-h-accent" style={{height:22}} />Cash Flow</div>
+          <div style={{fontSize:12,color:"var(--bz-ink-3)",marginTop:3,marginLeft:20}}>CEO / CFO only · gross revenue in vs. cash out</div>
         </div>
         <div style={{display:"flex",gap:10,alignItems:"center"}}>
           <select value={selMonth} onChange={e=>setSelMonth(e.target.value)}
-            style={{background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",cursor:"pointer"}}>
+            style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:9,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",cursor:"pointer"}}>
             {months.map(m=><option key={m} value={m}>{new Date(m+"-15").toLocaleDateString("en-US",{month:"long",year:"numeric"})}</option>)}
           </select>
-          <button onClick={()=>{setForm(EMPTY_EXP);setEditId(null);setShowAdd(p=>!p);}}
-            style={{background:"linear-gradient(135deg,#E8317A,#c02060)",color:"#fff",border:"none",borderRadius:10,padding:"9px 20px",fontSize:13,fontWeight:800,cursor:"pointer",fontFamily:"inherit"}}>
+          <button className="bzx-btn bzx-btn-primary" onClick={()=>{setForm(EMPTY_EXP);setEditId(null);setShowAdd(p=>!p);}} style={{padding:"9px 18px",fontSize:13}}>
             + Add Expense
           </button>
         </div>
@@ -53764,38 +53763,38 @@ function Finance({ streams=[], userRole, quotes=[] }) {
 
       {/* KPI tiles */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12,marginBottom:4}}>
-        <div style={{background:"var(--bz-s1)",border:"1px solid rgba(74,222,128,0.2)",borderRadius:12,padding:"16px 20px"}}>
-          <div style={{fontSize:11,color:"var(--bz-ink-3)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Gross Revenue</div>
-          <div style={{fontSize:28,fontWeight:800,color:"var(--bz-ink)",fontFamily:"'Arial Narrow',sans-serif",letterSpacing:"-0.02em"}}>{fmt(grossIn)}</div>
+        <div className="bzx-card bzx-card-lift">
+          <div className="bzx-stat-l">Gross Revenue</div>
+          <div style={{fontSize:28,fontWeight:900,color:"var(--bz-ink)",letterSpacing:"-0.02em",marginTop:5}}>{fmt(grossIn)}</div>
           <div style={{fontSize:11,color:"var(--bz-ink-3)",marginTop:4}}>{monthStreams.length} streams</div>
-          <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:3}}>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span style={{color:"var(--bz-ink-3)"}}>− Whatnot Fees</span><span style={{color:"#991b1b"}}>−{fmt(totalFees)}</span></div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span style={{color:"var(--bz-ink-3)"}}>− Coupons</span><span style={{color:"#991b1b"}}>−{fmt(totalCoupons)}</span></div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span style={{color:"var(--bz-ink-3)"}}>− Whatnot Promo</span><span style={{color:"#991b1b"}}>−{fmt(totalPromo)}</span></div>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,fontWeight:700,borderTop:"1px solid var(--bz-line)",paddingTop:4,marginTop:2}}><span style={{color:"#4ade80"}}>= Net Revenue In</span><span style={{color:"#4ade80"}}>{fmt(netRevIn)}</span></div>
+          <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:4}}>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span style={{color:"var(--bz-ink-3)"}}>− Whatnot Fees</span><span style={{color:"#ff6b8a"}}>−{fmt(totalFees)}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span style={{color:"var(--bz-ink-3)"}}>− Coupons</span><span style={{color:"#ff6b8a"}}>−{fmt(totalCoupons)}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span style={{color:"var(--bz-ink-3)"}}>− Whatnot Promo</span><span style={{color:"#ff6b8a"}}>−{fmt(totalPromo)}</span></div>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,fontWeight:800,borderTop:"1px solid var(--bz-line-2)",paddingTop:6,marginTop:3}}><span style={{color:"var(--bz-green)"}}>= Net Revenue In</span><span style={{color:"var(--bz-green)"}}>{fmt(netRevIn)}</span></div>
           </div>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
-          <div style={{background:"var(--bz-s1)",border:"1px solid rgba(232,49,122,0.2)",borderRadius:12,padding:"16px 20px"}}>
-            <div style={{fontSize:11,color:"var(--bz-ink-3)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Total Cash Out</div>
-            <div style={{fontSize:26,fontWeight:800,color:"var(--bz-pink)",fontFamily:"'Arial Narrow',sans-serif",letterSpacing:"-0.02em"}}>{fmt(totalOut)}</div>
-            <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:3}}>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span style={{color:"var(--bz-ink-3)"}}>Lot Purchases</span><span style={{color:"#E8317A"}}>−{fmt(totalLotPurchases)}</span></div>
-              <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span style={{color:"var(--bz-ink-3)"}}>Other Expenses</span><span style={{color:"#E8317A"}}>−{fmt(totalManualOut)}</span></div>
+          <div className="bzx-card bzx-card-lift">
+            <div className="bzx-stat-l">Total Cash Out</div>
+            <div style={{fontSize:26,fontWeight:900,color:"var(--bz-pink)",letterSpacing:"-0.02em",marginTop:5}}>{fmt(totalOut)}</div>
+            <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:4}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span style={{color:"var(--bz-ink-3)"}}>Lot Purchases</span><span style={{color:"var(--bz-pink-hot)"}}>−{fmt(totalLotPurchases)}</span></div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:11}}><span style={{color:"var(--bz-ink-3)"}}>Other Expenses</span><span style={{color:"var(--bz-pink-hot)"}}>−{fmt(totalManualOut)}</span></div>
             </div>
           </div>
-          <div style={{background:"var(--bz-s1)",border:`2px solid ${cashFlow>=0?"rgba(74,222,128,0.3)":"rgba(239,68,68,0.3)"}`,borderRadius:12,padding:"16px 20px",textAlign:"center"}}>
-            <div style={{fontSize:11,color:"var(--bz-ink-3)",textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Net Cash Flow</div>
-            <div style={{fontSize:26,fontWeight:800,color:cashFlow>=0?"var(--bz-green)":"#ef4444",fontFamily:"'Arial Narrow',sans-serif",letterSpacing:"-0.02em"}}>{fmt(cashFlow)}</div>
-            <div style={{fontSize:11,color:cashFlow>=0?"#4ade80":"#ef4444",marginTop:4}}>{cashFlow>=0?"Positive ✓":"Negative ⚠"}</div>
+          <div className="bzx-card bzx-card-lift" style={{border:`1px solid ${cashFlow>=0?"rgba(52,211,153,0.35)":"rgba(239,68,68,0.35)"}`,textAlign:"center"}}>
+            <div className="bzx-stat-l">Net Cash Flow</div>
+            <div style={{fontSize:26,fontWeight:900,color:cashFlow>=0?"var(--bz-green)":"#ef4444",letterSpacing:"-0.02em",marginTop:5}}>{fmt(cashFlow)}</div>
+            <div style={{fontSize:11,color:cashFlow>=0?"var(--bz-green)":"#ef4444",marginTop:4,fontWeight:700}}>{cashFlow>=0?"Positive ✓":"Negative ⚠"}</div>
           </div>
         </div>
       </div>
 
       {/* Bar chart */}
       {chartData.length > 1 && (
-        <div style={{background:"var(--bz-s1)",border:"1px solid var(--bz-line)",borderRadius:12,padding:"20px"}}>
-          <div style={{fontSize:13,fontWeight:800,color:"var(--bz-ink)",marginBottom:16}}>📊 Monthly Cash Flow Trend</div>
+        <div className="bzx-card">
+          <div className="bzx-h" style={{marginBottom:16}}><span className="bzx-h-accent" />Monthly Cash Flow Trend</div>
           <div style={{display:"flex",gap:8,alignItems:"flex-end",height:160}}>
             {chartData.map(d=>(
               <div key={d.m} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
@@ -53823,31 +53822,31 @@ function Finance({ streams=[], userRole, quotes=[] }) {
             <div>
               <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:4}}>Date *</div>
               <input type="date" value={form.date} onChange={e=>setForm(p=>({...p,date:e.target.value}))}
-                style={{width:"100%",background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+                style={{width:"100%",background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
             </div>
             <div>
               <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:4}}>Category *</div>
               <select value={form.category} onChange={e=>setForm(p=>({...p,category:e.target.value}))}
-                style={{width:"100%",background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",cursor:"pointer",boxSizing:"border-box"}}>
+                style={{width:"100%",background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",cursor:"pointer",boxSizing:"border-box"}}>
                 {EXPENSE_CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
               <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:4}}>Amount *</div>
               <input type="number" step="0.01" value={form.amount} onChange={e=>setForm(p=>({...p,amount:e.target.value}))} placeholder="0.00"
-                style={{width:"100%",background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"#E8317A",padding:"8px 12px",fontSize:13,fontFamily:"inherit",fontWeight:700,boxSizing:"border-box"}}/>
+                style={{width:"100%",background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"#E8317A",padding:"8px 12px",fontSize:13,fontFamily:"inherit",fontWeight:700,boxSizing:"border-box"}}/>
             </div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:12,marginBottom:12}}>
             <div>
               <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:4}}>Description</div>
               <input value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))} placeholder="e.g. Alpha Edition restock from Discord..."
-                style={{width:"100%",background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+                style={{width:"100%",background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
             </div>
             <div>
               <div style={{fontSize:11,color:"var(--bz-ink-3)",marginBottom:4}}>Notes</div>
               <input value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} placeholder="Optional..."
-                style={{width:"100%",background:"#1a1a1a",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+                style={{width:"100%",background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:8,color:"var(--bz-ink)",padding:"8px 12px",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
             </div>
           </div>
           <div style={{display:"flex",gap:10}}>
@@ -53873,7 +53872,7 @@ function Finance({ streams=[], userRole, quotes=[] }) {
               return (
                 <div key={cat} style={{display:"flex",alignItems:"center",gap:12}}>
                   <div style={{width:140,fontSize:12,color:"var(--bz-ink-2)",flexShrink:0}}>{cat}</div>
-                  <div style={{flex:1,height:6,background:"#1a1a1a",borderRadius:3,overflow:"hidden"}}>
+                  <div style={{flex:1,height:6,background:"var(--bz-s2)",borderRadius:3,overflow:"hidden"}}>
                     <div style={{height:"100%",width:`${pct}%`,background:"#E8317A",borderRadius:3}}/>
                   </div>
                   <div style={{fontSize:12,fontWeight:700,color:"#E8317A",minWidth:90,textAlign:"right"}}>{fmt(total)}</div>
@@ -54054,7 +54053,7 @@ function HelpPanel({ onClose }) {
 
   return (
     <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.82)",zIndex:14500,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:"#141414",border:"1px solid #2a2a2a",borderRadius:16,padding:24,maxWidth:580,width:"100%",maxHeight:"85vh",overflowY:"auto"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"var(--bz-s2)",border:"1px solid var(--bz-line-2)",borderRadius:16,padding:24,maxWidth:580,width:"100%",maxHeight:"85vh",overflowY:"auto"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <div style={{fontSize:18,fontWeight:900,color:"#fff"}}>{"\u2753"} Help</div>
           <button onClick={onClose} style={{background:"none",border:"none",color:"#666",fontSize:22,cursor:"pointer",lineHeight:1,fontFamily:"inherit"}}>{"\u00D7"}</button>
@@ -54228,7 +54227,7 @@ function BugReporter({ user }) {
                     <div style={{fontSize:11,color:"var(--bz-ink-2)"}}>Snaps a picture of this page so we can see what you see</div>
                   </div>
                 </label>
-                <button disabled={!desc.trim()||sending} onClick={submit} style={{width:"100%",marginTop:12,background:desc.trim()&&!sending?"linear-gradient(135deg,#E8317A,#7B2FF7)":"#2a2a2a",border:"none",color:desc.trim()&&!sending?"#fff":"#666",borderRadius:10,padding:"13px",fontSize:14,fontWeight:900,cursor:desc.trim()&&!sending?"pointer":"not-allowed",fontFamily:"inherit"}}>{sending?(attachShot?"Capturing & sending…":"Sending…"):"Send Report"}</button>
+                <button disabled={!desc.trim()||sending} onClick={submit} style={{width:"100%",marginTop:12,background:desc.trim()&&!sending?"linear-gradient(135deg,#E8317A,#7B2FF7)":"var(--bz-line-2)",border:"none",color:desc.trim()&&!sending?"#fff":"#666",borderRadius:10,padding:"13px",fontSize:14,fontWeight:900,cursor:desc.trim()&&!sending?"pointer":"not-allowed",fontFamily:"inherit"}}>{sending?(attachShot?"Capturing & sending…":"Sending…"):"Send Report"}</button>
               </>
             )}
           </div>
@@ -54250,7 +54249,7 @@ class AppErrorBoundary extends React.Component {
             <div style={{ fontSize:40, marginBottom:12 }}>⚠️</div>
             <div style={{ fontSize:18, fontWeight:800, marginBottom:8, color:"#E8317A" }}>Something hit a snag</div>
             <div style={{ fontSize:13, color:"#aaa", lineHeight:1.6, marginBottom:20 }}>The dashboard ran into an error while rendering, but your data is safe. Reloading usually clears it.</div>
-            <div style={{ fontSize:11, color:"var(--bz-ink-3)", background:"#1a1a1a", border:"1px solid var(--bz-line-2)", borderRadius:8, padding:"10px 12px", marginBottom:20, textAlign:"left", wordBreak:"break-word", fontFamily:"monospace" }}>{String(this.state.err && this.state.err.message || this.state.err)}</div>
+            <div style={{ fontSize:11, color:"var(--bz-ink-3)", background:"var(--bz-s2)", border:"1px solid var(--bz-line-2)", borderRadius:8, padding:"10px 12px", marginBottom:20, textAlign:"left", wordBreak:"break-word", fontFamily:"monospace" }}>{String(this.state.err && this.state.err.message || this.state.err)}</div>
             <button onClick={()=>{ this.setState({err:null}); window.location.reload(); }} style={{ background:"linear-gradient(135deg,#E8317A,#7B2FF7)", color:"#fff", border:"none", borderRadius:10, padding:"12px 28px", fontSize:14, fontWeight:800, cursor:"pointer" }}>Reload Dashboard</button>
           </div>
         </div>
@@ -55242,7 +55241,7 @@ function AppInner() {
         return (
           <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:99999, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"flex-start", paddingTop:80 }}
             onClick={()=>{ setGOpen(false); setGSearch(""); }}>
-            <div style={{ background:"var(--bz-s1)", borderRadius:14, width:"100%", maxWidth:620, boxShadow:"0 24px 80px rgba(0,0,0,0.8)", border:"1.5px solid #2a2a2a", overflow:"hidden" }}
+            <div style={{ background:"var(--bz-s1)", borderRadius:14, width:"100%", maxWidth:620, boxShadow:"0 24px 80px rgba(0,0,0,0.8)", border:"1.5px solid var(--bz-line-2)", overflow:"hidden" }}
               onClick={e=>e.stopPropagation()}>
               <div style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 16px", borderBottom:"1px solid var(--bz-line)" }}>
                 <span style={{ fontSize:20 }}>{"\uD83D\uDD0D"}</span>
@@ -55256,7 +55255,7 @@ function AppInner() {
                     const st = getStatus(c);
                     const cc = CC[c.cardType]||{bg:"#F3F4F6",text:"var(--bz-ink-3)"};
                     return (
-                      <div key={c.id} onClick={()=>{ setTab("inventory"); setGOpen(false); setGSearch(""); }} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 16px", borderBottom:"1px solid #111", cursor:"pointer", background:i%2===0?"#111":"#0d0d0d" }} className="inv-row">
+                      <div key={c.id} onClick={()=>{ setTab("inventory"); setGOpen(false); setGSearch(""); }} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 16px", borderBottom:"1px solid #111", cursor:"pointer", background:i%2===0?"var(--bz-s1)":"var(--bz-s1)" }} className="inv-row">
                         <div style={{ flex:1 }}>
                           <div style={{ fontSize:13, fontWeight:700, color:"var(--bz-ink)" }}>{c.cardName}</div>
                           <div style={{ fontSize:11, color:"var(--bz-ink-3)", marginTop:2 }}>{c.seller||"--"} · {c.source||"--"} · {c.date||"--"}</div>
@@ -55289,7 +55288,7 @@ function AppInner() {
         <div style={{position:"fixed",bottom:24,right:24,zIndex:9999,background:"#0a1a0a",border:"1.5px solid #4ade8044",borderRadius:12,padding:"16px 20px",minWidth:300,boxShadow:"0 8px 40px rgba(0,0,0,0.8)",fontFamily:"'Trebuchet MS',sans-serif"}}>
           <div style={{fontWeight:700,color:"#4ade80",fontSize:13,marginBottom:10}}>{"\uD83D\uDDBC"} {activeScan.type==="images"?"Importing Images...":"Scan active"}</div>
           {activeScan.total > 0 && (
-            <div style={{height:6,background:"#1a1a1a",borderRadius:3,overflow:"hidden",marginBottom:8}}>
+            <div style={{height:6,background:"var(--bz-s2)",borderRadius:3,overflow:"hidden",marginBottom:8}}>
               <div style={{width:`${Math.round(activeScan.current/activeScan.total*100)}%`,height:"100%",background:"linear-gradient(90deg,#4ade80,#7B9CFF)",borderRadius:3,transition:"width 0.3s"}}/>
             </div>
           )}
