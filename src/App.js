@@ -1631,7 +1631,38 @@ function DashTierChart({ id, tiers }) {
   return <canvas id={id} role="img" aria-label="Commission tier mix" />;
 }
 
-function DashboardHero({ net, netDelta, rev, comm, mm, breaksCount, heroSpark, miniRev, miniComm, miniMM, miniBreaks, revLabels, revGross, revNet, tiers, board, fmt }) {
+function DashWaterfall({ id, steps }) {
+  // steps: [{label, from, to, kind}] where kind is 'total' | 'down' | 'up'
+  const loaded = useChartJs();
+  useEffect(() => {
+    if (!loaded || !window.Chart) return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el._chart) el._chart.destroy();
+    const colorFor = (k) => k === "total" ? ["#8a1533","#ff4d94"] : k === "up" ? ["#159d64","#34d399"] : ["#7a6b74","#b8a5ae"];
+    el._chart = new window.Chart(el, {
+      type: "bar",
+      data: {
+        labels: steps.map(s => s.label),
+        datasets: [{
+          data: steps.map(s => [s.from, s.to]),
+          backgroundColor: (c) => { const a = c.chart.chartArea; const s = steps[c.dataIndex]; if (!s) return "#E8317A"; const [c1,c2] = colorFor(s.kind); if (!a) return c2; const g = c.chart.ctx.createLinearGradient(0,a.top,0,a.bottom); g.addColorStop(0,c2); g.addColorStop(1,c1); return g; },
+          borderRadius: 4, barPercentage: 0.72, categoryPercentage: 0.82,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: { duration: 750 },
+        plugins: { legend: { display: false }, tooltip: { backgroundColor: "#1a1218", borderColor: "rgba(232,49,122,0.3)", borderWidth: 1, padding: 9, callbacks: { label: (c) => { const s = steps[c.dataIndex]; const amt = Math.abs(s.to - s.from); return (s.kind === "total" ? s.label + ": $" : (s.kind === "up" ? "+ $" : "− $")) + Math.round(amt).toLocaleString(); } } } },
+        scales: { x: { grid: { display: false }, ticks: { color: "#9a8a94", font: { size: 9, weight: "700" }, maxRotation: 30, minRotation: 0, autoSkip: false }, border: { color: "rgba(255,255,255,0.1)" } },
+          y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#7a6b74", font: { size: 9 }, callback: (v) => "$" + Math.round(v/1000) + "k" }, border: { display: false } } }
+      }
+    });
+    return () => { if (el._chart) { el._chart.destroy(); el._chart = null; } };
+  }, [loaded, id, JSON.stringify(steps)]);
+  return <canvas id={id} role="img" aria-label="P&L money flow waterfall" />;
+}
+
+function DashboardHero({ net, netDelta, rev, comm, mm, breaksCount, heroSpark, miniRev, miniComm, miniMM, miniBreaks, revLabels, revGross, revNet, tiers, board, fmt, waterfall }) {
   const [dRev, setDRev] = useState(0), [dComm, setDComm] = useState(0), [dMM, setDMM] = useState(0), [dBreaks, setDBreaks] = useState(0), [dNet, setDNet] = useState(0);
   useEffect(() => {
     const tgt = { net, rev, comm, mm, breaksCount };
@@ -1716,6 +1747,16 @@ function DashboardHero({ net, netDelta, rev, comm, mm, breaksCount, heroSpark, m
           <div style={{ position: "relative", height: 180, display: "flex", alignItems: "center", justifyContent: "center" }}><DashTierChart id="dashTierChart" tiers={tiers} /></div>
         </div>
       </div>
+
+      {/* MONEY-FLOW WATERFALL — every P&L number in one chart */}
+      {waterfall && waterfall.length > 0 && (
+        <div style={{ background: "linear-gradient(160deg,#181016,#130d11)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "15px 17px", marginBottom: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 800 }}>Money Flow <span style={{ fontSize: 10, fontWeight: 600, color: "#7a6b74" }}>· gross → deductions → true net</span></div>
+          </div>
+          <div style={{ position: "relative", height: 210 }}><DashWaterfall id="dashWaterfall" steps={waterfall} /></div>
+        </div>
+      )}
 
       {/* LEADERBOARD */}
       {board.length > 0 && (
@@ -2369,6 +2410,25 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           );
         };
 
+        // Money-flow waterfall — every P&L number as a connected step:
+        // Gross → −Expenses → −IMC(70%) → −Commission → True Net.
+        const wfImc = totals.imc + Object.entries(imcAdjustments || {}).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0);
+        const heroWaterfall = (() => {
+          const g = totals.gross || 0, exp = totals.expenses || 0, imc = wfImc || 0, comm = totals.comm || 0, tn = totals.trueNet || 0;
+          const steps = [];
+          let run = g;
+          steps.push({ label: "Gross", from: 0, to: g, kind: "total" });
+          steps.push({ label: "Expenses", from: run, to: run - exp, kind: "down" }); run -= exp;
+          steps.push({ label: "IMC 70%", from: run, to: run - imc, kind: "down" }); run -= imc;
+          steps.push({ label: "Commission", from: run, to: run - comm, kind: "down" }); run -= comm;
+          // Any residual gap between the stepped-down running value and actual True Net
+          // (reimbursements, expense-share, etc.) shown as a reconciling step so the
+          // bar lands exactly on True Net.
+          if (Math.abs(run - tn) > 1) { steps.push({ label: run < tn ? "+ Reimb" : "Other", from: run, to: tn, kind: run < tn ? "up" : "down" }); }
+          steps.push({ label: "True Net", from: 0, to: tn, kind: "total" });
+          return steps;
+        })();
+
         return (
           <>
           <DashboardHero
@@ -2377,6 +2437,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             heroSpark={heroSpark} miniRev={heroMiniRev} miniComm={heroMiniComm} miniMM={heroMiniMM} miniBreaks={heroMiniBreaks}
             revLabels={heroSeries.labels} revGross={heroSeries.gross} revNet={heroSeries.net}
             tiers={heroTiers.length ? heroTiers : [{label:"—",color:"#7a6b74",count:1}]} board={heroBoard} fmt={fmt}
+            waterfall={heroWaterfall}
           />
           <div style={{ background:"var(--bz-s1)", border:"1px solid var(--bz-line)", borderRadius:"var(--bz-radius)", padding:"22px", boxShadow:"var(--bz-shadow)" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18, flexWrap:"wrap", gap:10 }}>
