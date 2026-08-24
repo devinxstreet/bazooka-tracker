@@ -5888,7 +5888,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
 
       {/* -- STREAM RECAP -- */}
-      {!cardsOnly && <div style={{ ...S.card, border: recapSaved ? "2px solid #D6F4E3" : "2px solid #E8317A22" }}>
+      {!cardsOnly && <div style={{ ...S.card, border: recapSaved ? "1px solid rgba(52,211,153,0.35)" : "1px solid var(--bz-pink-line)" }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14, flexWrap:"wrap", gap:8 }}>
           <SectionLabel t="Stream Recap" />
           {canSeeFinancials && (
@@ -6676,6 +6676,31 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
             )}
             {canSeeFinancials ? (
               <>
+                {/* LIVE TRUE NET HERO — updates as you fill the recap */}
+                <div style={{ position:"relative", background:"linear-gradient(135deg,#24101c 0%,#160d13 55%,#130d11 100%)", border:"1px solid rgba(232,49,122,0.28)", borderRadius:16, padding:"16px 20px", marginBottom:14, overflow:"hidden" }}>
+                  <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:"linear-gradient(90deg,#E8317A,#ff4d94,#a78bfa)" }} />
+                  <div style={{ position:"absolute", right:-40, top:-50, width:180, height:180, borderRadius:"50%", background:"radial-gradient(circle,rgba(232,49,122,0.18),transparent 70%)" }} />
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12, position:"relative" }}>
+                    <div>
+                      <div style={{ fontSize:10.5, fontWeight:800, color:"#ff4d94", textTransform:"uppercase", letterSpacing:2, marginBottom:2 }}>Bazooka True Net {recapSaved ? "" : "· live"}</div>
+                      <div style={{ fontSize:38, fontWeight:900, lineHeight:1, letterSpacing:-1, background:"linear-gradient(180deg,#ffffff 0%,#ffd9e8 60%,#ff8fc0 100%)", WebkitBackgroundClip:"text", backgroundClip:"text", WebkitTextFillColor:"transparent", filter:"drop-shadow(0 0 18px rgba(232,49,122,0.4))" }}>{fmt(rc.bazTrueNet)}</div>
+                    </div>
+                    <div style={{ display:"flex", gap:18, flexWrap:"wrap" }}>
+                      <div style={{ textAlign:"right" }}>
+                        <div style={{ fontSize:9.5, fontWeight:800, color:"var(--bz-ink-3)", textTransform:"uppercase", letterSpacing:1 }}>Gross</div>
+                        <div style={{ fontSize:17, fontWeight:900, color:"var(--bz-ink)", marginTop:2 }}>{fmt(rc.gross)}</div>
+                      </div>
+                      <div style={{ textAlign:"right" }}>
+                        <div style={{ fontSize:9.5, fontWeight:800, color:"var(--bz-ink-3)", textTransform:"uppercase", letterSpacing:1 }}>Baz 30%</div>
+                        <div style={{ fontSize:17, fontWeight:900, color:"var(--bz-pink)", marginTop:2 }}>{fmt(rc.bazNet)}</div>
+                      </div>
+                      <div style={{ textAlign:"right" }}>
+                        <div style={{ fontSize:9.5, fontWeight:800, color:"var(--bz-ink-3)", textTransform:"uppercase", letterSpacing:1 }}>Commission</div>
+                        <div style={{ fontSize:17, fontWeight:900, color:"var(--bz-green)", marginTop:2 }}>{fmt(rc.myComm)}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 {/* Row 1: top-level split */}
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:10 }}>
                   {[
@@ -6683,7 +6708,7 @@ function BreakLog({ inventory, breaks, onAdd, onBulkAdd, onDeleteBreak, user, us
                     { l:"Owed to Imagination Mining", v:fmt(rc.imcNet),  c:"#6B2D8B" },
                     { l:"Bazooka Earnings (30%)", v:fmt(rc.bazNet),  c:"#E8317A" },
                   ].map(({l,v,c}) => (
-                    <div key={l} style={{ textAlign:"center", background:"var(--bz-s1)", borderRadius:8, padding:"10px 8px", border:"1px solid var(--bz-line-2)" }}>
+                    <div key={l} style={{ textAlign:"center", background:"linear-gradient(160deg,#181016,#130d11)", borderRadius:10, padding:"12px 8px", border:"1px solid var(--bz-line-2)" }}>
                       <div style={{ fontSize:20, fontWeight:900, color:c }}>{v}</div>
                       <div style={{ fontSize:9, color:"var(--bz-ink-2)", textTransform:"uppercase", letterSpacing:1, marginTop:3 }}>{l}</div>
                     </div>
