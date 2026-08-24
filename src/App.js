@@ -457,7 +457,7 @@ function calcStreamRaw(s, targetBreaker=null) {
     ? (reimbursesMagpros(s.breaker) ? (parseFloat(s.magpros)||0) : 0)+(reimbursesPackaging(s.breaker) ? (parseFloat(s.packagingMaterial)||0) : 0)+(parseFloat(s.biguGiveawayCards)||0)+(parseFloat(s.biguInsuranceCards)||0)+(parseFloat(s.biguChaserCards)||0)+biguShippingHalf
     : 0;
 
-  return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, bazOwnShare, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet, externalChannel:externalCh, isSingles, isBigU, biguReimb, biguShippingHalf, excludeFinancials:!!s.excludeFinancials };
+  return { gross, fees, coupons, streamExp, splitBase, netRev:splitBase, bazNet, bazOwnShare, imcNet, rate, commAmt, repExpShare, bazExpShare, tips, salesBonus, collabAmt, eventStaffAmt, imcReimb, imcDirectReimb, splitPct, primaryCommAmt, splitRepAmt, splitRep:s.splitRep||"", bazTrueNet, myComm, totalExp:fees+coupons+streamExp, commBase:bazNet, externalChannel:externalCh, isSingles, isBigU, biguReimb, biguCardCosts, biguShippingHalf, excludeFinancials:!!s.excludeFinancials };
 }
 function getStreamBrand(s) {
   const prods = s.streamSkuPrices ? Object.keys(s.streamSkuPrices) : [];
@@ -1662,7 +1662,7 @@ function DashWaterfall({ id, steps }) {
   return <canvas id={id} role="img" aria-label="P&L money flow waterfall" />;
 }
 
-function DashboardHero({ net, netDelta, rev, comm, mm, breaksCount, heroSpark, miniRev, miniComm, miniMM, miniBreaks, revLabels, revGross, revNet, tiers, board, fmt, waterfall }) {
+function DashboardHero({ net, netDelta, rev, comm, mm, breaksCount, heroSpark, miniRev, miniComm, miniMM, miniBreaks, revLabels, revGross, revNet, tiers, board, fmt, flow, flowNet }) {
   const [dRev, setDRev] = useState(0), [dComm, setDComm] = useState(0), [dMM, setDMM] = useState(0), [dBreaks, setDBreaks] = useState(0), [dNet, setDNet] = useState(0);
   useEffect(() => {
     const tgt = { net, rev, comm, mm, breaksCount };
@@ -1748,13 +1748,32 @@ function DashboardHero({ net, netDelta, rev, comm, mm, breaksCount, heroSpark, m
         </div>
       </div>
 
-      {/* MONEY-FLOW WATERFALL — every P&L number in one chart */}
-      {waterfall && waterfall.length > 0 && (
-        <div style={{ background: "linear-gradient(160deg,#181016,#130d11)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "15px 17px", marginBottom: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 800 }}>Money Flow <span style={{ fontSize: 10, fontWeight: 600, color: "#7a6b74" }}>· gross → deductions → true net</span></div>
+      {/* MONEY FLOW — clean labeled breakdown: Bazooka share → deductions/adds → True Net */}
+      {flow && flow.length > 0 && (
+        <div style={{ background: "linear-gradient(160deg,#181016,#130d11)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 16, padding: "16px 18px", marginBottom: 14 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 800, marginBottom: 12 }}>Money Flow <span style={{ fontSize: 10, fontWeight: 600, color: "#7a6b74" }}>· how Bazooka's share becomes True Net</span></div>
+          <div>
+            {flow.map((r, i) => {
+              const isStart = r.kind === "start";
+              const isIn = r.kind === "in";
+              const color = isStart ? "#f6eef2" : isIn ? "#34d399" : "#ff6b8a";
+              const sign = isStart ? "" : isIn ? "+ " : "− ";
+              return (
+                <div key={r.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: color, opacity: isStart ? 1 : 0.8, flexShrink: 0 }} />
+                    <span style={{ fontSize: 12.5, fontWeight: isStart ? 800 : 600, color: isStart ? "#f6eef2" : "#c9bdc4" }}>{r.label}</span>
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 800, color, fontVariantNumeric: "tabular-nums" }}>{sign}{fmt(Math.abs(r.val))}</span>
+                </div>
+              );
+            })}
+            {/* Result row */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "13px 0 3px", marginTop: 4 }}>
+              <span style={{ fontSize: 13, fontWeight: 900, color: "#ff4d94", textTransform: "uppercase", letterSpacing: 1 }}>= Bazooka True Net</span>
+              <span style={{ fontSize: 20, fontWeight: 900, color: "#ff4d94", fontVariantNumeric: "tabular-nums", filter: "drop-shadow(0 0 12px rgba(232,49,122,0.4))" }}>{fmt(flowNet)}</span>
+            </div>
           </div>
-          <div style={{ position: "relative", height: 210 }}><DashWaterfall id="dashWaterfall" steps={waterfall} /></div>
         </div>
       )}
 
@@ -2173,8 +2192,18 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           acc.trueNet  += c.bazTrueNet||0;
           acc.expenses += exp;
           acc.imcDirectReimb += c.imcDirectReimb||0;
+          // Exact True Net formula terms (line-for-line with the bazTrueNet equation),
+          // so the money-flow breakdown reconciles precisely to True Net.
+          acc.bazOwnShare  += (c.bazOwnShare||0);
+          acc.tnCommAmt    += (c.commAmt||0);
+          acc.tnEventStaff += (c.eventStaffAmt||0);
+          acc.tnSalesBonus += (c.salesBonus||0);
+          acc.tnRepExpShare+= (c.repExpShare||0);
+          acc.tnBazExpShare+= (c.bazExpShare||0);
+          acc.tnImcReimb   += (c.imcReimb||0) + (c.imcDirectReimb||0);
+          acc.tnRemoteCosts+= (c.biguCardCosts||0) + (c.biguShippingHalf||0);
           return acc;
-        }, { gross:0, imc:0, comm:0, baz:0, trueNet:0, expenses:0, imcDirectReimb:0, singlesGross:0, singlesComm:0 });
+        }, { gross:0, imc:0, comm:0, baz:0, trueNet:0, expenses:0, imcDirectReimb:0, singlesGross:0, singlesComm:0, bazOwnShare:0, tnCommAmt:0, tnEventStaff:0, tnSalesBonus:0, tnRepExpShare:0, tnBazExpShare:0, tnImcReimb:0, tnRemoteCosts:0 });
 
         // Months that already have real logged streams — don't also count historical
         // summaries for those months, or true net / gross would double up.
@@ -2410,23 +2439,23 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
           );
         };
 
-        // Money-flow waterfall — every P&L number as a connected step:
-        // Gross → −Expenses → −IMC(70%) → −Commission → True Net.
-        const wfImc = totals.imc + Object.entries(imcAdjustments || {}).reduce((s,[mk,v])=>{ const [y,m]=mk.split("-").map(Number); return inPeriod(new Date(y,m-1,15).toISOString().split("T")[0]) ? s+(parseFloat(v)||0) : s; },0);
-        const heroWaterfall = (() => {
-          const g = totals.gross || 0, exp = totals.expenses || 0, imc = wfImc || 0, comm = totals.comm || 0, tn = totals.trueNet || 0;
-          const steps = [];
-          let run = g;
-          steps.push({ label: "Gross", from: 0, to: g, kind: "total" });
-          steps.push({ label: "Expenses", from: run, to: run - exp, kind: "down" }); run -= exp;
-          steps.push({ label: "IMC 70%", from: run, to: run - imc, kind: "down" }); run -= imc;
-          steps.push({ label: "Commission", from: run, to: run - comm, kind: "down" }); run -= comm;
-          // Any residual gap between the stepped-down running value and actual True Net
-          // (reimbursements, expense-share, etc.) shown as a reconciling step so the
-          // bar lands exactly on True Net.
-          if (Math.abs(run - tn) > 1) { steps.push({ label: run < tn ? "+ Reimb" : "Other", from: run, to: tn, kind: run < tn ? "up" : "down" }); }
-          steps.push({ label: "True Net", from: 0, to: tn, kind: "total" });
-          return steps;
+        // Money-flow breakdown — the True Net settlement, line by line, reconciling
+        // EXACTLY to True Net (built from the same terms as the bazTrueNet formula).
+        // Positive = money in (green), negative = money out (red).
+        const heroFlow = (() => {
+          const t = totals;
+          const rows = [
+            { label: "Bazooka 30% share", val: t.bazOwnShare, kind: "start" },
+            { label: "Rep commission", val: -t.tnCommAmt, kind: "out" },
+            { label: "Event staff fees", val: -t.tnEventStaff, kind: "out" },
+            { label: "Sales bonuses", val: -t.tnSalesBonus, kind: "out" },
+            { label: "Bazooka expense share", val: -t.tnBazExpShare, kind: "out" },
+            { label: "Remote-breaker costs", val: -t.tnRemoteCosts, kind: "out" },
+            { label: "Rep reimburses expenses", val: t.tnRepExpShare, kind: "in" },
+            { label: "IMC reimbursements", val: t.tnImcReimb, kind: "in" },
+          ];
+          // Drop zero rows so the list stays clean; keep the start + end always.
+          return rows.filter(r => r.kind === "start" || Math.abs(r.val) >= 1);
         })();
 
         return (
@@ -2437,7 +2466,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
             heroSpark={heroSpark} miniRev={heroMiniRev} miniComm={heroMiniComm} miniMM={heroMiniMM} miniBreaks={heroMiniBreaks}
             revLabels={heroSeries.labels} revGross={heroSeries.gross} revNet={heroSeries.net}
             tiers={heroTiers.length ? heroTiers : [{label:"—",color:"#7a6b74",count:1}]} board={heroBoard} fmt={fmt}
-            waterfall={heroWaterfall}
+            flow={heroFlow} flowNet={totals.trueNet}
           />
           <div style={{ background:"var(--bz-s1)", border:"1px solid var(--bz-line)", borderRadius:"var(--bz-radius)", padding:"22px", boxShadow:"var(--bz-shadow)" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:18, flexWrap:"wrap", gap:10 }}>
