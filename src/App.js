@@ -11063,9 +11063,13 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
   function estimateRevenue(p, mult=1.5) { return planMktValue(p) * mult; }
   function projectedRevenue(planList, mult=1.5) {
     return planList.reduce((s,p) => {
+      // Manual dollar estimate always wins when entered (estMultiple is cleared when
+      // the user types a manual amount; it's only set when they tap a multiple tier).
+      const manual = parseFloat(p.estRevenue);
+      const hasMultiple = p.estMultiple !== "" && p.estMultiple != null;
+      if (manual > 0 && !hasMultiple) return s + manual;
       const mkt = planMktValue(p);
       if (mkt > 0) {
-        // If a multiple was explicitly chosen (via tier button), use it. Otherwise always default to 1.5x.
         const storedMult = parseFloat(p.estMultiple);
         const effectiveMult = (storedMult >= 0.5 && storedMult <= 5) ? storedMult : mult;
         return s + mkt * effectiveMult;
@@ -11090,10 +11094,14 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
     // Owners (Dev/Derrik) don't draw rep commission — they take owner profit instead.
     const OWNER_BREAKERS = ["Dev","Devin","Derrik"];
     if (OWNER_BREAKERS.includes(p.breaker)) return { breaker: p.breaker, comm: 0, isOwner: true };
-    // estimated gross for this stream (same logic as projectedRevenue)
+    // estimated gross for this stream (same priority as projectedRevenue)
     const mkt = planMktValue(p);
     let estGross;
-    if (mkt > 0) {
+    const manualEst = parseFloat(p.estRevenue);
+    const hasMult = p.estMultiple !== "" && p.estMultiple != null;
+    if (manualEst > 0 && !hasMult) {
+      estGross = manualEst;
+    } else if (mkt > 0) {
       const storedMult = parseFloat(p.estMultiple);
       const effMult = (storedMult >= 0.5 && storedMult <= 5) ? storedMult : 1.5;
       estGross = mkt * effMult;
@@ -11126,6 +11134,10 @@ function StreamCalendar({ streams=[], skuPrices={}, inventory=[], breaks=[], car
   function totalMonthMkt(y,m) { return monthPlans(y,m).reduce((s,p)=>s+planMktValue(p),0); }
   // Always returns revenue based on current SKU prices when products exist
   function liveRevenue(p) {
+    // Manual dollar estimate always wins when the user typed one (no multiple set).
+    const manual = parseFloat(p.estRevenue);
+    const hasMultiple = p.estMultiple !== "" && p.estMultiple != null;
+    if (manual > 0 && !hasMultiple) return manual;
     const mkt = planMktValue(p);
     if (mkt > 0) {
       const mult = parseFloat(p.estMultiple) || (p.estRevenue && mkt > 0 ? parseFloat(p.estRevenue)/mkt : 1.5);
