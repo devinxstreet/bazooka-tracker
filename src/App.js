@@ -294,12 +294,13 @@ function b44Download(filename, dataObj) {
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
-async function exportInternalDataJson(setStatus) {
+async function exportInternalDataJson(setStatus, collections) {
+  const list = collections && collections.length ? collections : INTERNAL_EXPORT_COLLECTIONS;
   const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
   const manifest = { exportedAt: new Date().toISOString(), forBase44: true, collections: {} };
   let totalDocs = 0, fileCount = 0;
 
-  for (const name of INTERNAL_EXPORT_COLLECTIONS) {
+  for (const name of list) {
     if (setStatus) setStatus(`Exporting ${name}…`);
     try {
       const snap = await getDocs(collection(db, name));
@@ -1834,6 +1835,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   const [quotesCollapsed, setQuotesCollapsed] = useState(true); // lot submissions collapsed by default
   const [financialPeriod, setFinancialPeriod] = useState("month");
   const [exportStatus, setExportStatus] = useState("");   // internal-data JSON export
+  const [exportStatus2, setExportStatus2] = useState(""); // financial-only export (streams + history)
   const [customStart,     setCustomStart]     = useState("");
   const [customEnd,       setCustomEnd]       = useState("");
   const [drillDown,       setDrillDown]       = useState(null);
@@ -2477,7 +2479,13 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   onClick={async ()=>{ setExportStatus("Exporting…"); try { await exportInternalDataJson(setExportStatus); } catch(e){ setExportStatus("Export failed — try again"); } setTimeout(()=>setExportStatus(""), 5000); }}
                   title="Download a full JSON backup of all internal business data"
                   style={{ marginTop:8, background:"transparent", border:"1px solid var(--bz-line)", color:"var(--bz-ink-2)", borderRadius:8, padding:"6px 12px", fontSize:11.5, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>
-                  {exportStatus || "⬇ Export Internal Data → Base44"}
+                  {exportStatus || "⬇ Export ALL Internal Data → Base44"}
+                </button>
+                <button
+                  onClick={async ()=>{ setExportStatus2("Exporting…"); try { await exportInternalDataJson(setExportStatus2, ["streams","historical_data"]); } catch(e){ setExportStatus2("Export failed — try again"); } setTimeout(()=>setExportStatus2(""), 5000); }}
+                  title="Download just streams + historical monthly summaries — the financial data for Base44"
+                  style={{ marginTop:8, marginLeft:8, background:"linear-gradient(135deg,var(--bz-pink-hot),var(--bz-pink))", border:"none", color:"#0b0709", borderRadius:8, padding:"6px 12px", fontSize:11.5, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+                  {exportStatus2 || "⬇ Download Financial Data (streams + history)"}
                 </button>
               </div>
               <div style={{ display:"inline-flex", gap:2, background:"var(--bz-s1)", border:"1px solid var(--bz-line)", borderRadius:10, padding:3 }}>
