@@ -1836,6 +1836,7 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
   const [financialPeriod, setFinancialPeriod] = useState("month");
   const [exportStatus, setExportStatus] = useState("");   // internal-data JSON export
   const [exportStatus2, setExportStatus2] = useState(""); // financial-only export (streams + history)
+  const [exportStatus3, setExportStatus3] = useState(""); // buyer + campaign export
   const [customStart,     setCustomStart]     = useState("");
   const [customEnd,       setCustomEnd]       = useState("");
   const [drillDown,       setDrillDown]       = useState(null);
@@ -2486,6 +2487,12 @@ function Dashboard({ inventory, breaks, user, userRole, streams=[], historicalDa
                   title="Download just streams + historical monthly summaries — the financial data for Base44"
                   style={{ marginTop:8, marginLeft:8, background:"linear-gradient(135deg,var(--bz-pink-hot),var(--bz-pink))", border:"none", color:"#0b0709", borderRadius:8, padding:"6px 12px", fontSize:11.5, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
                   {exportStatus2 || "⬇ Download Financial Data (streams + history)"}
+                </button>
+                <button
+                  onClick={async ()=>{ setExportStatus3("Exporting…"); try { await exportInternalDataJson(setExportStatus3, ["buyers"]); } catch(e){ setExportStatus3("Export failed — try again"); } setTimeout(()=>setExportStatus3(""), 5000); }}
+                  title="Download the buyers table — CRM + FIRSTTIME25 campaign data — for Base44"
+                  style={{ marginTop:8, marginLeft:8, background:"linear-gradient(135deg,#7c9cff,#5578e0)", border:"none", color:"#0b0709", borderRadius:8, padding:"6px 12px", fontSize:11.5, fontWeight:800, cursor:"pointer", fontFamily:"inherit" }}>
+                  {exportStatus3 || "⬇ Download Buyer + Campaign Data"}
                 </button>
               </div>
               <div style={{ display:"inline-flex", gap:2, background:"var(--bz-s1)", border:"1px solid var(--bz-line)", borderRadius:10, padding:3 }}>
@@ -3507,7 +3514,7 @@ function LotComp({ defaultMode="builder", onAccept, onSaveComp, onDeleteComp, co
             <div style={{ fontSize:10, fontWeight:700, color:"var(--bz-ink-2)", textTransform:"uppercase", letterSpacing:1.5, marginBottom:6 }}>Ship Cards To</div>
             <div style={{ fontSize:13, color:"var(--bz-ink)", fontWeight:700, lineHeight:1.8 }}>
               Devin -- Bazooka<br/>
-              425 Prosperity Dr<br/>
+              2150 N Pointe Dr<br/>
               Warsaw, IN 46582
             </div>
           </div>
@@ -17006,6 +17013,30 @@ function PublicPlaybookBuilder() {
     return (a.hero||"").localeCompare(b.hero||"");
   });
 
+  // Export all plays with their DBS values as a CSV (respects the current search filter).
+  function exportPlaysDbs() {
+    const rows = [["Play Name","Card #","Set","Weapon","Play Cost","DBS Value","Ability"]];
+    available.forEach(c => {
+      rows.push([
+        c.hero || "",
+        c.cardNum || "",
+        c.setName || "",
+        c.weapon || "",
+        c.playCost ?? "",
+        c.dbs ?? "",
+        (c.playAbility || "").replace(/\s+/g, " ").trim(),
+      ]);
+    });
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `plays-dbs-${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
   const S = { inp:{ background:"var(--bz-s3)", border:"1px solid var(--bz-line)", borderRadius:8, color:"var(--bz-ink)", padding:"6px 10px", fontSize:12, fontFamily:"inherit", outline:"none", width:"100%" }, card:{ background:"linear-gradient(160deg,#181016,#130d11)", border:"1px solid var(--bz-line)", borderRadius:16, padding:"14px 16px", boxShadow:"0 1px 0 rgba(255,255,255,0.03) inset, 0 6px 22px rgba(0,0,0,0.35)" } };
 
   if (loading) return <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:"var(--bz-bg)", color:"#E8317A", fontSize:16, fontWeight:700 }}>Loading plays...</div>;
@@ -17054,6 +17085,10 @@ function PublicPlaybookBuilder() {
                 <option value="dbs_asc">{"DBS: Low \u2192 High"}</option>
               </select>
               <span style={{ fontSize:11, color:"var(--bz-ink-3)", alignSelf:"center" }}>{available.length} plays</span>
+              <button onClick={exportPlaysDbs} title="Export all plays with their DBS values to CSV"
+                style={{ background:"linear-gradient(135deg,#A855F7,#7c3aed)", border:"none", color:"#fff", borderRadius:8, padding:"6px 12px", fontSize:11.5, fontWeight:800, cursor:"pointer", fontFamily:"inherit", alignSelf:"center", whiteSpace:"nowrap" }}>
+                ⬇ Export DBS
+              </button>
             </div>
             <div style={{ background:"var(--bz-bg)", border:"1px solid var(--bz-line)", borderRadius:10, overflow:"hidden", maxHeight:560, overflowY:"auto" }}>
               {available.map((c,i)=>{
@@ -53051,7 +53086,7 @@ function PublicQuote({ quoteId }) {
           <div style={{ fontSize:10, fontWeight:700, color:"var(--bz-ink-3)", textTransform:"uppercase", letterSpacing:1.5, marginBottom:8 }}>Ship Cards To</div>
           <div style={{ fontSize:13, color:"var(--bz-ink)", fontWeight:700, lineHeight:1.8 }}>
             Devin -- Bazooka<br/>
-            425 Prosperity Dr<br/>
+            2150 N Pointe Dr<br/>
             Warsaw, IN 46582
           </div>
         </div>
@@ -53064,7 +53099,7 @@ function PublicQuote({ quoteId }) {
             <div style={{ fontSize:14, color:"var(--bz-ink-2)", marginBottom:14 }}>Here's a reminder of what to do next:</div>
             <div style={{ background:"var(--bz-bg)", border:"1px solid var(--bz-line-2)", borderRadius:8, padding:"14px 16px", marginBottom:12 }}>
               <div style={{ fontSize:12, fontWeight:700, color:"var(--bz-ink-3)", marginBottom:6, textTransform:"uppercase", letterSpacing:1 }}>📦 Ship your cards to</div>
-              <div style={{ fontSize:14, color:"var(--bz-ink)", fontWeight:700, lineHeight:1.8 }}>Devin — Bazooka Breaks<br/>425 Prosperity Dr<br/>Warsaw, IN 46582</div>
+              <div style={{ fontSize:14, color:"var(--bz-ink)", fontWeight:700, lineHeight:1.8 }}>Devin — Bazooka Breaks<br/>2150 N Pointe Dr<br/>Warsaw, IN 46582</div>
             </div>
             <div style={{ fontSize:13, color:"#999", lineHeight:1.7 }}>
               Use top loaders and a tracked shipping method. Once sent, share your tracking number with us on Discord at <strong style={{ color:"var(--bz-ink-2)" }}>BubbleGumKing</strong> or via Whatnot.<br/><br/>
@@ -53108,7 +53143,7 @@ function PublicQuote({ quoteId }) {
                       <div style={{ fontSize:11, color:"var(--bz-ink-3)", fontWeight:700, marginBottom:4, textTransform:"uppercase", letterSpacing:1 }}>Ship To</div>
                       <div style={{ fontSize:14, color:"var(--bz-ink)", fontWeight:700, lineHeight:1.8 }}>
                         Devin — Bazooka Breaks<br/>
-                        425 Prosperity Dr<br/>
+                        2150 N Pointe Dr<br/>
                         Warsaw, IN 46582
                       </div>
                     </div>
