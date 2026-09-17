@@ -29404,6 +29404,23 @@ function PlaybookTab({ user, pbCards, pbSearch, setPbSearch, pbSort, setPbSort, 
                       <input type="file" accept=".csv" disabled={dbsImporting} onChange={e=>{ const f=e.target.files[0]; if(f) importDbsCsv(f); e.target.value=""; }} style={{ display:"none" }}/>
                     </label>
                   )}
+                  {_pbAdmin && (
+                    <button
+                      onClick={()=>{
+                        const rows=[["Play Name","Card #","Set","Weapon","Play Cost","DBS Value","Ability"]];
+                        pbAvail.forEach(c=>rows.push([c.hero||"",c.cardNum||"",c.setName||"",c.weapon||"",c.playCost??"",c.dbs??"",(c.playAbility||"").replace(/\s+/g," ").trim()]));
+                        const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+                        const blob=new Blob([csv],{type:"text/csv;charset=utf-8"});
+                        const url=URL.createObjectURL(blob);
+                        const a=document.createElement("a");a.href=url;a.download=`plays-dbs-${new Date().toISOString().split("T")[0]}.csv`;
+                        document.body.appendChild(a);a.click();document.body.removeChild(a);
+                        setTimeout(()=>URL.revokeObjectURL(url),4000);
+                      }}
+                      title="Export the listed plays with their DBS values to CSV"
+                      style={{ background:"#0f1a12", color:"#4ade80", border:"1px solid #4ade8044", borderRadius:8, padding:"6px 12px", fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap", alignSelf:"center" }}>
+                      ⬇ Export DBS
+                    </button>
+                  )}
                   {dbsStatus && <span style={{ fontSize:11, fontWeight:700, color:dbsStatus.ok===true?"#4ade80":dbsStatus.ok===false?"#E8317A":"#FBBF24", alignSelf:"center" }}>{dbsStatus.msg}</span>}
                   <span style={{fontSize:11,color:"rgba(255,255,255,0.2)",alignSelf:"center"}}>{pbAvail.length} plays</span>
                 </div>
