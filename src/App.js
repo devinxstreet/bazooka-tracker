@@ -39668,7 +39668,7 @@ See you in there!
         // The /swancity moderator (swancitycards@gmail.com) must ALWAYS stay signed in,
         // on any path/instance. This gate runs BEFORE any Firestore read so a flaky
         // server read on mobile can never bounce an allowed user back to signed-out.
-        const ACCESS_PAUSED = true;
+        const ACCESS_PAUSED = false; // launch is live — anyone can sign in
         const emailNorm = (u.email || "").toLowerCase().trim();
         const isSwancityMod = emailNorm === "swancitycards@gmail.com";
         const isTeam = hasEarlyAccess(u.email) || isSwancityMod || swancity;
@@ -55236,7 +55236,7 @@ function AppInner() {
   const _path = window.location.pathname;
 
   // -- Pre-launch wall: inner pages locked until June 18 except @bazookabreaks.com team --
-  const ACCESS_PAUSED = true; // flip to false on June 18 to open to everyone
+  const ACCESS_PAUSED = false; // launch is live — collector app open to everyone
   // eaLoaded is read here on purpose: hasEarlyAccess() consults a module-level array, so this
   // line must re-run once the list arrives. Referencing the state is what ties them together.
   const _isTeam = (eaLoaded, hasEarlyAccess(user?.email));
